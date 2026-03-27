@@ -21,6 +21,12 @@ const config: Config = {
           light: '#F0F5F5',
           muted: '#2A4A4A',
         },
+        button: {
+          DEFAULT: '#0B3D2E',
+          hover: '#145A44',
+          active: '#072E22',
+          focus: '#94A3B8',
+        },
         positive: {
           DEFAULT: '#4A6B5A',
           light: '#F0F5F0',
