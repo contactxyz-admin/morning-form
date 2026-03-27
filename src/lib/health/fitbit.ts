@@ -6,6 +6,7 @@ export interface FitbitTokens {
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  user_id?: string;
 }
 
 export interface FitbitSleep {
@@ -39,7 +40,29 @@ export class FitbitClient {
   }
 
   async exchangeCode(code: string, redirectUri: string): Promise<FitbitTokens> {
-    return { access_token: `mock_fitbit_${code}`, refresh_token: 'mock', expires_in: 28800 };
+    if (!this.clientId || !this.clientSecret) {
+      return { access_token: `mock_fitbit_${code}`, refresh_token: 'mock', expires_in: 28800 };
+    }
+
+    const credentials = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
+    const response = await fetch('https://api.fitbit.com/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${credentials}`,
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Fitbit token exchange failed: ${response.status}`);
+    }
+
+    return response.json() as Promise<FitbitTokens>;
   }
 
   async getSleep(startDate: string, endDate: string): Promise<FitbitSleep[]> {

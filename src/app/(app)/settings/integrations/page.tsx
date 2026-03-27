@@ -26,33 +26,88 @@ const providers: Record<HealthProvider, ProviderConfig> = {
 
 export default function IntegrationsPage() {
   const router = useRouter();
-  const [connections, setConnections] = useState<Record<string, { connected: boolean; lastSync: string | null }>>({});
+  const [connections, setConnections] = useState<Record<string, { connected: boolean; lastSync: string | null; status?: string }>>({});
+  const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
+  const [callbackState, setCallbackState] = useState<{ status: string | null; provider: string | null; message: string | null }>({
+    status: null,
+    provider: null,
+    message: null,
+  });
 
   useEffect(() => {
-    const saved = localStorage.getItem('mf_health_connections');
-    if (saved) setConnections(JSON.parse(saved));
-    else {
-      // Default: Whoop and Oura connected for demo
-      const defaults: Record<string, { connected: boolean; lastSync: string | null }> = {
-        whoop: { connected: true, lastSync: '2026-03-26T08:30:00Z' },
-        oura: { connected: true, lastSync: '2026-03-26T07:45:00Z' },
-      };
-      setConnections(defaults);
-      localStorage.setItem('mf_health_connections', JSON.stringify(defaults));
-    }
+    const loadConnections = async () => {
+      const response = await fetch('/api/health/connections', { cache: 'no-store' });
+      if (!response.ok) return;
+      const data = await response.json();
+      const normalized = (data.connections as Array<{ provider: string; status: string; lastSyncAt: string | null }>).reduce(
+        (acc, connection) => {
+          acc[connection.provider] = {
+            connected: connection.status === 'connected',
+            lastSync: connection.lastSyncAt,
+            status: connection.status,
+          };
+          return acc;
+        },
+        {} as Record<string, { connected: boolean; lastSync: string | null; status?: string }>
+      );
+      setConnections(normalized);
+    };
+
+    loadConnections();
   }, []);
 
-  const toggleConnection = (provider: string) => {
-    setConnections(prev => {
-      const next = { ...prev };
-      if (next[provider]?.connected) {
-        next[provider] = { connected: false, lastSync: null };
-      } else {
-        next[provider] = { connected: true, lastSync: new Date().toISOString() };
-      }
-      localStorage.setItem('mf_health_connections', JSON.stringify(next));
-      return next;
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setCallbackState({
+      status: params.get('status'),
+      provider: params.get('provider'),
+      message: params.get('message'),
     });
+  }, []);
+
+  const connectProvider = async (provider: HealthProvider) => {
+    setLoadingProvider(provider);
+    try {
+      const response = await fetch('/api/health/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to connect');
+      }
+
+      window.location.href = data.authUrl;
+    } catch (error) {
+      console.error(error);
+      setLoadingProvider(null);
+    }
+  };
+
+  const disconnectProvider = async (provider: HealthProvider) => {
+    setLoadingProvider(provider);
+    try {
+      const response = await fetch('/api/health/connections', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to disconnect');
+      }
+
+      setConnections((prev) => ({
+        ...prev,
+        [provider]: { connected: false, lastSync: null, status: 'disconnected' },
+      }));
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingProvider(null);
+    }
   };
 
   return (
@@ -66,6 +121,17 @@ export default function IntegrationsPage() {
       <p className="text-body text-text-secondary mb-8">
         Connect your devices to enrich your profile with objective health data.
       </p>
+
+      {callbackState.status && callbackState.provider && (
+        <Card variant={callbackState.status === 'connected' ? 'contextual' : 'action'} accentColor={callbackState.status === 'connected' ? undefined : 'amber'} className="mb-6">
+          <p className="text-body text-text-primary">
+            {callbackState.status === 'connected'
+              ? `${providers[callbackState.provider as HealthProvider]?.name || callbackState.provider} connected successfully.`
+              : `Connection issue for ${providers[callbackState.provider as HealthProvider]?.name || callbackState.provider}.`}
+          </p>
+          {callbackState.message && <p className="mt-1 text-caption text-text-secondary">{callbackState.message}</p>}
+        </Card>
+      )}
 
       <div className="space-y-4">
         {(Object.entries(providers) as [HealthProvider, ProviderConfig][]).map(([key, provider], i) => {
@@ -102,7 +168,8 @@ export default function IntegrationsPage() {
                   <Button
                     variant={isConnected ? 'secondary' : 'primary'}
                     size="sm"
-                    onClick={() => toggleConnection(key)}
+                    loading={loadingProvider === key}
+                    onClick={() => (isConnected ? disconnectProvider(key) : connectProvider(key))}
                   >
                     {isConnected ? 'Disconnect' : 'Connect'}
                   </Button>

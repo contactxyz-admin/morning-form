@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { HealthSyncService } from '@/lib/health/sync';
 import type { HealthProvider } from '@/types';
+import { prisma } from '@/lib/db';
+import { getOrCreateDemoUser } from '@/lib/demo-user';
 
 export async function POST(request: Request) {
   try {
@@ -8,7 +10,12 @@ export async function POST(request: Request) {
     const { providers } = body as { providers?: HealthProvider[] };
 
     const syncService = new HealthSyncService();
-    const connectedProviders: HealthProvider[] = providers || ['whoop', 'oura'];
+    const user = await getOrCreateDemoUser();
+    const storedConnections = await prisma.healthConnection.findMany({
+      where: { userId: user.id, status: 'connected' },
+    });
+    const connectedProviders: HealthProvider[] =
+      providers || storedConnections.map((connection) => connection.provider as HealthProvider);
     const today = new Date().toISOString().split('T')[0];
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
 
@@ -24,10 +31,14 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    // Return latest health summary (mock for MVP)
     const syncService = new HealthSyncService();
+    const user = await getOrCreateDemoUser();
+    const storedConnections = await prisma.healthConnection.findMany({
+      where: { userId: user.id, status: 'connected' },
+    });
     const today = new Date().toISOString().split('T')[0];
-    const dataPoints = await syncService.syncProvider('whoop', today, today);
+    const provider = (storedConnections[0]?.provider as HealthProvider | undefined) || 'whoop';
+    const dataPoints = await syncService.syncProvider(provider, today, today);
     const summary = syncService.aggregateToSummary(dataPoints);
 
     return NextResponse.json({ summary });
