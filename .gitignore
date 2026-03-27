@@ -7,3 +7,5 @@ prisma/dev.db
 dist/
 build/
 *.log
+xcuserdata/
+*.xcuserstate

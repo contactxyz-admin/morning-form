@@ -1,5 +1,6 @@
 const required = {
   DATABASE_URL: process.env.DATABASE_URL ?? 'file:./dev.db',
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
 };
 
 const optional = {
@@ -22,4 +23,3 @@ export const env = {
   ...required,
   ...optional,
 };
-

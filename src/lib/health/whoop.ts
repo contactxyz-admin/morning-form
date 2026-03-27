@@ -84,12 +84,50 @@ export class WhoopClient {
   }
 
   async exchangeCode(code: string, redirectUri: string): Promise<WhoopTokens> {
-    // In production: POST to https://api.prod.whoop.com/oauth/oauth2/token
-    return { access_token: `mock_whoop_${code}`, refresh_token: 'mock_refresh', expires_in: 3600 };
+    if (!this.clientId || !this.clientSecret) {
+      return { access_token: `mock_whoop_${code}`, refresh_token: 'mock_refresh', expires_in: 3600 };
+    }
+
+    const response = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Whoop token exchange failed: ${response.status}`);
+    }
+
+    return response.json() as Promise<WhoopTokens>;
   }
 
   async refreshToken(refreshToken: string): Promise<WhoopTokens> {
-    return { access_token: `mock_refreshed_${Date.now()}`, refresh_token: 'mock_refresh_new', expires_in: 3600 };
+    if (!this.clientId || !this.clientSecret) {
+      return { access_token: `mock_refreshed_${Date.now()}`, refresh_token: 'mock_refresh_new', expires_in: 3600 };
+    }
+
+    const response = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Whoop token refresh failed: ${response.status}`);
+    }
+
+    return response.json() as Promise<WhoopTokens>;
   }
 
   async getRecovery(startDate: string, endDate: string): Promise<WhoopRecovery[]> {

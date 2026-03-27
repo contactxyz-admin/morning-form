@@ -79,11 +79,50 @@ export class OuraClient {
   }
 
   async exchangeCode(code: string, redirectUri: string): Promise<OuraTokens> {
-    return { access_token: `mock_oura_${code}`, refresh_token: 'mock_refresh', expires_in: 86400 };
+    if (!this.clientId || !this.clientSecret) {
+      return { access_token: `mock_oura_${code}`, refresh_token: 'mock_refresh', expires_in: 86400 };
+    }
+
+    const response = await fetch('https://api.ouraring.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Oura token exchange failed: ${response.status}`);
+    }
+
+    return response.json() as Promise<OuraTokens>;
   }
 
   async refreshToken(refreshToken: string): Promise<OuraTokens> {
-    return { access_token: `mock_oura_refreshed`, refresh_token: 'mock_new', expires_in: 86400 };
+    if (!this.clientId || !this.clientSecret) {
+      return { access_token: `mock_oura_refreshed`, refresh_token: 'mock_new', expires_in: 86400 };
+    }
+
+    const response = await fetch('https://api.ouraring.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Oura token refresh failed: ${response.status}`);
+    }
+
+    return response.json() as Promise<OuraTokens>;
   }
 
   async getSleep(startDate: string, endDate: string): Promise<OuraSleep[]> {
