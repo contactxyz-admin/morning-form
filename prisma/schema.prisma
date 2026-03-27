@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assessment       AssessmentResponse?
+  stateProfile     StateProfile?
+  protocol         Protocol?
+  checkIns         CheckIn[]
+  chatMessages     ChatMessage[]
+  healthConnections HealthConnection[]
+  healthDataPoints  HealthDataPoint[]
+  preferences      UserPreferences?
+}
+
+model AssessmentResponse {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  responses String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+}
+
+model StateProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id])
+  archetype         String
+  primaryPattern    String
+  patternDescription String
+  observations      String
+  constraints       String
+  sensitivities     String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Protocol {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  version     Int      @default(1)
+  status      String   @default("active")
+  rationale   String
+  confidence  String   @default("high")
+  items       ProtocolItem[]
+  adjustments ProtocolAdjustment[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ProtocolItem {
+  id            String   @id @default(cuid())
+  protocolId    String
+  protocol      Protocol @relation(fields: [protocolId], references: [id])
+  timeSlot      String
+  timeLabel     String
+  compounds     String
+  dosage        String
+  timingCue     String
+  mechanism     String
+  evidenceTier  String   @default("strong")
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+}
+
+model ProtocolAdjustment {
+  id          String   @id @default(cuid())
+  protocolId  String
+  protocol    Protocol @relation(fields: [protocolId], references: [id])
+  description String
+  rationale   String
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  responses String
+  date      String
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+  @@index([userId, type])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  role      String
+  content   String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model HealthConnection {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  provider     String
+  status       String   @default("connected")
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  terraUserId  String?
+  metadata     String?
+  lastSyncAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model HealthDataPoint {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  provider   String
+  category   String
+  metric     String
+  value      Float
+  unit       String
+  timestamp  DateTime
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, category, timestamp])
+  @@index([userId, provider])
+}
+
+model UserPreferences {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id])
+  wakeTime       String   @default("07:00")
+  windDownTime   String   @default("22:00")
+  timezone       String   @default("UTC")
+  notifyMorning  Boolean  @default(true)
+  notifyProtocol Boolean  @default(true)
+  notifyEvening  Boolean  @default(true)
+  notifyWeekly   Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

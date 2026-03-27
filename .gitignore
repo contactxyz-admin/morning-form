@@ -2,6 +2,8 @@ node_modules/
 .DS_Store
 .env
 .env.local
+.next/
+prisma/dev.db
 dist/
 build/
 *.log
