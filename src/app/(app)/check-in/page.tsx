@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { getTimeOfDay, getDateKey } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -59,9 +58,6 @@ export default function CheckInPage() {
     if (localStorage.getItem(key)) setDone(true);
   }, [isMorning, dateKey]);
 
-  const canSubmitMorning = sleepQuality && currentFeeling;
-  const canSubmitEvening = focusQuality && afternoonEnergy && protocolAdherence;
-
   const handleSubmit = () => {
     if (isMorning) {
       localStorage.setItem(`mf_checkin_morning_${dateKey}`, JSON.stringify({ sleepQuality, currentFeeling }));
@@ -71,6 +67,18 @@ export default function CheckInPage() {
     setDone(true);
     setTimeout(() => router.push('/home'), 1200);
   };
+
+  useEffect(() => {
+    if (isMorning && sleepQuality && currentFeeling) {
+      handleSubmit();
+    }
+  }, [sleepQuality, currentFeeling]);
+
+  useEffect(() => {
+    if (!isMorning && focusQuality && afternoonEnergy && protocolAdherence) {
+      handleSubmit();
+    }
+  }, [focusQuality, afternoonEnergy, protocolAdherence]);
 
   if (done) {
     return (
@@ -163,15 +171,6 @@ export default function CheckInPage() {
         </AnimatePresence>
       </motion.div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-bg via-bg to-transparent pt-12">
-        <Button
-          fullWidth
-          onClick={handleSubmit}
-          disabled={isMorning ? !canSubmitMorning : !canSubmitEvening}
-        >
-          Done
-        </Button>
-      </div>
     </div>
   );
 }
