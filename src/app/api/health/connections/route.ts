@@ -16,6 +16,8 @@ export async function GET() {
         provider: connection.provider,
         status: connection.status,
         lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
+        expiresAt: connection.expiresAt?.toISOString() ?? null,
+        metadata: connection.metadata ? JSON.parse(connection.metadata) : null,
       })),
     });
   } catch (error) {
@@ -53,4 +55,3 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Failed to disconnect provider' }, { status: 500 });
   }
 }
-

@@ -3,20 +3,28 @@
  * Normalizes data from all providers into a unified format.
  */
 
+import type { HealthConnection as PrismaHealthConnection } from '@prisma/client';
 import type { HealthProvider, HealthDataPoint, HealthSummary } from '@/types';
+import { prisma } from '@/lib/db';
 import { TerraClient } from './terra';
 import { WhoopClient } from './whoop';
 import { OuraClient } from './oura';
+import { FitbitClient } from './fitbit';
+import { GoogleFitClient } from './google-fit';
 
 export class HealthSyncService {
   private terra: TerraClient;
   private whoop: WhoopClient;
   private oura: OuraClient;
+  private fitbit: FitbitClient;
+  private googleFit: GoogleFitClient;
 
   constructor() {
     this.terra = new TerraClient();
     this.whoop = new WhoopClient();
     this.oura = new OuraClient();
+    this.fitbit = new FitbitClient();
+    this.googleFit = new GoogleFitClient();
   }
 
   async syncProvider(provider: HealthProvider, startDate: string, endDate: string): Promise<HealthDataPoint[]> {
@@ -66,6 +74,59 @@ export class HealthSyncService {
         });
         break;
       }
+      case 'fitbit': {
+        const [sleep, activity, heartRate] = await Promise.all([
+          this.fitbit.getSleep(startDate, endDate),
+          this.fitbit.getActivity(startDate, endDate),
+          this.fitbit.getHeartRate(startDate, endDate),
+        ]);
+
+        sleep.forEach((s) => {
+          points.push(
+            { category: 'sleep', metric: 'duration', value: s.minutesAsleep / 60, unit: 'hours', timestamp: s.startTime, provider: 'fitbit' },
+            { category: 'sleep', metric: 'efficiency', value: s.efficiency, unit: '%', timestamp: s.startTime, provider: 'fitbit' },
+            { category: 'sleep', metric: 'deep_sleep', value: s.levels.summary.deep.minutes / 60, unit: 'hours', timestamp: s.startTime, provider: 'fitbit' },
+            { category: 'sleep', metric: 'rem_sleep', value: s.levels.summary.rem.minutes / 60, unit: 'hours', timestamp: s.startTime, provider: 'fitbit' },
+          );
+        });
+
+        activity.forEach((a) => {
+          points.push(
+            { category: 'activity', metric: 'steps', value: a.steps, unit: 'steps', timestamp: now, provider: 'fitbit' },
+            { category: 'activity', metric: 'calories', value: a.calories, unit: 'kcal', timestamp: now, provider: 'fitbit' },
+            { category: 'activity', metric: 'active_minutes', value: a.activeMinutes, unit: 'minutes', timestamp: now, provider: 'fitbit' },
+          );
+        });
+
+        heartRate.forEach((hr) => {
+          points.push(
+            { category: 'heart', metric: 'resting_hr', value: hr.resting, unit: 'bpm', timestamp: now, provider: 'fitbit' },
+            { category: 'heart', metric: 'avg_hr', value: hr.average, unit: 'bpm', timestamp: now, provider: 'fitbit' },
+            { category: 'heart', metric: 'max_hr', value: hr.max, unit: 'bpm', timestamp: now, provider: 'fitbit' },
+          );
+        });
+        break;
+      }
+      case 'google_fit': {
+        const [steps, sleep, heartRate] = await Promise.all([
+          this.googleFit.getSteps(startDate, endDate),
+          this.googleFit.getSleep(startDate, endDate),
+          this.googleFit.getHeartRate(startDate, endDate),
+        ]);
+
+        points.push({ category: 'activity', metric: 'steps', value: steps, unit: 'steps', timestamp: now, provider: 'google_fit' });
+
+        sleep.forEach((s) => {
+          points.push({ category: 'sleep', metric: 'duration', value: s.duration_minutes / 60, unit: 'hours', timestamp: s.start, provider: 'google_fit' });
+        });
+
+        points.push(
+          { category: 'heart', metric: 'avg_hr', value: heartRate.avg, unit: 'bpm', timestamp: now, provider: 'google_fit' },
+          { category: 'heart', metric: 'resting_hr', value: heartRate.min, unit: 'bpm', timestamp: now, provider: 'google_fit' },
+          { category: 'heart', metric: 'max_hr', value: heartRate.max, unit: 'bpm', timestamp: now, provider: 'google_fit' },
+        );
+        break;
+      }
       case 'apple_health':
       case 'garmin': {
         // These go through Terra
@@ -89,6 +150,118 @@ export class HealthSyncService {
     return points;
   }
 
+  async refreshConnectionIfNeeded(connection: PrismaHealthConnection): Promise<PrismaHealthConnection> {
+    const expiresAt = connection.expiresAt ? new Date(connection.expiresAt) : null;
+    const isExpired = expiresAt ? expiresAt.getTime() <= Date.now() + 60_000 : false;
+
+    if (!isExpired || !connection.refreshToken) {
+      return connection;
+    }
+
+    let refreshed:
+      | { access_token: string; refresh_token: string; expires_in: number }
+      | undefined;
+
+    switch (connection.provider as HealthProvider) {
+      case 'whoop':
+        refreshed = await this.whoop.refreshToken(connection.refreshToken);
+        break;
+      case 'oura':
+        refreshed = await this.oura.refreshToken(connection.refreshToken);
+        break;
+      case 'fitbit':
+        refreshed = await this.fitbit.refreshToken(connection.refreshToken);
+        break;
+      case 'google_fit':
+        refreshed = await this.googleFit.refreshToken(connection.refreshToken);
+        break;
+      default:
+        return connection;
+    }
+
+    return prisma.healthConnection.update({
+      where: { id: connection.id },
+      data: {
+        accessToken: refreshed.access_token,
+        refreshToken: refreshed.refresh_token || connection.refreshToken,
+        expiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
+        metadata: JSON.stringify({
+          ...(this.parseMetadata(connection.metadata) || {}),
+          lastTokenRefreshAt: new Date().toISOString(),
+        }),
+      },
+    });
+  }
+
+  async syncConnection(connection: PrismaHealthConnection, userId: string, startDate: string, endDate: string) {
+    const provider = connection.provider as HealthProvider;
+
+    try {
+      await prisma.healthConnection.update({
+        where: { id: connection.id },
+        data: {
+          status: 'syncing',
+          metadata: JSON.stringify({
+            ...(this.parseMetadata(connection.metadata) || {}),
+            syncError: null,
+            syncStartedAt: new Date().toISOString(),
+          }),
+        },
+      });
+
+      const refreshedConnection = await this.refreshConnectionIfNeeded(connection);
+      const points = await this.syncProvider(provider, startDate, endDate);
+      const dedupedPoints = this.deduplicateData(points);
+
+      if (dedupedPoints.length > 0) {
+        await prisma.healthDataPoint.createMany({
+          data: dedupedPoints.map((point) => ({
+            userId,
+            provider: point.provider,
+            category: point.category,
+            metric: point.metric,
+            value: point.value,
+            unit: point.unit,
+            timestamp: new Date(point.timestamp),
+            metadata: JSON.stringify({ importedAt: new Date().toISOString() }),
+          })),
+        });
+      }
+
+      await prisma.healthConnection.update({
+        where: { id: refreshedConnection.id },
+        data: {
+          status: 'connected',
+          lastSyncAt: new Date(),
+          metadata: JSON.stringify({
+            ...(this.parseMetadata(refreshedConnection.metadata) || {}),
+            syncError: null,
+            lastSyncCount: dedupedPoints.length,
+            lastSuccessfulSyncAt: new Date().toISOString(),
+          }),
+        },
+      });
+
+      return { provider, ok: true, count: dedupedPoints.length, points: dedupedPoints };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown sync error';
+
+      await prisma.healthConnection.update({
+        where: { id: connection.id },
+        data: {
+          status: 'error',
+          metadata: JSON.stringify({
+            ...(this.parseMetadata(connection.metadata) || {}),
+            syncError: message,
+            lastSyncFailedAt: new Date().toISOString(),
+          }),
+        },
+      });
+
+      return { provider, ok: false, count: 0, points: [] as HealthDataPoint[], error: message };
+    }
+  }
+
   async syncAllProviders(connectedProviders: HealthProvider[], startDate: string, endDate: string): Promise<HealthDataPoint[]> {
     const results = await Promise.allSettled(
       connectedProviders.map(p => this.syncProvider(p, startDate, endDate))
@@ -96,6 +269,25 @@ export class HealthSyncService {
     return results
       .filter((r): r is PromiseFulfilledResult<HealthDataPoint[]> => r.status === 'fulfilled')
       .flatMap(r => r.value);
+  }
+
+  deduplicateData(points: HealthDataPoint[]): HealthDataPoint[] {
+    const seen = new Set<string>();
+    return points.filter((point) => {
+      const key = [point.provider, point.metric, point.timestamp, point.value].join(':');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  parseMetadata(metadata?: string | null): Record<string, unknown> | null {
+    if (!metadata) return null;
+    try {
+      return JSON.parse(metadata) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
   }
 
   aggregateToSummary(points: HealthDataPoint[]): HealthSummary {

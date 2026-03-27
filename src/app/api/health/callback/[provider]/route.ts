@@ -7,6 +7,7 @@ import { WhoopClient } from '@/lib/health/whoop';
 import { OuraClient } from '@/lib/health/oura';
 import { FitbitClient } from '@/lib/health/fitbit';
 import { GoogleFitClient } from '@/lib/health/google-fit';
+import { HealthSyncService } from '@/lib/health/sync';
 
 type RouteContext = {
   params: {
@@ -36,9 +37,10 @@ export async function GET(request: Request, { params }: RouteContext) {
   try {
     const user = await getOrCreateDemoUser();
     const callbackUrl = `${env.NEXT_PUBLIC_APP_URL}/api/health/callback/${provider}`;
+    const syncService = new HealthSyncService();
 
     if (mock || provider === 'apple_health' || provider === 'garmin') {
-      await prisma.healthConnection.upsert({
+      const connection = await prisma.healthConnection.upsert({
         where: { userId_provider: { userId: user.id, provider } },
         update: {
           status: 'connected',
@@ -55,6 +57,8 @@ export async function GET(request: Request, { params }: RouteContext) {
           metadata: JSON.stringify({ mode: 'mock_or_terra', connectedAt: new Date().toISOString() }),
         },
       });
+
+      await syncService.syncConnection(connection, user.id, new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0], new Date().toISOString().split('T')[0]);
 
       return redirectToIntegrations('connected', provider);
     }
@@ -84,7 +88,7 @@ export async function GET(request: Request, { params }: RouteContext) {
         return redirectToIntegrations('error', provider, 'unsupported_provider');
     }
 
-    await prisma.healthConnection.upsert({
+    const connection = await prisma.healthConnection.upsert({
       where: { userId_provider: { userId: user.id, provider } },
       update: {
         status: 'connected',
@@ -106,10 +110,31 @@ export async function GET(request: Request, { params }: RouteContext) {
       },
     });
 
+    await syncService.syncConnection(connection, user.id, new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0], new Date().toISOString().split('T')[0]);
+
     return redirectToIntegrations('connected', provider);
   } catch (caughtError) {
     console.error('[API] Health callback error:', caughtError);
+    const user = await getOrCreateDemoUser();
+    await prisma.healthConnection.upsert({
+      where: { userId_provider: { userId: user.id, provider } },
+      update: {
+        status: 'error',
+        metadata: JSON.stringify({
+          syncError: caughtError instanceof Error ? caughtError.message : 'callback_failed',
+          lastSyncFailedAt: new Date().toISOString(),
+        }),
+      },
+      create: {
+        userId: user.id,
+        provider,
+        status: 'error',
+        metadata: JSON.stringify({
+          syncError: caughtError instanceof Error ? caughtError.message : 'callback_failed',
+          lastSyncFailedAt: new Date().toISOString(),
+        }),
+      },
+    });
     return redirectToIntegrations('error', provider, 'callback_failed');
   }
 }
-

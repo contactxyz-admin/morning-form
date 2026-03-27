@@ -16,13 +16,32 @@ export async function POST(request: Request) {
     });
     const connectedProviders: HealthProvider[] =
       providers || storedConnections.map((connection) => connection.provider as HealthProvider);
+    const targetConnections = storedConnections.filter((connection) =>
+      connectedProviders.includes(connection.provider as HealthProvider)
+    );
     const today = new Date().toISOString().split('T')[0];
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
 
-    const dataPoints = await syncService.syncAllProviders(connectedProviders, weekAgo, today);
-    const summary = syncService.aggregateToSummary(dataPoints);
+    const results = await Promise.all(
+      targetConnections.map((connection) =>
+        syncService.syncConnection(connection, user.id, weekAgo, today)
+      )
+    );
 
-    return NextResponse.json({ summary, dataPoints: dataPoints.length, synced: new Date().toISOString() });
+    const allPoints = results.flatMap((result) => result.points);
+    const summary = syncService.aggregateToSummary(allPoints);
+
+    return NextResponse.json({
+      summary,
+      dataPoints: allPoints.length,
+      results: results.map((result) => ({
+        provider: result.provider,
+        ok: result.ok,
+        count: result.count,
+        error: result.error ?? null,
+      })),
+      synced: new Date().toISOString(),
+    });
   } catch (error) {
     console.error('[API] Health sync error:', error);
     return NextResponse.json({ error: 'Sync failed' }, { status: 500 });

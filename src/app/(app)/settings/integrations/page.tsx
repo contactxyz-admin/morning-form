@@ -26,29 +26,33 @@ const providers: Record<HealthProvider, ProviderConfig> = {
 
 export default function IntegrationsPage() {
   const router = useRouter();
-  const [connections, setConnections] = useState<Record<string, { connected: boolean; lastSync: string | null; status?: string }>>({});
+  const [connections, setConnections] = useState<Record<string, { connected: boolean; lastSync: string | null; status?: string; expiresAt?: string | null; metadata?: Record<string, unknown> | null }>>({});
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
+  const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
   const [callbackState, setCallbackState] = useState<{ status: string | null; provider: string | null; message: string | null }>({
     status: null,
     provider: null,
     message: null,
   });
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadConnections = async () => {
       const response = await fetch('/api/health/connections', { cache: 'no-store' });
       if (!response.ok) return;
       const data = await response.json();
-      const normalized = (data.connections as Array<{ provider: string; status: string; lastSyncAt: string | null }>).reduce(
+      const normalized = (data.connections as Array<{ provider: string; status: string; lastSyncAt: string | null; expiresAt: string | null; metadata: Record<string, unknown> | null }>).reduce(
         (acc, connection) => {
           acc[connection.provider] = {
             connected: connection.status === 'connected',
             lastSync: connection.lastSyncAt,
             status: connection.status,
+            expiresAt: connection.expiresAt,
+            metadata: connection.metadata,
           };
           return acc;
         },
-        {} as Record<string, { connected: boolean; lastSync: string | null; status?: string }>
+        {} as Record<string, { connected: boolean; lastSync: string | null; status?: string; expiresAt?: string | null; metadata?: Record<string, unknown> | null }>
       );
       setConnections(normalized);
     };
@@ -64,6 +68,26 @@ export default function IntegrationsPage() {
       message: params.get('message'),
     });
   }, []);
+
+  const reloadConnections = async () => {
+    const response = await fetch('/api/health/connections', { cache: 'no-store' });
+    if (!response.ok) return;
+    const data = await response.json();
+    const normalized = (data.connections as Array<{ provider: string; status: string; lastSyncAt: string | null; expiresAt: string | null; metadata: Record<string, unknown> | null }>).reduce(
+      (acc, connection) => {
+        acc[connection.provider] = {
+          connected: connection.status === 'connected',
+          lastSync: connection.lastSyncAt,
+          status: connection.status,
+          expiresAt: connection.expiresAt,
+          metadata: connection.metadata,
+        };
+        return acc;
+      },
+      {} as Record<string, { connected: boolean; lastSync: string | null; status?: string; expiresAt?: string | null; metadata?: Record<string, unknown> | null }>
+    );
+    setConnections(normalized);
+  };
 
   const connectProvider = async (provider: HealthProvider) => {
     setLoadingProvider(provider);
@@ -82,6 +106,7 @@ export default function IntegrationsPage() {
       window.location.href = data.authUrl;
     } catch (error) {
       console.error(error);
+      setSyncMessage(error instanceof Error ? error.message : 'Failed to connect provider');
       setLoadingProvider(null);
     }
   };
@@ -105,8 +130,39 @@ export default function IntegrationsPage() {
       }));
     } catch (error) {
       console.error(error);
+      setSyncMessage(error instanceof Error ? error.message : 'Failed to disconnect provider');
     } finally {
       setLoadingProvider(null);
+    }
+  };
+
+  const syncProvider = async (provider: HealthProvider) => {
+    setSyncingProvider(provider);
+    setSyncMessage(null);
+    try {
+      const response = await fetch('/api/health/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providers: [provider] }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to sync provider');
+      }
+
+      const result = data.results?.[0];
+      if (result?.ok) {
+        setSyncMessage(`${providers[provider].name} synced successfully.`);
+      } else if (result?.error) {
+        setSyncMessage(result.error);
+      }
+      await reloadConnections();
+    } catch (error) {
+      console.error(error);
+      setSyncMessage(error instanceof Error ? error.message : 'Failed to sync provider');
+    } finally {
+      setSyncingProvider(null);
     }
   };
 
@@ -133,11 +189,20 @@ export default function IntegrationsPage() {
         </Card>
       )}
 
+      {syncMessage && (
+        <Card variant="contextual" className="mb-6">
+          <p className="text-caption text-text-secondary">{syncMessage}</p>
+        </Card>
+      )}
+
       <div className="space-y-4">
         {(Object.entries(providers) as [HealthProvider, ProviderConfig][]).map(([key, provider], i) => {
           const conn = connections[key];
           const isConnected = conn?.connected || false;
           const lastSync = conn?.lastSync;
+          const syncError = typeof conn?.metadata?.syncError === 'string' ? conn.metadata.syncError : null;
+          const expiresAt = conn?.expiresAt ? new Date(conn.expiresAt) : null;
+          const isExpired = expiresAt ? expiresAt.getTime() <= Date.now() : false;
 
           return (
             <motion.div
@@ -156,6 +221,8 @@ export default function IntegrationsPage() {
                       <div className="flex items-center gap-2">
                         <h3 className="text-body font-medium text-text-primary">{provider.name}</h3>
                         {isConnected && <div className="w-2 h-2 rounded-full bg-positive shrink-0" />}
+                        {conn?.status === 'syncing' && <span className="text-[10px] uppercase tracking-wide text-accent">Syncing</span>}
+                        {conn?.status === 'error' && <span className="text-[10px] uppercase tracking-wide text-alert">Error</span>}
                       </div>
                       <p className="text-caption text-text-secondary mt-0.5">{provider.description}</p>
                       {isConnected && lastSync && (
@@ -163,16 +230,34 @@ export default function IntegrationsPage() {
                           Last synced: {new Date(lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       )}
+                      {isExpired && (
+                        <p className="text-caption text-caution mt-1">Access token expired. Morning Form will try to refresh it on next sync.</p>
+                      )}
+                      {syncError && (
+                        <p className="text-caption text-alert mt-1">{syncError}</p>
+                      )}
                     </div>
                   </div>
-                  <Button
-                    variant={isConnected ? 'secondary' : 'primary'}
-                    size="sm"
-                    loading={loadingProvider === key}
-                    onClick={() => (isConnected ? disconnectProvider(key) : connectProvider(key))}
-                  >
-                    {isConnected ? 'Disconnect' : 'Connect'}
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    {isConnected && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        loading={syncingProvider === key}
+                        onClick={() => syncProvider(key)}
+                      >
+                        Sync now
+                      </Button>
+                    )}
+                    <Button
+                      variant={isConnected ? 'secondary' : 'primary'}
+                      size="sm"
+                      loading={loadingProvider === key}
+                      onClick={() => (isConnected ? disconnectProvider(key) : connectProvider(key))}
+                    >
+                      {isConnected ? 'Disconnect' : 'Connect'}
+                    </Button>
+                  </div>
                 </div>
               </Card>
             </motion.div>
