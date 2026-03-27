@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
-import type { HealthProvider } from '@/types';
+import type { HealthProvider, HealthSummary } from '@/types';
 
 interface ProviderConfig {
   name: string;
@@ -16,7 +16,7 @@ interface ProviderConfig {
 }
 
 const providers: Record<HealthProvider, ProviderConfig> = {
-  apple_health: { name: 'Apple Health', description: 'Requires native iOS app + Terra Mobile SDK', icon: '♥', features: ['sleep', 'activity', 'heart', 'hrv'] },
+  apple_health: { name: 'Apple Health', description: 'Connected through the Morning Form iPhone app', icon: '♥', features: ['sleep', 'activity', 'heart', 'hrv'] },
   whoop: { name: 'Whoop', description: 'Recovery, strain, sleep stages, HRV', icon: 'W', features: ['recovery', 'strain', 'sleep', 'hrv'] },
   oura: { name: 'Oura', description: 'Readiness, sleep quality, activity, temperature', icon: 'O', features: ['readiness', 'sleep', 'activity', 'temperature'] },
   fitbit: { name: 'Fitbit', description: 'Sleep, heart rate, activity, SpO2', icon: 'F', features: ['sleep', 'heart', 'activity', 'spo2'] },
@@ -29,6 +29,7 @@ export default function IntegrationsPage() {
   const [connections, setConnections] = useState<Record<string, { connected: boolean; lastSync: string | null; status?: string; expiresAt?: string | null; metadata?: Record<string, unknown> | null }>>({});
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
+  const [healthSummary, setHealthSummary] = useState<HealthSummary | null>(null);
   const [callbackState, setCallbackState] = useState<{ status: string | null; provider: string | null; message: string | null }>({
     status: null,
     provider: null,
@@ -37,10 +38,22 @@ export default function IntegrationsPage() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadConnections = async () => {
-      const response = await fetch('/api/health/connections', { cache: 'no-store' });
-      if (!response.ok) return;
-      const data = await response.json();
+    const params = new URLSearchParams(window.location.search);
+    setCallbackState({
+      status: params.get('status'),
+      provider: params.get('provider'),
+      message: params.get('message'),
+    });
+  }, []);
+
+  const reloadConnections = async () => {
+    const [connectionsResponse, summaryResponse] = await Promise.all([
+      fetch('/api/health/connections', { cache: 'no-store' }),
+      fetch('/api/health/sync', { cache: 'no-store' }),
+    ]);
+
+    if (connectionsResponse.ok) {
+      const data = await connectionsResponse.json();
       const normalized = (data.connections as Array<{ provider: string; status: string; lastSyncAt: string | null; expiresAt: string | null; metadata: Record<string, unknown> | null }>).reduce(
         (acc, connection) => {
           acc[connection.provider] = {
@@ -55,39 +68,36 @@ export default function IntegrationsPage() {
         {} as Record<string, { connected: boolean; lastSync: string | null; status?: string; expiresAt?: string | null; metadata?: Record<string, unknown> | null }>
       );
       setConnections(normalized);
-    };
+    }
 
-    loadConnections();
-  }, []);
+    if (summaryResponse.ok) {
+      const data = await summaryResponse.json();
+      setHealthSummary((data.summary ?? null) as HealthSummary | null);
+    }
+  };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setCallbackState({
-      status: params.get('status'),
-      provider: params.get('provider'),
-      message: params.get('message'),
-    });
-  }, []);
+    reloadConnections();
 
-  const reloadConnections = async () => {
-    const response = await fetch('/api/health/connections', { cache: 'no-store' });
-    if (!response.ok) return;
-    const data = await response.json();
-    const normalized = (data.connections as Array<{ provider: string; status: string; lastSyncAt: string | null; expiresAt: string | null; metadata: Record<string, unknown> | null }>).reduce(
-      (acc, connection) => {
-        acc[connection.provider] = {
-          connected: connection.status === 'connected',
-          lastSync: connection.lastSyncAt,
-          status: connection.status,
-          expiresAt: connection.expiresAt,
-          metadata: connection.metadata,
-        };
-        return acc;
-      },
-      {} as Record<string, { connected: boolean; lastSync: string | null; status?: string; expiresAt?: string | null; metadata?: Record<string, unknown> | null }>
-    );
-    setConnections(normalized);
-  };
+    const interval = window.setInterval(() => {
+      reloadConnections();
+    }, 5000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        reloadConnections();
+      }
+    };
+
+    window.addEventListener('focus', reloadConnections);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', reloadConnections);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
   const connectProvider = async (provider: HealthProvider) => {
     setLoadingProvider(provider);
@@ -166,6 +176,16 @@ export default function IntegrationsPage() {
     }
   };
 
+  const appleHealthConnection = connections.apple_health;
+  const appleHealthConnected = appleHealthConnection?.connected || false;
+  const appleHealthHasData = Boolean(
+    healthSummary?.sleep.duration ||
+      healthSummary?.activity.steps ||
+      healthSummary?.heart.avgHR ||
+      healthSummary?.heart.restingHR ||
+      healthSummary?.recovery.hrv
+  );
+
   return (
     <div className="px-5 pt-6 pb-8">
       <div className="flex items-center gap-3 mb-2">
@@ -177,6 +197,74 @@ export default function IntegrationsPage() {
       <p className="text-body text-text-secondary mb-8">
         Connect your devices to enrich your profile with objective health data.
       </p>
+
+      <Card variant={appleHealthConnected ? 'contextual' : 'action'} accentColor={appleHealthConnected ? undefined : 'teal'} className="mb-6">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-card bg-accent-light flex items-center justify-center text-accent font-mono text-body font-medium shrink-0">
+            ♥
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-body font-medium text-text-primary">
+              {appleHealthConnected ? 'Apple Health is connected through your iPhone.' : 'Finish Apple Health connection on your iPhone.'}
+            </p>
+            <p className="mt-1 text-caption text-text-secondary leading-relaxed">
+              {appleHealthConnected
+                ? 'Open the Morning Form iPhone app, tap Refresh, then Sync to Morning Form. This page refreshes automatically and should show the latest data within a few seconds.'
+                : 'Run through Morning Form on the web first, then open the Morning Form iPhone app to authorize Apple Health and sync the snapshot back here.'}
+            </p>
+
+            {!appleHealthConnected && (
+              <div className="mt-4 space-y-2">
+                <p className="text-caption text-text-primary">Recommended flow</p>
+                <div className="space-y-1.5">
+                  <p className="text-caption text-text-secondary">1. Complete onboarding and assessment in Morning Form web.</p>
+                  <p className="text-caption text-text-secondary">2. Open the iPhone app and tap Authorize Apple Health.</p>
+                  <p className="text-caption text-text-secondary">3. Tap Refresh, then Sync to Morning Form.</p>
+                  <p className="text-caption text-text-secondary">4. Return here to confirm connection and see synced data.</p>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => reloadConnections()}>
+                Refresh status
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => router.push('/home')}>
+                Go to Home
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {appleHealthConnected && appleHealthHasData && healthSummary && (
+        <Card variant="default" className="mb-6">
+          <p className="text-caption uppercase tracking-widest text-text-tertiary">Apple Health Snapshot</p>
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <div>
+              <p className="font-mono text-data text-accent">{healthSummary.sleep.duration ?? '—'}{healthSummary.sleep.duration ? 'h' : ''}</p>
+              <p className="text-caption text-text-tertiary">Sleep</p>
+            </div>
+            <div>
+              <p className="font-mono text-data text-accent">{healthSummary.activity.steps ?? '—'}</p>
+              <p className="text-caption text-text-tertiary">Steps</p>
+            </div>
+            <div>
+              <p className="font-mono text-data text-accent">{healthSummary.heart.avgHR ?? '—'}{healthSummary.heart.avgHR ? ' bpm' : ''}</p>
+              <p className="text-caption text-text-tertiary">Heart rate</p>
+            </div>
+            <div>
+              <p className="font-mono text-data text-accent">{healthSummary.recovery.hrv ?? '—'}{healthSummary.recovery.hrv ? ' ms' : ''}</p>
+              <p className="text-caption text-text-tertiary">HRV</p>
+            </div>
+          </div>
+          {appleHealthConnection?.lastSync && (
+            <p className="mt-4 text-caption text-text-tertiary">
+              Last synced {new Date(appleHealthConnection.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          )}
+        </Card>
+      )}
 
       {callbackState.status && callbackState.provider && (
         <Card variant={callbackState.status === 'connected' ? 'contextual' : 'action'} accentColor={callbackState.status === 'connected' ? undefined : 'amber'} className="mb-6">
@@ -204,6 +292,7 @@ export default function IntegrationsPage() {
           const expiresAt = conn?.expiresAt ? new Date(conn.expiresAt) : null;
           const isExpired = expiresAt ? expiresAt.getTime() <= Date.now() : false;
           const requiresNativeApp = key === 'apple_health';
+          const nativeHealthKitSource = conn?.metadata?.source === 'native_healthkit';
 
           return (
             <motion.div
@@ -228,7 +317,12 @@ export default function IntegrationsPage() {
                       <p className="text-caption text-text-secondary mt-0.5">{provider.description}</p>
                       {requiresNativeApp && (
                         <p className="text-caption text-caution mt-1">
-                          Local web build cannot complete this connection. Apple Health needs an iOS app with Terra&apos;s mobile SDK.
+                          Apple Health sync is driven by the native iPhone app. Open the iOS wrapper, authorize Apple Health, then sync back into Morning Form.
+                        </p>
+                      )}
+                      {nativeHealthKitSource && (
+                        <p className="text-caption text-positive mt-1">
+                          Connected via native iPhone app.
                         </p>
                       )}
                       {isConnected && lastSync && (
@@ -250,9 +344,10 @@ export default function IntegrationsPage() {
                         variant="ghost"
                         size="sm"
                         loading={syncingProvider === key}
+                        disabled={requiresNativeApp}
                         onClick={() => syncProvider(key)}
                       >
-                        Sync now
+                        {requiresNativeApp ? 'Sync in iPhone app' : 'Sync now'}
                       </Button>
                     )}
                     <Button
@@ -262,7 +357,7 @@ export default function IntegrationsPage() {
                       disabled={requiresNativeApp}
                       onClick={() => (isConnected ? disconnectProvider(key) : connectProvider(key))}
                     >
-                      {requiresNativeApp ? 'Requires iOS app' : isConnected ? 'Disconnect' : 'Connect'}
+                      {requiresNativeApp ? (isConnected ? 'Connected on iPhone' : 'Use iPhone app') : isConnected ? 'Disconnect' : 'Connect'}
                     </Button>
                   </div>
                 </div>

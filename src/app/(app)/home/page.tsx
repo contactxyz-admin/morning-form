@@ -8,11 +8,13 @@ import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
 import { getGreeting, formatDate, getTimeOfDay, getDateKey } from '@/lib/utils';
 import { mockProtocolItems, mockHealthSummary } from '@/lib/mock-data';
+import type { HealthSummary } from '@/types';
 
 export default function HomePage() {
   const [morningDone, setMorningDone] = useState(false);
   const [eveningDone, setEveningDone] = useState(false);
   const [sleepQuality, setSleepQuality] = useState<string | null>(null);
+  const [healthSummary, setHealthSummary] = useState<HealthSummary>(mockHealthSummary);
   const timeOfDay = getTimeOfDay();
 
   useEffect(() => {
@@ -25,6 +27,21 @@ export default function HomePage() {
       setSleepQuality(parsed.sleepQuality);
     }
     if (evening) setEveningDone(true);
+
+    const loadHealthSummary = async () => {
+      try {
+        const response = await fetch('/api/health/sync', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.summary) {
+          setHealthSummary(data.summary as HealthSummary);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    loadHealthSummary();
   }, []);
 
   const currentProtocolItem = timeOfDay === 'morning' || timeOfDay === 'night'
@@ -122,21 +139,21 @@ export default function HomePage() {
         </motion.div>
 
         {/* Health data summary (if connected) */}
-        {mockHealthSummary.recovery.hrv && (
+        {healthSummary.recovery.hrv && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
             <Card variant="default">
               <SectionLabel>FROM YOUR DEVICES</SectionLabel>
               <div className="mt-3 grid grid-cols-3 gap-4">
                 <div>
-                  <p className="font-mono text-data text-accent">{mockHealthSummary.recovery.hrv}</p>
+                  <p className="font-mono text-data text-accent">{healthSummary.recovery.hrv}</p>
                   <p className="text-caption text-text-tertiary">HRV</p>
                 </div>
                 <div>
-                  <p className="font-mono text-data text-accent">{mockHealthSummary.sleep.duration}h</p>
+                  <p className="font-mono text-data text-accent">{healthSummary.sleep.duration}h</p>
                   <p className="text-caption text-text-tertiary">Sleep</p>
                 </div>
                 <div>
-                  <p className="font-mono text-data text-accent">{mockHealthSummary.recovery.recoveryScore}%</p>
+                  <p className="font-mono text-data text-accent">{healthSummary.recovery.recoveryScore ?? '—'}{healthSummary.recovery.recoveryScore ? '%' : ''}</p>
                   <p className="text-caption text-text-tertiary">Recovery</p>
                 </div>
               </div>

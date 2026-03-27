@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { HealthSyncService } from '@/lib/health/sync';
-import type { HealthProvider } from '@/types';
+import type { HealthCategory, HealthDataPoint, HealthProvider } from '@/types';
 import { prisma } from '@/lib/db';
 import { getOrCreateDemoUser } from '@/lib/demo-user';
 
@@ -50,15 +50,33 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const syncService = new HealthSyncService();
     const user = await getOrCreateDemoUser();
-    const storedConnections = await prisma.healthConnection.findMany({
-      where: { userId: user.id, status: 'connected' },
+    const syncService = new HealthSyncService();
+    const since = new Date();
+    since.setDate(since.getDate() - 7);
+
+    const dataPoints = await prisma.healthDataPoint.findMany({
+      where: {
+        userId: user.id,
+        timestamp: {
+          gte: since,
+        },
+      },
+      orderBy: {
+        timestamp: 'desc',
+      },
     });
-    const today = new Date().toISOString().split('T')[0];
-    const provider = (storedConnections[0]?.provider as HealthProvider | undefined) || 'whoop';
-    const dataPoints = await syncService.syncProvider(provider, today, today);
-    const summary = syncService.aggregateToSummary(dataPoints);
+
+    const normalizedPoints: HealthDataPoint[] = dataPoints.map((point) => ({
+      category: point.category as HealthCategory,
+      metric: point.metric,
+      value: point.value,
+      unit: point.unit,
+      timestamp: point.timestamp.toISOString(),
+      provider: point.provider as HealthProvider,
+    }));
+
+    const summary = syncService.aggregateToSummary(normalizedPoints);
 
     return NextResponse.json({ summary });
   } catch (error) {

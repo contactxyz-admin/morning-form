@@ -9,12 +9,23 @@ struct HealthSnapshot: Equatable {
     var sleepHours: Double?
 }
 
+private struct AppleHealthUploadPayload: Encodable {
+    let stepCount: Double?
+    let heartRate: Double?
+    let restingHeartRate: Double?
+    let heartRateVariability: Double?
+    let sleepHours: Double?
+    let capturedAt: String
+}
+
 @MainActor
 final class HealthKitManager: ObservableObject {
     @Published var authorizationStatus: HKAuthorizationStatus = .notDetermined
     @Published var isRequestingAuthorization = false
     @Published var isLoadingSnapshot = false
+    @Published var isUploadingSnapshot = false
     @Published var lastError: String?
+    @Published var lastSyncMessage: String?
     @Published var snapshot = HealthSnapshot()
 
     private let store = HKHealthStore()
@@ -65,11 +76,52 @@ final class HealthKitManager: ObservableObject {
                 heartRateVariability: try await hrv,
                 sleepHours: try await sleep
             )
+            lastSyncMessage = nil
         } catch {
             lastError = error.localizedDescription
         }
 
         isLoadingSnapshot = false
+    }
+
+    func syncSnapshotToMorningForm() async {
+        isUploadingSnapshot = true
+        lastError = nil
+        lastSyncMessage = nil
+
+        do {
+            let payload = AppleHealthUploadPayload(
+                stepCount: snapshot.stepCount,
+                heartRate: snapshot.heartRate,
+                restingHeartRate: snapshot.restingHeartRate,
+                heartRateVariability: snapshot.heartRateVariability,
+                sleepHours: snapshot.sleepHours,
+                capturedAt: ISO8601DateFormatter().string(from: Date())
+            )
+
+            var request = URLRequest(url: Config.appleHealthUploadURL)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(payload)
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw URLError(.badServerResponse)
+            }
+
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                let message = String(data: data, encoding: .utf8) ?? "Upload failed"
+                throw NSError(domain: "MorningFormUpload", code: httpResponse.statusCode, userInfo: [
+                    NSLocalizedDescriptionKey: message
+                ])
+            }
+
+            lastSyncMessage = "Apple Health synced to Morning Form."
+        } catch {
+            lastError = error.localizedDescription
+        }
+
+        isUploadingSnapshot = false
     }
 
     private var healthReadTypes: Set<HKObjectType> {
@@ -162,4 +214,3 @@ final class HealthKitManager: ObservableObject {
         }
     }
 }
-

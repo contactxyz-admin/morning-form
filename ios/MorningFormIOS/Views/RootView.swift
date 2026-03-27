@@ -3,12 +3,13 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var healthKitManager: HealthKitManager
     @State private var showWebApp = false
+    @State private var webDestination = Config.morningFormWebURL
 
     var body: some View {
         NavigationStack {
             Group {
                 if showWebApp {
-                    EmbeddedWebView(url: Config.morningFormWebURL)
+                    EmbeddedWebView(url: webDestination)
                         .ignoresSafeArea()
                 } else {
                     ScrollView {
@@ -25,6 +26,11 @@ struct RootView: View {
             }
             .navigationTitle(showWebApp ? "Morning Form" : "Morning Form iOS")
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: healthKitManager.lastSyncMessage) { _, newValue in
+                guard newValue != nil else { return }
+                webDestination = Config.healthIntegrationsURL
+                showWebApp = true
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(showWebApp ? "Native" : "Web") {
@@ -53,6 +59,10 @@ struct RootView: View {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
+            } else if let syncMessage = healthKitManager.lastSyncMessage {
+                Text(syncMessage)
+                    .font(.caption)
+                    .foregroundStyle(.green)
             } else {
                 Text("Read sleep, heart rate, HRV, resting heart rate, and steps from Apple Health.")
                     .font(.subheadline)
@@ -82,6 +92,17 @@ struct RootView: View {
                 .buttonStyle(.bordered)
                 .disabled(healthKitManager.isLoadingSnapshot)
             }
+
+            Button {
+                Task {
+                    await healthKitManager.syncSnapshotToMorningForm()
+                }
+            } label: {
+                Text(healthKitManager.isUploadingSnapshot ? "Syncing..." : "Sync to Morning Form")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .disabled(healthKitManager.isUploadingSnapshot || healthKitManager.isLoadingSnapshot)
         }
         .padding(20)
         .background(Color(.secondarySystemBackground))
@@ -96,13 +117,17 @@ struct RootView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             Button("Open web experience") {
+                webDestination = Config.morningFormWebURL
                 showWebApp = true
             }
             .buttonStyle(.bordered)
+
+            Text("After syncing, check Health Integrations or the home dashboard in Morning Form to confirm Apple Health is reflected in-product.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(20)
         .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
-
