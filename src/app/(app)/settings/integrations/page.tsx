@@ -16,7 +16,7 @@ interface ProviderConfig {
 }
 
 const providers: Record<HealthProvider, ProviderConfig> = {
-  apple_health: { name: 'Apple Health', description: 'Sleep, activity, heart rate, HRV', icon: '♥', features: ['sleep', 'activity', 'heart', 'hrv'] },
+  apple_health: { name: 'Apple Health', description: 'Requires native iOS app + Terra Mobile SDK', icon: '♥', features: ['sleep', 'activity', 'heart', 'hrv'] },
   whoop: { name: 'Whoop', description: 'Recovery, strain, sleep stages, HRV', icon: 'W', features: ['recovery', 'strain', 'sleep', 'hrv'] },
   oura: { name: 'Oura', description: 'Readiness, sleep quality, activity, temperature', icon: 'O', features: ['readiness', 'sleep', 'activity', 'temperature'] },
   fitbit: { name: 'Fitbit', description: 'Sleep, heart rate, activity, SpO2', icon: 'F', features: ['sleep', 'heart', 'activity', 'spo2'] },
@@ -203,6 +203,7 @@ export default function IntegrationsPage() {
           const syncError = typeof conn?.metadata?.syncError === 'string' ? conn.metadata.syncError : null;
           const expiresAt = conn?.expiresAt ? new Date(conn.expiresAt) : null;
           const isExpired = expiresAt ? expiresAt.getTime() <= Date.now() : false;
+          const requiresNativeApp = key === 'apple_health';
 
           return (
             <motion.div
@@ -225,6 +226,11 @@ export default function IntegrationsPage() {
                         {conn?.status === 'error' && <span className="text-[10px] uppercase tracking-wide text-alert">Error</span>}
                       </div>
                       <p className="text-caption text-text-secondary mt-0.5">{provider.description}</p>
+                      {requiresNativeApp && (
+                        <p className="text-caption text-caution mt-1">
+                          Local web build cannot complete this connection. Apple Health needs an iOS app with Terra&apos;s mobile SDK.
+                        </p>
+                      )}
                       {isConnected && lastSync && (
                         <p className="text-caption text-text-tertiary mt-1">
                           Last synced: {new Date(lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -253,9 +259,10 @@ export default function IntegrationsPage() {
                       variant={isConnected ? 'secondary' : 'primary'}
                       size="sm"
                       loading={loadingProvider === key}
+                      disabled={requiresNativeApp}
                       onClick={() => (isConnected ? disconnectProvider(key) : connectProvider(key))}
                     >
-                      {isConnected ? 'Disconnect' : 'Connect'}
+                      {requiresNativeApp ? 'Requires iOS app' : isConnected ? 'Disconnect' : 'Connect'}
                     </Button>
                   </div>
                 </div>

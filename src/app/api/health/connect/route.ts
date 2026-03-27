@@ -27,7 +27,16 @@ export async function POST(request: Request) {
     let authUrl: string;
 
     switch (provider) {
-      case 'apple_health':
+      case 'apple_health': {
+        return NextResponse.json(
+          {
+            error: 'Apple Health requires a native iOS app with Terra Mobile SDK / HealthKit. It cannot be connected from this local web app alone.',
+            provider,
+            requiresMobileApp: true,
+          },
+          { status: 400 }
+        );
+      }
       case 'garmin': {
         const terra = new TerraClient();
         const session = await terra.generateWidgetSession(user.id);

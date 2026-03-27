@@ -1,0 +1,29 @@
+name: MorningFormIOS
+options:
+  bundleIdPrefix: com.contactxyz
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.contactxyz.morningformios
+    DEVELOPMENT_TEAM: ""
+    SWIFT_VERSION: 5.0
+    INFOPLIST_FILE: Resources/Info.plist
+    CODE_SIGN_ENTITLEMENTS: Resources/MorningFormIOS.entitlements
+targets:
+  MorningFormIOS:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Services
+      - Views
+    resources:
+      - Resources
+    settings:
+      base:
+        PRODUCT_NAME: MorningFormIOS
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+

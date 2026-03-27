@@ -126,9 +126,10 @@ Provider notes:
 
 Status:
 
-- in-app connection path goes through Terra
-- no direct HealthKit web flow exists in Morning Form
-- production Terra credentials and webhook config required
+- cannot be completed from the current local web app
+- requires a native iOS app using Terra Mobile SDK / HealthKit
+- the current web product can store/display Apple Health-backed data later, but it cannot initiate the HealthKit permission flow itself
+- production Terra credentials and native app setup are required
 
 Env vars:
 
@@ -140,7 +141,8 @@ TERRA_WEBHOOK_SECRET=""
 
 Provider notes:
 
-- configure Terra widget
+- Apple Health is not a web-widget integration
+- you need an iOS shell app with Terra's iOS / React Native / Flutter mobile SDK
 - configure Terra webhook to point to:
 
 ```txt
@@ -208,4 +210,4 @@ To reduce debugging surface area, wire providers in this order:
 - add provider-specific sync status and error messages in the UI
 - add Terra user mapping from widget session to stored `terraUserId`
 - add webhook signature verification and event persistence beyond logging
-
+- build a native iOS wrapper if Apple Health is a true requirement
