@@ -1,0 +1,327 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00A8F562F5F74EBC28D11A90 /* MorningFormIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4ACE1E792258F7EB1275047 /* MorningFormIOSApp.swift */; };
+		036F4FB8DC1D65A95264C6DD /* HealthSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 090DC668ECA31ED89E4BC0CE /* HealthSummaryCard.swift */; };
+		128DECA23B37360D2D883E88 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A07DCB31F0C552FCFFDD225 /* HealthKitManager.swift */; };
+		A2CAA7E60195C96C2E78E3A7 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = D13E5EF0C39667C8A09A0BBB /* Config.swift */; };
+		AEF4A2DF36BB39F3DD77F6E9 /* EmbeddedWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A14FC4260A2FC40744CBAAA /* EmbeddedWebView.swift */; };
+		C1B0B9B8F65A503137D508D3 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72EFCA4377E0BF39E24E4370 /* RootView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		090DC668ECA31ED89E4BC0CE /* HealthSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthSummaryCard.swift; sourceTree = "<group>"; };
+		5A07DCB31F0C552FCFFDD225 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
+		72EFCA4377E0BF39E24E4370 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		9A14FC4260A2FC40744CBAAA /* EmbeddedWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedWebView.swift; sourceTree = "<group>"; };
+		A93EC8BA9A4EF5E0D06B31E8 /* MorningFormIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MorningFormIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D13E5EF0C39667C8A09A0BBB /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		D4ACE1E792258F7EB1275047 /* MorningFormIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningFormIOSApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		481508CC8A272DD309A7BF7E /* App */ = {
+			isa = PBXGroup;
+			children = (
+				D13E5EF0C39667C8A09A0BBB /* Config.swift */,
+				D4ACE1E792258F7EB1275047 /* MorningFormIOSApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		97E309DB49FA1E1B4DE6CCFA /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				5A07DCB31F0C552FCFFDD225 /* HealthKitManager.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		B2A5041B905E6BFC133E5138 = {
+			isa = PBXGroup;
+			children = (
+				481508CC8A272DD309A7BF7E /* App */,
+				97E309DB49FA1E1B4DE6CCFA /* Services */,
+				F3EEC91206CFA58B88B3D968 /* Views */,
+				F122450A4C89BADEACC954DB /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F122450A4C89BADEACC954DB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A93EC8BA9A4EF5E0D06B31E8 /* MorningFormIOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F3EEC91206CFA58B88B3D968 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				9A14FC4260A2FC40744CBAAA /* EmbeddedWebView.swift */,
+				090DC668ECA31ED89E4BC0CE /* HealthSummaryCard.swift */,
+				72EFCA4377E0BF39E24E4370 /* RootView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6F50F5E63565F0A456DF3909 /* MorningFormIOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 63E87A652C903F008640B54B /* Build configuration list for PBXNativeTarget "MorningFormIOS" */;
+			buildPhases = (
+				3FDCED9C198BB36A97F6DFC0 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MorningFormIOS;
+			packageProductDependencies = (
+			);
+			productName = MorningFormIOS;
+			productReference = A93EC8BA9A4EF5E0D06B31E8 /* MorningFormIOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4FF8DE96B2288B9714077EE0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					6F50F5E63565F0A456DF3909 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 8FB97C93381CD84EA191CE2D /* Build configuration list for PBXProject "MorningFormIOS" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = B2A5041B905E6BFC133E5138;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F122450A4C89BADEACC954DB /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				6F50F5E63565F0A456DF3909 /* MorningFormIOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3FDCED9C198BB36A97F6DFC0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A2CAA7E60195C96C2E78E3A7 /* Config.swift in Sources */,
+				AEF4A2DF36BB39F3DD77F6E9 /* EmbeddedWebView.swift in Sources */,
+				128DECA23B37360D2D883E88 /* HealthKitManager.swift in Sources */,
+				036F4FB8DC1D65A95264C6DD /* HealthSummaryCard.swift in Sources */,
+				00A8F562F5F74EBC28D11A90 /* MorningFormIOSApp.swift in Sources */,
+				C1B0B9B8F65A503137D508D3 /* RootView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		01D28B3DF124FD0C664DB5DB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_ENTITLEMENTS = Resources/MorningFormIOS.entitlements;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.contactxyz.morningformios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		406593CE36399F3DA94EDD72 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_NAME = MorningFormIOS;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B198C462AAEB056157C6D9F6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_NAME = MorningFormIOS;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CF11DF4E96CB87D9884E4841 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_ENTITLEMENTS = Resources/MorningFormIOS.entitlements;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.contactxyz.morningformios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		63E87A652C903F008640B54B /* Build configuration list for PBXNativeTarget "MorningFormIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B198C462AAEB056157C6D9F6 /* Debug */,
+				406593CE36399F3DA94EDD72 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8FB97C93381CD84EA191CE2D /* Build configuration list for PBXProject "MorningFormIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CF11DF4E96CB87D9884E4841 /* Debug */,
+				01D28B3DF124FD0C664DB5DB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4FF8DE96B2288B9714077EE0 /* Project object */;
+}
