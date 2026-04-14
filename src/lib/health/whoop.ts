@@ -3,6 +3,10 @@
  * Direct integration for Whoop recovery, strain, and sleep data.
  */
 
+import type { HealthProvider } from '@/types';
+import type { HealthProviderStrategy, ProviderCapabilities } from './strategy';
+import { HEALTH_PROVIDERS } from './providers';
+
 export interface WhoopTokens {
   access_token: string;
   refresh_token: string;
@@ -62,7 +66,9 @@ export interface WhoopWorkout {
   };
 }
 
-export class WhoopClient {
+export class WhoopClient implements HealthProviderStrategy {
+  readonly provider: HealthProvider = 'whoop';
+  readonly capabilities: ProviderCapabilities = HEALTH_PROVIDERS.whoop.capabilities;
   private clientId: string;
   private clientSecret: string;
   private baseUrl = 'https://api.prod.whoop.com/developer/v1';

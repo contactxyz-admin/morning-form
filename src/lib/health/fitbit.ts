@@ -2,6 +2,10 @@
  * Fitbit Web API Client
  */
 
+import type { HealthProvider } from '@/types';
+import type { HealthProviderStrategy, ProviderCapabilities } from './strategy';
+import { HEALTH_PROVIDERS } from './providers';
+
 export interface FitbitTokens {
   access_token: string;
   refresh_token: string;
@@ -20,7 +24,9 @@ export interface FitbitSleep {
   levels: { summary: { deep: { minutes: number }; light: { minutes: number }; rem: { minutes: number }; wake: { minutes: number } } };
 }
 
-export class FitbitClient {
+export class FitbitClient implements HealthProviderStrategy {
+  readonly provider: HealthProvider = 'fitbit';
+  readonly capabilities: ProviderCapabilities = HEALTH_PROVIDERS.fitbit.capabilities;
   private clientId: string;
   private clientSecret: string;
 

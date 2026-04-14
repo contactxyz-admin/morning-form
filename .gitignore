@@ -6,6 +6,7 @@ node_modules/
 prisma/dev.db
 dist/
 build/
+*.tsbuildinfo
 *.log
 xcuserdata/
 *.xcuserstate
