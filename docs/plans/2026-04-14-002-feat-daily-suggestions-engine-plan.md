@@ -145,7 +145,7 @@ Adjacent learnings from looking at Spike's API design that we're keeping:
 
 ---
 
-- [ ] **Unit 2: Baselines + suggestions engine + initial rule set**
+- [x] **Unit 2: Baselines + suggestions engine + initial rule set**
 
 **Goal:** Generate `DailySuggestion` rows from a user's `HealthDataPoint` history and current `Protocol`.
 
