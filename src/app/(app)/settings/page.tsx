@@ -109,6 +109,16 @@ export default function SettingsPage() {
         <div className="mt-4 space-y-3">
           <p className="text-body text-text-secondary">demo@morningform.com</p>
           <button className="text-caption text-accent hover:underline">Change password</button>
+          <button
+            onClick={async () => {
+              await fetch('/api/auth/logout', { method: 'POST' });
+              router.push('/');
+              router.refresh();
+            }}
+            className="block text-caption text-text-secondary hover:text-text-primary transition-colors"
+          >
+            Sign out
+          </button>
         </div>
       </section>
 

@@ -30,6 +30,15 @@ export default function LandingPage() {
         <p className="mt-4 text-caption text-text-tertiary">
           8 minutes · free · no commitment
         </p>
+        <p className="mt-6 text-caption text-text-tertiary">
+          Already have an account?{' '}
+          <Link
+            href="/sign-in"
+            className="text-text-secondary hover:text-text-primary transition-colors underline underline-offset-4"
+          >
+            Sign in
+          </Link>
+        </p>
       </section>
 
       {/* The Problem */}
