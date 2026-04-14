@@ -26,6 +26,8 @@ export type RuleInput = {
   metrics: RuleMetric[];
   baselines: Baselines;
   protocol: RuleProtocolItem[];
+  /** YYYY-MM-DD UTC. Rules that cite "today" require their triggering point to fall on this day. */
+  today: string;
 };
 
 export type Rule = {
@@ -63,11 +65,11 @@ function protocolHasCompound(protocol: RuleProtocolItem[], needle: string): bool
 
 const hrvDeloadRule: Rule = {
   kind: 'hrv_deload',
-  evaluate: ({ metrics, baselines }) => {
+  evaluate: ({ metrics, baselines, today }) => {
     const baseline = baselines.hrv?.median7;
     if (baseline == null) return null;
     const recent = pointsForMetric(metrics, 'hrv')[0];
-    if (!recent) return null;
+    if (!recent || utcDayKey(recent.timestamp) !== today) return null;
     const dropPct = (baseline - recent.value) / baseline;
     if (dropPct < 0.15) return null;
     return {
@@ -82,11 +84,11 @@ const hrvDeloadRule: Rule = {
 
 const rhrElevatedRule: Rule = {
   kind: 'rhr_elevated',
-  evaluate: ({ metrics, baselines }) => {
+  evaluate: ({ metrics, baselines, today }) => {
     const baseline = baselines.resting_hr?.median7;
     if (baseline == null) return null;
     const recent = pointsForMetric(metrics, 'resting_hr')[0];
-    if (!recent) return null;
+    if (!recent || utcDayKey(recent.timestamp) !== today) return null;
     const risePct = (recent.value - baseline) / baseline;
     if (risePct < 0.10) return null;
     return {
@@ -134,9 +136,9 @@ const lowActivityRule: Rule = {
 
 const shortSleepRule: Rule = {
   kind: 'short_sleep',
-  evaluate: ({ metrics }) => {
+  evaluate: ({ metrics, today }) => {
     const recent = latestPerDay(metrics, 'duration')[0];
-    if (!recent) return null;
+    if (!recent || utcDayKey(recent.timestamp) !== today) return null;
     if (recent.value >= 6) return null;
     return {
       kind: 'short_sleep',

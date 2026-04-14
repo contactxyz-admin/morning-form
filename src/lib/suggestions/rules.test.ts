@@ -12,6 +12,7 @@ function metric(metric: string, value: number, daysAgo: number, id?: string): Ru
   };
 }
 
+const TODAY = new Date().toISOString().slice(0, 10);
 const noBaselines: Baselines = {};
 const noProtocol: RuleProtocolItem[] = [];
 
@@ -23,7 +24,7 @@ describe('HRV deload rule', () => {
   it('fires when HRV is 20% below 7-day median', () => {
     const metrics = [metric('hrv', 60, 0, 'hrv_today')];
     const baselines: Baselines = { hrv: baseline(75) };
-    const results = evaluateRules({ metrics, baselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines, protocol: noProtocol, today: TODAY });
     const hit = results.find((r) => r.kind === 'hrv_deload');
     expect(hit).toBeDefined();
     expect(hit!.title).toBe('Add glycine 2g before bed and take it easier today');
@@ -37,20 +38,28 @@ describe('HRV deload rule', () => {
   it('does not fire when HRV is only 6% below 7-day median', () => {
     const metrics = [metric('hrv', 70, 0)];
     const baselines: Baselines = { hrv: baseline(75) };
-    const results = evaluateRules({ metrics, baselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines, protocol: noProtocol, today: TODAY });
     expect(results.find((r) => r.kind === 'hrv_deload')).toBeUndefined();
   });
 
   it('fires exactly at the 15% threshold', () => {
     const metrics = [metric('hrv', 63.75, 0)]; // 75 * 0.85
     const baselines: Baselines = { hrv: baseline(75) };
-    const results = evaluateRules({ metrics, baselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines, protocol: noProtocol, today: TODAY });
     expect(results.find((r) => r.kind === 'hrv_deload')).toBeDefined();
   });
 
   it('is skipped when HRV baseline is null (insufficient data)', () => {
     const metrics = [metric('hrv', 30, 0)];
-    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol, today: TODAY });
+    expect(results.find((r) => r.kind === 'hrv_deload')).toBeUndefined();
+  });
+
+  it('does not fire when the most recent HRV reading is older than today', () => {
+    // 5-day-old HRV well below baseline. The rule must NOT claim "today is X ms".
+    const metrics = [metric('hrv', 40, 5, 'stale')];
+    const baselines: Baselines = { hrv: baseline(75) };
+    const results = evaluateRules({ metrics, baselines, protocol: noProtocol, today: TODAY });
     expect(results.find((r) => r.kind === 'hrv_deload')).toBeUndefined();
   });
 
@@ -60,7 +69,7 @@ describe('HRV deload rule', () => {
       metric('hrv', 50, 0, 'today'), // 33% drop
     ];
     const baselines: Baselines = { hrv: baseline(75) };
-    const results = evaluateRules({ metrics, baselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines, protocol: noProtocol, today: TODAY });
     const hit = results.find((r) => r.kind === 'hrv_deload');
     expect(hit?.triggeringMetricIds).toEqual(['today']);
   });
@@ -70,7 +79,7 @@ describe('Resting HR elevated rule', () => {
   it('fires when resting HR is 10% above 7-day median', () => {
     const metrics = [metric('resting_hr', 66, 0, 'rhr_today')];
     const baselines: Baselines = { resting_hr: baseline(60) };
-    const results = evaluateRules({ metrics, baselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines, protocol: noProtocol, today: TODAY });
     const hit = results.find((r) => r.kind === 'rhr_elevated');
     expect(hit).toBeDefined();
     expect(hit!.title).toBe('Hydrate and defer caffeine until 10am');
@@ -81,13 +90,13 @@ describe('Resting HR elevated rule', () => {
   it('does not fire when resting HR is 5% above baseline', () => {
     const metrics = [metric('resting_hr', 63, 0)];
     const baselines: Baselines = { resting_hr: baseline(60) };
-    const results = evaluateRules({ metrics, baselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines, protocol: noProtocol, today: TODAY });
     expect(results.find((r) => r.kind === 'rhr_elevated')).toBeUndefined();
   });
 
   it('is skipped when baseline is null', () => {
     const metrics = [metric('resting_hr', 90, 0)];
-    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol, today: TODAY });
     expect(results.find((r) => r.kind === 'rhr_elevated')).toBeUndefined();
   });
 });
@@ -99,7 +108,7 @@ describe('Magnesium PM (deep sleep) rule', () => {
       metric('deep_sleep', 0.5, 1, 'd1'),
       metric('deep_sleep', 0.7, 2, 'd2'),
     ];
-    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol, today: TODAY });
     const hit = results.find((r) => r.kind === 'magnesium_pm');
     expect(hit).toBeDefined();
     expect(hit!.title).toBe('Add magnesium glycinate 400mg, 30min before bed');
@@ -113,7 +122,7 @@ describe('Magnesium PM (deep sleep) rule', () => {
       metric('deep_sleep', 0.5, 1),
       metric('deep_sleep', 1.4, 2),
     ];
-    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol, today: TODAY });
     expect(results.find((r) => r.kind === 'magnesium_pm')).toBeUndefined();
   });
 
@@ -126,7 +135,7 @@ describe('Magnesium PM (deep sleep) rule', () => {
     const protocol: RuleProtocolItem[] = [
       { compounds: 'Magnesium glycinate 200mg', timeSlot: 'evening' },
     ];
-    const results = evaluateRules({ metrics, baselines: noBaselines, protocol });
+    const results = evaluateRules({ metrics, baselines: noBaselines, protocol, today: TODAY });
     expect(results.find((r) => r.kind === 'magnesium_pm')).toBeUndefined();
   });
 });
@@ -137,7 +146,7 @@ describe('Low activity rule', () => {
       metric('steps', 1500, 0, 's0'),
       metric('steps', 2400, 1, 's1'),
     ];
-    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol, today: TODAY });
     const hit = results.find((r) => r.kind === 'low_activity');
     expect(hit).toBeDefined();
     expect(hit!.title).toBe('Take a 20-minute walk before noon');
@@ -150,7 +159,7 @@ describe('Low activity rule', () => {
       metric('steps', 1500, 0),
       metric('steps', 5000, 1),
     ];
-    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol, today: TODAY });
     expect(results.find((r) => r.kind === 'low_activity')).toBeUndefined();
   });
 });
@@ -158,7 +167,7 @@ describe('Low activity rule', () => {
 describe('Short sleep rule', () => {
   it('fires when last night sleep duration < 6h', () => {
     const metrics = [metric('duration', 5.2, 0, 'sleep_today')];
-    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol, today: TODAY });
     const hit = results.find((r) => r.kind === 'short_sleep');
     expect(hit).toBeDefined();
     expect(hit!.title).toBe('Skip morning stimulants today');
@@ -168,7 +177,7 @@ describe('Short sleep rule', () => {
 
   it('does not fire when sleep duration was 6h or more', () => {
     const metrics = [metric('duration', 6.5, 0)];
-    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines: noBaselines, protocol: noProtocol, today: TODAY });
     expect(results.find((r) => r.kind === 'short_sleep')).toBeUndefined();
   });
 });
@@ -181,7 +190,7 @@ describe('evaluateRules', () => {
       { id: 'bad', metric: 'duration', value: NaN, timestamp: new Date().toISOString() },
     ];
     const baselines: Baselines = { hrv: baseline(75) };
-    const results = evaluateRules({ metrics, baselines, protocol: noProtocol });
+    const results = evaluateRules({ metrics, baselines, protocol: noProtocol, today: TODAY });
     expect(results.find((r) => r.kind === 'hrv_deload')).toBeDefined();
   });
 });

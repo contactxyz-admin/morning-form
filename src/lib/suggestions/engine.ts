@@ -46,23 +46,33 @@ export async function ensureTodaysSuggestions(
     metrics: ruleMetrics,
     baselines,
     protocol: ruleProtocol,
+    today: date,
   });
 
   const existingKinds = new Set(existingToday.map((s) => s.kind));
   const fresh = results.filter((r) => !existingKinds.has(r.kind));
 
   if (fresh.length > 0) {
-    await prisma.dailySuggestion.createMany({
-      data: fresh.map((r) => ({
-        userId,
-        date,
-        kind: r.kind,
-        title: r.title,
-        rationale: r.rationale,
-        evidenceTier: r.evidenceTier,
-        triggeringMetricIds: JSON.stringify(r.triggeringMetricIds),
-      })),
-    });
+    // Per-row upsert (with no-op update) is race-safe against the unique index
+    // (userId, date, kind), so concurrent calls that both pass the existingKinds
+    // gate cannot crash on P2002. SQLite createMany does not support skipDuplicates.
+    await Promise.all(
+      fresh.map((r) =>
+        prisma.dailySuggestion.upsert({
+          where: { userId_date_kind: { userId, date, kind: r.kind } },
+          create: {
+            userId,
+            date,
+            kind: r.kind,
+            title: r.title,
+            rationale: r.rationale,
+            evidenceTier: r.evidenceTier,
+            triggeringMetricIds: JSON.stringify(r.triggeringMetricIds),
+          },
+          update: {},
+        })
+      )
+    );
   }
 
   return prisma.dailySuggestion.findMany({
