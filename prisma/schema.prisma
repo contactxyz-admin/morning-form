@@ -22,6 +22,7 @@ model User {
   healthConnections HealthConnection[]
   healthDataPoints  HealthDataPoint[]
   preferences      UserPreferences?
+  dailySuggestions DailySuggestion[]
 }
 
 model AssessmentResponse {
@@ -84,6 +85,30 @@ model ProtocolAdjustment {
   rationale   String
   status      String   @default("pending")
   createdAt   DateTime @default(now())
+
+  suggestion  DailySuggestion?
+}
+
+model DailySuggestion {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id])
+  date                  String
+  kind                  String
+  title                 String
+  rationale             String
+  evidenceTier          String
+  triggeringMetricIds   String   @default("[]")
+  status                String   @default("pending")
+  snoozeUntil           String?
+  acceptedAdjustmentId  String?  @unique
+  acceptedAdjustment    ProtocolAdjustment? @relation(fields: [acceptedAdjustmentId], references: [id])
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([userId, date, kind])
+  @@index([userId, date])
+  @@index([userId, status])
 }
 
 model CheckIn {
