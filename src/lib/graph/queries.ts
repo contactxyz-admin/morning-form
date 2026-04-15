@@ -195,7 +195,7 @@ export interface GraphRevision {
 }
 
 export async function getGraphRevision(db: Db, userId: string): Promise<GraphRevision> {
-  const [nodeCount, edgeCount, latestNode] = await Promise.all([
+  const [nodeCount, edgeCount, latestNode, latestEdge] = await Promise.all([
     db.graphNode.count({ where: { userId } }),
     db.graphEdge.count({ where: { userId } }),
     db.graphNode.findFirst({
@@ -203,8 +203,18 @@ export async function getGraphRevision(db: Db, userId: string): Promise<GraphRev
       orderBy: { updatedAt: 'desc' },
       select: { updatedAt: true },
     }),
+    db.graphEdge.findFirst({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true },
+    }),
   ]);
-  const maxUpdatedAt = latestNode?.updatedAt ?? null;
+  const candidates = [latestNode?.updatedAt, latestEdge?.updatedAt].filter(
+    (d): d is Date => d instanceof Date,
+  );
+  const maxUpdatedAt = candidates.length === 0
+    ? null
+    : new Date(Math.max(...candidates.map((d) => d.getTime())));
   const hashInput = `${nodeCount}|${edgeCount}|${maxUpdatedAt?.toISOString() ?? 'none'}`;
   const hash = createHash('sha256').update(hashInput).digest('hex').slice(0, 16);
   return { nodeCount, edgeCount, maxUpdatedAt, hash };

@@ -106,38 +106,53 @@ export async function addNode(
   userId: string,
   input: AddNodeInput,
 ): Promise<{ id: string; created: boolean }> {
-  const existing = await db.graphNode.findUnique({
-    where: { userId_type_canonicalKey: { userId, type: input.type, canonicalKey: input.canonicalKey } },
-  });
-  if (existing) {
-    const merged = mergeAttributes(existing.attributes, input.attributes);
-    await db.graphNode.update({
-      where: { id: existing.id },
-      data: {
-        attributes: merged,
-        // Confidence: keep the higher value if both present.
-        confidence:
-          input.confidence !== undefined ? Math.max(existing.confidence, input.confidence) : existing.confidence,
-        // First-write-wins: an explicit `promoted: false` from a re-extraction
-        // must not flip a previously-promoted node back to true (or vice-versa).
-        promoted: existing.promoted,
-        displayName: existing.displayName || input.displayName,
-      },
+  // Try create first. If the (userId,type,canonicalKey) unique constraint
+  // fires (P2002), a concurrent ingest already inserted the node — retry
+  // once on the merge path. This collapses the read-modify-write race window
+  // to a single failed insert.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const existing = await db.graphNode.findUnique({
+      where: { userId_type_canonicalKey: { userId, type: input.type, canonicalKey: input.canonicalKey } },
     });
-    return { id: existing.id, created: false };
+    if (existing) {
+      const merged = mergeAttributes(existing.attributes, input.attributes);
+      await db.graphNode.update({
+        where: { id: existing.id },
+        data: {
+          attributes: merged,
+          confidence:
+            input.confidence !== undefined ? Math.max(existing.confidence, input.confidence) : existing.confidence,
+          // First-write-wins: an explicit `promoted: false` from a re-extraction
+          // must not flip a previously-promoted node back to true (or vice-versa).
+          promoted: existing.promoted,
+          displayName: existing.displayName || input.displayName,
+        },
+      });
+      return { id: existing.id, created: false };
+    }
+    try {
+      const created = await db.graphNode.create({
+        data: {
+          userId,
+          type: input.type,
+          canonicalKey: input.canonicalKey,
+          displayName: input.displayName,
+          attributes: jsonOrNull(input.attributes),
+          confidence: input.confidence ?? 1.0,
+          promoted: input.promoted ?? true,
+        },
+      });
+      return { id: created.id, created: true };
+    } catch (err) {
+      if (isUniqueViolation(err) && attempt === 0) continue; // raced — re-read on next loop
+      throw err;
+    }
   }
-  const created = await db.graphNode.create({
-    data: {
-      userId,
-      type: input.type,
-      canonicalKey: input.canonicalKey,
-      displayName: input.displayName,
-      attributes: jsonOrNull(input.attributes),
-      confidence: input.confidence ?? 1.0,
-      promoted: input.promoted ?? true,
-    },
-  });
-  return { id: created.id, created: true };
+  throw new Error('addNode: unreachable');
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return !!err && typeof err === 'object' && (err as { code?: string }).code === 'P2002';
 }
 
 export async function addEdge(db: Db, userId: string, input: AddEdgeInput): Promise<string> {
