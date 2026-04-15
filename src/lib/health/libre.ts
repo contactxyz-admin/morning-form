@@ -13,9 +13,48 @@
  * downstream suggestion rules (Unit 5) can exercise out-of-range paths.
  */
 
+import { z } from 'zod';
 import type { HealthProvider } from '@/types';
 import type { HealthProviderStrategy, ProviderCapabilities } from './strategy';
 import { HEALTH_PROVIDERS } from './providers';
+
+// Typed error classes so sync.ts can branch on response category rather than
+// string-matching error messages.
+export class LibreAuthError extends Error {
+  constructor(message = 'libre session invalid or expired') {
+    super(message);
+    this.name = 'LibreAuthError';
+  }
+}
+export class LibreRateLimitError extends Error {
+  constructor(public retryAfterSeconds?: number) {
+    super('libre rate limited');
+    this.name = 'LibreRateLimitError';
+  }
+}
+export class LibreTransientError extends Error {
+  constructor(public status: number) {
+    super(`libre transient error: ${status}`);
+    this.name = 'LibreTransientError';
+  }
+}
+
+const graphResponseSchema = z.object({
+  data: z
+    .object({
+      graphData: z
+        .array(z.object({ Timestamp: z.string(), Value: z.number() }))
+        .default([]),
+    })
+    .optional(),
+});
+
+const loginResponseSchema = z.object({
+  data: z.object({
+    authTicket: z.object({ token: z.string().min(1), expires: z.number() }),
+    user: z.object({ id: z.string().min(1) }),
+  }),
+});
 
 export interface LibreAuthResponse {
   accessToken: string;
@@ -57,24 +96,23 @@ export class LibreClient implements HealthProviderStrategy {
       };
     }
 
-    const response = await fetch(`${this.baseUrl}/llu/auth/login`, {
+    const response = await this.fetchWithRetry(`${this.baseUrl}/llu/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'product': 'llu.ios', 'version': '4.7.0' },
       body: JSON.stringify({ email, password }),
-      signal: AbortSignal.timeout(10_000),
     });
 
-    if (!response.ok) {
-      throw new Error(`Libre login failed: ${response.status}`);
-    }
+    if (response.status === 401) throw new LibreAuthError('invalid credentials');
+    if (!response.ok) throw new LibreTransientError(response.status);
 
-    const body = (await response.json()) as {
-      data: { authTicket: { token: string; expires: number }; user: { id: string } };
-    };
+    const parsed = loginResponseSchema.safeParse(await response.json());
+    if (!parsed.success) {
+      throw new LibreTransientError(response.status);
+    }
     return {
-      accessToken: body.data.authTicket.token,
-      expiresAt: body.data.authTicket.expires * 1000,
-      patientId: body.data.user.id,
+      accessToken: parsed.data.data.authTicket.token,
+      expiresAt: parsed.data.data.authTicket.expires * 1000,
+      patientId: parsed.data.data.user.id,
     };
   }
 
@@ -87,28 +125,62 @@ export class LibreClient implements HealthProviderStrategy {
       return generateMockGlucoseGraph(startDate);
     }
 
-    const response = await fetch(`${this.baseUrl}/llu/connections/${patientId}/graph`, {
+    const response = await this.fetchWithRetry(`${this.baseUrl}/llu/connections/${patientId}/graph`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'product': 'llu.ios',
         'version': '4.7.0',
       },
-      signal: AbortSignal.timeout(10_000),
     });
 
-    if (!response.ok) {
-      throw new Error(`Libre graph fetch failed: ${response.status}`);
-    }
+    if (response.status === 401) throw new LibreAuthError();
+    if (!response.ok) throw new LibreTransientError(response.status);
 
-    const body = (await response.json()) as {
-      data?: { graphData?: Array<{ Timestamp: string; Value: number }> };
-    };
-    const graph = body.data?.graphData ?? [];
+    const parsed = graphResponseSchema.safeParse(await response.json());
+    if (!parsed.success) {
+      throw new LibreTransientError(response.status);
+    }
+    const graph = parsed.data.data?.graphData ?? [];
     return graph.map((g) => ({
       timestamp: new Date(g.Timestamp).toISOString(),
       value: g.Value,
       unit: 'mg/dL',
     }));
+  }
+
+  // Bounded retry with jitter for 429 + 5xx. Each attempt has its own 10s
+  // timeout. 401 and 4xx (not 429) are not retried — they're surfaced by the
+  // caller as auth or transient errors. Max 3 attempts total.
+  private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+    const maxAttempts = 3;
+    let lastResponse: Response | null = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const response = await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
+      lastResponse = response;
+      if (response.status === 429) {
+        if (attempt === maxAttempts) {
+          const retryAfter = Number(response.headers.get('retry-after')) || undefined;
+          throw new LibreRateLimitError(retryAfter);
+        }
+        await this.backoff(attempt);
+        continue;
+      }
+      if (response.status >= 500 && response.status < 600) {
+        if (attempt === maxAttempts) return response;
+        await this.backoff(attempt);
+        continue;
+      }
+      return response;
+    }
+    // Unreachable — the loop always either returns or throws on the last
+    // attempt — but the type checker can't see that.
+    return lastResponse!;
+  }
+
+  private backoff(attempt: number): Promise<void> {
+    const base = 200 * 2 ** (attempt - 1); // 200, 400, 800 ms
+    const jitter = Math.floor(Math.random() * base);
+    return new Promise((r) => setTimeout(r, base + jitter));
   }
 }
 

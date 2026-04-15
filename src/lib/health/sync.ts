@@ -12,13 +12,18 @@ import { OuraClient } from './oura';
 import { FitbitClient } from './fitbit';
 import { GoogleFitClient } from './google-fit';
 import { DexcomClient } from './dexcom';
-import { LibreClient } from './libre';
+import { LibreClient, LibreAuthError } from './libre';
+import { decryptToken, isEncrypted } from './crypto';
 import { pointFromCanonical } from './normalize';
 import { captureRawPayload } from './raw-payload';
 
 export interface SyncProviderOptions {
   userId?: string;
   traceId?: string;
+  // When the caller knows the HealthConnection (credentialed sync path), pass
+  // it so provider clients can use real stored patientId + decrypted token
+  // instead of falling back to mock.
+  connection?: PrismaHealthConnection;
 }
 
 export class HealthSyncService {
@@ -182,8 +187,18 @@ export class HealthSyncService {
         break;
       }
       case 'libre': {
+        // If we have a stored HealthConnection with a usable session, hit the
+        // real LibreLinkUp endpoint. Otherwise fall back to mock — keeps the
+        // characterization tests (which call syncProvider directly without a
+        // connection) working and gives operators a dev-safe default.
+        const libreCreds = this.resolveLibreCredentials(opts.connection);
+        const client = libreCreds ? new LibreClient(true) : this.libre;
         const readings = await capture('getGlucoseGraph', () =>
-          this.libre.getGlucoseGraph('mock_patient', undefined, startDate),
+          client.getGlucoseGraph(
+            libreCreds?.patientId ?? 'mock_patient',
+            libreCreds?.accessToken,
+            startDate,
+          ),
         );
         readings.forEach((r) => {
           points.push(
@@ -299,7 +314,10 @@ export class HealthSyncService {
       });
 
       const refreshedConnection = await this.refreshConnectionIfNeeded(connection);
-      const points = await this.syncProvider(provider, startDate, endDate, { userId });
+      const points = await this.syncProvider(provider, startDate, endDate, {
+        userId,
+        connection: refreshedConnection,
+      });
       const dedupedPoints = this.deduplicateData(points);
 
       if (dedupedPoints.length > 0) {
@@ -334,14 +352,19 @@ export class HealthSyncService {
       return { provider, ok: true, count: dedupedPoints.length, points: dedupedPoints };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown sync error';
+      // Libre auth failure → clear the stored token and require the user to
+      // re-enter credentials. No retry makes sense; LibreLinkUp has no refresh
+      // token.
+      const isLibreAuthFailure = error instanceof LibreAuthError && connection.provider === 'libre';
 
       await prisma.healthConnection.update({
         where: { id: connection.id },
         data: {
-          status: 'error',
+          status: isLibreAuthFailure ? 'needs_reauth' : 'error',
+          ...(isLibreAuthFailure ? { accessToken: null, expiresAt: null } : {}),
           metadata: JSON.stringify({
             ...(this.parseMetadata(connection.metadata) || {}),
-            syncError: message,
+            syncError: isLibreAuthFailure ? 'libre_session_expired_reconnect_required' : message,
             lastSyncFailedAt: new Date().toISOString(),
           }),
         },
@@ -358,6 +381,33 @@ export class HealthSyncService {
     return results
       .filter((r): r is PromiseFulfilledResult<HealthDataPoint[]> => r.status === 'fulfilled')
       .flatMap(r => r.value);
+  }
+
+  // Returns { patientId, accessToken } only if the connection holds a
+  // non-expired real session. Mock tokens (mock_libre_*) are rejected so the
+  // Libre case falls through to mock mode — this is what gates session-expired
+  // reconnects from silently succeeding.
+  private resolveLibreCredentials(
+    connection?: PrismaHealthConnection,
+  ): { patientId: string; accessToken: string } | null {
+    if (!connection || connection.provider !== 'libre') return null;
+    if (!connection.accessToken) return null;
+    if (connection.expiresAt && new Date(connection.expiresAt).getTime() <= Date.now()) {
+      return null;
+    }
+    const metadata = this.parseMetadata(connection.metadata);
+    const patientId = metadata && typeof metadata.patientId === 'string' ? metadata.patientId : null;
+    if (!patientId || patientId.startsWith('mock_')) return null;
+    let accessToken: string;
+    try {
+      accessToken = isEncrypted(connection.accessToken)
+        ? decryptToken(connection.accessToken)
+        : connection.accessToken;
+    } catch {
+      return null;
+    }
+    if (accessToken.startsWith('mock_')) return null;
+    return { patientId, accessToken };
   }
 
   deduplicateData(points: HealthDataPoint[]): HealthDataPoint[] {
