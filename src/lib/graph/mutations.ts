@@ -15,7 +15,6 @@
 
 import { createHash } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
-import { prisma as defaultPrisma } from '@/lib/db';
 import {
   type AddEdgeInput,
   type AddNodeInput,
@@ -38,7 +37,9 @@ function mergeAttributes(existing: string | null, incoming: Record<string, unkno
   if (existing) {
     try {
       const parsed = JSON.parse(existing);
-      if (parsed && typeof parsed === 'object') base = parsed as Record<string, unknown>;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        base = parsed as Record<string, unknown>;
+      }
     } catch {
       // existing was malformed; treat as empty so we don't lose the new write.
     }
@@ -117,7 +118,9 @@ export async function addNode(
         // Confidence: keep the higher value if both present.
         confidence:
           input.confidence !== undefined ? Math.max(existing.confidence, input.confidence) : existing.confidence,
-        promoted: existing.promoted || (input.promoted ?? true),
+        // First-write-wins: an explicit `promoted: false` from a re-extraction
+        // must not flip a previously-promoted node back to true (or vice-versa).
+        promoted: existing.promoted,
         displayName: existing.displayName || input.displayName,
       },
     });
@@ -196,6 +199,7 @@ export async function ingestExtraction(
   input: IngestExtractionInput,
 ): Promise<IngestExtractionResult> {
   return client.$transaction(async (tx) => {
+    let droppedEdges = 0;
     const { id: documentId, deduped } = await addSourceDocument(tx, userId, input.document);
     const chunkIds = deduped
       ? (await tx.sourceChunk.findMany({ where: { sourceDocumentId: documentId }, orderBy: { index: 'asc' } })).map(
@@ -215,7 +219,13 @@ export async function ingestExtraction(
       // Provenance: SUPPORTS edges from chunks to this node.
       for (const chunkIdx of node.supportingChunkIndices ?? []) {
         const chunkId = chunkIds[chunkIdx];
-        if (!chunkId) continue;
+        if (!chunkId) {
+          droppedEdges++;
+          console.warn(
+            `[ingestExtraction] dropped SUPPORTS edge: chunk index ${chunkIdx} out of range (${chunkIds.length} chunks) for node ${node.type}::${node.canonicalKey}`,
+          );
+          continue;
+        }
         const edgeId = await addEdge(tx, userId, {
           type: 'SUPPORTS',
           // SUPPORTS edges connect chunk -> node; we model that with the node
@@ -250,7 +260,13 @@ export async function ingestExtraction(
         });
         if (existing) toId = existing.id;
       }
-      if (!fromId || !toId) continue; // unresolvable ref, skip silently
+      if (!fromId || !toId) {
+        droppedEdges++;
+        console.warn(
+          `[ingestExtraction] dropped ${edge.type} edge: unresolvable ref ${fromKey} -> ${toKey}`,
+        );
+        continue;
+      }
 
       const edgeId = await addEdge(tx, userId, {
         type: edge.type,
@@ -262,7 +278,11 @@ export async function ingestExtraction(
       edgeIds.push(edgeId);
     }
 
-    return { documentId, chunkIds, nodeIds, edgeIds };
+    return { documentId, chunkIds, nodeIds, edgeIds, droppedEdges };
+  }, {
+    // Default Prisma timeout is 5s; lab PDF ingests with N>50 nodes hit 100+
+    // sequential round trips and trip P2028. 30s leaves headroom.
+    timeout: 30_000,
   });
 }
 
@@ -273,8 +293,3 @@ export async function ingestExtraction(
 export function contentHashFor(input: string): string {
   return createHash('sha256').update(input).digest('hex');
 }
-
-// Re-export the default prisma so callers can do:
-//   import { prisma } from '@/lib/graph/mutations'
-// without a separate import.
-export { defaultPrisma as prisma };

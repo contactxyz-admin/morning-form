@@ -162,4 +162,6 @@ export interface IngestExtractionResult {
   chunkIds: string[];
   nodeIds: string[];
   edgeIds: string[];
+  /** Count of edges silently skipped (unresolvable refs, out-of-range chunk indices). */
+  droppedEdges: number;
 }

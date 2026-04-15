@@ -79,6 +79,12 @@ export class LLMClient {
     this.mock = deps.mock ?? env.MOCK_LLM === 'true';
     const apiKey = deps.apiKey ?? env.ANTHROPIC_API_KEY;
 
+    if (this.mock && env.NODE_ENV === 'production') {
+      throw new Error(
+        '[LLMClient] MOCK_LLM=true is not permitted in production — refusing to construct.',
+      );
+    }
+
     if (!this.mock && !apiKey) {
       // Quiet warning at construction time — surfaces hard 401 at first call,
       // not a confusing crash on import.
@@ -98,6 +104,9 @@ export class LLMClient {
           // Disable SDK-level retries; we retry at this layer for parity with
           // the health/libre pattern and to surface our own typed errors.
           maxRetries: 0,
+          // Match our per-attempt budget so a stuck connection actually aborts
+          // the underlying fetch (default SDK timeout is 10 minutes).
+          timeout: PER_ATTEMPT_TIMEOUT_MS,
           fetch: deps.fetch,
         });
   }
@@ -172,8 +181,13 @@ export class LLMClient {
         if (mapped instanceof LLMAuthError) throw mapped;
         if (mapped instanceof LLMValidationError) throw mapped;
         if (attempt === MAX_ATTEMPTS) throw mapped;
-        // 429 and 5xx: backoff and retry
-        await backoff(attempt);
+        // 429: honor server-supplied retry-after when present, else fall back
+        // to jittered backoff. Without this we burn the budget in <1.5s.
+        if (mapped instanceof LLMRateLimitError && mapped.retryAfterSeconds !== undefined) {
+          await sleep(Math.min(mapped.retryAfterSeconds, 30) * 1000);
+        } else {
+          await backoff(attempt);
+        }
       }
     }
     // Unreachable.
@@ -221,5 +235,9 @@ function mapError(err: unknown): Error {
 function backoff(attempt: number): Promise<void> {
   const base = 200 * 2 ** (attempt - 1); // 200, 400, 800
   const jitter = Math.floor(Math.random() * base);
-  return new Promise((r) => setTimeout(r, base + jitter));
+  return sleep(base + jitter);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }

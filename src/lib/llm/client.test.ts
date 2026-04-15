@@ -93,8 +93,10 @@ describe('LLMClient.generate (real path)', () => {
   });
 
   it('maps 429 to LLMRateLimitError after retry exhaustion and carries retryAfterSeconds', async () => {
+    // retry-after: 0 keeps the test fast; the path exercised is identical to
+    // the production "honor server-supplied delay" branch.
     const fakeFetch = vi.fn(async () =>
-      errorResponse(429, '{"error":"rate_limited"}', { 'retry-after': '7' }),
+      errorResponse(429, '{"error":"rate_limited"}', { 'retry-after': '0' }),
     );
     const client = new LLMClient({ apiKey: 'sk-test', fetch: fakeFetch as any });
 
@@ -103,7 +105,7 @@ describe('LLMClient.generate (real path)', () => {
       expect.unreachable('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(LLMRateLimitError);
-      expect((err as LLMRateLimitError).retryAfterSeconds).toBe(7);
+      expect((err as LLMRateLimitError).retryAfterSeconds).toBe(0);
     }
     expect(fakeFetch).toHaveBeenCalledTimes(3);
   }, 10_000);
