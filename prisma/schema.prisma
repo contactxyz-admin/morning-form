@@ -21,6 +21,7 @@ model User {
   chatMessages     ChatMessage[]
   healthConnections HealthConnection[]
   healthDataPoints  HealthDataPoint[]
+  suggestions      Suggestion[]
   preferences      UserPreferences?
 }
 
@@ -158,6 +159,22 @@ model RawProviderPayload {
   traceId    String?
 
   @@index([userId, provider, receivedAt])
+}
+
+model Suggestion {
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id])
+  date                DateTime
+  kind                String
+  title               String
+  tier                String
+  triggeringMetricIds String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([userId, date, kind])
+  @@index([userId, date])
 }
 
 model UserPreferences {
