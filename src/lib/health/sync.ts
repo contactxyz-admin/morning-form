@@ -11,6 +11,7 @@ import { WhoopClient } from './whoop';
 import { OuraClient } from './oura';
 import { FitbitClient } from './fitbit';
 import { GoogleFitClient } from './google-fit';
+import { pointFromCanonical } from './normalize';
 
 export class HealthSyncService {
   private terra: TerraClient;
@@ -38,18 +39,20 @@ export class HealthSyncService {
           this.whoop.getSleep(startDate, endDate),
         ]);
         recovery.forEach(r => {
+          const at = { timestamp: r.created_at, provider: 'whoop' as const };
           points.push(
-            { category: 'recovery', metric: 'recovery_score', value: r.score.recovery_score, unit: '%', timestamp: r.created_at, provider: 'whoop' },
-            { category: 'heart', metric: 'resting_hr', value: r.score.resting_heart_rate, unit: 'bpm', timestamp: r.created_at, provider: 'whoop' },
-            { category: 'recovery', metric: 'hrv', value: r.score.hrv_rmssd_milli, unit: 'ms', timestamp: r.created_at, provider: 'whoop' },
+            pointFromCanonical('recovery_score', r.score.recovery_score, at),
+            pointFromCanonical('resting_hr', r.score.resting_heart_rate, at),
+            pointFromCanonical('hrv', r.score.hrv_rmssd_milli, at),
           );
         });
         sleep.forEach(s => {
+          const at = { timestamp: s.start, provider: 'whoop' as const };
           points.push(
-            { category: 'sleep', metric: 'duration', value: s.score.stage_summary.total_in_bed_time_milli / 3600000, unit: 'hours', timestamp: s.start, provider: 'whoop' },
-            { category: 'sleep', metric: 'efficiency', value: s.score.sleep_efficiency_percentage, unit: '%', timestamp: s.start, provider: 'whoop' },
-            { category: 'sleep', metric: 'deep_sleep', value: s.score.stage_summary.total_slow_wave_sleep_time_milli / 3600000, unit: 'hours', timestamp: s.start, provider: 'whoop' },
-            { category: 'sleep', metric: 'rem_sleep', value: s.score.stage_summary.total_rem_sleep_time_milli / 3600000, unit: 'hours', timestamp: s.start, provider: 'whoop' },
+            pointFromCanonical('duration', s.score.stage_summary.total_in_bed_time_milli / 3600000, at),
+            pointFromCanonical('efficiency', s.score.sleep_efficiency_percentage, at),
+            pointFromCanonical('deep_sleep', s.score.stage_summary.total_slow_wave_sleep_time_milli / 3600000, at),
+            pointFromCanonical('rem_sleep', s.score.stage_summary.total_rem_sleep_time_milli / 3600000, at),
           );
         });
         break;
@@ -60,17 +63,16 @@ export class HealthSyncService {
           this.oura.getReadiness(startDate, endDate),
         ]);
         sleep.forEach(s => {
+          const at = { timestamp: s.bedtime_start, provider: 'oura' as const };
           points.push(
-            { category: 'sleep', metric: 'duration', value: s.total_sleep_duration / 3600, unit: 'hours', timestamp: s.bedtime_start, provider: 'oura' },
-            { category: 'sleep', metric: 'efficiency', value: s.efficiency, unit: '%', timestamp: s.bedtime_start, provider: 'oura' },
-            { category: 'recovery', metric: 'hrv', value: s.average_hrv, unit: 'ms', timestamp: s.bedtime_start, provider: 'oura' },
-            { category: 'body', metric: 'temperature_delta', value: s.temperature_delta, unit: '°C', timestamp: s.bedtime_start, provider: 'oura' },
+            pointFromCanonical('duration', s.total_sleep_duration / 3600, at),
+            pointFromCanonical('efficiency', s.efficiency, at),
+            pointFromCanonical('hrv', s.average_hrv, at),
+            pointFromCanonical('temperature_delta', s.temperature_delta, at),
           );
         });
         readiness.forEach(r => {
-          points.push(
-            { category: 'recovery', metric: 'readiness_score', value: r.score, unit: 'score', timestamp: now, provider: 'oura' },
-          );
+          points.push(pointFromCanonical('readiness_score', r.score, { timestamp: now, provider: 'oura' }));
         });
         break;
       }
@@ -82,27 +84,30 @@ export class HealthSyncService {
         ]);
 
         sleep.forEach((s) => {
+          const at = { timestamp: s.startTime, provider: 'fitbit' as const };
           points.push(
-            { category: 'sleep', metric: 'duration', value: s.minutesAsleep / 60, unit: 'hours', timestamp: s.startTime, provider: 'fitbit' },
-            { category: 'sleep', metric: 'efficiency', value: s.efficiency, unit: '%', timestamp: s.startTime, provider: 'fitbit' },
-            { category: 'sleep', metric: 'deep_sleep', value: s.levels.summary.deep.minutes / 60, unit: 'hours', timestamp: s.startTime, provider: 'fitbit' },
-            { category: 'sleep', metric: 'rem_sleep', value: s.levels.summary.rem.minutes / 60, unit: 'hours', timestamp: s.startTime, provider: 'fitbit' },
+            pointFromCanonical('duration', s.minutesAsleep / 60, at),
+            pointFromCanonical('efficiency', s.efficiency, at),
+            pointFromCanonical('deep_sleep', s.levels.summary.deep.minutes / 60, at),
+            pointFromCanonical('rem_sleep', s.levels.summary.rem.minutes / 60, at),
           );
         });
 
         activity.forEach((a) => {
+          const at = { timestamp: now, provider: 'fitbit' as const };
           points.push(
-            { category: 'activity', metric: 'steps', value: a.steps, unit: 'steps', timestamp: now, provider: 'fitbit' },
-            { category: 'activity', metric: 'calories', value: a.calories, unit: 'kcal', timestamp: now, provider: 'fitbit' },
-            { category: 'activity', metric: 'active_minutes', value: a.activeMinutes, unit: 'minutes', timestamp: now, provider: 'fitbit' },
+            pointFromCanonical('steps', a.steps, at),
+            pointFromCanonical('calories', a.calories, at),
+            pointFromCanonical('active_minutes', a.activeMinutes, at),
           );
         });
 
         heartRate.forEach((hr) => {
+          const at = { timestamp: now, provider: 'fitbit' as const };
           points.push(
-            { category: 'heart', metric: 'resting_hr', value: hr.resting, unit: 'bpm', timestamp: now, provider: 'fitbit' },
-            { category: 'heart', metric: 'avg_hr', value: hr.average, unit: 'bpm', timestamp: now, provider: 'fitbit' },
-            { category: 'heart', metric: 'max_hr', value: hr.max, unit: 'bpm', timestamp: now, provider: 'fitbit' },
+            pointFromCanonical('resting_hr', hr.resting, at),
+            pointFromCanonical('avg_hr', hr.average, at),
+            pointFromCanonical('max_hr', hr.max, at),
           );
         });
         break;
@@ -114,16 +119,19 @@ export class HealthSyncService {
           this.googleFit.getHeartRate(startDate, endDate),
         ]);
 
-        points.push({ category: 'activity', metric: 'steps', value: steps, unit: 'steps', timestamp: now, provider: 'google_fit' });
+        points.push(pointFromCanonical('steps', steps, { timestamp: now, provider: 'google_fit' }));
 
         sleep.forEach((s) => {
-          points.push({ category: 'sleep', metric: 'duration', value: s.duration_minutes / 60, unit: 'hours', timestamp: s.start, provider: 'google_fit' });
+          points.push(
+            pointFromCanonical('duration', s.duration_minutes / 60, { timestamp: s.start, provider: 'google_fit' }),
+          );
         });
 
+        const at = { timestamp: now, provider: 'google_fit' as const };
         points.push(
-          { category: 'heart', metric: 'avg_hr', value: heartRate.avg, unit: 'bpm', timestamp: now, provider: 'google_fit' },
-          { category: 'heart', metric: 'resting_hr', value: heartRate.min, unit: 'bpm', timestamp: now, provider: 'google_fit' },
-          { category: 'heart', metric: 'max_hr', value: heartRate.max, unit: 'bpm', timestamp: now, provider: 'google_fit' },
+          pointFromCanonical('avg_hr', heartRate.avg, at),
+          pointFromCanonical('resting_hr', heartRate.min, at),
+          pointFromCanonical('max_hr', heartRate.max, at),
         );
         break;
       }
@@ -132,13 +140,14 @@ export class HealthSyncService {
         // These go through Terra
         const terraData = await this.terra.getDaily('user', startDate, endDate);
         terraData.forEach(d => {
+          const at = { timestamp: `${d.date}T12:00:00Z`, provider };
           points.push(
-            { category: 'activity', metric: 'steps', value: d.steps, unit: 'steps', timestamp: `${d.date}T12:00:00Z`, provider },
-            { category: 'heart', metric: 'resting_hr', value: d.resting_hr, unit: 'bpm', timestamp: `${d.date}T12:00:00Z`, provider },
-            { category: 'recovery', metric: 'hrv', value: d.avg_hrv, unit: 'ms', timestamp: `${d.date}T12:00:00Z`, provider },
+            pointFromCanonical('steps', d.steps, at),
+            pointFromCanonical('resting_hr', d.resting_hr, at),
+            pointFromCanonical('hrv', d.avg_hrv, at),
           );
           if (d.recovery_score) {
-            points.push({ category: 'recovery', metric: 'recovery_score', value: d.recovery_score, unit: '%', timestamp: `${d.date}T12:00:00Z`, provider });
+            points.push(pointFromCanonical('recovery_score', d.recovery_score, at));
           }
         });
         break;

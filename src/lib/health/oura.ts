@@ -3,6 +3,10 @@
  * Direct integration for readiness, sleep, activity, and heart rate data.
  */
 
+import type { HealthProvider } from '@/types';
+import type { HealthProviderStrategy, ProviderCapabilities } from './strategy';
+import { HEALTH_PROVIDERS } from './providers';
+
 export interface OuraTokens {
   access_token: string;
   refresh_token: string;
@@ -57,7 +61,9 @@ export interface OuraActivity {
   sedentary_time: number;
 }
 
-export class OuraClient {
+export class OuraClient implements HealthProviderStrategy {
+  readonly provider: HealthProvider = 'oura';
+  readonly capabilities: ProviderCapabilities = HEALTH_PROVIDERS.oura.capabilities;
   private clientId: string;
   private clientSecret: string;
   private baseUrl = 'https://api.ouraring.com/v2';

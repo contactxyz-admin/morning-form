@@ -1,4 +1,5 @@
 import type { HealthProvider, HealthCategory } from '@/types';
+import type { ProviderCapabilities } from './strategy';
 
 export interface ProviderDefinition {
   name: string;
@@ -7,7 +8,32 @@ export interface ProviderDefinition {
   oauthBaseUrl: string;
   features: string[];
   scopes: string[];
+  capabilities: ProviderCapabilities;
 }
+
+const PULL_ONLY: ProviderCapabilities = {
+  supportsPull: true,
+  supportsPush: false,
+  supportsSDK: false,
+  supportsXmlImport: false,
+  webhookNotifyOnly: false,
+};
+
+const PULL_WITH_NOTIFY_WEBHOOK: ProviderCapabilities = {
+  supportsPull: true,
+  supportsPush: true,
+  supportsSDK: false,
+  supportsXmlImport: false,
+  webhookNotifyOnly: true,
+};
+
+const TERRA_AGGREGATED: ProviderCapabilities = {
+  supportsPull: true,
+  supportsPush: true,
+  supportsSDK: true,
+  supportsXmlImport: true,
+  webhookNotifyOnly: false,
+};
 
 export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
   apple_health: {
@@ -17,6 +43,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     oauthBaseUrl: '', // Connected via Terra widget
     features: ['sleep_duration', 'sleep_stages', 'heart_rate', 'hrv', 'steps', 'calories', 'active_minutes'],
     scopes: [],
+    capabilities: TERRA_AGGREGATED,
   },
   whoop: {
     name: 'Whoop',
@@ -25,6 +52,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     oauthBaseUrl: 'https://api.prod.whoop.com/oauth/oauth2/auth',
     features: ['recovery_score', 'strain', 'sleep_stages', 'hrv', 'resting_hr', 'respiratory_rate'],
     scopes: ['read:recovery', 'read:cycles', 'read:sleep', 'read:workout', 'read:profile', 'read:body_measurement'],
+    capabilities: PULL_WITH_NOTIFY_WEBHOOK,
   },
   oura: {
     name: 'Oura',
@@ -33,6 +61,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     oauthBaseUrl: 'https://cloud.ouraring.com/oauth/authorize',
     features: ['readiness_score', 'sleep_score', 'activity_score', 'hrv', 'temperature_deviation', 'respiratory_rate'],
     scopes: ['daily', 'heartrate', 'personal', 'session', 'sleep', 'workout'],
+    capabilities: PULL_WITH_NOTIFY_WEBHOOK,
   },
   fitbit: {
     name: 'Fitbit',
@@ -41,6 +70,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     oauthBaseUrl: 'https://www.fitbit.com/oauth2/authorize',
     features: ['sleep_duration', 'sleep_stages', 'heart_rate', 'steps', 'calories', 'spo2'],
     scopes: ['activity', 'heartrate', 'sleep', 'oxygen_saturation', 'respiratory_rate'],
+    capabilities: PULL_WITH_NOTIFY_WEBHOOK,
   },
   garmin: {
     name: 'Garmin',
@@ -49,6 +79,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     oauthBaseUrl: 'https://connect.garmin.com/oauthConfirm',
     features: ['training_load', 'body_battery', 'stress_level', 'sleep_score', 'heart_rate', 'steps'],
     scopes: [],
+    capabilities: TERRA_AGGREGATED,
   },
   google_fit: {
     name: 'Google Fit',
@@ -57,5 +88,6 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     oauthBaseUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     features: ['steps', 'calories', 'heart_rate', 'sleep_duration', 'active_minutes'],
     scopes: ['https://www.googleapis.com/auth/fitness.activity.read', 'https://www.googleapis.com/auth/fitness.sleep.read', 'https://www.googleapis.com/auth/fitness.heart_rate.read'],
+    capabilities: PULL_ONLY,
   },
 };

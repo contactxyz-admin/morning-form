@@ -2,6 +2,10 @@
  * Google Fit REST API Client
  */
 
+import type { HealthProvider } from '@/types';
+import type { HealthProviderStrategy, ProviderCapabilities } from './strategy';
+import { HEALTH_PROVIDERS } from './providers';
+
 export interface GoogleFitTokens {
   access_token: string;
   refresh_token: string;
@@ -9,7 +13,9 @@ export interface GoogleFitTokens {
   token_type?: string;
 }
 
-export class GoogleFitClient {
+export class GoogleFitClient implements HealthProviderStrategy {
+  readonly provider: HealthProvider = 'google_fit';
+  readonly capabilities: ProviderCapabilities = HEALTH_PROVIDERS.google_fit.capabilities;
   private clientId: string;
   private clientSecret: string;
 
