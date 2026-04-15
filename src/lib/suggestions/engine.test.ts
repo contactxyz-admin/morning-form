@@ -137,6 +137,43 @@ describe('ensureTodaysSuggestions', () => {
     expect(gte.getTime()).toBe(expected.getTime());
   });
 
+  it('persists a glucose_fasting_diabetic row when a fasting 130 mg/dL reading lands', async () => {
+    findManyPoints.mockResolvedValue([
+      row({
+        id: 'g1',
+        provider: 'libre',
+        category: 'metabolic',
+        metric: 'glucose',
+        value: 130,
+        unit: 'mg/dL',
+        timestamp: new Date('2026-04-15T06:00:00Z'),
+      }),
+    ]);
+    upsertSuggestion.mockResolvedValue({
+      id: 's1',
+      userId: 'u1',
+      date: TODAY,
+      kind: 'glucose_fasting_diabetic',
+      title:
+        'Please consult a clinician — morning-form should not be your primary intervention here',
+      tier: 'strong',
+      triggeringMetricIds: JSON.stringify(['g1']),
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+
+    const result = await ensureTodaysSuggestions('u1', NOW);
+
+    expect(upsertSuggestion).toHaveBeenCalledTimes(1);
+    const call = upsertSuggestion.mock.calls[0][0] as {
+      where: { userId_date_kind: { kind: string } };
+      create: { title: string; tier: string };
+    };
+    expect(call.where.userId_date_kind.kind).toBe('glucose_fasting_diabetic');
+    expect(call.create.tier).toBe('strong');
+    expect(result[0].kind).toBe('glucose_fasting_diabetic');
+  });
+
   it('deserializes triggeringMetricIds back to an array on return', async () => {
     findManyPoints.mockResolvedValue([row({ value: 30 })]);
     upsertSuggestion.mockResolvedValue({

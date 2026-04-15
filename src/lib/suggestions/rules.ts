@@ -23,6 +23,21 @@ function mostRecent(points: HealthDataPoint[], metric: string): HealthDataPoint 
   );
 }
 
+// Fasting window: 04:00 inclusive to 08:00 exclusive, interpreted in UTC.
+// Timezone-aware handling is deferred (see the suggestions plan's Open Questions).
+function isFastingWindow(timestamp: string): boolean {
+  const hour = new Date(timestamp).getUTCHours();
+  return hour >= 4 && hour < 8;
+}
+
+function mostRecentFastingGlucose(points: HealthDataPoint[]): HealthDataPoint | null {
+  const fasting = points.filter((p) => p.metric === 'glucose' && isFastingWindow(p.timestamp));
+  if (fasting.length === 0) return null;
+  return fasting.reduce((latest, p) =>
+    p.timestamp.localeCompare(latest.timestamp) > 0 ? p : latest,
+  );
+}
+
 export const recoveryLowRule: Rule = {
   kind: 'recovery_low',
   evaluate(points) {
@@ -37,7 +52,43 @@ export const recoveryLowRule: Rule = {
   },
 };
 
-export const rules: Rule[] = [recoveryLowRule];
+export const glucoseFastingElevatedRule: Rule = {
+  kind: 'glucose_fasting_elevated',
+  evaluate(points) {
+    const latest = mostRecentFastingGlucose(points);
+    if (!latest) return null;
+    // Mutual exclusion: diabetic range wins.
+    if (latest.value >= 126) return null;
+    if (latest.value < 100) return null;
+    return {
+      kind: 'glucose_fasting_elevated',
+      title: 'Trim refined carbs at dinner and walk 10 minutes after meals',
+      tier: 'moderate',
+      triggeringMetricIds: latest.id ? [latest.id] : [],
+    };
+  },
+};
+
+export const glucoseFastingDiabeticRule: Rule = {
+  kind: 'glucose_fasting_diabetic',
+  evaluate(points) {
+    const latest = mostRecentFastingGlucose(points);
+    if (!latest || latest.value < 126) return null;
+    return {
+      kind: 'glucose_fasting_diabetic',
+      title:
+        'Please consult a clinician — morning-form should not be your primary intervention here',
+      tier: 'strong',
+      triggeringMetricIds: latest.id ? [latest.id] : [],
+    };
+  },
+};
+
+export const rules: Rule[] = [
+  recoveryLowRule,
+  glucoseFastingElevatedRule,
+  glucoseFastingDiabeticRule,
+];
 
 export function evaluateRules(
   points: HealthDataPoint[],
