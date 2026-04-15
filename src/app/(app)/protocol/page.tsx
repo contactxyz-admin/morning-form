@@ -1,15 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { Icon } from '@/components/ui/icon';
+import { SubscriptionStatusBadge } from '@/components/subscription/subscription-status-badge';
 import { mockProtocol, mockProtocolItems } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 
+interface SubscriptionSummary {
+  status: string;
+  currentPeriodEnd: string;
+  monthlyTotalCents: number;
+  items: { id: string; product: { name: string } }[];
+}
+
 export default function ProtocolPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
+  const [packCompoundCount, setPackCompoundCount] = useState(0);
+  const [packPriceCents, setPackPriceCents] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/subscription')
+      .then((res) => res.json())
+      .then((data: { subscription: SubscriptionSummary | null }) => setSubscription(data.subscription))
+      .catch(console.error);
+
+    fetch('/api/products/protocol')
+      .then((res) => res.json())
+      .then((data: { pack: { packCompounds: unknown[]; priceInCents: number } | null }) => {
+        if (data.pack) {
+          setPackCompoundCount(data.pack.packCompounds.length);
+          setPackPriceCents(data.pack.priceInCents);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   return (
     <div className="px-5 pt-6 pb-8">
@@ -85,6 +114,44 @@ export default function ProtocolPage() {
           <span className="font-medium text-accent">Confidence: {mockProtocol.confidence}</span> — Your profile maps clearly to well-studied compounds.
         </p>
       </Card>
+
+      {/* Subscription CTA */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mt-6">
+        {subscription ? (
+          <Card variant="default">
+            <div className="flex items-center justify-between mb-2">
+              <SectionLabel>SUPPLEMENTS</SectionLabel>
+              <SubscriptionStatusBadge status={subscription.status} />
+            </div>
+            <p className="text-body text-text-secondary">
+              {subscription.items.length} compound{subscription.items.length !== 1 ? 's' : ''} · £{(subscription.monthlyTotalCents / 100).toFixed(2)}/mo
+            </p>
+            {subscription.status === 'active' && (
+              <p className="mt-1 text-caption text-text-tertiary">
+                Next delivery {new Date(subscription.currentPeriodEnd).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}
+              </p>
+            )}
+            <Link href="/settings/subscription" className="mt-3 inline-block text-caption text-accent font-medium hover:underline">
+              Manage subscription →
+            </Link>
+          </Card>
+        ) : (
+          <Card variant="action" accentColor="teal" clickable>
+            <Link href="/protocol/subscribe" className="block">
+              <SectionLabel>GET THESE SUPPLEMENTS</SectionLabel>
+              <p className="mt-2 text-body text-text-secondary">
+                Your protocol — {packCompoundCount} compounds, delivered monthly.
+              </p>
+              {packPriceCents > 0 && (
+                <p className="mt-1 font-mono text-data text-accent">
+                  From £{(packPriceCents / 100).toFixed(2)}/mo
+                </p>
+              )}
+              <p className="mt-3 text-caption text-accent font-medium">Subscribe →</p>
+            </Link>
+          </Card>
+        )}
+      </motion.div>
     </div>
   );
 }
