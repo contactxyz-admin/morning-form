@@ -58,7 +58,11 @@ describe('POST /api/health/connect — libre credential auth', () => {
       create: { accessToken: string; metadata: string };
       update: { accessToken: string; metadata: string };
     };
-    expect(arg.create.accessToken).toMatch(/^mock_libre_/);
+    // Token is persisted encrypted at rest — the plaintext mock token must
+    // not appear in the stored row, but decrypting should recover it.
+    const { decryptToken, isEncrypted } = await import('@/lib/health/crypto');
+    expect(isEncrypted(arg.create.accessToken)).toBe(true);
+    expect(decryptToken(arg.create.accessToken)).toMatch(/^mock_libre_/);
     // The raw password must never appear anywhere in the persisted row.
     const serialized = JSON.stringify(arg);
     expect(serialized).not.toContain('secret');

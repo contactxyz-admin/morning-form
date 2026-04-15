@@ -8,6 +8,7 @@ import { FitbitClient } from '@/lib/health/fitbit';
 import { GoogleFitClient } from '@/lib/health/google-fit';
 import { DexcomClient } from '@/lib/health/dexcom';
 import { LibreClient } from '@/lib/health/libre';
+import { encryptToken } from '@/lib/health/crypto';
 import { prisma } from '@/lib/db';
 import { getOrCreateDemoUser } from '@/lib/demo-user';
 import { env } from '@/lib/env';
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
           where: { userId_provider: { userId: user.id, provider } },
           update: {
             status: 'connected',
-            accessToken: session.accessToken,
+            accessToken: encryptToken(session.accessToken),
             expiresAt: new Date(session.expiresAt),
             metadata: JSON.stringify({ patientId: session.patientId, connectedAt: new Date().toISOString() }),
           },
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
             userId: user.id,
             provider,
             status: 'connected',
-            accessToken: session.accessToken,
+            accessToken: encryptToken(session.accessToken),
             expiresAt: new Date(session.expiresAt),
             metadata: JSON.stringify({ patientId: session.patientId, connectedAt: new Date().toISOString() }),
           },
