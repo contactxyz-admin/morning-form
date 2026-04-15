@@ -4,6 +4,10 @@ node_modules/
 .env.local
 .next/
 prisma/dev.db
+prisma/.test-graph.db
+prisma/.test-graph.db-journal
+prisma/.test-graph.db-shm
+prisma/.test-graph.db-wal
 dist/
 build/
 *.tsbuildinfo
