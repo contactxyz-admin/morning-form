@@ -377,6 +377,9 @@ export class HealthSyncService {
         maxHR: latest('max_hr') as number | null,
         avgHR: latest('avg_hr') as number | null,
       },
+      metabolic: {
+        glucose: latest('glucose') as number | null,
+      },
     };
   }
 }

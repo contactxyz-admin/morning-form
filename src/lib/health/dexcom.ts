@@ -100,13 +100,16 @@ export class DexcomClient implements HealthProviderStrategy {
    * a gentle diurnal pattern centered on 100 mg/dL with a morning dip and a
    * post-meal bump, clamped to a physiologic range [70, 180].
    */
-  async getEgvs(startDate: string, _endDate: string, accessToken?: string): Promise<DexcomEgv[]> {
+  async getEgvs(startDate: string, endDate: string, accessToken?: string): Promise<DexcomEgv[]> {
     if (!this.clientId || !this.clientSecret || !accessToken) {
       return generateMockEgvs(startDate);
     }
 
+    // Dexcom requires ISO-8601 timestamps, not bare YYYY-MM-DD dates.
+    const startParam = `${startDate}T00:00:00`;
+    const endParam = `${endDate}T23:59:59`;
     const response = await fetch(
-      `${this.baseUrl}/users/self/egvs?startDate=${startDate}&endDate=${_endDate}`,
+      `${this.baseUrl}/users/self/egvs?startDate=${startParam}&endDate=${endParam}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
 
@@ -119,6 +122,13 @@ export class DexcomClient implements HealthProviderStrategy {
   }
 }
 
+/**
+ * Deterministic 24-hour EGV series (15-minute cadence → 96 readings). Includes
+ * one hyperglycemic postprandial spike (>180 mg/dL) around 1pm and one
+ * overnight hypoglycemic dip (<70 mg/dL) around 3am so downstream suggestion
+ * rules (Unit 5) can exercise out-of-range paths against the default mock.
+ * Clamp is wider than physiologic normal to preserve those excursions.
+ */
 function generateMockEgvs(startDate: string): DexcomEgv[] {
   const readings: DexcomEgv[] = [];
   const start = new Date(`${startDate}T00:00:00Z`).getTime();
@@ -126,9 +136,10 @@ function generateMockEgvs(startDate: string): DexcomEgv[] {
     const t = new Date(start + i * 15 * 60 * 1000);
     const hour = (i * 15) / 60;
     const diurnal = 8 * Math.sin((hour / 24) * 2 * Math.PI - Math.PI / 2);
-    const mealBump = hour >= 8 && hour < 10 ? 25 : hour >= 12 && hour < 14 ? 20 : hour >= 18 && hour < 20 ? 22 : 0;
-    const raw = 100 + diurnal + mealBump;
-    const value = Math.max(70, Math.min(180, Math.round(raw)));
+    const mealBump = hour >= 8 && hour < 10 ? 30 : hour >= 12 && hour < 14 ? 95 : hour >= 18 && hour < 20 ? 22 : 0;
+    const nocturnalDip = hour >= 2.75 && hour < 3.5 ? -45 : 0;
+    const raw = 100 + diurnal + mealBump + nocturnalDip;
+    const value = Math.max(40, Math.min(250, Math.round(raw)));
     const iso = t.toISOString();
     readings.push({ systemTime: iso, displayTime: iso, value, unit: 'mg/dL' });
   }

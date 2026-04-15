@@ -44,12 +44,18 @@ describe('DexcomClient.getEgvs (mock mode)', () => {
     const egvs = await client.getEgvs('2026-04-13', '2026-04-14');
     for (const r of egvs) {
       expect(Number.isFinite(r.value)).toBe(true);
-      expect(r.value).toBeGreaterThanOrEqual(70);
-      expect(r.value).toBeLessThanOrEqual(180);
+      expect(r.value).toBeGreaterThanOrEqual(40);
+      expect(r.value).toBeLessThanOrEqual(250);
       expect(r.unit).toBe('mg/dL');
       expect(() => new Date(r.systemTime).toISOString()).not.toThrow();
       expect(new Date(r.systemTime).toISOString()).toBe(r.systemTime);
     }
+  });
+
+  it('includes at least one hypoglycemic (<70) and one hyperglycemic (>180) excursion so Unit 5 rules can fire', async () => {
+    const egvs = await new DexcomClient('', '').getEgvs('2026-04-13', '2026-04-14');
+    expect(egvs.some((r) => r.value < 70)).toBe(true);
+    expect(egvs.some((r) => r.value > 180)).toBe(true);
   });
 
   it('is deterministic across calls with the same startDate', async () => {

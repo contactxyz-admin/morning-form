@@ -168,6 +168,9 @@ export interface HealthSummary {
     maxHR: number | null;
     avgHR: number | null;
   };
+  metabolic: {
+    glucose: number | null;
+  };
 }
 
 // ── Navigation ──

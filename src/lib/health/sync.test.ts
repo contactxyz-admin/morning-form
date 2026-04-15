@@ -337,7 +337,7 @@ describe('HealthSyncService.syncProvider — Dexcom characterization', () => {
       metric: 'glucose',
       unit: 'mg/dL',
     });
-    expect(points.every((p) => p.value >= 70 && p.value <= 180)).toBe(true);
+    expect(points.every((p) => p.value >= 40 && p.value <= 250)).toBe(true);
   });
 
   it('timestamps are ISO strings derived from systemTime', () => {
