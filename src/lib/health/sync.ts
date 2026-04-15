@@ -11,6 +11,7 @@ import { WhoopClient } from './whoop';
 import { OuraClient } from './oura';
 import { FitbitClient } from './fitbit';
 import { GoogleFitClient } from './google-fit';
+import { DexcomClient } from './dexcom';
 import { pointFromCanonical } from './normalize';
 import { captureRawPayload } from './raw-payload';
 
@@ -25,6 +26,7 @@ export class HealthSyncService {
   private oura: OuraClient;
   private fitbit: FitbitClient;
   private googleFit: GoogleFitClient;
+  private dexcom: DexcomClient;
 
   constructor() {
     this.terra = new TerraClient();
@@ -32,6 +34,7 @@ export class HealthSyncService {
     this.oura = new OuraClient();
     this.fitbit = new FitbitClient();
     this.googleFit = new GoogleFitClient();
+    this.dexcom = new DexcomClient();
   }
 
   async syncProvider(
@@ -166,6 +169,15 @@ export class HealthSyncService {
         );
         break;
       }
+      case 'dexcom': {
+        const egvs = await capture('getEgvs', () => this.dexcom.getEgvs(startDate, endDate));
+        egvs.forEach((r) => {
+          points.push(
+            pointFromCanonical('glucose', r.value, { timestamp: r.systemTime, provider: 'dexcom' }),
+          );
+        });
+        break;
+      }
       case 'apple_health':
       case 'garmin': {
         // These go through Terra
@@ -216,6 +228,9 @@ export class HealthSyncService {
         break;
       case 'google_fit':
         refreshed = await this.googleFit.refreshToken(connection.refreshToken);
+        break;
+      case 'dexcom':
+        refreshed = await this.dexcom.refreshToken(connection.refreshToken);
         break;
       default:
         return connection;

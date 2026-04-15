@@ -68,7 +68,7 @@ describe('canonical metric registry', () => {
       [
         ['active_minutes', 'active_minutes', 'minutes', 'activity'],
         ['average_heart_rate', 'avg_hr', 'bpm', 'heart'],
-        ['blood_glucose', 'glucose', 'mg/dL', 'body'],
+        ['blood_glucose', 'glucose', 'mg/dL', 'metabolic'],
         ['body_temperature_delta', 'temperature_delta', '°C', 'body'],
         ['calories_burned', 'calories', 'kcal', 'activity'],
         ['heart_rate_variability_rmssd', 'hrv', 'ms', 'recovery'],

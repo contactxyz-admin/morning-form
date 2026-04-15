@@ -6,6 +6,7 @@ import { WhoopClient } from '@/lib/health/whoop';
 import { OuraClient } from '@/lib/health/oura';
 import { FitbitClient } from '@/lib/health/fitbit';
 import { GoogleFitClient } from '@/lib/health/google-fit';
+import { DexcomClient } from '@/lib/health/dexcom';
 import { prisma } from '@/lib/db';
 import { getOrCreateDemoUser } from '@/lib/demo-user';
 import { env } from '@/lib/env';
@@ -61,6 +62,11 @@ export async function POST(request: Request) {
       case 'google_fit': {
         const gfit = new GoogleFitClient();
         authUrl = gfit.getAuthUrl(callbackUrl);
+        break;
+      }
+      case 'dexcom': {
+        const dexcom = new DexcomClient();
+        authUrl = dexcom.getAuthUrl(callbackUrl);
         break;
       }
       default:
