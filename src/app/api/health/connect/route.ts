@@ -82,7 +82,16 @@ export async function POST(request: Request) {
           );
         }
         const libre = new LibreClient();
-        const session = await libre.login(email, password);
+        let session;
+        try {
+          session = await libre.login(email, password);
+        } catch (loginError) {
+          console.error('[API] Libre login failed:', loginError);
+          return NextResponse.json(
+            { error: 'Libre login failed — check your email and password', provider },
+            { status: 401 }
+          );
+        }
         await prisma.healthConnection.upsert({
           where: { userId_provider: { userId: user.id, provider } },
           update: {

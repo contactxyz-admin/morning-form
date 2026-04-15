@@ -222,6 +222,24 @@ export class HealthSyncService {
     const expiresAt = connection.expiresAt ? new Date(connection.expiresAt) : null;
     const isExpired = expiresAt ? expiresAt.getTime() <= Date.now() + 60_000 : false;
 
+    // Libre is credential-auth (no refresh token). An expired session can
+    // only be recovered by asking the user to re-enter their password, so
+    // we flag the connection as `error` and let the settings UI surface a
+    // reconnect prompt.
+    if (isExpired && connection.provider === 'libre') {
+      return prisma.healthConnection.update({
+        where: { id: connection.id },
+        data: {
+          status: 'error',
+          metadata: JSON.stringify({
+            ...(this.parseMetadata(connection.metadata) || {}),
+            syncError: 'libre_session_expired_reconnect_required',
+            lastSyncFailedAt: new Date().toISOString(),
+          }),
+        },
+      });
+    }
+
     if (!isExpired || !connection.refreshToken) {
       return connection;
     }

@@ -36,6 +36,10 @@ export class LibreClient implements HealthProviderStrategy {
   private enabled: boolean;
 
   constructor(enabled?: boolean) {
+    // Libre is opt-in (LIBRE_ENABLED=true), not auto-enabled by presence of
+    // secrets like the OAuth clients. The endpoint is unofficial and can
+    // break without notice, so we default to mock even in production unless
+    // the operator explicitly opts in.
     this.enabled = enabled ?? process.env.LIBRE_ENABLED === 'true';
   }
 
