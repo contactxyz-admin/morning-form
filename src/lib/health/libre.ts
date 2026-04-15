@@ -61,6 +61,7 @@ export class LibreClient implements HealthProviderStrategy {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'product': 'llu.ios', 'version': '4.7.0' },
       body: JSON.stringify({ email, password }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
@@ -92,6 +93,7 @@ export class LibreClient implements HealthProviderStrategy {
         'product': 'llu.ios',
         'version': '4.7.0',
       },
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {

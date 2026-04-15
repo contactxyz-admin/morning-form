@@ -82,11 +82,17 @@ export async function POST(request: Request) {
           );
         }
         const libre = new LibreClient();
+        if (process.env.LIBRE_ENABLED !== 'true' && process.env.NODE_ENV === 'production') {
+          console.warn('[API] Libre connect in production with LIBRE_ENABLED!=true — routing to mock');
+        }
         let session;
         try {
           session = await libre.login(email, password);
         } catch (loginError) {
-          console.error('[API] Libre login failed:', loginError);
+          // Log only the message, not the raw error — error objects from fetch
+          // wrappers can carry request context in non-obvious fields.
+          const msg = loginError instanceof Error ? loginError.message : 'unknown';
+          console.error('[API] Libre login failed:', msg);
           return NextResponse.json(
             { error: 'Libre login failed — check your email and password', provider },
             { status: 401 }
