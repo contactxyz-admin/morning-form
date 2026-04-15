@@ -22,6 +22,10 @@ const optional = {
   // in production; a deterministic dev fallback is used otherwise.
   HEALTH_TOKEN_ENCRYPTION_KEY: process.env.HEALTH_TOKEN_ENCRYPTION_KEY ?? '',
   LIBRE_ENABLED: process.env.LIBRE_ENABLED ?? '',
+  // LLM (Anthropic) — required in production. MOCK_LLM=true forces canned
+  // responses in dev/test so callers don't need to stub the SDK.
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
+  MOCK_LLM: process.env.MOCK_LLM ?? '',
 };
 
 export const env = {
