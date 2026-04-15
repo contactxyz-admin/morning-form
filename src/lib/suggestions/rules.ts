@@ -23,8 +23,8 @@ function mostRecent(points: HealthDataPoint[], metric: string): HealthDataPoint 
   );
 }
 
-// Fasting window: 04:00–08:00 inclusive, interpreted in UTC. Timezone-aware
-// handling is deferred (see the suggestions plan's Open Questions).
+// Fasting window: 04:00 inclusive to 08:00 exclusive, interpreted in UTC.
+// Timezone-aware handling is deferred (see the suggestions plan's Open Questions).
 function isFastingWindow(timestamp: string): boolean {
   const hour = new Date(timestamp).getUTCHours();
   return hour >= 4 && hour < 8;

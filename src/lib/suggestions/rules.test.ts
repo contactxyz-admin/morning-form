@@ -104,6 +104,25 @@ describe('glucoseFastingElevatedRule', () => {
     expect(outcome).toBeNull();
   });
 
+  it('does not fire at the 08:00 UTC fasting-window upper boundary (exclusive)', () => {
+    const outcome = glucoseFastingElevatedRule.evaluate(
+      [glucose({ id: 'g1', value: 110, timestamp: '2026-04-15T08:00:00Z' })],
+      { now: NOW },
+    );
+    expect(outcome).toBeNull();
+  });
+
+  it('uses the most recent fasting reading when multiple exist', () => {
+    const outcome = glucoseFastingElevatedRule.evaluate(
+      [
+        glucose({ id: 'old', value: 110, timestamp: '2026-04-15T05:00:00Z' }),
+        glucose({ id: 'new', value: 90, timestamp: '2026-04-15T07:00:00Z' }),
+      ],
+      { now: NOW },
+    );
+    expect(outcome).toBeNull();
+  });
+
   it('suppresses itself when the diabetic rule would fire (mutual exclusion)', () => {
     const outcome = glucoseFastingElevatedRule.evaluate(
       [glucose({ id: 'g1', value: 130 })],
