@@ -65,6 +65,13 @@ describe('captureRawPayload', () => {
       });
     });
 
+    it('persists traceId=undefined when the caller omits it', async () => {
+      createMock.mockResolvedValueOnce({});
+      await captureRawPayload({ userId: 'u1', provider: 'oura', source: 'pull', payload: { ok: 1 } });
+      const arg = createMock.mock.calls[0][0] as { data: { traceId: string | undefined } };
+      expect(arg.data.traceId).toBeUndefined();
+    });
+
     it('serializes null payloads instead of throwing', async () => {
       createMock.mockResolvedValueOnce({});
       await captureRawPayload({ userId: 'u1', provider: 'libre', source: 'pull', payload: null });

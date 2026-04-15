@@ -44,18 +44,21 @@ export class HealthSyncService {
     const now = new Date().toISOString();
 
     // Capture each raw provider response BEFORE pointFromCanonical runs so we
-    // can replay or diff when a vendor silently changes shape. Best-effort —
-    // capture failures are swallowed inside captureRawPayload.
+    // can replay or diff when a vendor silently changes shape. Best-effort:
+    // fire-and-forget so a slow debug write never extends sync latency. Any
+    // capture error is already swallowed inside captureRawPayload; the extra
+    // .catch here is belt-and-braces against a surprise throw before the
+    // helper's own try/catch is reached.
     const capture = async <T>(method: string, fn: () => Promise<T>): Promise<T> => {
       const data = await fn();
       if (opts.userId) {
-        await captureRawPayload({
+        void captureRawPayload({
           userId: opts.userId,
           provider,
           source: 'pull',
           payload: { method, startDate, endDate, data },
           traceId: opts.traceId,
-        });
+        }).catch(() => {});
       }
       return data;
     };

@@ -3,12 +3,16 @@
  *
  * When a provider (Whoop, Libre, ...) silently changes shape, the canonical
  * mapper produces empty / wrong points and the rule engine quietly stops
- * firing. Capturing the unparsed response gives us something to grep, replay,
- * and diff after the fact.
+ * firing. Capturing the provider response alongside the request context that
+ * produced it gives us something to grep, replay, and diff after the fact.
  *
- * v1 keeps it boring: one row per provider call, payload as a JSON string,
- * sizeBytes for quick triage. No S3, no separate event hierarchy, no
- * background pruning — that's debug data, we'll cull manually if it grows.
+ * The `payload` input is serialized as-is, so callers can either pass the
+ * raw response or a thin envelope like `{ method, startDate, endDate, data }`
+ * (what sync.ts does today) to keep the request context next to the response.
+ *
+ * v1 keeps storage boring: one row per provider call, payload as a JSON
+ * string, sizeBytes for quick triage. No S3, no separate event hierarchy,
+ * no background pruning — that's debug data, we'll cull manually if it grows.
  *
  * Capture is best-effort. A failed write must NEVER break sync.
  */

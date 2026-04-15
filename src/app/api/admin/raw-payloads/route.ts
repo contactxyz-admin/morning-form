@@ -6,12 +6,20 @@ const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 
 export async function GET(request: Request) {
+  // Dev-only debug surface. Production deploys must not expose raw provider
+  // payloads — they contain biometric data (HRV, sleep, glucose) and provider
+  // response shapes we'd rather not leak. Auth is the right long-term answer;
+  // a 404 in prod is the right today answer.
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   try {
     const url = new URL(request.url);
     const provider = url.searchParams.get('provider') ?? undefined;
     const requestedUserId = url.searchParams.get('userId');
     const limitParam = Number(url.searchParams.get('limit') ?? DEFAULT_LIMIT);
-    const limit = Math.min(MAX_LIMIT, Math.max(1, Number.isFinite(limitParam) ? limitParam : DEFAULT_LIMIT));
+    const limit = Math.min(MAX_LIMIT, Math.max(0, Number.isFinite(limitParam) ? limitParam : DEFAULT_LIMIT));
 
     // Demo-user gated: only the seeded demo user's payloads are accessible.
     // Any other userId returns an empty list rather than a leak.
