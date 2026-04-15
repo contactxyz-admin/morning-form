@@ -17,6 +17,11 @@ const optional = {
   GARMIN_CONSUMER_SECRET: process.env.GARMIN_CONSUMER_SECRET ?? '',
   GOOGLE_FIT_CLIENT_ID: process.env.GOOGLE_FIT_CLIENT_ID ?? '',
   GOOGLE_FIT_CLIENT_SECRET: process.env.GOOGLE_FIT_CLIENT_SECRET ?? '',
+  // Secret used to derive the AES-GCM key that encrypts stored provider
+  // tokens (Libre, and anything else that persists bearer tokens). Required
+  // in production; a deterministic dev fallback is used otherwise.
+  HEALTH_TOKEN_ENCRYPTION_KEY: process.env.HEALTH_TOKEN_ENCRYPTION_KEY ?? '',
+  LIBRE_ENABLED: process.env.LIBRE_ENABLED ?? '',
 };
 
 export const env = {

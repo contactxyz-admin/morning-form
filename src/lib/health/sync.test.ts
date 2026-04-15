@@ -364,6 +364,113 @@ describe('HealthSyncService.syncProvider — Libre characterization', () => {
   });
 });
 
+describe('HealthSyncService.syncProvider — Libre real path', () => {
+  const fetchMock = vi.fn();
+  const originalFetch = globalThis.fetch;
+  const originalEnv = process.env.LIBRE_ENABLED;
+
+  beforeEach(() => {
+    process.env.LIBRE_ENABLED = 'true';
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    if (originalEnv === undefined) delete process.env.LIBRE_ENABLED;
+    else process.env.LIBRE_ENABLED = originalEnv;
+  });
+
+  async function encryptedToken(plain: string): Promise<string> {
+    const { encryptToken } = await import('./crypto');
+    return encryptToken(plain);
+  }
+
+  async function realConnection(overrides: Record<string, unknown> = {}) {
+    const now = Date.now();
+    return {
+      id: 'conn-1',
+      userId: 'u1',
+      provider: 'libre',
+      status: 'connected',
+      accessToken: await encryptedToken('real-session-token'),
+      refreshToken: null,
+      expiresAt: new Date(now + 3600_000),
+      terraUserId: null,
+      metadata: JSON.stringify({ patientId: 'patient-42' }),
+      lastSyncAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  it('uses stored patientId + decrypted token when a real session is present', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: {
+            graphData: [
+              { Timestamp: '2026-04-13T07:00:00.000Z', Value: 145 },
+              { Timestamp: '2026-04-13T07:15:00.000Z', Value: 138 },
+            ],
+          },
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const sync = new HealthSyncService();
+    const connection = await realConnection();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const points = await sync.syncProvider('libre', '2026-04-13', '2026-04-14', { connection: connection as any });
+
+    expect(points).toHaveLength(2);
+    expect(points[0]).toMatchObject({ provider: 'libre', metric: 'glucose', value: 145 });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/llu/connections/patient-42/graph');
+    expect((init as RequestInit).headers as Record<string, string>).toMatchObject({
+      Authorization: 'Bearer real-session-token',
+    });
+  });
+
+  it('falls back to mock when the connection has a mock patientId', async () => {
+    const sync = new HealthSyncService();
+    const connection = await realConnection({
+      metadata: JSON.stringify({ patientId: 'mock_patient_abc' }),
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const points = await sync.syncProvider('libre', '2026-04-13', '2026-04-14', { connection: connection as any });
+
+    expect(points.length).toBe(96);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to mock when the stored session is expired (no silent revive)', async () => {
+    const sync = new HealthSyncService();
+    const connection = await realConnection({
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const points = await sync.syncProvider('libre', '2026-04-13', '2026-04-14', { connection: connection as any });
+
+    expect(points.length).toBe(96);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('propagates LibreAuthError from the real path up to the caller', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 401 }));
+    const sync = new HealthSyncService();
+    const connection = await realConnection();
+    const { LibreAuthError } = await import('./libre');
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sync.syncProvider('libre', '2026-04-13', '2026-04-14', { connection: connection as any }),
+    ).rejects.toBeInstanceOf(LibreAuthError);
+  });
+});
+
 describe('HealthSyncService.syncProvider — raw-payload capture wiring', () => {
   it('skips capture when no userId is provided (anonymous/bare sync)', async () => {
     const sync = new HealthSyncService();

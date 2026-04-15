@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { LibreClient } from './libre';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LibreClient, LibreAuthError, LibreRateLimitError, LibreTransientError } from './libre';
+
+function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+  });
+}
 
 describe('LibreClient.login (mock mode)', () => {
   it('returns a deterministic session token + expiry + patientId for the given email', async () => {
@@ -48,5 +55,99 @@ describe('LibreClient.getGlucoseGraph (mock mode)', () => {
     const a = await new LibreClient(false).getGlucoseGraph('p1', undefined, '2026-04-13');
     const b = await new LibreClient(false).getGlucoseGraph('p1', undefined, '2026-04-13');
     expect(a).toEqual(b);
+  });
+});
+
+describe('LibreClient real-path error handling', () => {
+  const fetchMock = vi.fn();
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    fetchMock.mockReset();
+  });
+
+  function installFetch() {
+    fetchMock.mockReset();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+  }
+
+  it('login: 401 throws LibreAuthError (no retry)', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(new Response('nope', { status: 401 }));
+    await expect(new LibreClient(true).login('a@b.c', 'pw')).rejects.toBeInstanceOf(LibreAuthError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('login: malformed response body surfaces as LibreTransientError', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ unexpected: 'shape' }));
+    await expect(new LibreClient(true).login('a@b.c', 'pw')).rejects.toBeInstanceOf(LibreTransientError);
+  });
+
+  it('graph: 401 throws LibreAuthError', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 401 }));
+    await expect(
+      new LibreClient(true).getGlucoseGraph('p1', 'tok', '2026-04-13'),
+    ).rejects.toBeInstanceOf(LibreAuthError);
+  });
+
+  it('graph: 429 retries up to 3 times then throws LibreRateLimitError', async () => {
+    installFetch();
+    fetchMock.mockResolvedValue(new Response('', { status: 429, headers: { 'retry-after': '7' } }));
+    const err = await new LibreClient(true)
+      .getGlucoseGraph('p1', 'tok', '2026-04-13')
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(LibreRateLimitError);
+    expect((err as LibreRateLimitError).retryAfterSeconds).toBe(7);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('graph: 5xx retries then returns data on eventual success', async () => {
+    installFetch();
+    fetchMock
+      .mockResolvedValueOnce(new Response('', { status: 503 }))
+      .mockResolvedValueOnce(new Response('', { status: 503 }))
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { graphData: [{ Timestamp: '2026-04-13T10:00:00.000Z', Value: 110 }] } }),
+      );
+    const readings = await new LibreClient(true).getGlucoseGraph('p1', 'tok', '2026-04-13');
+    expect(readings).toEqual([
+      { timestamp: '2026-04-13T10:00:00.000Z', value: 110, unit: 'mg/dL' },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('graph: malformed payload throws LibreTransientError', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: { graphData: [{ wrong: 'shape' }] } }));
+    await expect(
+      new LibreClient(true).getGlucoseGraph('p1', 'tok', '2026-04-13'),
+    ).rejects.toBeInstanceOf(LibreTransientError);
+  });
+
+  it('graph: happy path maps real LibreLinkUp response to mg/dL readings', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          graphData: [
+            { Timestamp: '2026-04-13T07:00:00.000Z', Value: 101 },
+            { Timestamp: '2026-04-13T07:15:00.000Z', Value: 108 },
+          ],
+        },
+      }),
+    );
+    const readings = await new LibreClient(true).getGlucoseGraph('patient-42', 'real-token', '2026-04-13');
+    expect(readings).toHaveLength(2);
+    expect(readings[0]).toEqual({
+      timestamp: '2026-04-13T07:00:00.000Z',
+      value: 101,
+      unit: 'mg/dL',
+    });
+    const callInit = fetchMock.mock.calls[0][1] as RequestInit;
+    expect((callInit.headers as Record<string, string>).Authorization).toBe('Bearer real-token');
+    expect(fetchMock.mock.calls[0][0]).toContain('patient-42');
   });
 });
