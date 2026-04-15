@@ -23,6 +23,113 @@ model User {
   healthDataPoints  HealthDataPoint[]
   suggestions      Suggestion[]
   preferences      UserPreferences?
+  sourceDocuments  SourceDocument[]
+  graphNodes       GraphNode[]
+  graphEdges       GraphEdge[]
+  topicPages       TopicPage[]
+  graphMigratedAt  DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Health Graph (pivot — see docs/plans/2026-04-15-004-feat-health-graph-pivot-plan.md)
+// Three layers: SourceDocument/SourceChunk (raw, immutable) -> GraphNode/GraphEdge
+// (compiled) -> TopicPage (rendered cache).
+// ---------------------------------------------------------------------------
+
+model SourceDocument {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  kind        String
+  sourceRef   String?
+  contentHash String?
+  capturedAt  DateTime
+  storagePath String?
+  metadata    String?
+  chunks      SourceChunk[]
+  edges       GraphEdge[]   @relation("EdgeSourceDocument")
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, contentHash])
+  @@index([userId, kind])
+  @@index([userId, capturedAt])
+}
+
+model SourceChunk {
+  id               String   @id @default(cuid())
+  sourceDocumentId String
+  sourceDocument   SourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  index            Int
+  text             String
+  offsetStart      Int
+  offsetEnd        Int
+  pageNumber       Int?
+  metadata         String?
+  edges            GraphEdge[] @relation("EdgeSourceChunk")
+  createdAt        DateTime @default(now())
+
+  @@unique([sourceDocumentId, index])
+  @@index([sourceDocumentId])
+}
+
+model GraphNode {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  type          String
+  canonicalKey  String
+  displayName   String
+  attributes    String?
+  confidence    Float    @default(1.0)
+  promoted      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  edgesOut      GraphEdge[] @relation("EdgeFromNode")
+  edgesIn       GraphEdge[] @relation("EdgeToNode")
+
+  @@unique([userId, type, canonicalKey])
+  @@index([userId, type])
+}
+
+model GraphEdge {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  type             String
+  fromNodeId       String
+  fromNode         GraphNode @relation("EdgeFromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNodeId         String
+  toNode           GraphNode @relation("EdgeToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
+  fromChunkId      String?
+  fromChunk        SourceChunk? @relation("EdgeSourceChunk", fields: [fromChunkId], references: [id], onDelete: SetNull)
+  fromDocumentId   String?
+  fromDocument     SourceDocument? @relation("EdgeSourceDocument", fields: [fromDocumentId], references: [id], onDelete: SetNull)
+  weight           Float    @default(1.0)
+  metadata         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([userId, type, fromNodeId, toNodeId, fromChunkId])
+  @@index([userId, type])
+  @@index([fromNodeId])
+  @@index([toNodeId])
+}
+
+model TopicPage {
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id])
+  topicKey            String
+  status              String   @default("stub")
+  rendered            String?
+  graphRevisionHash   String?
+  compileError        String?
+  updatedAt           DateTime @updatedAt
+  createdAt           DateTime @default(now())
+
+  @@unique([userId, topicKey])
+  @@index([userId, status])
 }
 
 model AssessmentResponse {
