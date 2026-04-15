@@ -1,8 +1,10 @@
 ---
 title: "fix: Dexcom real-path hardening (mirror of Libre #12)"
 type: fix
-status: active
+status: shipped
 created: 2026-04-15
+shipped: 2026-04-15
+shipped_ref: "PR #14 (commit d40a904)"
 ---
 
 ## Problem
