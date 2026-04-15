@@ -6,6 +6,9 @@ import {
   categoryFor,
   findMetric,
   unitFor,
+  type CanonicalName,
+  type MetricName,
+  type RuleAlias,
 } from './canonical';
 
 describe('canonical metric registry', () => {
@@ -48,34 +51,39 @@ describe('canonical metric registry', () => {
   });
 
   it('throws on unknown metric names', () => {
-    expect(() => unitFor('not_a_metric')).toThrow(/Unknown metric/);
-    expect(() => categoryFor('not_a_metric')).toThrow(/Unknown metric/);
-    expect(() => canonicalFor('not_an_alias')).toThrow(/Unknown metric alias/);
-    expect(() => aliasFor('not_canonical')).toThrow(/Unknown canonical metric/);
+    expect(() => unitFor('not_a_metric' as MetricName)).toThrow(/Unknown metric/);
+    expect(() => categoryFor('not_a_metric' as MetricName)).toThrow(/Unknown metric/);
+    expect(() => canonicalFor('not_an_alias' as RuleAlias)).toThrow(/Unknown metric alias/);
+    expect(() => aliasFor('not_canonical' as CanonicalName)).toThrow(/Unknown canonical metric/);
   });
 
-  it('locks the rule-engine alias contract (every alias the suggestions engine reads)', () => {
-    const aliases = CANONICAL_METRICS.map((m) => m.alias).sort();
-    expect(aliases).toEqual(
+  it('locks the full registry contract (canonical, alias, unit, category for every metric)', () => {
+    // Snapshot-style assertion: any drift in canonical name, alias, unit, or
+    // category requires explicit acknowledgement here. Catches silent renames
+    // that would break the rule engine OR the storage layer.
+    const tuples = CANONICAL_METRICS.map((m) => [m.canonical, m.alias, m.unit, m.category]).sort(
+      (a, b) => a[0].localeCompare(b[0]),
+    );
+    expect(tuples).toEqual(
       [
-        'active_minutes',
-        'avg_hr',
-        'calories',
-        'deep_sleep',
-        'duration',
-        'efficiency',
-        'glucose_fasting',
-        'hrv',
-        'max_hr',
-        'readiness_score',
-        'recovery_score',
-        'rem_sleep',
-        'respiratory_rate',
-        'resting_hr',
-        'steps',
-        'strain',
-        'temperature_delta',
-      ].sort(),
+        ['active_minutes', 'active_minutes', 'minutes', 'activity'],
+        ['average_heart_rate', 'avg_hr', 'bpm', 'heart'],
+        ['blood_glucose', 'glucose', 'mg/dL', 'body'],
+        ['body_temperature_delta', 'temperature_delta', '°C', 'body'],
+        ['calories_burned', 'calories', 'kcal', 'activity'],
+        ['heart_rate_variability_rmssd', 'hrv', 'ms', 'recovery'],
+        ['max_heart_rate', 'max_hr', 'bpm', 'heart'],
+        ['readiness_score', 'readiness_score', 'score', 'recovery'],
+        ['recovery_score', 'recovery_score', '%', 'recovery'],
+        ['respiratory_rate', 'respiratory_rate', 'breaths/min', 'recovery'],
+        ['resting_heart_rate', 'resting_hr', 'bpm', 'heart'],
+        ['sleep_duration_deep', 'deep_sleep', 'hours', 'sleep'],
+        ['sleep_duration_rem', 'rem_sleep', 'hours', 'sleep'],
+        ['sleep_duration_total', 'duration', 'hours', 'sleep'],
+        ['sleep_efficiency', 'efficiency', '%', 'sleep'],
+        ['steps_total', 'steps', 'steps', 'activity'],
+        ['strain_score', 'strain', 'score', 'activity'],
+      ].sort((a, b) => a[0].localeCompare(b[0])),
     );
   });
 });

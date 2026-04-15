@@ -149,3 +149,157 @@ describe('HealthSyncService.syncProvider — Oura characterization', () => {
     });
   });
 });
+
+describe('HealthSyncService.syncProvider — Fitbit characterization', () => {
+  let points: HealthDataPoint[];
+
+  beforeEach(async () => {
+    const sync = new HealthSyncService();
+    points = await sync.syncProvider('fitbit', '2026-04-13', '2026-04-14');
+  });
+
+  it('emits exactly the canonical Fitbit metric set', () => {
+    const metrics = points.map((p) => p.metric).sort();
+    expect(metrics).toEqual(
+      [
+        'active_minutes',
+        'avg_hr',
+        'calories',
+        'deep_sleep',
+        'duration',
+        'efficiency',
+        'max_hr',
+        'rem_sleep',
+        'resting_hr',
+        'steps',
+      ].sort(),
+    );
+  });
+
+  it('every point carries provider=fitbit', () => {
+    expect(points.every((p) => p.provider === 'fitbit')).toBe(true);
+  });
+
+  it('duration is in hours under sleep (Fitbit returns minutes — contract converts)', () => {
+    // Fitbit mock minutesAsleep = 420 → 7h
+    expect(pointBy(points, 'duration')).toMatchObject({
+      category: 'sleep',
+      metric: 'duration',
+      unit: 'hours',
+      value: 7,
+    });
+  });
+
+  it('deep_sleep is in hours under sleep', () => {
+    // 90min → 1.5h
+    expect(pointBy(points, 'deep_sleep')).toMatchObject({
+      category: 'sleep',
+      unit: 'hours',
+      value: 1.5,
+    });
+  });
+
+  it('rem_sleep is in hours under sleep', () => {
+    // 105min → 1.75h
+    expect(pointBy(points, 'rem_sleep')).toMatchObject({
+      category: 'sleep',
+      unit: 'hours',
+      value: 1.75,
+    });
+  });
+
+  it('activity metrics keep their canonical units', () => {
+    expect(pointBy(points, 'steps')).toMatchObject({ category: 'activity', unit: 'steps', value: 8430 });
+    expect(pointBy(points, 'calories')).toMatchObject({
+      category: 'activity',
+      unit: 'kcal',
+      value: 2180,
+    });
+    expect(pointBy(points, 'active_minutes')).toMatchObject({
+      category: 'activity',
+      unit: 'minutes',
+      value: 47,
+    });
+  });
+
+  it('heart-rate metrics are bpm under heart', () => {
+    expect(pointBy(points, 'resting_hr')).toMatchObject({ category: 'heart', unit: 'bpm', value: 53 });
+    expect(pointBy(points, 'avg_hr')).toMatchObject({ category: 'heart', unit: 'bpm', value: 74 });
+    expect(pointBy(points, 'max_hr')).toMatchObject({ category: 'heart', unit: 'bpm', value: 166 });
+  });
+});
+
+describe('HealthSyncService.syncProvider — google_fit characterization', () => {
+  let points: HealthDataPoint[];
+
+  beforeEach(async () => {
+    const sync = new HealthSyncService();
+    points = await sync.syncProvider('google_fit', '2026-04-13', '2026-04-14');
+  });
+
+  it('emits exactly the canonical google_fit metric set', () => {
+    const metrics = points.map((p) => p.metric).sort();
+    expect(metrics).toEqual(['avg_hr', 'duration', 'max_hr', 'resting_hr', 'steps'].sort());
+  });
+
+  it('every point carries provider=google_fit', () => {
+    expect(points.every((p) => p.provider === 'google_fit')).toBe(true);
+  });
+
+  it('steps is a single point with the mock total', () => {
+    expect(pointBy(points, 'steps')).toMatchObject({
+      category: 'activity',
+      unit: 'steps',
+      value: 8430,
+      timestamp: FROZEN_NOW,
+    });
+  });
+
+  it('duration is in hours under sleep (mock minutes → hours)', () => {
+    // 435min → 7.25h
+    expect(pointBy(points, 'duration')).toMatchObject({
+      category: 'sleep',
+      unit: 'hours',
+      value: 7.25,
+    });
+  });
+
+  it('heart-rate min maps to resting_hr (canonical contract)', () => {
+    expect(pointBy(points, 'resting_hr')).toMatchObject({ category: 'heart', unit: 'bpm', value: 48 });
+    expect(pointBy(points, 'avg_hr')).toMatchObject({ category: 'heart', unit: 'bpm', value: 72 });
+    expect(pointBy(points, 'max_hr')).toMatchObject({ category: 'heart', unit: 'bpm', value: 168 });
+  });
+});
+
+describe('HealthSyncService.syncProvider — apple_health (via Terra) characterization', () => {
+  let points: HealthDataPoint[];
+
+  beforeEach(async () => {
+    const sync = new HealthSyncService();
+    points = await sync.syncProvider('apple_health', '2026-04-13', '2026-04-14');
+  });
+
+  it('emits exactly the canonical Terra-daily metric set', () => {
+    const metrics = points.map((p) => p.metric).sort();
+    expect(metrics).toEqual(['hrv', 'recovery_score', 'resting_hr', 'steps'].sort());
+  });
+
+  it('every point carries provider=apple_health (Terra fan-out preserves caller provider)', () => {
+    expect(points.every((p) => p.provider === 'apple_health')).toBe(true);
+  });
+
+  it('timestamp is noon on the daily date', () => {
+    expect(points.every((p) => p.timestamp === '2026-04-13T12:00:00Z')).toBe(true);
+  });
+
+  it('canonical units survive the Terra → canonical mapping', () => {
+    expect(pointBy(points, 'steps')).toMatchObject({ category: 'activity', unit: 'steps', value: 8430 });
+    expect(pointBy(points, 'resting_hr')).toMatchObject({ category: 'heart', unit: 'bpm', value: 52 });
+    expect(pointBy(points, 'hrv')).toMatchObject({ category: 'recovery', unit: 'ms', value: 68 });
+    expect(pointBy(points, 'recovery_score')).toMatchObject({
+      category: 'recovery',
+      unit: '%',
+      value: 74,
+    });
+  });
+});

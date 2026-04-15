@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pointFromCanonical } from './normalize';
+import type { MetricName } from './canonical';
 
 const TS = '2026-04-14T12:00:00.000Z';
 
@@ -47,7 +48,7 @@ describe('pointFromCanonical', () => {
 
   it('throws on unknown metric names', () => {
     expect(() =>
-      pointFromCanonical('not_a_metric', 1, { timestamp: TS, provider: 'whoop' }),
+      pointFromCanonical('not_a_metric' as MetricName, 1, { timestamp: TS, provider: 'whoop' }),
     ).toThrow(/Unknown metric/);
   });
 });

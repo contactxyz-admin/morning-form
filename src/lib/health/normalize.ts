@@ -3,15 +3,13 @@
  *
  * Provider clients call `pointFromCanonical(name, value, opts)` with EITHER
  * the canonical storage name (e.g. `heart_rate_variability_rmssd`) or the
- * rule-engine alias (e.g. `hrv`). The returned `HealthDataPoint` always
- * carries the alias as `metric` (preserving the existing rule-engine
- * contract — see `src/lib/suggestions/rules.ts`) and stashes the canonical
- * name in `metadata.canonical` so we can rename or migrate later without
- * losing semantics.
+ * rule-engine alias (e.g. `hrv`). The returned `HealthDataPoint` carries the
+ * alias as `metric` (preserving the existing rule-engine contract — see
+ * `src/lib/suggestions/rules.ts`).
  */
 
 import type { HealthDataPoint, HealthProvider } from '@/types';
-import { findMetric } from './canonical';
+import { findMetric, type MetricName } from './canonical';
 
 export interface PointOpts {
   timestamp: string;
@@ -20,9 +18,8 @@ export interface PointOpts {
   unit?: string;
 }
 
-export function pointFromCanonical(name: string, value: number, opts: PointOpts): HealthDataPoint {
+export function pointFromCanonical(name: MetricName, value: number, opts: PointOpts): HealthDataPoint {
   const entry = findMetric(name);
-  if (!entry) throw new Error(`Unknown metric: ${name}`);
   return {
     category: entry.category,
     metric: entry.alias,
