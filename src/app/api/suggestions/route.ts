@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getOrCreateDemoUser } from '@/lib/demo-user';
 import { ensureTodaysSuggestions } from '@/lib/suggestions/engine';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const user = await getOrCreateDemoUser();

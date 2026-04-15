@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { HealthDataPoint } from '@/types';
 import { recoveryLowRule, evaluateRules, rules } from './rules';
 
@@ -70,6 +70,7 @@ describe('evaluateRules', () => {
   });
 
   it('swallows a single rule throwing so other rules still run', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     const throwingRule = {
       kind: 'broken',
       evaluate() {
