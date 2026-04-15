@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HealthDataPoint } from '@/types';
+
+// Spy on the raw-payload capture module so we can verify the sync.ts wiring
+// without touching Prisma. The real implementation is a no-op in test mode
+// anyway, so swapping it out is safe for the characterization tests below.
+const captureSpy = vi.fn().mockResolvedValue(undefined);
+vi.mock('./raw-payload', () => ({
+  captureRawPayload: (...args: unknown[]) => captureSpy(...args),
+}));
+
 import { HealthSyncService } from './sync';
 
 /**
@@ -21,6 +30,7 @@ const FROZEN_NOW = '2026-04-14T12:00:00.000Z';
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(FROZEN_NOW));
+  captureSpy.mockClear();
 });
 
 afterEach(() => {
@@ -301,5 +311,62 @@ describe('HealthSyncService.syncProvider — apple_health (via Terra) characteri
       unit: '%',
       value: 74,
     });
+  });
+});
+
+describe('HealthSyncService.syncProvider — raw-payload capture wiring', () => {
+  it('skips capture when no userId is provided (anonymous/bare sync)', async () => {
+    const sync = new HealthSyncService();
+    await sync.syncProvider('whoop', '2026-04-13', '2026-04-14');
+    expect(captureSpy).not.toHaveBeenCalled();
+  });
+
+  it('captures once per provider.getX() call when userId is plumbed through', async () => {
+    const sync = new HealthSyncService();
+    // Whoop has two provider calls: getRecovery + getSleep.
+    await sync.syncProvider('whoop', '2026-04-13', '2026-04-14', {
+      userId: 'u1',
+      traceId: 'trace-xyz',
+    });
+    expect(captureSpy).toHaveBeenCalledTimes(2);
+
+    const methods = captureSpy.mock.calls.map((c) => (c[0] as { payload: { method: string } }).payload.method);
+    expect(methods.sort()).toEqual(['getRecovery', 'getSleep']);
+
+    // Shape check: userId, provider, source, traceId, and payload envelope all wired.
+    const first = captureSpy.mock.calls[0][0] as {
+      userId: string;
+      provider: string;
+      source: string;
+      traceId?: string;
+      payload: { method: string; startDate: string; endDate: string; data: unknown };
+    };
+    expect(first).toMatchObject({
+      userId: 'u1',
+      provider: 'whoop',
+      source: 'pull',
+      traceId: 'trace-xyz',
+    });
+    expect(first.payload).toMatchObject({ startDate: '2026-04-13', endDate: '2026-04-14' });
+    expect(first.payload.data).toBeDefined();
+  });
+
+  it('captures once per provider call across all provider branches', async () => {
+    const sync = new HealthSyncService();
+    const cases: Array<[Parameters<HealthSyncService['syncProvider']>[0], number]> = [
+      ['whoop', 2], // getRecovery + getSleep
+      ['oura', 2], // getSleep + getReadiness
+      ['fitbit', 3], // getSleep + getActivity + getHeartRate
+      ['google_fit', 3], // getSteps + getSleep + getHeartRate
+      ['apple_health', 1], // Terra getDaily
+    ];
+    for (const [provider, expectedCalls] of cases) {
+      captureSpy.mockClear();
+      await sync.syncProvider(provider, '2026-04-13', '2026-04-14', { userId: 'u1' });
+      expect(captureSpy, `${provider} capture count`).toHaveBeenCalledTimes(expectedCalls);
+      for (const call of captureSpy.mock.calls) {
+        expect((call[0] as { provider: string }).provider).toBe(provider);
+      }
+    }
   });
 });

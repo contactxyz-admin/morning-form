@@ -147,6 +147,19 @@ model HealthDataPoint {
   @@index([userId, provider])
 }
 
+model RawProviderPayload {
+  id         String   @id @default(cuid())
+  userId     String
+  provider   String
+  source     String
+  receivedAt DateTime @default(now())
+  sizeBytes  Int
+  payload    String
+  traceId    String?
+
+  @@index([userId, provider, receivedAt])
+}
+
 model UserPreferences {
   id             String   @id @default(cuid())
   userId         String   @unique
