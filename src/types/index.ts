@@ -134,12 +134,24 @@ export interface HealthConnection {
 }
 
 export interface HealthDataPoint {
+  id?: string;
   category: HealthCategory;
   metric: string;
   value: number;
   unit: string;
   timestamp: string;
   provider: HealthProvider;
+}
+
+export type SuggestionTier = 'gentle' | 'moderate' | 'strong';
+
+export interface Suggestion {
+  id: string;
+  date: string;
+  kind: string;
+  title: string;
+  tier: SuggestionTier;
+  triggeringMetricIds: string[];
 }
 
 export type HealthCategory = 'sleep' | 'activity' | 'heart' | 'recovery' | 'body' | 'metabolic';
