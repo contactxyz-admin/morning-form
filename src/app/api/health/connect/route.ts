@@ -10,7 +10,7 @@ import { DexcomClient } from '@/lib/health/dexcom';
 import { LibreClient } from '@/lib/health/libre';
 import { encryptToken } from '@/lib/health/crypto';
 import { prisma } from '@/lib/db';
-import { getOrCreateDemoUser } from '@/lib/demo-user';
+import { getCurrentUser } from '@/lib/session';
 import { env } from '@/lib/env';
 
 export async function POST(request: Request) {
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
     }
 
-    const user = await getOrCreateDemoUser();
+    const user = await getCurrentUser();
     const requestUrl = new URL(request.url);
     const origin = env.NEXT_PUBLIC_APP_URL || requestUrl.origin;
     const callbackUrl = `${origin}/api/health/callback/${provider}`;

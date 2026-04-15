@@ -9,8 +9,8 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
-vi.mock('@/lib/demo-user', () => ({
-  getOrCreateDemoUser: vi.fn().mockResolvedValue({ id: 'demo-user-1' }),
+vi.mock('@/lib/session', () => ({
+  getCurrentUser: vi.fn().mockResolvedValue({ id: 'demo-user-1' }),
 }));
 
 vi.mock('@/lib/env', () => ({
