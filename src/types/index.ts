@@ -185,6 +185,46 @@ export interface HealthSummary {
   };
 }
 
+// ── Subscription Types ──
+
+export interface Product {
+  id: string;
+  name: string;
+  slug: string;
+  type: 'compound' | 'pack';
+  description: string;
+  dosage: string;
+  priceInCents: number;
+  active: boolean;
+}
+
+export interface ProductWithCompounds extends Product {
+  packCompounds: { compound: Product }[];
+}
+
+export interface SubscriptionItem {
+  id: string;
+  product: Product;
+  quantity: number;
+  isFromProtocol: boolean;
+}
+
+export interface Subscription {
+  id: string;
+  status: 'active' | 'paused' | 'canceled' | 'past_due' | 'trialing';
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  items: SubscriptionItem[];
+  monthlyTotalCents: number;
+}
+
+export interface Order {
+  id: string;
+  status: 'pending' | 'processing' | 'shipped' | 'delivered';
+  trackingNumber: string | null;
+  createdAt: string;
+}
+
 // ── Navigation ──
 
 export type NavTab = 'home' | 'protocol' | 'check-in' | 'insights' | 'you';
