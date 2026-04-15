@@ -11,7 +11,7 @@ import { WhoopClient } from './whoop';
 import { OuraClient } from './oura';
 import { FitbitClient } from './fitbit';
 import { GoogleFitClient } from './google-fit';
-import { DexcomClient } from './dexcom';
+import { DexcomClient, DexcomAuthError } from './dexcom';
 import { LibreClient, LibreAuthError } from './libre';
 import { decryptToken, isEncrypted } from './crypto';
 import { pointFromCanonical } from './normalize';
@@ -178,7 +178,13 @@ export class HealthSyncService {
         break;
       }
       case 'dexcom': {
-        const egvs = await capture('getEgvs', () => this.dexcom.getEgvs(startDate, endDate));
+        // Mirror libre: if the HealthConnection carries a usable stored token,
+        // hit the real Dexcom API; otherwise fall back to mock so
+        // characterization tests and dev-without-creds keep working.
+        const dexcomToken = this.resolveDexcomToken(opts.connection);
+        const egvs = await capture('getEgvs', () =>
+          this.dexcom.getEgvs(startDate, endDate, dexcomToken ?? undefined),
+        );
         egvs.forEach((r) => {
           points.push(
             pointFromCanonical('glucose', r.value, { timestamp: r.systemTime, provider: 'dexcom' }),
@@ -352,19 +358,27 @@ export class HealthSyncService {
       return { provider, ok: true, count: dedupedPoints.length, points: dedupedPoints };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown sync error';
-      // Libre auth failure → clear the stored token and require the user to
-      // re-enter credentials. No retry makes sense; LibreLinkUp has no refresh
-      // token.
+      // Auth failures clear the stored token and require the user to re-auth.
+      // Libre has no refresh token so re-auth means re-entering credentials.
+      // Dexcom has a refresh token but if the refresh itself 401s the user
+      // must re-OAuth.
       const isLibreAuthFailure = error instanceof LibreAuthError && connection.provider === 'libre';
+      const isDexcomAuthFailure = error instanceof DexcomAuthError && connection.provider === 'dexcom';
+      const isAuthFailure = isLibreAuthFailure || isDexcomAuthFailure;
+      const syncErrorCode = isLibreAuthFailure
+        ? 'libre_session_expired_reconnect_required'
+        : isDexcomAuthFailure
+          ? 'dexcom_session_expired_reconnect_required'
+          : message;
 
       await prisma.healthConnection.update({
         where: { id: connection.id },
         data: {
-          status: isLibreAuthFailure ? 'needs_reauth' : 'error',
-          ...(isLibreAuthFailure ? { accessToken: null, expiresAt: null } : {}),
+          status: isAuthFailure ? 'needs_reauth' : 'error',
+          ...(isAuthFailure ? { accessToken: null, expiresAt: null } : {}),
           metadata: JSON.stringify({
             ...(this.parseMetadata(connection.metadata) || {}),
-            syncError: isLibreAuthFailure ? 'libre_session_expired_reconnect_required' : message,
+            syncError: syncErrorCode,
             lastSyncFailedAt: new Date().toISOString(),
           }),
         },
@@ -381,6 +395,28 @@ export class HealthSyncService {
     return results
       .filter((r): r is PromiseFulfilledResult<HealthDataPoint[]> => r.status === 'fulfilled')
       .flatMap(r => r.value);
+  }
+
+  // Returns a decrypted access token only if the connection holds a
+  // non-expired real Dexcom session. Mock tokens (mock_dexcom_* / mock_refreshed_*)
+  // are rejected so the Dexcom case falls through to mock mode — same gating as
+  // resolveLibreCredentials.
+  private resolveDexcomToken(connection?: PrismaHealthConnection): string | null {
+    if (!connection || connection.provider !== 'dexcom') return null;
+    if (!connection.accessToken) return null;
+    if (connection.expiresAt && new Date(connection.expiresAt).getTime() <= Date.now()) {
+      return null;
+    }
+    let accessToken: string;
+    try {
+      accessToken = isEncrypted(connection.accessToken)
+        ? decryptToken(connection.accessToken)
+        : connection.accessToken;
+    } catch {
+      return null;
+    }
+    if (accessToken.startsWith('mock_')) return null;
+    return accessToken;
   }
 
   // Returns { patientId, accessToken } only if the connection holds a

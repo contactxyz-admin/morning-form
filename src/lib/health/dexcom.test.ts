@@ -1,5 +1,17 @@
-import { describe, expect, it } from 'vitest';
-import { DexcomClient } from './dexcom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  DexcomClient,
+  DexcomAuthError,
+  DexcomRateLimitError,
+  DexcomTransientError,
+} from './dexcom';
+
+function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+  });
+}
 
 describe('DexcomClient.getAuthUrl', () => {
   it('builds a Dexcom OAuth URL with expected params', () => {
@@ -62,5 +74,109 @@ describe('DexcomClient.getEgvs (mock mode)', () => {
     const a = await new DexcomClient('', '').getEgvs('2026-04-13', '2026-04-14');
     const b = await new DexcomClient('', '').getEgvs('2026-04-13', '2026-04-14');
     expect(a).toEqual(b);
+  });
+});
+
+describe('DexcomClient real-path error handling', () => {
+  const fetchMock = vi.fn();
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    fetchMock.mockReset();
+  });
+
+  function installFetch() {
+    fetchMock.mockReset();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+  }
+
+  function realClient() {
+    return new DexcomClient('client-id', 'client-secret');
+  }
+
+  it('exchangeCode: 401 throws DexcomAuthError (no retry)', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(new Response('nope', { status: 401 }));
+    await expect(realClient().exchangeCode('code', 'https://x/cb')).rejects.toBeInstanceOf(
+      DexcomAuthError,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshToken: 401 throws DexcomAuthError (no retry)', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(new Response('nope', { status: 401 }));
+    await expect(realClient().refreshToken('old-refresh')).rejects.toBeInstanceOf(
+      DexcomAuthError,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('getEgvs: 401 throws DexcomAuthError', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 401 }));
+    await expect(
+      realClient().getEgvs('2026-04-13', '2026-04-14', 'tok'),
+    ).rejects.toBeInstanceOf(DexcomAuthError);
+  });
+
+  it('getEgvs: 429 retries up to 3 times then throws DexcomRateLimitError with retry-after', async () => {
+    installFetch();
+    fetchMock.mockResolvedValue(
+      new Response('', { status: 429, headers: { 'retry-after': '11' } }),
+    );
+    const err = await realClient()
+      .getEgvs('2026-04-13', '2026-04-14', 'tok')
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(DexcomRateLimitError);
+    expect((err as DexcomRateLimitError).retryAfterSeconds).toBe(11);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('getEgvs: 5xx retries then returns data on eventual success', async () => {
+    installFetch();
+    fetchMock
+      .mockResolvedValueOnce(new Response('', { status: 503 }))
+      .mockResolvedValueOnce(new Response('', { status: 502 }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          egvs: [
+            { systemTime: '2026-04-13T10:00:00.000Z', displayTime: '2026-04-13T10:00:00.000Z', value: 112, unit: 'mg/dL' },
+          ],
+        }),
+      );
+    const egvs = await realClient().getEgvs('2026-04-13', '2026-04-14', 'tok');
+    expect(egvs).toHaveLength(1);
+    expect(egvs[0].value).toBe(112);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('getEgvs: malformed payload throws DexcomTransientError', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ egvs: [{ wrong: 'shape' }] }));
+    await expect(
+      realClient().getEgvs('2026-04-13', '2026-04-14', 'tok'),
+    ).rejects.toBeInstanceOf(DexcomTransientError);
+  });
+
+  it('getEgvs: happy path sends Bearer header and hits /users/self/egvs', async () => {
+    installFetch();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        egvs: [
+          { systemTime: '2026-04-13T07:00:00.000Z', displayTime: '2026-04-13T07:00:00.000Z', value: 101, unit: 'mg/dL' },
+          { systemTime: '2026-04-13T07:15:00.000Z', displayTime: '2026-04-13T07:15:00.000Z', value: 108, unit: 'mg/dL' },
+        ],
+      }),
+    );
+    const egvs = await realClient().getEgvs('2026-04-13', '2026-04-14', 'real-token');
+    expect(egvs).toHaveLength(2);
+    expect(egvs[0]).toMatchObject({ value: 101, unit: 'mg/dL' });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/users/self/egvs');
+    expect(url).toContain('startDate=2026-04-13T00:00:00');
+    expect(url).toContain('endDate=2026-04-14T23:59:59');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer real-token');
   });
 });

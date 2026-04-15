@@ -471,6 +471,115 @@ describe('HealthSyncService.syncProvider — Libre real path', () => {
   });
 });
 
+describe('HealthSyncService.syncProvider — Dexcom real path', () => {
+  const fetchMock = vi.fn();
+  const originalFetch = globalThis.fetch;
+  const originalId = process.env.DEXCOM_CLIENT_ID;
+  const originalSecret = process.env.DEXCOM_CLIENT_SECRET;
+
+  beforeEach(() => {
+    process.env.DEXCOM_CLIENT_ID = 'test-client-id';
+    process.env.DEXCOM_CLIENT_SECRET = 'test-client-secret';
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    if (originalId === undefined) delete process.env.DEXCOM_CLIENT_ID;
+    else process.env.DEXCOM_CLIENT_ID = originalId;
+    if (originalSecret === undefined) delete process.env.DEXCOM_CLIENT_SECRET;
+    else process.env.DEXCOM_CLIENT_SECRET = originalSecret;
+  });
+
+  async function encryptedToken(plain: string): Promise<string> {
+    const { encryptToken } = await import('./crypto');
+    return encryptToken(plain);
+  }
+
+  async function realConnection(overrides: Record<string, unknown> = {}) {
+    const now = Date.now();
+    return {
+      id: 'conn-dex-1',
+      userId: 'u1',
+      provider: 'dexcom',
+      status: 'connected',
+      accessToken: await encryptedToken('real-dexcom-token'),
+      refreshToken: 'real-refresh',
+      expiresAt: new Date(now + 3600_000),
+      terraUserId: null,
+      metadata: null,
+      lastSyncAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  it('uses the stored decrypted token when a real session is present', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          egvs: [
+            { systemTime: '2026-04-13T07:00:00.000Z', displayTime: '2026-04-13T07:00:00.000Z', value: 101, unit: 'mg/dL' },
+            { systemTime: '2026-04-13T07:15:00.000Z', displayTime: '2026-04-13T07:15:00.000Z', value: 108, unit: 'mg/dL' },
+          ],
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const sync = new HealthSyncService();
+    const connection = await realConnection();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const points = await sync.syncProvider('dexcom', '2026-04-13', '2026-04-14', { connection: connection as any });
+
+    expect(points).toHaveLength(2);
+    expect(points[0]).toMatchObject({ provider: 'dexcom', metric: 'glucose', value: 101 });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/users/self/egvs');
+    expect((init as RequestInit).headers as Record<string, string>).toMatchObject({
+      Authorization: 'Bearer real-dexcom-token',
+    });
+  });
+
+  it('falls back to mock when the stored token has the mock_ prefix', async () => {
+    const sync = new HealthSyncService();
+    const connection = await realConnection({
+      accessToken: await encryptedToken('mock_dexcom_xyz'),
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const points = await sync.syncProvider('dexcom', '2026-04-13', '2026-04-14', { connection: connection as any });
+
+    expect(points.length).toBe(96);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to mock when the stored session is expired (no silent revive)', async () => {
+    const sync = new HealthSyncService();
+    const connection = await realConnection({
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const points = await sync.syncProvider('dexcom', '2026-04-13', '2026-04-14', { connection: connection as any });
+
+    expect(points.length).toBe(96);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('propagates DexcomAuthError from the real path up to the caller', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 401 }));
+    const sync = new HealthSyncService();
+    const connection = await realConnection();
+    const { DexcomAuthError } = await import('./dexcom');
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sync.syncProvider('dexcom', '2026-04-13', '2026-04-14', { connection: connection as any }),
+    ).rejects.toBeInstanceOf(DexcomAuthError);
+  });
+});
+
 describe('HealthSyncService.syncProvider — raw-payload capture wiring', () => {
   it('skips capture when no userId is provided (anonymous/bare sync)', async () => {
     const sync = new HealthSyncService();

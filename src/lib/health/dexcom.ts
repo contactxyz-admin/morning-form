@@ -6,9 +6,52 @@
  * can exercise the glucose path without real credentials.
  */
 
+import { z } from 'zod';
 import type { HealthProvider } from '@/types';
 import type { HealthProviderStrategy, ProviderCapabilities } from './strategy';
 import { HEALTH_PROVIDERS } from './providers';
+
+// Typed error classes mirror libre.ts so sync.ts can branch on response
+// category rather than string-matching error messages.
+export class DexcomAuthError extends Error {
+  constructor(message = 'dexcom session invalid or expired') {
+    super(message);
+    this.name = 'DexcomAuthError';
+  }
+}
+export class DexcomRateLimitError extends Error {
+  constructor(public retryAfterSeconds?: number) {
+    super('dexcom rate limited');
+    this.name = 'DexcomRateLimitError';
+  }
+}
+export class DexcomTransientError extends Error {
+  constructor(public status: number) {
+    super(`dexcom transient error: ${status}`);
+    this.name = 'DexcomTransientError';
+  }
+}
+
+const tokenResponseSchema = z.object({
+  access_token: z.string().min(1),
+  refresh_token: z.string().min(1),
+  expires_in: z.number(),
+});
+
+// Dexcom V2 returns `{ egvs: [...] }` on /users/self/egvs. Older docs reference
+// `records` — accept either so a minor API field rename doesn't nuke the sync.
+const egvSchema = z.object({
+  systemTime: z.string(),
+  displayTime: z.string(),
+  value: z.number(),
+  trend: z.string().optional(),
+  trendRate: z.number().optional(),
+  unit: z.literal('mg/dL'),
+});
+const egvResponseSchema = z.object({
+  egvs: z.array(egvSchema).optional(),
+  records: z.array(egvSchema).optional(),
+});
 
 export interface DexcomTokens {
   access_token: string;
@@ -52,7 +95,7 @@ export class DexcomClient implements HealthProviderStrategy {
       return { access_token: `mock_dexcom_${code}`, refresh_token: 'mock_refresh', expires_in: 3600 };
     }
 
-    const response = await fetch(`${this.baseUrl}/oauth2/token`, {
+    const response = await this.fetchWithRetry(`${this.baseUrl}/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -64,11 +107,12 @@ export class DexcomClient implements HealthProviderStrategy {
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Dexcom token exchange failed: ${response.status}`);
-    }
+    if (response.status === 401) throw new DexcomAuthError('token exchange rejected');
+    if (!response.ok) throw new DexcomTransientError(response.status);
 
-    return response.json() as Promise<DexcomTokens>;
+    const parsed = tokenResponseSchema.safeParse(await response.json());
+    if (!parsed.success) throw new DexcomTransientError(response.status);
+    return parsed.data;
   }
 
   async refreshToken(refreshToken: string): Promise<DexcomTokens> {
@@ -76,7 +120,7 @@ export class DexcomClient implements HealthProviderStrategy {
       return { access_token: `mock_refreshed_${Date.now()}`, refresh_token: 'mock_refresh_new', expires_in: 3600 };
     }
 
-    const response = await fetch(`${this.baseUrl}/oauth2/token`, {
+    const response = await this.fetchWithRetry(`${this.baseUrl}/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -87,11 +131,12 @@ export class DexcomClient implements HealthProviderStrategy {
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Dexcom token refresh failed: ${response.status}`);
-    }
+    if (response.status === 401) throw new DexcomAuthError('refresh token rejected');
+    if (!response.ok) throw new DexcomTransientError(response.status);
 
-    return response.json() as Promise<DexcomTokens>;
+    const parsed = tokenResponseSchema.safeParse(await response.json());
+    if (!parsed.success) throw new DexcomTransientError(response.status);
+    return parsed.data;
   }
 
   /**
@@ -108,17 +153,50 @@ export class DexcomClient implements HealthProviderStrategy {
     // Dexcom requires ISO-8601 timestamps, not bare YYYY-MM-DD dates.
     const startParam = `${startDate}T00:00:00`;
     const endParam = `${endDate}T23:59:59`;
-    const response = await fetch(
+    const response = await this.fetchWithRetry(
       `${this.baseUrl}/users/self/egvs?startDate=${startParam}&endDate=${endParam}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
 
-    if (!response.ok) {
-      throw new Error(`Dexcom EGV fetch failed: ${response.status}`);
-    }
+    if (response.status === 401) throw new DexcomAuthError();
+    if (!response.ok) throw new DexcomTransientError(response.status);
 
-    const body = (await response.json()) as { egvs?: DexcomEgv[]; records?: DexcomEgv[] };
-    return body.egvs ?? body.records ?? [];
+    const parsed = egvResponseSchema.safeParse(await response.json());
+    if (!parsed.success) throw new DexcomTransientError(response.status);
+    return parsed.data.egvs ?? parsed.data.records ?? [];
+  }
+
+  // Bounded retry with jitter for 429 + 5xx. Each attempt has its own 10s
+  // timeout. 401 and 4xx (not 429) are not retried — they're surfaced by the
+  // caller as auth or transient errors. Max 3 attempts total.
+  private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+    const maxAttempts = 3;
+    let lastResponse: Response | null = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const response = await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) });
+      lastResponse = response;
+      if (response.status === 429) {
+        if (attempt === maxAttempts) {
+          const retryAfter = Number(response.headers.get('retry-after')) || undefined;
+          throw new DexcomRateLimitError(retryAfter);
+        }
+        await this.backoff(attempt);
+        continue;
+      }
+      if (response.status >= 500 && response.status < 600) {
+        if (attempt === maxAttempts) return response;
+        await this.backoff(attempt);
+        continue;
+      }
+      return response;
+    }
+    return lastResponse!;
+  }
+
+  private backoff(attempt: number): Promise<void> {
+    const base = 200 * 2 ** (attempt - 1); // 200, 400, 800 ms
+    const jitter = Math.floor(Math.random() * base);
+    return new Promise((r) => setTimeout(r, base + jitter));
   }
 }
 
