@@ -90,4 +90,13 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     scopes: ['https://www.googleapis.com/auth/fitness.activity.read', 'https://www.googleapis.com/auth/fitness.sleep.read', 'https://www.googleapis.com/auth/fitness.heart_rate.read'],
     capabilities: PULL_ONLY,
   },
+  dexcom: {
+    name: 'Dexcom',
+    description: 'Continuous glucose monitoring (estimated glucose values)',
+    dataCategories: ['metabolic'],
+    oauthBaseUrl: 'https://api.dexcom.com/v2/oauth2/login',
+    features: ['glucose', 'glucose_fasting'],
+    scopes: ['offline_access'],
+    capabilities: PULL_ONLY,
+  },
 };

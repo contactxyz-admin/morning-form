@@ -7,6 +7,7 @@ import { WhoopClient } from '@/lib/health/whoop';
 import { OuraClient } from '@/lib/health/oura';
 import { FitbitClient } from '@/lib/health/fitbit';
 import { GoogleFitClient } from '@/lib/health/google-fit';
+import { DexcomClient } from '@/lib/health/dexcom';
 import { HealthSyncService } from '@/lib/health/sync';
 
 type RouteContext = {
@@ -83,6 +84,9 @@ export async function GET(request: Request, { params }: RouteContext) {
         break;
       case 'google_fit':
         tokenResponse = await new GoogleFitClient().exchangeCode(code, callbackUrl);
+        break;
+      case 'dexcom':
+        tokenResponse = await new DexcomClient().exchangeCode(code, callbackUrl);
         break;
       default:
         return redirectToIntegrations('error', provider, 'unsupported_provider');

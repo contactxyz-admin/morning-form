@@ -50,7 +50,7 @@ export const CANONICAL_METRICS = [
 
   // Body
   { canonical: 'body_temperature_delta',       alias: 'temperature_delta', unit: '°C',         category: 'body'     },
-  { canonical: 'blood_glucose',                alias: 'glucose',           unit: 'mg/dL',      category: 'body'     },
+  { canonical: 'blood_glucose',                alias: 'glucose',           unit: 'mg/dL',      category: 'metabolic' },
 ] as const satisfies readonly CanonicalMetric[];
 
 export type RuleAlias = (typeof CANONICAL_METRICS)[number]['alias'];

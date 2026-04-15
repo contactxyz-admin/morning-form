@@ -314,6 +314,37 @@ describe('HealthSyncService.syncProvider — apple_health (via Terra) characteri
   });
 });
 
+describe('HealthSyncService.syncProvider — Dexcom characterization', () => {
+  let points: HealthDataPoint[];
+
+  beforeEach(async () => {
+    const sync = new HealthSyncService();
+    points = await sync.syncProvider('dexcom', '2026-04-13', '2026-04-14');
+  });
+
+  it('emits 96 glucose points (15-min cadence × 24h)', () => {
+    expect(points.length).toBe(96);
+    expect(points.every((p) => p.metric === 'glucose')).toBe(true);
+  });
+
+  it('every point carries provider=dexcom', () => {
+    expect(points.every((p) => p.provider === 'dexcom')).toBe(true);
+  });
+
+  it('glucose points are metabolic/mg/dL (canonical contract)', () => {
+    expect(points[0]).toMatchObject({
+      category: 'metabolic',
+      metric: 'glucose',
+      unit: 'mg/dL',
+    });
+    expect(points.every((p) => p.value >= 40 && p.value <= 250)).toBe(true);
+  });
+
+  it('timestamps are ISO strings derived from systemTime', () => {
+    expect(points.every((p) => new Date(p.timestamp).toISOString() === p.timestamp)).toBe(true);
+  });
+});
+
 describe('HealthSyncService.syncProvider — raw-payload capture wiring', () => {
   it('skips capture when no userId is provided (anonymous/bare sync)', async () => {
     const sync = new HealthSyncService();
@@ -359,6 +390,7 @@ describe('HealthSyncService.syncProvider — raw-payload capture wiring', () => 
       ['fitbit', 3], // getSleep + getActivity + getHeartRate
       ['google_fit', 3], // getSteps + getSleep + getHeartRate
       ['apple_health', 1], // Terra getDaily
+      ['dexcom', 1], // getEgvs
     ];
     for (const [provider, expectedCalls] of cases) {
       captureSpy.mockClear();

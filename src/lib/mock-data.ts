@@ -89,6 +89,7 @@ export const mockHealthSummary: HealthSummary = {
   activity: { steps: 8430, calories: 2180, activeMinutes: 45, strain: 12.4 },
   recovery: { hrv: 68, recoveryScore: 74, respiratoryRate: 14.8 },
   heart: { restingHR: 52, maxHR: 168, avgHR: 72 },
+  metabolic: { glucose: 98 },
 };
 
 export const mockHealthHistory = Array.from({ length: 7 }, (_, i) => {

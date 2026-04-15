@@ -124,7 +124,7 @@ export interface ChatMessage {
 
 // ── Health Integration Types ──
 
-export type HealthProvider = 'apple_health' | 'whoop' | 'oura' | 'fitbit' | 'garmin' | 'google_fit';
+export type HealthProvider = 'apple_health' | 'whoop' | 'oura' | 'fitbit' | 'garmin' | 'google_fit' | 'dexcom';
 
 export interface HealthConnection {
   id: string;
@@ -142,7 +142,7 @@ export interface HealthDataPoint {
   provider: HealthProvider;
 }
 
-export type HealthCategory = 'sleep' | 'activity' | 'heart' | 'recovery' | 'body';
+export type HealthCategory = 'sleep' | 'activity' | 'heart' | 'recovery' | 'body' | 'metabolic';
 
 export interface HealthSummary {
   sleep: {
@@ -167,6 +167,9 @@ export interface HealthSummary {
     restingHR: number | null;
     maxHR: number | null;
     avgHR: number | null;
+  };
+  metabolic: {
+    glucose: number | null;
   };
 }
 

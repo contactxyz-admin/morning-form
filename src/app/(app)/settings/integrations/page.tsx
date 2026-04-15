@@ -22,6 +22,7 @@ const providers: Record<HealthProvider, ProviderConfig> = {
   fitbit: { name: 'Fitbit', description: 'Sleep, heart rate, activity, SpO2', icon: 'F', features: ['sleep', 'heart', 'activity', 'spo2'] },
   garmin: { name: 'Garmin', description: 'Training load, recovery, sleep, stress', icon: 'G', features: ['training', 'recovery', 'sleep', 'stress'] },
   google_fit: { name: 'Google Fit', description: 'Activity, sleep, vitals', icon: '⊕', features: ['activity', 'sleep', 'vitals'] },
+  dexcom: { name: 'Dexcom', description: 'Continuous glucose monitoring (CGM)', icon: '◉', features: ['glucose'] },
 };
 
 export default function IntegrationsPage() {
