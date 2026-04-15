@@ -12,6 +12,12 @@ import { OuraClient } from './oura';
 import { FitbitClient } from './fitbit';
 import { GoogleFitClient } from './google-fit';
 import { pointFromCanonical } from './normalize';
+import { captureRawPayload } from './raw-payload';
+
+export interface SyncProviderOptions {
+  userId?: string;
+  traceId?: string;
+}
 
 export class HealthSyncService {
   private terra: TerraClient;
@@ -28,15 +34,37 @@ export class HealthSyncService {
     this.googleFit = new GoogleFitClient();
   }
 
-  async syncProvider(provider: HealthProvider, startDate: string, endDate: string): Promise<HealthDataPoint[]> {
+  async syncProvider(
+    provider: HealthProvider,
+    startDate: string,
+    endDate: string,
+    opts: SyncProviderOptions = {}
+  ): Promise<HealthDataPoint[]> {
     const points: HealthDataPoint[] = [];
     const now = new Date().toISOString();
+
+    // Capture each raw provider response BEFORE pointFromCanonical runs so we
+    // can replay or diff when a vendor silently changes shape. Best-effort —
+    // capture failures are swallowed inside captureRawPayload.
+    const capture = async <T>(method: string, fn: () => Promise<T>): Promise<T> => {
+      const data = await fn();
+      if (opts.userId) {
+        await captureRawPayload({
+          userId: opts.userId,
+          provider,
+          source: 'pull',
+          payload: { method, startDate, endDate, data },
+          traceId: opts.traceId,
+        });
+      }
+      return data;
+    };
 
     switch (provider) {
       case 'whoop': {
         const [recovery, sleep] = await Promise.all([
-          this.whoop.getRecovery(startDate, endDate),
-          this.whoop.getSleep(startDate, endDate),
+          capture('getRecovery', () => this.whoop.getRecovery(startDate, endDate)),
+          capture('getSleep', () => this.whoop.getSleep(startDate, endDate)),
         ]);
         recovery.forEach(r => {
           const at = { timestamp: r.created_at, provider: 'whoop' as const };
@@ -59,8 +87,8 @@ export class HealthSyncService {
       }
       case 'oura': {
         const [sleep, readiness] = await Promise.all([
-          this.oura.getSleep(startDate, endDate),
-          this.oura.getReadiness(startDate, endDate),
+          capture('getSleep', () => this.oura.getSleep(startDate, endDate)),
+          capture('getReadiness', () => this.oura.getReadiness(startDate, endDate)),
         ]);
         sleep.forEach(s => {
           const at = { timestamp: s.bedtime_start, provider: 'oura' as const };
@@ -78,9 +106,9 @@ export class HealthSyncService {
       }
       case 'fitbit': {
         const [sleep, activity, heartRate] = await Promise.all([
-          this.fitbit.getSleep(startDate, endDate),
-          this.fitbit.getActivity(startDate, endDate),
-          this.fitbit.getHeartRate(startDate, endDate),
+          capture('getSleep', () => this.fitbit.getSleep(startDate, endDate)),
+          capture('getActivity', () => this.fitbit.getActivity(startDate, endDate)),
+          capture('getHeartRate', () => this.fitbit.getHeartRate(startDate, endDate)),
         ]);
 
         sleep.forEach((s) => {
@@ -114,9 +142,9 @@ export class HealthSyncService {
       }
       case 'google_fit': {
         const [steps, sleep, heartRate] = await Promise.all([
-          this.googleFit.getSteps(startDate, endDate),
-          this.googleFit.getSleep(startDate, endDate),
-          this.googleFit.getHeartRate(startDate, endDate),
+          capture('getSteps', () => this.googleFit.getSteps(startDate, endDate)),
+          capture('getSleep', () => this.googleFit.getSleep(startDate, endDate)),
+          capture('getHeartRate', () => this.googleFit.getHeartRate(startDate, endDate)),
         ]);
 
         points.push(pointFromCanonical('steps', steps, { timestamp: now, provider: 'google_fit' }));
@@ -138,7 +166,9 @@ export class HealthSyncService {
       case 'apple_health':
       case 'garmin': {
         // These go through Terra
-        const terraData = await this.terra.getDaily('user', startDate, endDate);
+        const terraData = await capture('getDaily', () =>
+          this.terra.getDaily('user', startDate, endDate)
+        );
         terraData.forEach(d => {
           const at = { timestamp: `${d.date}T12:00:00Z`, provider };
           points.push(
@@ -219,7 +249,7 @@ export class HealthSyncService {
       });
 
       const refreshedConnection = await this.refreshConnectionIfNeeded(connection);
-      const points = await this.syncProvider(provider, startDate, endDate);
+      const points = await this.syncProvider(provider, startDate, endDate, { userId });
       const dedupedPoints = this.deduplicateData(points);
 
       if (dedupedPoints.length > 0) {
