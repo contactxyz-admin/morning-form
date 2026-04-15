@@ -12,6 +12,7 @@ import { OuraClient } from './oura';
 import { FitbitClient } from './fitbit';
 import { GoogleFitClient } from './google-fit';
 import { DexcomClient } from './dexcom';
+import { LibreClient } from './libre';
 import { pointFromCanonical } from './normalize';
 import { captureRawPayload } from './raw-payload';
 
@@ -27,6 +28,7 @@ export class HealthSyncService {
   private fitbit: FitbitClient;
   private googleFit: GoogleFitClient;
   private dexcom: DexcomClient;
+  private libre: LibreClient;
 
   constructor() {
     this.terra = new TerraClient();
@@ -35,6 +37,7 @@ export class HealthSyncService {
     this.fitbit = new FitbitClient();
     this.googleFit = new GoogleFitClient();
     this.dexcom = new DexcomClient();
+    this.libre = new LibreClient();
   }
 
   async syncProvider(
@@ -174,6 +177,17 @@ export class HealthSyncService {
         egvs.forEach((r) => {
           points.push(
             pointFromCanonical('glucose', r.value, { timestamp: r.systemTime, provider: 'dexcom' }),
+          );
+        });
+        break;
+      }
+      case 'libre': {
+        const readings = await capture('getGlucoseGraph', () =>
+          this.libre.getGlucoseGraph('mock_patient', undefined, startDate),
+        );
+        readings.forEach((r) => {
+          points.push(
+            pointFromCanonical('glucose', r.value, { timestamp: r.timestamp, provider: 'libre' }),
           );
         });
         break;

@@ -124,7 +124,7 @@ export interface ChatMessage {
 
 // ── Health Integration Types ──
 
-export type HealthProvider = 'apple_health' | 'whoop' | 'oura' | 'fitbit' | 'garmin' | 'google_fit' | 'dexcom';
+export type HealthProvider = 'apple_health' | 'whoop' | 'oura' | 'fitbit' | 'garmin' | 'google_fit' | 'dexcom' | 'libre';
 
 export interface HealthConnection {
   id: string;

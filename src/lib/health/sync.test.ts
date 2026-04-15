@@ -345,6 +345,25 @@ describe('HealthSyncService.syncProvider — Dexcom characterization', () => {
   });
 });
 
+describe('HealthSyncService.syncProvider — Libre characterization', () => {
+  let points: HealthDataPoint[];
+
+  beforeEach(async () => {
+    const sync = new HealthSyncService();
+    points = await sync.syncProvider('libre', '2026-04-13', '2026-04-14');
+  });
+
+  it('emits 96 glucose points (15-min cadence × 24h)', () => {
+    expect(points.length).toBe(96);
+    expect(points.every((p) => p.metric === 'glucose')).toBe(true);
+  });
+
+  it('every point carries provider=libre and the metabolic/mg/dL contract', () => {
+    expect(points.every((p) => p.provider === 'libre')).toBe(true);
+    expect(points[0]).toMatchObject({ category: 'metabolic', metric: 'glucose', unit: 'mg/dL' });
+  });
+});
+
 describe('HealthSyncService.syncProvider — raw-payload capture wiring', () => {
   it('skips capture when no userId is provided (anonymous/bare sync)', async () => {
     const sync = new HealthSyncService();
@@ -391,6 +410,7 @@ describe('HealthSyncService.syncProvider — raw-payload capture wiring', () => 
       ['google_fit', 3], // getSteps + getSleep + getHeartRate
       ['apple_health', 1], // Terra getDaily
       ['dexcom', 1], // getEgvs
+      ['libre', 1], // getGlucoseGraph
     ];
     for (const [provider, expectedCalls] of cases) {
       captureSpy.mockClear();

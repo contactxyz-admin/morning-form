@@ -23,6 +23,7 @@ const providers: Record<HealthProvider, ProviderConfig> = {
   garmin: { name: 'Garmin', description: 'Training load, recovery, sleep, stress', icon: 'G', features: ['training', 'recovery', 'sleep', 'stress'] },
   google_fit: { name: 'Google Fit', description: 'Activity, sleep, vitals', icon: '⊕', features: ['activity', 'sleep', 'vitals'] },
   dexcom: { name: 'Dexcom', description: 'Continuous glucose monitoring (CGM)', icon: '◉', features: ['glucose'] },
+  libre: { name: 'FreeStyle Libre', description: 'CGM via LibreLinkUp — enter your Libre email and password', icon: '◎', features: ['glucose'] },
 };
 
 export default function IntegrationsPage() {
@@ -103,10 +104,22 @@ export default function IntegrationsPage() {
   const connectProvider = async (provider: HealthProvider) => {
     setLoadingProvider(provider);
     try {
+      // LibreLinkUp uses credential auth — prompt inline instead of redirecting.
+      // The password is passed straight to the API and never stored client-side.
+      const extraBody: Record<string, string> = {};
+      if (provider === 'libre') {
+        const email = window.prompt('LibreLinkUp email');
+        if (!email) { setLoadingProvider(null); return; }
+        const password = window.prompt('LibreLinkUp password');
+        if (!password) { setLoadingProvider(null); return; }
+        extraBody.email = email;
+        extraBody.password = password;
+      }
+
       const response = await fetch('/api/health/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({ provider, ...extraBody }),
       });
 
       const data = await response.json();
@@ -114,7 +127,13 @@ export default function IntegrationsPage() {
         throw new Error(data.error || 'Failed to connect');
       }
 
-      window.location.href = data.authUrl;
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        // Credential providers (e.g. libre) don't redirect — reload state.
+        await reloadConnections();
+        setLoadingProvider(null);
+      }
     } catch (error) {
       console.error(error);
       setSyncMessage(error instanceof Error ? error.message : 'Failed to connect provider');
