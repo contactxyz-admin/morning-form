@@ -12,6 +12,7 @@ import { OuraClient } from './oura';
 import { FitbitClient } from './fitbit';
 import { GoogleFitClient } from './google-fit';
 import { DexcomClient } from './dexcom';
+import { LibreClient } from './libre';
 import { pointFromCanonical } from './normalize';
 import { captureRawPayload } from './raw-payload';
 
@@ -27,6 +28,7 @@ export class HealthSyncService {
   private fitbit: FitbitClient;
   private googleFit: GoogleFitClient;
   private dexcom: DexcomClient;
+  private libre: LibreClient;
 
   constructor() {
     this.terra = new TerraClient();
@@ -35,6 +37,7 @@ export class HealthSyncService {
     this.fitbit = new FitbitClient();
     this.googleFit = new GoogleFitClient();
     this.dexcom = new DexcomClient();
+    this.libre = new LibreClient();
   }
 
   async syncProvider(
@@ -178,6 +181,17 @@ export class HealthSyncService {
         });
         break;
       }
+      case 'libre': {
+        const readings = await capture('getGlucoseGraph', () =>
+          this.libre.getGlucoseGraph('mock_patient', undefined, startDate),
+        );
+        readings.forEach((r) => {
+          points.push(
+            pointFromCanonical('glucose', r.value, { timestamp: r.timestamp, provider: 'libre' }),
+          );
+        });
+        break;
+      }
       case 'apple_health':
       case 'garmin': {
         // These go through Terra
@@ -207,6 +221,24 @@ export class HealthSyncService {
   async refreshConnectionIfNeeded(connection: PrismaHealthConnection): Promise<PrismaHealthConnection> {
     const expiresAt = connection.expiresAt ? new Date(connection.expiresAt) : null;
     const isExpired = expiresAt ? expiresAt.getTime() <= Date.now() + 60_000 : false;
+
+    // Libre is credential-auth (no refresh token). An expired session can
+    // only be recovered by asking the user to re-enter their password, so
+    // we flag the connection as `error` and let the settings UI surface a
+    // reconnect prompt.
+    if (isExpired && connection.provider === 'libre') {
+      return prisma.healthConnection.update({
+        where: { id: connection.id },
+        data: {
+          status: 'error',
+          metadata: JSON.stringify({
+            ...(this.parseMetadata(connection.metadata) || {}),
+            syncError: 'libre_session_expired_reconnect_required',
+            lastSyncFailedAt: new Date().toISOString(),
+          }),
+        },
+      });
+    }
 
     if (!isExpired || !connection.refreshToken) {
       return connection;

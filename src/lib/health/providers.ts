@@ -99,4 +99,13 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     scopes: ['offline_access'],
     capabilities: PULL_ONLY,
   },
+  libre: {
+    name: 'FreeStyle Libre',
+    description: 'Continuous glucose monitoring via LibreLinkUp (unofficial)',
+    dataCategories: ['metabolic'],
+    oauthBaseUrl: '', // Credential auth, not OAuth
+    features: ['glucose'],
+    scopes: [],
+    capabilities: PULL_ONLY,
+  },
 };

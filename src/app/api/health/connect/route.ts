@@ -7,6 +7,7 @@ import { OuraClient } from '@/lib/health/oura';
 import { FitbitClient } from '@/lib/health/fitbit';
 import { GoogleFitClient } from '@/lib/health/google-fit';
 import { DexcomClient } from '@/lib/health/dexcom';
+import { LibreClient } from '@/lib/health/libre';
 import { prisma } from '@/lib/db';
 import { getOrCreateDemoUser } from '@/lib/demo-user';
 import { env } from '@/lib/env';
@@ -68,6 +69,53 @@ export async function POST(request: Request) {
         const dexcom = new DexcomClient();
         authUrl = dexcom.getAuthUrl(callbackUrl);
         break;
+      }
+      case 'libre': {
+        // LibreLinkUp uses credential auth (email + password), not OAuth.
+        // We exchange the credentials for a session token here and persist
+        // ONLY the token — never the plaintext password.
+        const { email, password } = body as { email?: string; password?: string };
+        if (!email || !password) {
+          return NextResponse.json(
+            { error: 'Libre requires email and password', provider },
+            { status: 400 }
+          );
+        }
+        const libre = new LibreClient();
+        if (process.env.LIBRE_ENABLED !== 'true' && process.env.NODE_ENV === 'production') {
+          console.warn('[API] Libre connect in production with LIBRE_ENABLED!=true — routing to mock');
+        }
+        let session;
+        try {
+          session = await libre.login(email, password);
+        } catch (loginError) {
+          // Log only the message, not the raw error — error objects from fetch
+          // wrappers can carry request context in non-obvious fields.
+          const msg = loginError instanceof Error ? loginError.message : 'unknown';
+          console.error('[API] Libre login failed:', msg);
+          return NextResponse.json(
+            { error: 'Libre login failed — check your email and password', provider },
+            { status: 401 }
+          );
+        }
+        await prisma.healthConnection.upsert({
+          where: { userId_provider: { userId: user.id, provider } },
+          update: {
+            status: 'connected',
+            accessToken: session.accessToken,
+            expiresAt: new Date(session.expiresAt),
+            metadata: JSON.stringify({ patientId: session.patientId, connectedAt: new Date().toISOString() }),
+          },
+          create: {
+            userId: user.id,
+            provider,
+            status: 'connected',
+            accessToken: session.accessToken,
+            expiresAt: new Date(session.expiresAt),
+            metadata: JSON.stringify({ patientId: session.patientId, connectedAt: new Date().toISOString() }),
+          },
+        });
+        return NextResponse.json({ provider, connected: true });
       }
       default:
         return NextResponse.json({ error: 'Provider not supported' }, { status: 400 });
