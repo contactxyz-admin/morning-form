@@ -39,13 +39,13 @@ export function EssentialsTab() {
   const complete = useIntakeStore((s) => s.isEssentialsComplete());
 
   return (
-    <div className="space-y-5 stagger">
+    <div className="space-y-6 stagger">
       <header>
-        <p className="text-label uppercase text-text-tertiary mb-3">03 — Essentials</p>
-        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-3 -tracking-[0.035em]">
-          The minimum we need.
+        <p className="text-label uppercase text-text-tertiary mb-4 tabular-nums">03 — Essentials</p>
+        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4 hero-reveal">
+          The <span className="italic">minimum</span> we need.
         </h2>
-        <p className="text-body-lg text-text-secondary max-w-lg">
+        <p className="text-body-lg text-text-secondary max-w-lg leading-relaxed">
           For when you can&rsquo;t share documents or write a story. Goals plus at least one of
           meds, diagnoses, or allergies is enough to finish.
         </p>
@@ -58,7 +58,7 @@ export function EssentialsTab() {
               {field.label}
             </label>
             {field.required && (
-              <span className="text-caption text-alert font-medium lowercase tracking-normal">
+              <span className="font-display italic text-caption text-caution lowercase tracking-normal">
                 required
               </span>
             )}

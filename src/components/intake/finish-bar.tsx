@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
 import { useIntakeStore } from '@/lib/intake/store';
 
 export function FinishBar() {
@@ -63,27 +64,42 @@ export function FinishBar() {
   }
 
   return (
-    <div className="fixed bottom-16 left-0 right-0 px-6 sm:px-8 pt-12 pb-4 pointer-events-none bg-gradient-to-t from-bg via-bg/95 to-transparent">
-      <div className="mx-auto max-w-2xl pointer-events-auto">
-        {error && (
-          <p className="mb-3 text-caption text-alert text-center bg-surface rounded-card-sm px-4 py-3 border border-alert/30">
-            {error}
-          </p>
-        )}
-        <Button
-          onClick={onFinish}
-          disabled={!canFinish || submitting}
-          loading={submitting}
-          fullWidth
-          size="lg"
-        >
-          {submitting ? 'Submitting…' : canFinish ? 'Finish intake →' : 'Finish intake'}
-        </Button>
-        {!canFinish && (
-          <p className="mt-3 text-caption text-text-tertiary text-center">
-            Complete the Essentials tab to finish.
-          </p>
-        )}
+    <div
+      className="fixed bottom-16 left-0 right-0 pointer-events-none z-40"
+      aria-live="polite"
+    >
+      {/* Layered atmosphere so the bar lifts off the paper:
+          (1) long gradient fade from bg to transparent above,
+          (2) backdrop-blur + hairline on the bar surface itself. */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-bg via-bg/85 to-transparent"
+      />
+      <div className="relative px-6 sm:px-8 pt-5 pb-4">
+        <div className="mx-auto max-w-2xl pointer-events-auto">
+          {error && (
+            <p className="mb-3 text-caption text-alert text-center bg-surface rounded-card-sm px-4 py-3 border border-alert/30 shadow-hairline">
+              {error}
+            </p>
+          )}
+          <div className="relative rounded-button overflow-hidden backdrop-blur-md bg-bg/60 shadow-floating">
+            <Button
+              onClick={onFinish}
+              disabled={!canFinish || submitting}
+              loading={submitting}
+              fullWidth
+              size="lg"
+              iconTrailing={canFinish && !submitting ? <Icon name="arrow-right" size="md" /> : undefined}
+            >
+              {submitting ? 'Submitting…' : 'Finish intake'}
+            </Button>
+          </div>
+          {!canFinish && (
+            <p className="mt-3 text-caption text-text-tertiary text-center">
+              Complete the Essentials tab to finish.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

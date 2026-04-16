@@ -2,8 +2,8 @@ import { cn } from '@/lib/utils';
 
 type IconName =
   | 'home' | 'protocol' | 'check-in' | 'insights' | 'profile'
-  | 'guide' | 'close' | 'back' | 'arrow-right' | 'check'
-  | 'clock' | 'alert' | 'send' | 'chevron-down';
+  | 'guide' | 'close' | 'back' | 'arrow-right' | 'arrow-up'
+  | 'check' | 'clock' | 'alert' | 'send' | 'chevron-down' | 'plus';
 
 interface IconProps {
   name: IconName;
@@ -23,7 +23,9 @@ const paths: Record<IconName, string> = {
   close: 'M6 18L18 6M6 6l12 12',
   back: 'M15 19l-7-7 7-7',
   'arrow-right': 'M9 5l7 7-7 7',
+  'arrow-up': 'M5 12l7-7 7 7M12 5v14',
   check: 'M5 13l4 4L19 7',
+  plus: 'M12 5v14M5 12h14',
   clock: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
   alert: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z',
   send: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8',

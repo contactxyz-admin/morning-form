@@ -17,13 +17,13 @@ export function HistoryTab() {
   const setText = useIntakeStore((s) => s.setHistoryText);
 
   return (
-    <div className="space-y-5 stagger">
+    <div className="space-y-6 stagger">
       <header>
-        <p className="text-label uppercase text-text-tertiary mb-3">02 — Narrative</p>
-        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-3 -tracking-[0.035em]">
+        <p className="text-label uppercase text-text-tertiary mb-4 tabular-nums">02 — Narrative</p>
+        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4 hero-reveal">
           Your story, <span className="italic">in your words.</span>
         </h2>
-        <p className="text-body-lg text-text-secondary max-w-lg">
+        <p className="text-body-lg text-text-secondary max-w-lg leading-relaxed">
           Free-text history. The more you tell us, the better the graph. We extract symptoms,
           conditions, medications, and the events that connect them.
         </p>
@@ -39,11 +39,17 @@ export function HistoryTab() {
           aria-label="Your medical story"
         />
         <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
-          <p className="text-caption text-text-tertiary">
+          <p className="text-caption text-text-tertiary tabular-nums">
             {text.length === 0 ? 'No characters yet' : `${text.length.toLocaleString()} characters`}
           </p>
           {text.trim().length > 0 && (
-            <p className="text-caption text-positive">Saved as you type</p>
+            <p className="flex items-center gap-2 text-caption text-positive">
+              <span
+                aria-hidden
+                className="inline-block w-1.5 h-1.5 rounded-full bg-positive animate-pulse-subtle"
+              />
+              Saved as you type
+            </p>
           )}
         </div>
       </Card>

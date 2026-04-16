@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useIntakeStore } from '@/lib/intake/store';
 import type { IntakeTab } from '@/lib/intake/types';
@@ -28,7 +29,7 @@ export function TabNav({ active }: TabNavProps) {
 
   return (
     <nav
-      className="flex items-center gap-1 mb-10 border-b border-border"
+      className="relative flex items-center gap-1 mb-12 border-b border-border"
       role="tablist"
       aria-label="Intake tabs"
     >
@@ -49,24 +50,35 @@ export function TabNav({ active }: TabNavProps) {
                 : 'text-text-tertiary hover:text-text-primary',
             )}
           >
-            <span className="text-label font-mono uppercase opacity-60">{tab.index}</span>
+            <span className="text-label font-mono uppercase opacity-60 tabular-nums">
+              {tab.index}
+            </span>
             <span className="-tracking-[0.01em]">{tab.label}</span>
             {hasContent && (
               <span
                 aria-label="Has content"
                 className={cn(
-                  'inline-block w-1.5 h-1.5 rounded-full ml-0.5',
+                  'inline-block w-1.5 h-1.5 rounded-full ml-0.5 transition-colors duration-250',
                   isActive ? 'bg-positive' : 'bg-positive/60',
                 )}
               />
             )}
-            <span
-              aria-hidden
-              className={cn(
-                'absolute -bottom-px left-0 right-0 h-px transition-all duration-450 ease-spring',
-                isActive ? 'bg-text-primary' : 'bg-transparent',
-              )}
-            />
+            {isActive && (
+              // Shared layoutId makes the underline glide between tabs instead
+              // of fade-in/fade-out — the move Apple uses on tabbar and iOS
+              // segmented controls.
+              <motion.span
+                layoutId="intake-tab-underline"
+                aria-hidden
+                className="absolute -bottom-px left-0 right-0 h-px bg-text-primary"
+                transition={{
+                  type: 'spring',
+                  stiffness: 420,
+                  damping: 36,
+                  mass: 0.6,
+                }}
+              />
+            )}
           </Link>
         );
       })}

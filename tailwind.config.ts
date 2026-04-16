@@ -58,6 +58,8 @@ const config: Config = {
       },
       fontSize: {
         // Display sizes scale up significantly — Apple-style headline gravity.
+        // 2xl is reserved for the single hero moment; xl and below compose pages.
+        'display-2xl': ['4.25rem', { lineHeight: '0.98', letterSpacing: '-0.045em' }],
         'display-xl': ['3.5rem', { lineHeight: '1.02', letterSpacing: '-0.04em' }],
         'display': ['2.75rem', { lineHeight: '1.05', letterSpacing: '-0.035em' }],
         'display-sm': ['2rem', { lineHeight: '1.1', letterSpacing: '-0.03em' }],
@@ -85,9 +87,18 @@ const config: Config = {
         // Almost imperceptible by default; only used to lift on hover.
         'hairline': '0 0 0 1px rgba(20, 20, 20, 0.04)',
         'card': 'none',
-        'card-hover': '0 1px 2px rgba(20, 20, 20, 0.04), 0 8px 24px -8px rgba(20, 20, 20, 0.06)',
+        'card-hover': '0 1px 2px rgba(20, 20, 20, 0.04), 0 12px 32px -10px rgba(20, 20, 20, 0.08)',
         'modal': '0 8px 32px rgba(20, 20, 20, 0.12)',
         'ring-accent': '0 0 0 1px rgba(31, 58, 46, 0.18)',
+        // Floating nav/bar — crisp top hairline plus soft halo so a fixed bar
+        // reads as hovering above the paper, not stuck to it.
+        'floating': '0 -1px 0 rgba(20, 20, 20, 0.05), 0 -12px 32px -12px rgba(20, 20, 20, 0.05)',
+        // Inner top highlight — 1px light band at the top of a dark button, the
+        // trick Apple uses to make CTAs feel dimensional under warm lighting.
+        'button-inner': 'inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.04)',
+      },
+      backdropBlur: {
+        'xs': '2px',
       },
       transitionDuration: {
         '250': '250ms',

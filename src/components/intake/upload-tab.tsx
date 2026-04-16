@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { Icon } from '@/components/ui/icon';
 import { useIntakeStore } from '@/lib/intake/store';
 import { cn } from '@/lib/utils';
 
@@ -29,19 +30,19 @@ export function UploadTab() {
   );
 
   return (
-    <div className="space-y-5 stagger">
+    <div className="space-y-6 stagger">
       <header>
-        <p className="text-label uppercase text-text-tertiary mb-3">01 — Documents</p>
-        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-3 -tracking-[0.035em]">
+        <p className="text-label uppercase text-text-tertiary mb-4 tabular-nums">01 — Documents</p>
+        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4 hero-reveal">
           Upload your records.
         </h2>
-        <p className="text-body-lg text-text-secondary max-w-lg">
-          Lab results, GP exports, hospital letters — anything in PDF or image form. We extract the
-          health-relevant facts and link them back to source.
+        <p className="text-body-lg text-text-secondary max-w-lg leading-relaxed">
+          Lab results, GP exports, hospital letters &mdash; anything in PDF or image form. We
+          extract the health-relevant facts and link them back to source.
         </p>
       </header>
 
-      <Card variant="paper" className="p-0 overflow-hidden">
+      <Card variant="paper" className="p-0 overflow-hidden group/drop">
         <label
           onDragOver={(e) => {
             e.preventDefault();
@@ -54,10 +55,8 @@ export function UploadTab() {
             handleFiles(e.dataTransfer.files);
           }}
           className={cn(
-            'block px-8 py-14 text-center cursor-pointer transition-all duration-450 ease-spring',
-            dragOver
-              ? 'bg-accent-light/60'
-              : 'hover:bg-surface',
+            'block px-8 py-16 text-center cursor-pointer transition-colors duration-450 ease-spring',
+            dragOver ? 'bg-accent-light/70' : 'hover:bg-surface',
           )}
         >
           <input
@@ -68,11 +67,19 @@ export function UploadTab() {
             className="sr-only"
             onChange={(e) => handleFiles(e.target.files)}
           />
-          <div className="mx-auto w-12 h-12 rounded-full border border-border-strong flex items-center justify-center mb-5 transition-transform duration-450 ease-spring group-hover:scale-105">
-            <span aria-hidden className="text-text-secondary text-xl leading-none">↑</span>
-          </div>
-          <p className="font-display text-subheading text-text-primary mb-1.5 -tracking-[0.01em]">
-            Drag files here, or tap to choose
+          <span
+            className={cn(
+              'mx-auto w-14 h-14 rounded-full border flex items-center justify-center mb-6',
+              'transition-[transform,border-color,background-color] duration-450 ease-spring',
+              dragOver
+                ? 'border-accent bg-accent text-surface scale-110'
+                : 'border-border-strong text-text-secondary group-hover/drop:border-text-primary group-hover/drop:text-text-primary group-hover/drop:scale-105',
+            )}
+          >
+            <Icon name="arrow-up" size="md" />
+          </span>
+          <p className="font-display text-subheading text-text-primary mb-2 -tracking-[0.01em]">
+            {dragOver ? 'Drop to stage' : 'Drag files here, or tap to choose'}
           </p>
           <p className="text-caption text-text-tertiary">PDF or image files</p>
         </label>
@@ -80,20 +87,20 @@ export function UploadTab() {
 
       {documents.length > 0 && (
         <Card>
-          <h3 className="text-label uppercase text-text-tertiary mb-4">
-            Staged · {documents.length}
+          <h3 className="text-label uppercase text-text-tertiary mb-4 tabular-nums">
+            Staged &middot; {documents.length}
           </h3>
           <ul className="space-y-px -mx-1">
             {documents.map((doc) => (
               <li
                 key={doc.id}
-                className="group flex items-center justify-between gap-4 px-1 py-3 border-b border-border last:border-b-0"
+                className="group/doc flex items-center justify-between gap-4 px-1 py-3 border-b border-border last:border-b-0"
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-body text-text-primary truncate -tracking-[0.005em]">
                     {doc.name}
                   </p>
-                  <p className="text-caption text-text-tertiary mt-0.5">
+                  <p className="text-caption text-text-tertiary mt-0.5 tabular-nums">
                     {formatBytes(doc.sizeBytes)}
                   </p>
                 </div>
@@ -101,7 +108,7 @@ export function UploadTab() {
                   type="button"
                   onClick={() => removeDocument(doc.id)}
                   aria-label={`Remove ${doc.name}`}
-                  className="text-caption text-text-tertiary hover:text-alert transition-colors duration-250 px-2 py-1 -mr-2 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  className="text-caption text-text-tertiary hover:text-alert transition-colors duration-250 px-2 py-1 -mr-2 opacity-0 group-hover/doc:opacity-100 focus:opacity-100"
                 >
                   Remove
                 </button>
@@ -113,4 +120,3 @@ export function UploadTab() {
     </div>
   );
 }
-

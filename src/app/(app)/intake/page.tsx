@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
+import { Icon } from '@/components/ui/icon';
 import { useIntakeStore } from '@/lib/intake/store';
 
 export default function IntakeLandingPage() {
@@ -37,19 +38,17 @@ export default function IntakeLandingPage() {
   ];
 
   return (
-    <div className="px-6 sm:px-8 pt-12 sm:pt-20 pb-32 max-w-2xl mx-auto">
+    <div className="px-6 sm:px-8 pt-16 sm:pt-24 pb-32 max-w-2xl mx-auto">
       <div className="stagger">
-        <p className="text-label uppercase text-text-tertiary mb-5">
-          Intake
-        </p>
-        <h1 className="font-display font-light text-display sm:text-display-xl text-text-primary mb-5 -tracking-[0.04em]">
+        <p className="text-label uppercase text-text-tertiary mb-6">Intake</p>
+        <h1 className="font-display font-light text-display sm:text-display-2xl text-text-primary mb-6 hero-reveal">
           Bring your health
           <br />
           <span className="italic font-light">into one place.</span>
         </h1>
-        <p className="text-body-lg text-text-secondary mb-12 max-w-lg">
-          Three ways in. Use any or all — we&rsquo;ll connect what you give us into a single graph
-          of your health, with sources you can check.
+        <p className="text-body-lg text-text-secondary mb-14 max-w-lg leading-relaxed">
+          Three ways in. Use any or all &mdash; we&rsquo;ll connect what you give us into a single
+          graph of your health, with sources you can check.
         </p>
 
         <div className="space-y-3">
@@ -63,7 +62,7 @@ export default function IntakeLandingPage() {
               >
                 <div className="flex items-start justify-between gap-6">
                   <div className="min-w-0 flex-1">
-                    <p className="text-label uppercase text-text-tertiary mb-2">
+                    <p className="text-label uppercase text-text-tertiary mb-2 tabular-nums">
                       {tab.eyebrow}
                     </p>
                     <h2 className="font-display text-heading font-normal mb-1.5 text-text-primary">
@@ -79,9 +78,9 @@ export default function IntakeLandingPage() {
                     )}
                     <span
                       aria-hidden
-                      className="text-text-tertiary group-hover:text-text-primary group-hover:translate-x-0.5 transition-all duration-450 ease-spring"
+                      className="text-text-tertiary group-hover:text-text-primary transition-[transform,color] duration-450 ease-spring group-hover:translate-x-0.5"
                     >
-                      →
+                      <Icon name="arrow-right" size="md" />
                     </span>
                   </div>
                 </div>
@@ -90,7 +89,7 @@ export default function IntakeLandingPage() {
           ))}
         </div>
 
-        <p className="mt-12 text-caption text-text-tertiary text-center px-4 max-w-md mx-auto leading-relaxed">
+        <p className="mt-14 text-caption text-text-tertiary text-center px-4 max-w-md mx-auto leading-relaxed">
           Staged documents stay until you finish intake. Page reloads will clear them.
         </p>
       </div>

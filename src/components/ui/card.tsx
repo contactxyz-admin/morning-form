@@ -24,21 +24,26 @@ function Card({
   children,
   ...props
 }: CardProps) {
+  const isAction = variant === 'action';
   return (
     <div
       className={cn(
-        'relative rounded-card transition-all duration-450 ease-spring',
+        'relative rounded-card transition-[border-color,box-shadow,transform] duration-450 ease-spring',
         // Base padding scales with viewport for proper breathing room.
         'p-5 sm:p-6',
         {
           'bg-surface border border-border': variant === 'default',
-          'bg-surface border border-border overflow-hidden': variant === 'action',
+          'bg-surface border border-border overflow-hidden': isAction,
           'bg-accent-light border border-accent/10': variant === 'contextual',
           'bg-surface-warm border border-border': variant === 'paper',
         },
-        // Action variant gets a thin accent ribbon along the leading edge.
-        variant === 'action' && accentColor && [
-          'before:absolute before:left-0 before:top-5 before:bottom-5 before:w-[3px] before:rounded-full',
+        // Action variant accent ribbon: grows from the top on hover/active so
+        // the resting state is quiet and the ribbon rewards intent.
+        isAction && accentColor && [
+          "before:content-[''] before:absolute before:left-0 before:top-5 before:bottom-5 before:w-[3px] before:rounded-full before:origin-top",
+          'before:scale-y-[0.35] before:opacity-50 before:transition-[transform,opacity] before:duration-700 before:ease-spring',
+          'group-hover:before:scale-y-100 group-hover:before:opacity-100',
+          'hover:before:scale-y-100 hover:before:opacity-100',
           accentColorMap[accentColor],
         ],
         clickable && [
