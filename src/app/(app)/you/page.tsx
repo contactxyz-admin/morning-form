@@ -25,7 +25,7 @@ export default function YouPage() {
 
         {/* State profile summary */}
         <Card variant="default">
-          <SectionLabel>STATE PROFILE</SectionLabel>
+          <SectionLabel>State profile</SectionLabel>
           <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">{mockStateProfile.primaryPattern}</h3>
           <ul className="mt-3 space-y-1.5">
             {mockStateProfile.observations.slice(0, 3).map((obs) => (
@@ -39,7 +39,7 @@ export default function YouPage() {
 
         {/* Constraints */}
         <Card variant="action" accentColor="amber" className="mt-4">
-          <SectionLabel>ACTIVE CONSTRAINTS</SectionLabel>
+          <SectionLabel>Active constraints</SectionLabel>
           <ul className="mt-2 space-y-1.5">
             {mockStateProfile.constraints.map((c) => (
               <li key={c.label} className="text-caption text-text-secondary flex gap-2">
@@ -52,7 +52,7 @@ export default function YouPage() {
 
         {/* Connected devices */}
         <div className="mt-8">
-          <SectionLabel>CONNECTED DEVICES</SectionLabel>
+          <SectionLabel>Connected devices</SectionLabel>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-chip border border-border bg-surface">
               <div className="w-1.5 h-1.5 rounded-full bg-positive" />

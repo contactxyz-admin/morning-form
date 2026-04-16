@@ -37,7 +37,7 @@ export default function ProcessingPage() {
       />
 
       <div className="relative space-y-6 max-w-md">
-        <p className="text-label uppercase tracking-[0.14em] text-[#5C5A53] mb-8">
+        <p className="text-label uppercase tracking-[0.14em] text-text-secondary mb-8">
           Processing
         </p>
         {steps.map((step, i) => (
@@ -50,7 +50,7 @@ export default function ProcessingPage() {
                 : { opacity: 0, filter: 'blur(6px)', y: 6 }
             }
             transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="font-display font-light text-heading sm:text-subheading text-[#F5F1E9] -tracking-[0.015em]"
+            className="font-display font-light text-heading sm:text-subheading text-surface-warm -tracking-[0.015em]"
           >
             {step}
           </motion.p>

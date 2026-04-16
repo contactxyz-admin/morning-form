@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 interface TimePickerProps {
   value: string;
   onChange: (value: string) => void;
+  /** Appended to the default input classes via `cn`; later utilities win on conflict. */
   className?: string;
 }
 

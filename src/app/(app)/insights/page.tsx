@@ -21,6 +21,8 @@ const scoreToColor: Record<string, string> = {
   'great': 'bg-accent', 'locked-in': 'bg-accent', 'strong': 'bg-accent',
 };
 
+const METRIC_H3 = 'font-display font-normal text-subheading text-text-primary mb-3 -tracking-[0.01em]';
+
 export default function InsightsPage() {
   const review = mockWeeklyReview;
   const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -38,21 +40,21 @@ export default function InsightsPage() {
       <div className="mt-10 space-y-6">
         {/* Metrics */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <h3 className="font-display font-normal text-subheading text-text-primary mb-3 -tracking-[0.01em]">Sleep quality</h3>
+          <h3 className={METRIC_H3}>Sleep quality</h3>
           <MetricBar {...review.sleepQuality} />
         </motion.div>
 
         <div className="border-t border-border" />
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <h3 className="font-display font-normal text-subheading text-text-primary mb-3 -tracking-[0.01em]">Focus consistency</h3>
+          <h3 className={METRIC_H3}>Focus consistency</h3>
           <MetricBar {...review.focusConsistency} />
         </motion.div>
 
         <div className="border-t border-border" />
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <h3 className="font-display font-normal text-subheading text-text-primary mb-3 -tracking-[0.01em]">Protocol adherence</h3>
+          <h3 className={METRIC_H3}>Protocol adherence</h3>
           <MetricBar {...review.protocolAdherence} />
         </motion.div>
 
@@ -60,7 +62,7 @@ export default function InsightsPage() {
         {review.patternInsight && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
             <Card variant="contextual" className="mt-2">
-              <SectionLabel>PATTERN DETECTED</SectionLabel>
+              <SectionLabel>Pattern detected</SectionLabel>
               <p className="mt-3 text-body text-text-primary leading-relaxed">{review.patternInsight}</p>
             </Card>
           </motion.div>

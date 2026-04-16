@@ -82,7 +82,7 @@ export default function HomePage() {
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <Link href="/check-in">
               <Card variant="action" accentColor="teal" clickable>
-                <SectionLabel>MORNING CHECK-IN</SectionLabel>
+                <SectionLabel>Morning check-in</SectionLabel>
                 <p className="mt-2 text-body text-text-secondary">
                   How did you sleep? How are you feeling?
                 </p>
@@ -97,7 +97,7 @@ export default function HomePage() {
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <Link href="/check-in">
               <Card variant="action" accentColor="teal" clickable>
-                <SectionLabel>EVENING CHECK-IN</SectionLabel>
+                <SectionLabel>Evening check-in</SectionLabel>
                 <p className="mt-2 text-body text-text-secondary">
                   How was your focus? How&apos;s your energy?
                 </p>
@@ -132,7 +132,7 @@ export default function HomePage() {
         {/* Next protocol */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <Card variant="default">
-            <SectionLabel>NEXT UP</SectionLabel>
+            <SectionLabel>Next up</SectionLabel>
             <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">{currentProtocolItem.compounds}</h3>
             <p className="mt-1 font-mono text-data text-accent">{currentProtocolItem.dosage}</p>
             <p className="mt-1 text-caption text-text-tertiary">{currentProtocolItem.timingCue}</p>
@@ -146,7 +146,7 @@ export default function HomePage() {
         {healthSummary.recovery.hrv && (
           <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
             <Card variant="default">
-              <SectionLabel>FROM YOUR DEVICES</SectionLabel>
+              <SectionLabel>From your devices</SectionLabel>
               <div className="mt-3 grid grid-cols-3 gap-4">
                 <div>
                   <p className="font-mono text-data text-accent">{healthSummary.recovery.hrv}</p>

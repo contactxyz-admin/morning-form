@@ -31,7 +31,7 @@ function Toggle({ checked, onChange, label, className }: ToggleProps) {
       >
         <div
           className={cn(
-            'absolute top-[1px] w-[22px] h-[22px] rounded-full bg-surface',
+            'absolute top-[1px] w-[20px] h-[20px] rounded-full bg-surface',
             'shadow-[0_2px_4px_rgba(20,20,20,0.12),0_0_0_1px_rgba(20,20,20,0.04)]',
             'transition-transform duration-300 ease-spring',
             checked ? 'translate-x-[22px]' : 'translate-x-[1px]',

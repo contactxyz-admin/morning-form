@@ -7,7 +7,7 @@ interface SectionLabelProps {
 
 function SectionLabel({ children, className }: SectionLabelProps) {
   return (
-    <span className={cn('text-label uppercase tracking-[0.08em] text-text-tertiary font-medium', className)}>
+    <span className={cn('text-label uppercase text-text-tertiary font-medium', className)}>
       {children}
     </span>
   );

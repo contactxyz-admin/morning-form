@@ -26,7 +26,7 @@ const timeline = [
 const disclaimers = [
   'It does not replace sleep hygiene fundamentals',
   'It does not treat clinical anxiety or insomnia',
-  'It is not a stimulant — you won\u2019t feel a &ldquo;hit&rdquo;',
+  'It is not a stimulant \u2014 you won\u2019t feel a \u201chit\u201d',
 ];
 
 export default function ExpectationsPage() {

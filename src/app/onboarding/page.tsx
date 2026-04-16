@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-const slides: { eyebrow: string; body: React.ReactNode }[] = [
+const slides: { eyebrow: string; body: ReactNode }[] = [
   {
     eyebrow: 'A system',
     body: (
