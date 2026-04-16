@@ -42,7 +42,7 @@ export function EssentialsTab() {
     <div className="space-y-6 stagger">
       <header>
         <p className="text-label uppercase text-text-tertiary mb-4 tabular-nums">03 — Essentials</p>
-        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4 hero-reveal">
+        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4">
           The <span className="italic">minimum</span> we need.
         </h2>
         <p className="text-body-lg text-text-secondary max-w-lg leading-relaxed">

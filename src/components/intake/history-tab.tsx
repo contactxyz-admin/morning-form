@@ -20,7 +20,7 @@ export function HistoryTab() {
     <div className="space-y-6 stagger">
       <header>
         <p className="text-label uppercase text-text-tertiary mb-4 tabular-nums">02 — Narrative</p>
-        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4 hero-reveal">
+        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4">
           Your story, <span className="italic">in your words.</span>
         </h2>
         <p className="text-body-lg text-text-secondary max-w-lg leading-relaxed">

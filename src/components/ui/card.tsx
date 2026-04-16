@@ -41,15 +41,18 @@ function Card({
         // the resting state is quiet and the ribbon rewards intent.
         isAction && accentColor && [
           "before:content-[''] before:absolute before:left-0 before:top-5 before:bottom-5 before:w-[3px] before:rounded-full before:origin-top",
-          'before:scale-y-[0.35] before:opacity-50 before:transition-[transform,opacity] before:duration-700 before:ease-spring',
+          'before:scale-y-[0.35] before:opacity-50 before:transition-[transform,opacity] before:duration-450 before:ease-spring',
           'group-hover:before:scale-y-100 group-hover:before:opacity-100',
           'hover:before:scale-y-100 hover:before:opacity-100',
           accentColorMap[accentColor],
         ],
+        // Hover state stays dead-flat on the paper — just a border shift and
+        // a nearly-imperceptible soft halo. No translate lift (that move belongs
+        // to cards-on-cards UIs; this one wants to feel printed).
         clickable && [
           'cursor-pointer',
-          'hover:border-border-strong hover:shadow-card-hover hover:-translate-y-[1px]',
-          'active:translate-y-0 active:shadow-none active:duration-150',
+          'hover:border-border-strong hover:shadow-card-hover',
+          'active:shadow-none active:duration-150',
         ],
         className,
       )}

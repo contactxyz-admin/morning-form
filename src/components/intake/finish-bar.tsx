@@ -68,9 +68,9 @@ export function FinishBar() {
       className="fixed bottom-16 left-0 right-0 pointer-events-none z-40"
       aria-live="polite"
     >
-      {/* Layered atmosphere so the bar lifts off the paper:
-          (1) long gradient fade from bg to transparent above,
-          (2) backdrop-blur + hairline on the bar surface itself. */}
+      {/* The bar's atmosphere is a single long gradient fade — content below
+          bleeds up through warm paper, then hits the CTA which owns its own
+          shadow/focus treatment. No extra wrapper around the button. */}
       <div
         aria-hidden
         className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-bg via-bg/85 to-transparent"
@@ -82,18 +82,16 @@ export function FinishBar() {
               {error}
             </p>
           )}
-          <div className="relative rounded-button overflow-hidden backdrop-blur-md bg-bg/60 shadow-floating">
-            <Button
-              onClick={onFinish}
-              disabled={!canFinish || submitting}
-              loading={submitting}
-              fullWidth
-              size="lg"
-              iconTrailing={canFinish && !submitting ? <Icon name="arrow-right" size="md" /> : undefined}
-            >
-              {submitting ? 'Submitting…' : 'Finish intake'}
-            </Button>
-          </div>
+          <Button
+            onClick={onFinish}
+            disabled={!canFinish || submitting}
+            loading={submitting}
+            fullWidth
+            size="lg"
+            iconTrailing={canFinish && !submitting ? <Icon name="arrow-right" size="md" /> : undefined}
+          >
+            {submitting ? 'Submitting…' : 'Finish intake'}
+          </Button>
           {!canFinish && (
             <p className="mt-3 text-caption text-text-tertiary text-center">
               Complete the Essentials tab to finish.
