@@ -220,14 +220,20 @@ export default function IntegrationsPage() {
 
   return (
     <div className="px-5 pt-6 pb-8">
-      <div className="flex items-center gap-3 mb-2">
-        <button onClick={() => router.back()} className="text-text-tertiary hover:text-text-primary">
+      <div className="flex items-center gap-3 mb-8">
+        <button
+          onClick={() => router.back()}
+          className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
+        >
           <Icon name="back" size="md" />
         </button>
-        <h1 className="text-heading font-medium text-text-primary">Health Integrations</h1>
+        <p className="text-label uppercase text-text-tertiary">Integrations</p>
       </div>
-      <p className="text-body text-text-secondary mb-8">
-        Connect your devices to enrich your profile with objective health data.
+      <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary mb-4 -tracking-[0.03em]">
+        Connect your <span className="italic font-light">signal</span>.
+      </h1>
+      <p className="text-body-lg text-text-secondary max-w-lg mb-10">
+        Link devices to enrich your profile with objective health data.
       </p>
 
       <Card variant={appleHealthConnected ? 'contextual' : 'action'} accentColor={appleHealthConnected ? undefined : 'teal'} className="mb-6">

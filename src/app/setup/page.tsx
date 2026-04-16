@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { TimePicker } from '@/components/ui/time-picker';
+import { SectionLabel } from '@/components/ui/section-label';
 import { mockProtocolItems } from '@/lib/mock-data';
 import { formatTime } from '@/lib/utils';
 
@@ -19,57 +21,52 @@ export default function SetupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg px-5 pt-12 pb-32">
+    <div className="min-h-screen bg-bg px-5 sm:px-8 pt-16 pb-32">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="max-w-lg mx-auto"
+        transition={{ duration: 0.45, ease: [0.32, 0.72, 0, 1] }}
+        className="max-w-xl mx-auto"
       >
-        <h2 className="text-heading font-medium text-text-primary">Set your rhythm</h2>
-        <p className="mt-2 text-body text-text-secondary">
-          We&apos;ll map your protocol to your natural schedule.
+        <SectionLabel>Setup</SectionLabel>
+        <h2 className="mt-4 font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.03em] leading-[1.1]">
+          Set your <span className="italic font-light">rhythm</span>.
+        </h2>
+        <p className="mt-5 text-body-lg text-text-secondary max-w-lg">
+          We&rsquo;ll map your protocol to your natural schedule.
         </p>
 
-        <div className="mt-10 space-y-6">
+        <div className="mt-12 space-y-6">
           <div>
-            <label className="block text-label uppercase tracking-widest text-text-tertiary mb-2">
+            <label className="block text-label uppercase text-text-tertiary mb-3">
               When do you typically wake?
             </label>
-            <input
-              type="time"
-              value={wakeTime}
-              onChange={(e) => setWakeTime(e.target.value)}
-              className="w-full h-14 px-4 rounded-input border border-border bg-surface text-heading text-text-primary text-center focus:outline-none focus:border-accent transition-colors"
-            />
+            <TimePicker value={wakeTime} onChange={setWakeTime} />
           </div>
           <div>
-            <label className="block text-label uppercase tracking-widest text-text-tertiary mb-2">
+            <label className="block text-label uppercase text-text-tertiary mb-3">
               When do you start winding down?
             </label>
-            <input
-              type="time"
-              value={windDownTime}
-              onChange={(e) => setWindDownTime(e.target.value)}
-              className="w-full h-14 px-4 rounded-input border border-border bg-surface text-heading text-text-primary text-center focus:outline-none focus:border-accent transition-colors"
-            />
+            <TimePicker value={windDownTime} onChange={setWindDownTime} />
           </div>
         </div>
 
         {/* Timeline preview */}
-        <div className="mt-12">
-          <span className="text-label uppercase tracking-widest text-text-tertiary">Your daily timeline</span>
-          <div className="mt-6 relative pl-8">
-            {/* Vertical line */}
+        <div className="mt-14">
+          <SectionLabel>Your daily timeline</SectionLabel>
+          <div className="mt-8 relative pl-8">
             <div className="absolute left-3 top-2 bottom-2 w-px bg-border" />
 
             {mockProtocolItems.map((item, i) => {
-              const time = i === 0 ? formatTime(wakeTime) : i === 1 ? '12:30pm' : formatTime(windDownTime);
+              const time =
+                i === 0 ? formatTime(wakeTime) : i === 1 ? '12:30pm' : formatTime(windDownTime);
               return (
                 <div key={item.id} className="relative mb-8 last:mb-0">
-                  <div className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-accent border-2 border-bg" />
-                  <span className="font-mono text-data text-accent">{time}</span>
-                  <p className="mt-1 text-body font-medium text-text-primary">{item.compounds}</p>
+                  <div className="absolute -left-5 top-[7px] w-2.5 h-2.5 rounded-full bg-accent border-2 border-bg" />
+                  <span className="font-mono text-caption text-accent">{time}</span>
+                  <p className="mt-1 font-display font-normal text-subheading text-text-primary -tracking-[0.01em]">
+                    {item.compounds}
+                  </p>
                   <p className="text-caption text-text-tertiary">{item.timingCue}</p>
                 </div>
               );
@@ -78,10 +75,12 @@ export default function SetupPage() {
         </div>
       </motion.div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-bg via-bg to-transparent pt-12">
-        <Button fullWidth onClick={handleComplete}>
-          Looks good →
-        </Button>
+      <div className="fixed bottom-0 left-0 right-0 px-5 sm:px-8 pb-6 pt-12 bg-gradient-to-t from-bg via-bg/95 to-transparent">
+        <div className="max-w-xl mx-auto">
+          <Button fullWidth size="lg" onClick={handleComplete}>
+            Looks good →
+          </Button>
+        </div>
       </div>
     </div>
   );

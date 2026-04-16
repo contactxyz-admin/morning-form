@@ -35,13 +35,15 @@ function Slider({ labels, min = 1, max = 5, step = 1, value, onChange, className
             [&::-webkit-slider-thumb]:bg-accent
             [&::-webkit-slider-thumb]:border-2
             [&::-webkit-slider-thumb]:border-white
-            [&::-webkit-slider-thumb]:shadow-md
+            [&::-webkit-slider-thumb]:shadow-[0_2px_6px_rgba(15,42,32,0.25)]
             [&::-webkit-slider-thumb]:-mt-[7px]
             [&::-webkit-slider-thumb]:transition-transform
-            [&::-webkit-slider-thumb]:duration-150
-            [&::-webkit-slider-thumb]:active:scale-110"
+            [&::-webkit-slider-thumb]:duration-300
+            [&::-webkit-slider-thumb]:ease-spring
+            [&::-webkit-slider-thumb]:active:scale-110
+            [&::-webkit-slider-thumb]:hover:scale-105"
           style={{
-            background: `linear-gradient(to right, #1A3A3A ${percentage}%, #E5E5E3 ${percentage}%)`,
+            background: `linear-gradient(to right, #1F3A2E ${percentage}%, #ECE8E0 ${percentage}%)`,
           }}
         />
       </div>

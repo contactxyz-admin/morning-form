@@ -28,28 +28,31 @@ export default function InsightsPage() {
   return (
     <div className="px-5 pt-6 pb-8">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <SectionLabel>WEEK IN REVIEW</SectionLabel>
-        <p className="mt-1 text-caption text-text-tertiary">March 20 – 26, 2026</p>
+        <p className="text-label uppercase text-text-tertiary mb-3">Week in review</p>
+        <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.03em]">
+          The <span className="italic font-light">shape</span> of your week.
+        </h1>
+        <p className="mt-4 text-body-lg text-text-secondary">March 20 – 26, 2026</p>
       </motion.div>
 
-      <div className="mt-8 space-y-6">
+      <div className="mt-10 space-y-6">
         {/* Metrics */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <h3 className="text-body font-medium text-text-primary mb-3">Sleep quality</h3>
+          <h3 className="font-display font-normal text-subheading text-text-primary mb-3 -tracking-[0.01em]">Sleep quality</h3>
           <MetricBar {...review.sleepQuality} />
         </motion.div>
 
         <div className="border-t border-border" />
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <h3 className="text-body font-medium text-text-primary mb-3">Focus consistency</h3>
+          <h3 className="font-display font-normal text-subheading text-text-primary mb-3 -tracking-[0.01em]">Focus consistency</h3>
           <MetricBar {...review.focusConsistency} />
         </motion.div>
 
         <div className="border-t border-border" />
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <h3 className="text-body font-medium text-text-primary mb-3">Protocol adherence</h3>
+          <h3 className="font-display font-normal text-subheading text-text-primary mb-3 -tracking-[0.01em]">Protocol adherence</h3>
           <MetricBar {...review.protocolAdherence} />
         </motion.div>
 
@@ -66,7 +69,7 @@ export default function InsightsPage() {
         {/* 7-day sleep chart */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <div className="border-t border-border pt-6">
-            <h3 className="text-body font-medium text-text-primary mb-4">Sleep quality — 7 days</h3>
+            <h3 className="font-display font-normal text-subheading text-text-primary mb-4 -tracking-[0.01em]">Sleep quality — 7 days</h3>
             <div className="flex items-end gap-2 h-24">
               {mockCheckInHistory.map((day, i) => {
                 const val = day.morning?.sleepQuality || 'ok';
@@ -91,7 +94,7 @@ export default function InsightsPage() {
         {/* HRV from wearable */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <div className="border-t border-border pt-6">
-            <h3 className="text-body font-medium text-text-primary mb-1">HRV — 7 days</h3>
+            <h3 className="font-display font-normal text-subheading text-text-primary mb-1 -tracking-[0.01em]">HRV — 7 days</h3>
             <p className="text-caption text-text-tertiary mb-4">From connected devices</p>
             <div className="flex items-end gap-2 h-24">
               {mockHealthHistory.map((day, i) => {

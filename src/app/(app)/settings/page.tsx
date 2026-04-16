@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/icon';
 import { Toggle } from '@/components/ui/toggle';
 import { SectionLabel } from '@/components/ui/section-label';
+import { TimePicker } from '@/components/ui/time-picker';
 import Link from 'next/link';
 
 export default function SettingsPage() {
@@ -30,44 +31,53 @@ export default function SettingsPage() {
 
   return (
     <div className="px-5 pt-6 pb-8">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => router.back()} className="text-text-tertiary hover:text-text-primary">
+      <div className="flex items-center gap-3 mb-10">
+        <button
+          onClick={() => router.back()}
+          className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
+        >
           <Icon name="back" size="md" />
         </button>
-        <h1 className="text-heading font-medium text-text-primary">Settings</h1>
+        <p className="text-label uppercase text-text-tertiary">Settings</p>
       </div>
 
+      <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary mb-10 -tracking-[0.03em]">
+        Preferences.
+      </h1>
+
       {/* Protocol Timing */}
-      <section className="mb-8">
-        <SectionLabel>PROTOCOL TIMING</SectionLabel>
-        <div className="mt-4 space-y-4">
+      <section className="mb-10">
+        <SectionLabel>Protocol timing</SectionLabel>
+        <div className="mt-5 grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-caption text-text-secondary mb-1">Wake time</label>
-            <input
-              type="time"
+            <label className="block text-caption text-text-secondary mb-2">Wake time</label>
+            <TimePicker
               value={wakeTime}
-              onChange={(e) => { setWakeTime(e.target.value); savePrefs(); }}
-              className="h-11 px-4 rounded-input border border-border bg-surface text-body text-text-primary focus:outline-none focus:border-accent transition-colors"
+              onChange={(v) => {
+                setWakeTime(v);
+                savePrefs();
+              }}
             />
           </div>
           <div>
-            <label className="block text-caption text-text-secondary mb-1">Wind-down time</label>
-            <input
-              type="time"
+            <label className="block text-caption text-text-secondary mb-2">Wind-down time</label>
+            <TimePicker
               value={windDownTime}
-              onChange={(e) => { setWindDownTime(e.target.value); savePrefs(); }}
-              className="h-11 px-4 rounded-input border border-border bg-surface text-body text-text-primary focus:outline-none focus:border-accent transition-colors"
+              onChange={(v) => {
+                setWindDownTime(v);
+                savePrefs();
+              }}
             />
           </div>
         </div>
       </section>
 
-      <div className="border-t border-border mb-8" />
+      <div className="border-t border-border mb-10" />
 
       {/* Notifications */}
-      <section className="mb-8">
-        <SectionLabel>NOTIFICATIONS</SectionLabel>
-        <div className="mt-4 space-y-5">
+      <section className="mb-10">
+        <SectionLabel>Notifications</SectionLabel>
+        <div className="mt-5 space-y-5">
           <Toggle
             checked={notifications.morning}
             onChange={(v) => setNotifications(prev => ({ ...prev, morning: v }))}
@@ -91,45 +101,54 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <div className="border-t border-border mb-8" />
+      <div className="border-t border-border mb-10" />
 
       {/* Integrations */}
-      <section className="mb-8">
-        <SectionLabel>HEALTH INTEGRATIONS</SectionLabel>
-        <Link href="/settings/integrations" className="mt-3 inline-block text-body text-accent hover:underline">
+      <section className="mb-10">
+        <SectionLabel>Health integrations</SectionLabel>
+        <Link
+          href="/settings/integrations"
+          className="mt-4 inline-block text-body text-accent font-medium hover:underline underline-offset-4"
+        >
           Manage connections →
         </Link>
       </section>
 
-      <div className="border-t border-border mb-8" />
+      <div className="border-t border-border mb-10" />
 
       {/* Account */}
-      <section className="mb-8">
-        <SectionLabel>ACCOUNT</SectionLabel>
-        <div className="mt-4 space-y-3">
+      <section className="mb-10">
+        <SectionLabel>Account</SectionLabel>
+        <div className="mt-5 space-y-3">
           <p className="text-body text-text-secondary">demo@morningform.com</p>
-          <button className="text-caption text-accent hover:underline">Change password</button>
+          <button className="text-caption text-accent hover:underline underline-offset-4">
+            Change password
+          </button>
           <button
             onClick={async () => {
               await fetch('/api/auth/logout', { method: 'POST' });
               router.push('/');
               router.refresh();
             }}
-            className="block text-caption text-text-secondary hover:text-text-primary transition-colors"
+            className="block text-caption text-text-secondary hover:text-text-primary transition-colors duration-300 ease-spring"
           >
             Sign out
           </button>
         </div>
       </section>
 
-      <div className="border-t border-border mb-8" />
+      <div className="border-t border-border mb-10" />
 
       {/* Data */}
       <section>
-        <SectionLabel>DATA</SectionLabel>
-        <div className="mt-4 space-y-3">
-          <button className="text-body text-text-primary hover:text-accent transition-colors">Export my data</button>
-          <button className="text-body text-alert hover:opacity-80 transition-opacity block">Delete account</button>
+        <SectionLabel>Data</SectionLabel>
+        <div className="mt-5 space-y-3">
+          <button className="text-body text-text-primary hover:text-accent transition-colors duration-300 ease-spring block">
+            Export my data
+          </button>
+          <button className="text-body text-alert hover:opacity-80 transition-opacity block">
+            Delete account
+          </button>
         </div>
       </section>
     </div>

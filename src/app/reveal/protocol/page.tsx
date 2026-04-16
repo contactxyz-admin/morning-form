@@ -21,24 +21,28 @@ export default function ProtocolRevealPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-bg px-5 pt-12 pb-32">
-      <motion.div variants={stagger} initial="hidden" animate="show" className="max-w-lg mx-auto">
+    <div className="min-h-screen bg-bg px-5 sm:px-8 pt-16 pb-32">
+      <motion.div variants={stagger} initial="hidden" animate="show" className="max-w-xl mx-auto">
         <motion.div variants={fadeUp}>
-          <SectionLabel>YOUR PROTOCOL</SectionLabel>
-          <p className="mt-2 text-body text-text-secondary">
-            Designed for sustained activation → clean downshift
-          </p>
+          <SectionLabel>Your protocol</SectionLabel>
+          <h2 className="mt-4 font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.03em] leading-[1.1]">
+            Sustained activation.
+            <br />
+            <span className="italic font-light">Clean</span> downshift.
+          </h2>
         </motion.div>
 
-        <div className="mt-10 space-y-4">
+        <div className="mt-12 space-y-4">
           {mockProtocolItems.map((item) => (
             <motion.div key={item.id} variants={fadeUp}>
               <Card variant="default" className="space-y-3">
                 <SectionLabel>{item.timeLabel}</SectionLabel>
-                <h3 className="text-subheading font-medium text-text-primary">{item.compounds}</h3>
+                <h3 className="font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
+                  {item.compounds}
+                </h3>
                 <p className="font-mono text-data text-accent">{item.dosage}</p>
                 <p className="text-caption text-text-tertiary">{item.timingCue}</p>
-                <p className="text-caption text-text-secondary leading-relaxed">
+                <p className="text-body text-text-secondary leading-relaxed">
                   {item.mechanism.split('.')[0]}.
                 </p>
               </Card>
@@ -47,10 +51,12 @@ export default function ProtocolRevealPage() {
         </div>
       </motion.div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-bg via-bg to-transparent pt-12">
-        <Button fullWidth onClick={() => router.push('/reveal/rationale')}>
-          Continue →
-        </Button>
+      <div className="fixed bottom-0 left-0 right-0 px-5 sm:px-8 pb-6 pt-12 bg-gradient-to-t from-bg via-bg/95 to-transparent">
+        <div className="max-w-xl mx-auto">
+          <Button fullWidth size="lg" onClick={() => router.push('/reveal/rationale')}>
+            Continue →
+          </Button>
+        </div>
       </div>
     </div>
   );

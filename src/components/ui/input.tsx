@@ -13,7 +13,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-label uppercase tracking-widest text-text-tertiary mb-2">
+          <label className="block text-label uppercase text-text-tertiary mb-2">
             {label}
           </label>
         )}
@@ -22,16 +22,17 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           className={cn(
             'w-full h-12 px-4 rounded-input border bg-surface text-body text-text-primary',
             'placeholder:text-text-tertiary',
-            'focus:outline-none focus:border-accent transition-colors duration-200',
-            error ? 'border-alert' : 'border-border',
-            className
+            'transition-[border-color,box-shadow] duration-300 ease-spring',
+            'focus:outline-none focus:border-text-primary focus:shadow-ring-accent',
+            error ? 'border-alert focus:border-alert' : 'border-border',
+            className,
           )}
           {...props}
         />
         {error && <p className="mt-1.5 text-caption text-alert">{error}</p>}
       </div>
     );
-  }
+  },
 );
 
 Input.displayName = 'Input';

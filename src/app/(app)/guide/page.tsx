@@ -56,10 +56,13 @@ export default function GuidePage() {
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 pt-6 pb-4 border-b border-border">
-        <button onClick={() => router.back()} className="text-text-tertiary hover:text-text-primary">
+        <button
+          onClick={() => router.back()}
+          className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
+        >
           <Icon name="back" size="md" />
         </button>
-        <h1 className="text-body font-medium text-text-primary">Guide</h1>
+        <p className="text-label uppercase text-text-tertiary">Guide</p>
       </div>
 
       {/* Messages */}
@@ -67,9 +70,13 @@ export default function GuidePage() {
         {/* Intro */}
         {messages.length === 0 && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <h2 className="font-display font-light text-heading text-text-primary mb-4 -tracking-[0.02em]">
+              Ask me <span className="italic">anything</span>.
+            </h2>
             <Card variant="default" className="max-w-[85%]">
               <p className="text-body text-text-secondary leading-relaxed">
-                I&apos;m your protocol guide. I can explain recommendations, answer questions, and help adjust your protocol.
+                I&rsquo;m your protocol guide. I can explain recommendations, answer questions, and
+                help adjust your protocol.
               </p>
             </Card>
 
@@ -78,7 +85,7 @@ export default function GuidePage() {
                 <button
                   key={s}
                   onClick={() => sendMessage(s)}
-                  className="block w-full text-left px-4 py-3 rounded-card border border-border bg-surface text-caption text-text-primary hover:border-border-hover transition-colors"
+                  className="block w-full text-left px-4 py-3 rounded-card-sm border border-border bg-surface text-caption text-text-primary hover:border-border-strong hover:-translate-y-[1px] hover:shadow-card-hover transition-[transform,border-color,box-shadow] duration-450 ease-spring"
                 >
                   {s}
                 </button>
@@ -98,8 +105,8 @@ export default function GuidePage() {
               className={cn(
                 'max-w-[85%] rounded-card p-4 text-body leading-relaxed',
                 msg.role === 'user'
-                  ? 'bg-accent text-white'
-                  : 'bg-surface border border-border text-text-secondary'
+                  ? 'bg-accent text-[#FFFFFF]'
+                  : 'bg-surface border border-border text-text-secondary',
               )}
             >
               {msg.content.split('\n').map((line, i) => (
@@ -121,19 +128,19 @@ export default function GuidePage() {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="px-5 pb-6 pt-3 border-t border-border bg-bg">
+      <form onSubmit={handleSubmit} className="px-5 pb-6 pt-3 border-t border-border bg-bg/85 backdrop-blur-xl">
         <div className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question..."
-            className="flex-1 h-11 px-4 rounded-card border border-border bg-surface text-body text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
+            placeholder="Ask a question…"
+            className="flex-1 h-11 px-4 rounded-input border border-border bg-surface text-body text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-text-primary focus:shadow-ring-accent transition-[border-color,box-shadow] duration-300 ease-spring"
           />
           <button
             type="submit"
             disabled={!input.trim()}
-            className="w-11 h-11 rounded-card bg-accent text-white flex items-center justify-center disabled:opacity-40 transition-opacity"
+            className="w-11 h-11 rounded-input bg-button text-[#FFFFFF] flex items-center justify-center disabled:bg-surface-warm disabled:text-text-tertiary disabled:border disabled:border-border-strong hover:bg-button-hover transition-[background-color,transform] duration-300 ease-spring active:scale-[0.97]"
           >
             <Icon name="send" size="sm" />
           </button>

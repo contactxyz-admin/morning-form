@@ -1,120 +1,110 @@
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-bg">
       {/* Header */}
-      <header className="px-5 pt-6">
-        <span className="font-mono text-label tracking-[0.2em] text-text-primary uppercase">
-          Morning Form
-        </span>
+      <header className="px-5 sm:px-8 pt-8 flex items-center justify-between">
+        <span className="text-label uppercase text-text-tertiary">Morning Form</span>
+        <Link
+          href="/sign-in"
+          className="text-caption text-text-secondary hover:text-text-primary transition-colors duration-300 ease-spring underline-offset-4 hover:underline"
+        >
+          Sign in
+        </Link>
       </header>
 
       {/* Hero */}
-      <section className="px-5 pt-24 pb-20">
-        <h1 className="font-serif text-[2.25rem] leading-[1.12] tracking-tight text-text-primary max-w-md">
-          A system for understanding your state.
+      <section className="px-5 sm:px-8 pt-24 sm:pt-32 pb-24 stagger">
+        <p className="text-label uppercase text-text-tertiary mb-4">An operating system for state</p>
+        <h1 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-2xl -tracking-[0.04em]">
+          A system for
+          <br />
+          <span className="italic font-light">understanding</span> your state.
         </h1>
-        <p className="mt-6 text-body text-text-secondary max-w-sm leading-relaxed">
-          Morning Form assesses your patterns, builds a personalized protocol,
-          and adapts with you over time.
+        <p className="mt-8 text-body-lg text-text-secondary max-w-lg leading-relaxed">
+          Morning Form assesses your patterns, builds a personalised protocol, and adapts with
+          you over time.
         </p>
-        <div className="mt-10">
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center justify-center h-12 px-6 bg-accent text-white text-body font-medium rounded-button transition-all duration-250 hover:bg-accent-muted active:scale-[0.98]"
-          >
-            Begin Assessment →
+        <div className="mt-12 flex items-center gap-5 flex-wrap">
+          <Link href="/onboarding">
+            <Button size="lg">Begin assessment →</Button>
           </Link>
+          <p className="text-caption text-text-tertiary">8 minutes · free · no commitment</p>
         </div>
-        <p className="mt-4 text-caption text-text-tertiary">
-          8 minutes · free · no commitment
-        </p>
-        <p className="mt-6 text-caption text-text-tertiary">
-          Already have an account?{' '}
-          <Link
-            href="/sign-in"
-            className="text-text-secondary hover:text-text-primary transition-colors underline underline-offset-4"
-          >
-            Sign in
-          </Link>
-        </p>
       </section>
 
       {/* The Problem */}
-      <section className="px-5 py-20 border-t border-border">
-        <span className="text-label uppercase tracking-[0.08em] text-text-tertiary font-medium">
-          The Problem
-        </span>
-        <p className="mt-6 text-heading text-text-primary max-w-md leading-snug">
-          You&apos;ve tried supplements, tracked your sleep, read the research.
-          But nothing connects into a system.
+      <section className="px-5 sm:px-8 py-24 border-t border-border">
+        <p className="text-label uppercase text-text-tertiary mb-5">The problem</p>
+        <p className="font-display font-light text-display-sm sm:text-display text-text-primary max-w-2xl -tracking-[0.03em] leading-[1.1]">
+          You&rsquo;ve tried supplements, tracked your sleep, read the research.{' '}
+          <span className="text-text-tertiary">But nothing connects into a system.</span>
         </p>
-        <p className="mt-4 text-body text-text-secondary max-w-sm">
-          Fragmented advice produces fragmented results. You need a protocol
-          that understands your patterns — not another product that ignores them.
+        <p className="mt-8 text-body-lg text-text-secondary max-w-lg">
+          Fragmented advice produces fragmented results. You need a protocol that understands
+          your patterns — not another product that ignores them.
         </p>
       </section>
 
       {/* How it works */}
-      <section className="px-5 py-20 border-t border-border">
-        <span className="text-label uppercase tracking-[0.08em] text-text-tertiary font-medium">
-          How It Works
-        </span>
-        <div className="mt-10 space-y-10">
-          <div>
-            <span className="font-mono text-data text-text-tertiary">01</span>
-            <h3 className="mt-2 text-subheading font-medium text-text-primary">Assess</h3>
-            <p className="mt-2 text-body text-text-secondary">
-              8-minute intake maps your state patterns, sensitivities, and constraints.
-            </p>
-          </div>
-          <div>
-            <span className="font-mono text-data text-text-tertiary">02</span>
-            <h3 className="mt-2 text-subheading font-medium text-text-primary">Protocol</h3>
-            <p className="mt-2 text-body text-text-secondary">
-              Personalized to your biology. Every recommendation explained with mechanism and evidence.
-            </p>
-          </div>
-          <div>
-            <span className="font-mono text-data text-text-tertiary">03</span>
-            <h3 className="mt-2 text-subheading font-medium text-text-primary">Adapt</h3>
-            <p className="mt-2 text-body text-text-secondary">
-              Daily feedback refines your protocol over time. The system learns, you improve.
-            </p>
-          </div>
+      <section className="px-5 sm:px-8 py-24 border-t border-border">
+        <p className="text-label uppercase text-text-tertiary mb-8">How it works</p>
+        <div className="space-y-12 max-w-xl">
+          {[
+            {
+              n: '01',
+              title: 'Assess',
+              body: '8-minute intake maps your state patterns, sensitivities, and constraints.',
+            },
+            {
+              n: '02',
+              title: 'Protocol',
+              body: 'Personalised to your biology. Every recommendation explained with mechanism and evidence.',
+            },
+            {
+              n: '03',
+              title: 'Adapt',
+              body: 'Daily feedback refines your protocol over time. The system learns, you improve.',
+            },
+          ].map((step) => (
+            <div key={step.n}>
+              <span className="font-mono text-caption text-text-tertiary">{step.n}</span>
+              <h3 className="mt-3 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
+                {step.title}
+              </h3>
+              <p className="mt-2 text-body-lg text-text-secondary leading-relaxed">{step.body}</p>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* Statement */}
-      <section className="px-5 py-24 border-t border-border">
-        <h2 className="font-serif text-[1.75rem] leading-tight tracking-tight text-text-primary">
-          Not a supplement brand.<br />
-          A state system.
+      <section className="px-5 sm:px-8 py-28 border-t border-border">
+        <h2 className="font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.03em] leading-[1.05]">
+          Not a supplement brand.
+          <br />
+          <span className="italic font-light">A state system.</span>
         </h2>
-        <p className="mt-6 text-body text-text-secondary max-w-sm">
-          We don&apos;t sell products through quizzes. We build protocols through data.
+        <p className="mt-8 text-body-lg text-text-secondary max-w-lg">
+          We don&rsquo;t sell products through quizzes. We build protocols through data.
         </p>
-        <div className="mt-10">
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center justify-center h-12 px-6 bg-accent text-white text-body font-medium rounded-button transition-all duration-250 hover:bg-accent-muted active:scale-[0.98]"
-          >
-            Begin Assessment →
+        <div className="mt-12">
+          <Link href="/onboarding">
+            <Button size="lg">Begin assessment →</Button>
           </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="px-5 py-8 border-t border-border">
-        <div className="flex gap-6 text-caption text-text-tertiary">
+      <footer className="px-5 sm:px-8 py-10 border-t border-border">
+        <div className="flex flex-wrap gap-6 text-caption text-text-tertiary">
           <span className="hover:text-text-secondary cursor-pointer transition-colors">Privacy</span>
           <span className="hover:text-text-secondary cursor-pointer transition-colors">About</span>
           <span className="hover:text-text-secondary cursor-pointer transition-colors">Contact</span>
         </div>
-        <p className="mt-4 text-caption text-text-tertiary">
-          © 2026 Morning Form
-        </p>
+        <p className="mt-4 text-caption text-text-tertiary">© 2026 Morning Form</p>
       </footer>
     </div>
   );
