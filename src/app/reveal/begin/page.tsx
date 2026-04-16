@@ -9,31 +9,35 @@ export default function BeginPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-8">
+    <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-5 sm:px-8">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="text-center max-w-sm w-full"
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        className="text-center max-w-md w-full"
       >
-        <h1 className="font-serif text-display text-text-primary">
-          Your protocol is ready.
+        <p className="text-label uppercase text-text-tertiary mb-5">Ready</p>
+        <h1 className="font-display font-light text-display sm:text-display-xl text-text-primary -tracking-[0.04em] leading-[1.05]">
+          Your protocol is <span className="italic font-light">ready</span>.
         </h1>
 
-        <div className="mt-12 space-y-3">
-          <Button fullWidth onClick={() => router.push('/setup')}>
-            Start Your Protocol
+        <div className="mt-14 space-y-3">
+          <Button fullWidth size="lg" onClick={() => router.push('/setup')}>
+            Start your protocol
           </Button>
-          <Button variant="secondary" fullWidth disabled>
+          <Button variant="secondary" fullWidth size="lg" disabled>
             View alternative protocol
           </Button>
         </div>
 
-        <p className="mt-6 text-caption text-text-tertiary">
+        <p className="mt-8 text-caption text-text-tertiary">
           You can adjust timing and preferences after you begin.
         </p>
 
-        <Link href="/guide" className="mt-4 inline-block text-caption text-accent hover:underline">
+        <Link
+          href="/guide"
+          className="mt-4 inline-block text-caption text-accent font-medium hover:underline underline-offset-4"
+        >
           Talk to our guide →
         </Link>
       </motion.div>

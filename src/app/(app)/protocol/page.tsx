@@ -13,12 +13,16 @@ export default function ProtocolPage() {
 
   return (
     <div className="px-5 pt-6 pb-8">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-heading font-medium text-text-primary">Your Protocol</h1>
-        <span className="text-caption text-text-tertiary font-mono">v{mockProtocol.version}</span>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-label uppercase text-text-tertiary">Protocol</p>
+        <span className="font-mono text-caption text-text-tertiary">v{mockProtocol.version}</span>
       </div>
-      <p className="text-body text-text-secondary mb-8">
-        Designed for sustained activation → clean downshift
+      <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary mb-5 -tracking-[0.03em]">
+        Designed for <span className="italic font-light">you</span>.
+      </h1>
+      <p className="text-body-lg text-text-secondary mb-10 max-w-lg">
+        Sustained activation in the morning, clean downshift by evening — engineered around
+        your patterns, not generalized advice.
       </p>
 
       {/* Timeline */}
@@ -43,7 +47,7 @@ export default function ProtocolPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <SectionLabel>{item.timeLabel}</SectionLabel>
-                    <h3 className="mt-2 text-subheading font-medium text-text-primary">{item.compounds}</h3>
+                    <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">{item.compounds}</h3>
                     <p className="mt-1 font-mono text-data text-accent">{item.dosage}</p>
                     <p className="mt-1 text-caption text-text-tertiary">{item.timingCue}</p>
                   </div>

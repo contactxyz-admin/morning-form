@@ -87,40 +87,52 @@ export default function AssessmentPage() {
     <div className="min-h-screen bg-bg">
       <ProgressBar progress={progress} />
 
-      {/* Back button */}
-      <div className="px-5 pt-6">
-        {currentIndex > 0 && (
-          <button onClick={handleBack} className="text-text-tertiary hover:text-text-primary transition-colors">
+      {/* Back button + step counter */}
+      <div className="px-5 sm:px-8 pt-8 flex items-center justify-between">
+        {currentIndex > 0 ? (
+          <button
+            onClick={handleBack}
+            className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
+          >
             <Icon name="back" size="md" />
           </button>
+        ) : (
+          <span className="text-label uppercase text-text-tertiary">Assessment</span>
         )}
+        <span className="font-mono text-caption text-text-tertiary">
+          {String(currentIndex + 1).padStart(2, '0')} / {String(assessmentQuestions.length).padStart(2, '0')}
+        </span>
       </div>
 
       <AnimatePresence mode="wait">
         {showGroupIntro ? (
           <motion.div
             key={`group-${question.group}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center min-h-[60vh] px-8"
+            transition={{ duration: 0.45, ease: [0.32, 0.72, 0, 1] }}
+            className="flex flex-col items-center justify-center min-h-[60vh] px-6 sm:px-8 text-center"
           >
             <SectionLabel>{question.groupLabel}</SectionLabel>
-            <p className="mt-4 text-body text-text-secondary text-center max-w-sm">
+            <p className="mt-5 font-display font-light text-display-sm text-text-primary -tracking-[0.03em] leading-[1.15] max-w-xl">
               {questionGroups.find(g => g.id === question.group)?.description}
             </p>
           </motion.div>
         ) : (
           <motion.div
             key={question.id}
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="px-5 pt-8 pb-32"
+            exit={{ opacity: 0, x: -16 }}
+            transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
+            className="px-5 sm:px-8 pt-10 pb-32 max-w-xl mx-auto"
           >
             {/* Question */}
-            <h2 className="text-heading text-text-primary mb-8">{question.question}</h2>
+            <p className="text-label uppercase text-text-tertiary mb-3">{question.groupLabel}</p>
+            <h2 className="font-display font-light text-display-sm sm:text-[2.25rem] text-text-primary mb-10 -tracking-[0.03em] leading-[1.15]">
+              {question.question}
+            </h2>
 
             {/* Card Select */}
             {question.type === 'card-select' && question.options && (
@@ -172,7 +184,7 @@ export default function AssessmentPage() {
                   type="time"
                   value={(responses[question.id] as string) || ''}
                   onChange={(e) => setResponse(e.target.value)}
-                  className="w-full h-14 px-4 rounded-input border border-border bg-surface text-heading text-text-primary text-center focus:outline-none focus:border-accent transition-colors"
+                  className="w-full h-14 px-4 rounded-input border border-border bg-surface font-display text-heading text-text-primary text-center tracking-[-0.02em] focus:outline-none focus:border-text-primary focus:shadow-ring-accent transition-[border-color,box-shadow] duration-300 ease-spring"
                 />
               </div>
             )}
@@ -198,14 +210,17 @@ export default function AssessmentPage() {
 
       {/* Continue button */}
       {!showGroupIntro && (
-        <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-bg via-bg to-transparent pt-12">
-          <Button
-            fullWidth
-            onClick={handleNext}
-            disabled={question.required && !canContinue()}
-          >
-            {currentIndex === assessmentQuestions.length - 1 ? 'Complete Assessment' : 'Continue →'}
-          </Button>
+        <div className="fixed bottom-0 left-0 right-0 px-5 sm:px-8 pb-6 pt-12 bg-gradient-to-t from-bg via-bg/95 to-transparent">
+          <div className="max-w-xl mx-auto">
+            <Button
+              fullWidth
+              size="lg"
+              onClick={handleNext}
+              disabled={question.required && !canContinue()}
+            >
+              {currentIndex === assessmentQuestions.length - 1 ? 'Complete assessment →' : 'Continue →'}
+            </Button>
+          </div>
         </div>
       )}
     </div>

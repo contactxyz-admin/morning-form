@@ -18,18 +18,22 @@ interface QuickSelectProps {
 
 function QuickSelect({ label, options, selected, onSelect }: QuickSelectProps) {
   return (
-    <div className="mb-8">
-      <p className="text-body text-text-primary mb-4">{label}</p>
+    <div className="mb-10">
+      <p className="text-body-lg text-text-primary mb-4 -tracking-[0.005em]">{label}</p>
       <div className="grid grid-cols-4 gap-2">
         {options.map((opt) => (
           <button
             key={opt.value}
             onClick={() => onSelect(opt.value)}
+            aria-pressed={selected === opt.value}
             className={cn(
-              'py-3 px-2 rounded-card text-caption font-medium transition-all duration-150 border text-center',
+              'py-3 px-2 rounded-card-sm text-caption font-medium border text-center',
+              'transition-[transform,background-color,border-color,color] duration-450 ease-spring',
+              'active:scale-[0.97] active:duration-150',
+              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-button-focus',
               selected === opt.value
-                ? 'bg-accent text-white border-accent'
-                : 'bg-surface text-text-primary border-border hover:border-border-hover'
+                ? 'bg-accent text-[#FFFFFF] border-accent'
+                : 'bg-surface text-text-secondary border-border hover:text-text-primary hover:border-border-strong',
             )}
           >
             {opt.label}
@@ -83,10 +87,15 @@ export default function CheckInPage() {
   if (done) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center px-8">
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
-          <Icon name="check" size="lg" className="text-positive mx-auto mb-4" />
-          <p className="text-heading text-text-primary">Noted.</p>
-          <p className="mt-2 text-body text-text-secondary">This shapes tomorrow&apos;s guidance.</p>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.45, ease: [0.32, 0.72, 0, 1] }}
+          className="text-center"
+        >
+          <Icon name="check" size="lg" className="text-positive mx-auto mb-5" />
+          <p className="font-display font-light text-display-sm text-text-primary -tracking-[0.03em]">Noted.</p>
+          <p className="mt-3 text-body-lg text-text-secondary">This shapes tomorrow&rsquo;s guidance.</p>
         </motion.div>
       </div>
     );
@@ -95,14 +104,29 @@ export default function CheckInPage() {
   return (
     <div className="px-5 pt-6 pb-32">
       <div className="flex justify-end">
-        <button onClick={() => router.push('/home')} className="text-text-tertiary hover:text-text-primary">
+        <button
+          onClick={() => router.push('/home')}
+          className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
+        >
           <Icon name="close" size="md" />
         </button>
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
-        <h1 className="text-heading text-text-primary mb-8">
-          {isMorning ? 'Morning check-in' : 'Evening check-in'}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.32, 0.72, 0, 1] }}
+        className="mt-4"
+      >
+        <p className="text-label uppercase text-text-tertiary mb-3">
+          {isMorning ? 'Morning' : 'Evening'}
+        </p>
+        <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary mb-10 -tracking-[0.035em]">
+          {isMorning ? 'How was last night?' : (
+            <>
+              How did <span className="italic font-light">today</span> land?
+            </>
+          )}
         </h1>
 
         <AnimatePresence mode="wait">

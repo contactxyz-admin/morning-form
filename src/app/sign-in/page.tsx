@@ -49,26 +49,25 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
-      <header className="px-5 pt-6">
-        <Link
-          href="/"
-          className="font-mono text-label tracking-[0.2em] text-text-primary uppercase"
-        >
+      <header className="px-5 sm:px-8 pt-8">
+        <Link href="/" className="text-label uppercase text-text-tertiary hover:text-text-primary transition-colors">
           Morning Form
         </Link>
       </header>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-5">
-        <form onSubmit={handleSubmit} className="w-full max-w-sm">
-          <h1 className="font-serif text-[2rem] leading-[1.15] tracking-tight text-text-primary">
-            Welcome back.
+      <div className="flex-1 flex flex-col items-center justify-center px-5 sm:px-8">
+        <form onSubmit={handleSubmit} className="w-full max-w-md">
+          <p className="text-label uppercase text-text-tertiary mb-4">Return</p>
+          <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.035em] leading-[1.05]">
+            Welcome <span className="italic font-light">back</span>.
           </h1>
-          <p className="mt-4 text-body text-text-secondary">
+          <p className="mt-5 text-body-lg text-text-secondary">
             Sign in with your email to return to your protocol.
           </p>
 
-          <p className="mt-4 text-caption text-text-tertiary border border-border rounded-input px-3 py-2">
-            Dev sign-in · data writes are still scoped to the seeded demo account until real auth ships.
+          <p className="mt-5 text-caption text-text-tertiary border border-border-strong rounded-card-sm px-4 py-3 bg-surface-warm/60">
+            Dev sign-in · data writes are still scoped to the seeded demo account until real auth
+            ships.
           </p>
 
           <div className="mt-10">
@@ -85,14 +84,17 @@ export default function SignInPage() {
           </div>
 
           <div className="mt-8">
-            <Button type="submit" fullWidth loading={loading} disabled={loading}>
+            <Button type="submit" fullWidth size="lg" loading={loading} disabled={loading}>
               {loading ? 'Signing in…' : 'Sign in →'}
             </Button>
           </div>
 
-          <p className="mt-6 text-caption text-text-tertiary text-center">
+          <p className="mt-8 text-caption text-text-tertiary text-center">
             New here?{' '}
-            <Link href="/onboarding" className="text-text-secondary hover:text-text-primary transition-colors">
+            <Link
+              href="/onboarding"
+              className="text-text-secondary hover:text-text-primary transition-colors underline-offset-4 hover:underline"
+            >
               Begin assessment
             </Link>
           </p>

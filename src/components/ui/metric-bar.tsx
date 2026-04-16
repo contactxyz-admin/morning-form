@@ -24,14 +24,15 @@ const trendColor = {
 function MetricBar({ filled, total, trend, label }: MetricBarProps) {
   return (
     <div>
-      <div className="flex gap-1.5 mb-2">
+      <div className="flex gap-[3px] mb-3">
         {Array.from({ length: total }).map((_, i) => (
           <div
             key={i}
             className={cn(
-              'h-2 flex-1 rounded-sm transition-colors',
-              i < filled ? 'bg-accent' : 'bg-border'
+              'h-[6px] flex-1 rounded-full transition-[background-color] duration-450 ease-spring',
+              i < filled ? 'bg-accent' : 'bg-border',
             )}
+            style={{ transitionDelay: `${i * 30}ms` }}
           />
         ))}
       </div>
