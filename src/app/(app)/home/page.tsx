@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
@@ -55,11 +54,14 @@ export default function HomePage() {
   const showPoorSleepGuidance = morningDone && sleepQuality === 'poorly';
 
   return (
-    <div className="px-5 pt-6">
+    <div className="px-5 pt-6 grain-page">
       {/* Header */}
       <div className="flex items-center justify-between mb-10">
-        <span className="text-label uppercase text-text-tertiary">Morning Form</span>
-        <Link href="/guide">
+        <div className="flex items-center gap-2.5">
+          <span aria-hidden className="block w-6 h-px bg-text-primary/60" />
+          <span className="text-label uppercase text-text-tertiary">Morning Form</span>
+        </div>
+        <Link href="/guide" aria-label="Open guide">
           <Icon
             name="guide"
             size="md"
@@ -69,42 +71,52 @@ export default function HomePage() {
       </div>
 
       {/* Greeting */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
-        <p className="text-label uppercase text-text-tertiary mb-3">{formatDate(new Date())}</p>
-        <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.03em]">
+      <div className="rise">
+        <p className="font-mono text-label uppercase text-text-tertiary mb-4">
+          {formatDate(new Date())}
+        </p>
+        <h1 className="font-display font-light text-display-xl sm:text-display-2xl text-text-primary -tracking-[0.045em] leading-[0.98]">
           {getGreeting()}
         </h1>
-      </motion.div>
+      </div>
 
-      <div className="mt-10 space-y-4">
+      <div className="mt-12 space-y-4 stagger">
         {/* Morning check-in card */}
         {showMorningCheckin && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Link href="/check-in">
-              <Card variant="action" accentColor="teal" clickable>
-                <SectionLabel>Morning check-in</SectionLabel>
-                <p className="mt-2 text-body text-text-secondary">
-                  How did you sleep? How are you feeling?
-                </p>
-                <p className="mt-3 text-caption text-accent font-medium">Start check-in →</p>
-              </Card>
-            </Link>
-          </motion.div>
+          <Link href="/check-in" className="block">
+            <Card variant="action" accentColor="teal" clickable>
+              <div className="flex items-baseline gap-2.5 mb-2">
+                <span className="font-mono text-label uppercase text-text-tertiary">01</span>
+                <span className="text-label uppercase text-text-tertiary">Morning check-in</span>
+              </div>
+              <p className="mt-2 text-body text-text-secondary leading-relaxed">
+                How did you sleep? How are you feeling?
+              </p>
+              <p className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group">
+                Start check-in
+                <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+              </p>
+            </Card>
+          </Link>
         )}
 
         {/* Evening check-in card */}
         {showEveningCheckin && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Link href="/check-in">
-              <Card variant="action" accentColor="teal" clickable>
-                <SectionLabel>Evening check-in</SectionLabel>
-                <p className="mt-2 text-body text-text-secondary">
-                  How was your focus? How&apos;s your energy?
-                </p>
-                <p className="mt-3 text-caption text-accent font-medium">Start check-in →</p>
-              </Card>
-            </Link>
-          </motion.div>
+          <Link href="/check-in" className="block">
+            <Card variant="action" accentColor="teal" clickable>
+              <div className="flex items-baseline gap-2.5 mb-2">
+                <span className="font-mono text-label uppercase text-text-tertiary">01</span>
+                <span className="text-label uppercase text-text-tertiary">Evening check-in</span>
+              </div>
+              <p className="mt-2 text-body text-text-secondary leading-relaxed">
+                How was your focus? How&apos;s your energy?
+              </p>
+              <p className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group">
+                Start check-in
+                <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+              </p>
+            </Card>
+          </Link>
         )}
 
         {/* Check-in complete */}
@@ -119,53 +131,71 @@ export default function HomePage() {
 
         {/* Poor sleep guidance */}
         {showPoorSleepGuidance && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <Card variant="action" accentColor="amber">
-              <p className="text-body text-text-secondary leading-relaxed">
-                After poor sleep, your focus window may be shorter today. Consider front-loading
-                important work. Your protocol is designed to buffer this — don&apos;t skip the afternoon dose.
-              </p>
-            </Card>
-          </motion.div>
+          <Card variant="action" accentColor="amber">
+            <div className="flex items-baseline gap-2.5 mb-2">
+              <span className="font-mono text-label uppercase text-text-tertiary">·</span>
+              <span className="text-label uppercase text-text-tertiary">Today&rsquo;s note</span>
+            </div>
+            <p className="mt-2 text-body text-text-secondary leading-relaxed">
+              After poor sleep, your focus window may be shorter today. Consider front-loading
+              important work. Your protocol is designed to buffer this — don&apos;t skip the
+              afternoon dose.
+            </p>
+          </Card>
         )}
 
         {/* Next protocol */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card variant="default">
-            <SectionLabel>Next up</SectionLabel>
-            <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">{currentProtocolItem.compounds}</h3>
-            <p className="mt-1 font-mono text-data text-accent">{currentProtocolItem.dosage}</p>
-            <p className="mt-1 text-caption text-text-tertiary">{currentProtocolItem.timingCue}</p>
-            <Link href="/protocol" className="mt-3 inline-block text-caption text-accent font-medium hover:underline">
-              View detail →
-            </Link>
-          </Card>
-        </motion.div>
+        <Card variant="default">
+          <div className="flex items-baseline gap-2.5 mb-2">
+            <span className="font-mono text-label uppercase text-text-tertiary">02</span>
+            <span className="text-label uppercase text-text-tertiary">Next up</span>
+          </div>
+          <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
+            {currentProtocolItem.compounds}
+          </h3>
+          <p className="mt-1 font-mono text-data text-accent">{currentProtocolItem.dosage}</p>
+          <p className="mt-1 text-caption text-text-tertiary">{currentProtocolItem.timingCue}</p>
+          <Link
+            href="/protocol"
+            className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group"
+          >
+            View detail
+            <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+          </Link>
+        </Card>
 
         {/* Health data summary (if connected) */}
         {healthSummary.recovery.hrv && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-            <Card variant="default">
-              <SectionLabel>From your devices</SectionLabel>
-              <div className="mt-3 grid grid-cols-3 gap-4">
-                <div>
-                  <p className="font-mono text-data text-accent">{healthSummary.recovery.hrv}</p>
-                  <p className="text-caption text-text-tertiary">HRV</p>
-                </div>
-                <div>
-                  <p className="font-mono text-data text-accent">{healthSummary.sleep.duration}h</p>
-                  <p className="text-caption text-text-tertiary">Sleep</p>
-                </div>
-                <div>
-                  <p className="font-mono text-data text-accent">{healthSummary.recovery.recoveryScore ?? '—'}{healthSummary.recovery.recoveryScore ? '%' : ''}</p>
-                  <p className="text-caption text-text-tertiary">Recovery</p>
-                </div>
+          <Card variant="default">
+            <div className="flex items-baseline gap-2.5 mb-3">
+              <span className="font-mono text-label uppercase text-text-tertiary">03</span>
+              <span className="text-label uppercase text-text-tertiary">From your devices</span>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-4">
+              <div>
+                <p className="font-mono text-data text-accent">{healthSummary.recovery.hrv}</p>
+                <p className="mt-0.5 text-caption text-text-tertiary">HRV</p>
               </div>
-              <Link href="/insights" className="mt-3 inline-block text-caption text-accent font-medium hover:underline">
-                See trends →
-              </Link>
-            </Card>
-          </motion.div>
+              <div>
+                <p className="font-mono text-data text-accent">{healthSummary.sleep.duration}h</p>
+                <p className="mt-0.5 text-caption text-text-tertiary">Sleep</p>
+              </div>
+              <div>
+                <p className="font-mono text-data text-accent">
+                  {healthSummary.recovery.recoveryScore ?? '—'}
+                  {healthSummary.recovery.recoveryScore ? '%' : ''}
+                </p>
+                <p className="mt-0.5 text-caption text-text-tertiary">Recovery</p>
+              </div>
+            </div>
+            <Link
+              href="/insights"
+              className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group"
+            >
+              See trends
+              <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+            </Link>
+          </Card>
         )}
       </div>
     </div>

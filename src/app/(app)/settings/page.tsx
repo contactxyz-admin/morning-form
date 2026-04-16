@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/icon';
 import { Toggle } from '@/components/ui/toggle';
-import { SectionLabel } from '@/components/ui/section-label';
 import { TimePicker } from '@/components/ui/time-picker';
 import Link from 'next/link';
 
@@ -30,127 +29,151 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="px-5 pt-6 pb-8">
-      <div className="flex items-center gap-3 mb-10">
-        <button
-          onClick={() => router.back()}
-          className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
-        >
-          <Icon name="back" size="md" />
-        </button>
-        <p className="text-label uppercase text-text-tertiary">Settings</p>
+    <div className="px-5 pt-6 pb-8 grain-page">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
+          >
+            <Icon name="back" size="md" />
+          </button>
+          <span className="text-label uppercase text-text-tertiary">Settings</span>
+        </div>
       </div>
 
-      <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary mb-10 -tracking-[0.03em]">
-        Preferences.
-      </h1>
+      <div className="rise">
+        <h1 className="font-display font-light text-display sm:text-display-xl text-text-primary mb-12 -tracking-[0.04em]">
+          Preferences.
+        </h1>
+      </div>
 
-      {/* Protocol Timing */}
-      <section className="mb-10">
-        <SectionLabel>Protocol timing</SectionLabel>
-        <div className="mt-5 grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-caption text-text-secondary mb-2">Wake time</label>
-            <TimePicker
-              value={wakeTime}
-              onChange={(v) => {
-                setWakeTime(v);
-                savePrefs();
-              }}
+      <div className="space-y-12 stagger">
+        {/* Protocol Timing */}
+        <section>
+          <div className="flex items-baseline gap-2.5 mb-5">
+            <span className="font-mono text-label uppercase text-text-tertiary">01</span>
+            <span className="text-label uppercase text-text-tertiary">Protocol timing</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-caption text-text-secondary mb-2">Wake time</label>
+              <TimePicker
+                value={wakeTime}
+                onChange={(v) => {
+                  setWakeTime(v);
+                  savePrefs();
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-caption text-text-secondary mb-2">Wind-down time</label>
+              <TimePicker
+                value={windDownTime}
+                onChange={(v) => {
+                  setWindDownTime(v);
+                  savePrefs();
+                }}
+              />
+            </div>
+          </div>
+        </section>
+
+        <div className="rule" />
+
+        {/* Notifications */}
+        <section>
+          <div className="flex items-baseline gap-2.5 mb-5">
+            <span className="font-mono text-label uppercase text-text-tertiary">02</span>
+            <span className="text-label uppercase text-text-tertiary">Notifications</span>
+          </div>
+          <div className="space-y-5">
+            <Toggle
+              checked={notifications.morning}
+              onChange={(v) => setNotifications((prev) => ({ ...prev, morning: v }))}
+              label="Morning check-in"
+            />
+            <Toggle
+              checked={notifications.protocol}
+              onChange={(v) => setNotifications((prev) => ({ ...prev, protocol: v }))}
+              label="Protocol reminders"
+            />
+            <Toggle
+              checked={notifications.evening}
+              onChange={(v) => setNotifications((prev) => ({ ...prev, evening: v }))}
+              label="Evening check-in"
+            />
+            <Toggle
+              checked={notifications.weekly}
+              onChange={(v) => setNotifications((prev) => ({ ...prev, weekly: v }))}
+              label="Weekly review"
             />
           </div>
-          <div>
-            <label className="block text-caption text-text-secondary mb-2">Wind-down time</label>
-            <TimePicker
-              value={windDownTime}
-              onChange={(v) => {
-                setWindDownTime(v);
-                savePrefs();
-              }}
-            />
+        </section>
+
+        <div className="rule" />
+
+        {/* Integrations */}
+        <section>
+          <div className="flex items-baseline gap-2.5 mb-4">
+            <span className="font-mono text-label uppercase text-text-tertiary">03</span>
+            <span className="text-label uppercase text-text-tertiary">Health integrations</span>
           </div>
-        </div>
-      </section>
-
-      <div className="border-t border-border mb-10" />
-
-      {/* Notifications */}
-      <section className="mb-10">
-        <SectionLabel>Notifications</SectionLabel>
-        <div className="mt-5 space-y-5">
-          <Toggle
-            checked={notifications.morning}
-            onChange={(v) => setNotifications(prev => ({ ...prev, morning: v }))}
-            label="Morning check-in"
-          />
-          <Toggle
-            checked={notifications.protocol}
-            onChange={(v) => setNotifications(prev => ({ ...prev, protocol: v }))}
-            label="Protocol reminders"
-          />
-          <Toggle
-            checked={notifications.evening}
-            onChange={(v) => setNotifications(prev => ({ ...prev, evening: v }))}
-            label="Evening check-in"
-          />
-          <Toggle
-            checked={notifications.weekly}
-            onChange={(v) => setNotifications(prev => ({ ...prev, weekly: v }))}
-            label="Weekly review"
-          />
-        </div>
-      </section>
-
-      <div className="border-t border-border mb-10" />
-
-      {/* Integrations */}
-      <section className="mb-10">
-        <SectionLabel>Health integrations</SectionLabel>
-        <Link
-          href="/settings/integrations"
-          className="mt-4 inline-block text-body text-accent font-medium hover:underline underline-offset-4"
-        >
-          Manage connections →
-        </Link>
-      </section>
-
-      <div className="border-t border-border mb-10" />
-
-      {/* Account */}
-      <section className="mb-10">
-        <SectionLabel>Account</SectionLabel>
-        <div className="mt-5 space-y-3">
-          <p className="text-body text-text-secondary">demo@morningform.com</p>
-          <button className="text-caption text-accent hover:underline underline-offset-4">
-            Change password
-          </button>
-          <button
-            onClick={async () => {
-              await fetch('/api/auth/logout', { method: 'POST' });
-              router.push('/');
-              router.refresh();
-            }}
-            className="block text-caption text-text-secondary hover:text-text-primary transition-colors duration-300 ease-spring"
+          <Link
+            href="/settings/integrations"
+            className="inline-flex items-center gap-1.5 text-body text-accent font-medium group"
           >
-            Sign out
-          </button>
-        </div>
-      </section>
+            Manage connections
+            <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+          </Link>
+        </section>
 
-      <div className="border-t border-border mb-10" />
+        <div className="rule" />
 
-      {/* Data */}
-      <section>
-        <SectionLabel>Data</SectionLabel>
-        <div className="mt-5 space-y-3">
-          <button className="text-body text-text-primary hover:text-accent transition-colors duration-300 ease-spring block">
-            Export my data
-          </button>
-          <button className="text-body text-alert hover:opacity-80 transition-opacity block">
-            Delete account
-          </button>
-        </div>
-      </section>
+        {/* Account */}
+        <section>
+          <div className="flex items-baseline gap-2.5 mb-4">
+            <span className="font-mono text-label uppercase text-text-tertiary">04</span>
+            <span className="text-label uppercase text-text-tertiary">Account</span>
+          </div>
+          <div className="space-y-3">
+            <p className="text-body text-text-secondary">demo@morningform.com</p>
+            <button className="text-caption text-accent hover:underline underline-offset-4">
+              Change password
+            </button>
+            <button
+              onClick={async () => {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                router.push('/');
+                router.refresh();
+              }}
+              className="block text-caption text-text-secondary hover:text-text-primary transition-colors duration-300 ease-spring"
+            >
+              Sign out
+            </button>
+          </div>
+        </section>
+
+        <div className="rule" />
+
+        {/* Data */}
+        <section>
+          <div className="flex items-baseline gap-2.5 mb-4">
+            <span className="font-mono text-label uppercase text-text-tertiary">05</span>
+            <span className="text-label uppercase text-text-tertiary">Data</span>
+          </div>
+          <div className="space-y-3">
+            <button className="text-body text-text-primary hover:text-accent transition-colors duration-300 ease-spring block">
+              Export my data
+            </button>
+            <button className="text-body text-alert hover:opacity-80 transition-opacity block">
+              Delete account
+            </button>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
