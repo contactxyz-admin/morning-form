@@ -56,24 +56,36 @@ export async function addSourceDocument(
   userId: string,
   input: AddSourceDocumentInput,
 ): Promise<{ id: string; deduped: boolean }> {
-  if (input.contentHash) {
-    const existing = await db.sourceDocument.findUnique({
-      where: { userId_contentHash: { userId, contentHash: input.contentHash } },
-    });
-    if (existing) return { id: existing.id, deduped: true };
+  // Read-then-create under concurrency: two parallel intakes with the same
+  // contentHash can both see null from findUnique and race on create. Catch
+  // P2002 on the second one and return the existing row so the caller gets
+  // dedup semantics instead of a 500.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (input.contentHash) {
+      const existing = await db.sourceDocument.findUnique({
+        where: { userId_contentHash: { userId, contentHash: input.contentHash } },
+      });
+      if (existing) return { id: existing.id, deduped: true };
+    }
+    try {
+      const created = await db.sourceDocument.create({
+        data: {
+          userId,
+          kind: input.kind,
+          sourceRef: input.sourceRef,
+          contentHash: input.contentHash,
+          capturedAt: input.capturedAt,
+          storagePath: input.storagePath,
+          metadata: jsonOrNull(input.metadata),
+        },
+      });
+      return { id: created.id, deduped: false };
+    } catch (err) {
+      if (isUniqueViolation(err) && input.contentHash && attempt === 0) continue;
+      throw err;
+    }
   }
-  const created = await db.sourceDocument.create({
-    data: {
-      userId,
-      kind: input.kind,
-      sourceRef: input.sourceRef,
-      contentHash: input.contentHash,
-      capturedAt: input.capturedAt,
-      storagePath: input.storagePath,
-      metadata: jsonOrNull(input.metadata),
-    },
-  });
-  return { id: created.id, deduped: false };
+  throw new Error('addSourceDocument: unreachable');
 }
 
 export async function addSourceChunks(
@@ -291,6 +303,17 @@ export async function ingestExtraction(
         metadata: edge.metadata,
       });
       edgeIds.push(edgeId);
+    }
+
+    // Topic stubs in the same transaction: a process crash between ingest and
+    // stub creation used to leave partial state. upsert with empty update
+    // preserves status=ready on previously-compiled topics.
+    for (const topicKey of input.tentativeTopicStubs ?? []) {
+      await tx.topicPage.upsert({
+        where: { userId_topicKey: { userId, topicKey } },
+        create: { userId, topicKey, status: 'stub' },
+        update: {},
+      });
     }
 
     return { documentId, chunkIds, nodeIds, edgeIds, droppedEdges };

@@ -155,6 +155,14 @@ export interface IngestExtractionInput {
     weight?: number;
     metadata?: Record<string, unknown>;
   }>;
+  /**
+   * Topic-stub keys to upsert inside the same transaction as the graph writes.
+   * TopicPage.status is preserved on existing rows (a compiled `ready` topic
+   * never regresses to `stub` just because a new extraction cited it). Kept
+   * here rather than on the route so partial-write windows (graph persisted,
+   * stubs missing) are impossible.
+   */
+  tentativeTopicStubs?: string[];
 }
 
 export interface IngestExtractionResult {
