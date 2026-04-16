@@ -124,6 +124,20 @@ describe('POST /api/intake/submit', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 when historyText exceeds the 50KB cap', async () => {
+    const userId = await makeTestUser(prisma, 'submit-oversized');
+    currentUserMock.mockResolvedValue({ id: userId });
+    const res = await POST(
+      makeRequest({
+        historyText: 'x'.repeat(60_000),
+        essentials: VALID_ESSENTIALS,
+        documentNames: [],
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Invalid intake payload/);
+  });
+
   it('happy path — persists nodes, SUPPORTS edges, tentative stubs', async () => {
     const userId = await makeTestUser(prisma, 'submit-happy');
     currentUserMock.mockResolvedValue({ id: userId });

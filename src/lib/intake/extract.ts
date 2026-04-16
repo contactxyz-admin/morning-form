@@ -19,7 +19,8 @@
 import { z } from 'zod';
 import type { PrismaClient } from '@prisma/client';
 import { LLMClient } from '../llm/client';
-import { NODE_TYPES, EDGE_TYPES, type NodeType } from '../graph/types';
+import { LLMValidationError } from '../llm/errors';
+import { NODE_TYPES, type EdgeType, type NodeType } from '../graph/types';
 import type {
   AddNodeInput,
   AddSourceChunkInput,
@@ -33,17 +34,18 @@ import {
 } from './prompts';
 import type { EssentialsForm } from './types';
 
-const NODE_TYPE_ENUM = z.enum(NODE_TYPES as unknown as [NodeType, ...NodeType[]]);
+const NODE_TYPE_ENUM = z.enum([...NODE_TYPES]);
 // Intake is a user-asserted text payload — the three relational edge types
 // it can emit are ASSOCIATED_WITH / CAUSES / CONTRADICTS. SUPPORTS is
 // provenance (derived from supportingChunkIndices) and TEMPORAL_SUCCEEDS is
 // reserved for time-series ingestion (checkins, windows), not free-text.
 const INTAKE_EDGE_TYPES = ['ASSOCIATED_WITH', 'CAUSES', 'CONTRADICTS'] as const;
-type IntakeEdgeType = (typeof INTAKE_EDGE_TYPES)[number];
+// Type-level guarantee that INTAKE_EDGE_TYPES stays a subset of EDGE_TYPES.
+// If the parent list is edited to remove any of these, this line fails to
+// compile.
+const _INTAKE_EDGE_SUBSET_CHECK: readonly EdgeType[] = INTAKE_EDGE_TYPES;
+void _INTAKE_EDGE_SUBSET_CHECK;
 const EDGE_TYPE_ENUM = z.enum(INTAKE_EDGE_TYPES);
-// Reference EDGE_TYPES so unused-import lint stays happy while making it
-// explicit that we intentionally narrow the set.
-void EDGE_TYPES;
 
 const CANONICAL_KEY_RE = /^[a-z0-9][a-z0-9_]*$/;
 
@@ -76,61 +78,63 @@ export const ExtractedGraphSchema = z.object({
 export type ExtractedGraph = z.infer<typeof ExtractedGraphSchema>;
 
 /**
- * Tentative topic stub rules. A `TopicPage(status: stub)` row is created
- * for topics where the extracted graph contains ≥1 matching node. U8 will
- * replace this inline registry with a proper topic module.
+ * Tentative topic stub rules. A `TopicPage(status: stub)` row is created for
+ * topics where the extracted graph contains ≥1 matching node.
+ *
+ * Tokens match against snake_case canonicalKey segments (split on `_`) rather
+ * than substrings — `environmental_allergy` must not match `iron`, `awaken`
+ * must not match `wake`. Use `tokenPrefixes` when a family of related tokens
+ * share a stem (fatigue/fatigued, exhaust/exhausted, tired/tiredness).
+ *
+ * U8 will replace this inline registry with a proper topic module.
  */
-export const TENTATIVE_TOPIC_RULES: Array<{
+export interface TopicRule {
   topicKey: string;
-  matches: (node: Pick<AddNodeInput, 'type' | 'canonicalKey' | 'displayName'>) => boolean;
-}> = [
+  tokens?: readonly string[];
+  tokenPrefixes?: readonly string[];
+}
+
+export const TENTATIVE_TOPIC_RULES: readonly TopicRule[] = [
   {
     topicKey: 'iron',
-    matches: (n) => {
-      const k = n.canonicalKey.toLowerCase();
-      return (
-        k.includes('iron') ||
-        k.includes('ferritin') ||
-        k.includes('haemoglobin') ||
-        k.includes('hemoglobin') ||
-        k.includes('anemia') ||
-        k.includes('anaemia')
-      );
-    },
+    tokens: ['iron', 'ferritin', 'haemoglobin', 'hemoglobin', 'anemia', 'anaemia'],
   },
   {
     topicKey: 'sleep',
-    matches: (n) => {
-      const k = n.canonicalKey.toLowerCase();
-      return (
-        k.includes('sleep') ||
-        k.includes('insomnia') ||
-        k.includes('wake') ||
-        k.includes('rested') ||
-        k.includes('nap')
-      );
-    },
+    tokens: ['sleep', 'insomnia', 'wake', 'waking', 'rested', 'nap'],
   },
   {
     topicKey: 'energy',
-    matches: (n) => {
-      const k = n.canonicalKey.toLowerCase();
-      return (
-        k.includes('energy') ||
-        k.includes('fatigue') ||
-        k.includes('tired') ||
-        k.includes('exhaust')
-      );
-    },
+    tokens: ['energy'],
+    tokenPrefixes: ['fatigue', 'tired', 'exhaust'],
   },
 ];
+
+function canonicalKeyTokens(canonicalKey: string): string[] {
+  return canonicalKey.toLowerCase().split('_').filter((t) => t.length > 0);
+}
+
+export function ruleMatches(
+  rule: TopicRule,
+  node: Pick<AddNodeInput, 'canonicalKey'>,
+): boolean {
+  const tokens = canonicalKeyTokens(node.canonicalKey);
+  if (rule.tokens) {
+    const tokenSet = new Set(rule.tokens);
+    if (tokens.some((t) => tokenSet.has(t))) return true;
+  }
+  if (rule.tokenPrefixes) {
+    if (tokens.some((t) => rule.tokenPrefixes!.some((p) => t.startsWith(p)))) return true;
+  }
+  return false;
+}
 
 export function computeTentativeTopicStubs(
   nodes: Array<Pick<AddNodeInput, 'type' | 'canonicalKey' | 'displayName'>>,
 ): string[] {
   const matches = new Set<string>();
   for (const rule of TENTATIVE_TOPIC_RULES) {
-    if (nodes.some((n) => rule.matches(n))) matches.add(rule.topicKey);
+    if (nodes.some((n) => ruleMatches(rule, n))) matches.add(rule.topicKey);
   }
   return Array.from(matches);
 }
@@ -269,12 +273,15 @@ export async function extractFromIntake(
 
   // Defense-in-depth: reject chunk indices the LLM invented that lie outside
   // the range we sent. The schema already enforces non-negative integers;
-  // this catches "chunk 47" when we only sent 5.
+  // this catches "chunk 47" when we only sent 5. Thrown as LLMValidationError
+  // so the route maps it to a 502 alongside the other structured-output
+  // failures, not a generic 500.
   for (const node of extracted.nodes) {
     for (const idx of node.supportingChunkIndices) {
       if (idx >= chunks.length) {
-        throw new Error(
-          `extractFromIntake: node ${node.type}::${node.canonicalKey} cites chunk ${idx} but only ${chunks.length} chunks were provided`,
+        throw new LLMValidationError(
+          { node, idx, chunks: chunks.length },
+          `node ${node.type}::${node.canonicalKey} cites chunk ${idx} but only ${chunks.length} chunks were provided`,
         );
       }
     }
@@ -286,8 +293,8 @@ export async function extractFromIntake(
   const nodeMap = new Map<string, AddNodeInput & { supportingChunkIndices?: number[] }>();
   for (const n of extracted.nodes) {
     const key = `${n.type}::${n.canonicalKey}`;
-    const existing = nodeMap.get(key);
-    if (!existing) {
+    const prior = nodeMap.get(key);
+    if (!prior) {
       nodeMap.set(key, {
         type: n.type,
         canonicalKey: n.canonicalKey,
@@ -298,15 +305,16 @@ export async function extractFromIntake(
       continue;
     }
     // merge
-    const mergedAttrs: Record<string, unknown> = { ...(existing.attributes ?? {}) };
+    const mergedAttrs: Record<string, unknown> = { ...(prior.attributes ?? {}) };
     for (const [k, v] of Object.entries(n.attributes ?? {})) {
       if (mergedAttrs[k] === undefined) mergedAttrs[k] = v;
     }
-    existing.attributes = Object.keys(mergedAttrs).length > 0 ? mergedAttrs : undefined;
-    const union = new Set([...(existing.supportingChunkIndices ?? []), ...n.supportingChunkIndices]);
-    existing.supportingChunkIndices = Array.from(union).sort((a, b) => a - b);
+    prior.attributes = Object.keys(mergedAttrs).length > 0 ? mergedAttrs : undefined;
+    const union = new Set([...(prior.supportingChunkIndices ?? []), ...n.supportingChunkIndices]);
+    prior.supportingChunkIndices = Array.from(union).sort((a, b) => a - b);
   }
   const dedupedNodes = Array.from(nodeMap.values());
+  const tentativeTopicStubs = computeTentativeTopicStubs(dedupedNodes);
 
   const ingestInput: IngestExtractionInput = {
     document: {
@@ -324,15 +332,14 @@ export async function extractFromIntake(
     chunks,
     nodes: dedupedNodes,
     edges: extracted.edges.map((e) => ({
-      type: e.type as IntakeEdgeType,
+      type: e.type,
       fromType: e.fromType,
       fromCanonicalKey: e.fromCanonicalKey,
       toType: e.toType,
       toCanonicalKey: e.toCanonicalKey,
     })),
+    tentativeTopicStubs,
   };
-
-  const tentativeTopicStubs = computeTentativeTopicStubs(dedupedNodes);
 
   return { ingestInput, extracted, tentativeTopicStubs };
 }

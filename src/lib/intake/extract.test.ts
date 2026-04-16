@@ -58,11 +58,18 @@ describe('chunkIntake', () => {
 });
 
 describe('computeTentativeTopicStubs', () => {
-  it('matches iron via canonicalKey substring', () => {
+  it('matches iron via canonicalKey token', () => {
     const stubs = computeTentativeTopicStubs([
       { type: 'biomarker', canonicalKey: 'ferritin', displayName: 'Ferritin' },
     ]);
     expect(stubs).toEqual(['iron']);
+  });
+  it('matches iron via multi-token canonicalKey', () => {
+    expect(
+      computeTentativeTopicStubs([
+        { type: 'condition', canonicalKey: 'iron_deficiency', displayName: 'Iron deficiency' },
+      ]),
+    ).toEqual(['iron']);
   });
   it('matches sleep and energy jointly', () => {
     const stubs = computeTentativeTopicStubs([
@@ -71,10 +78,50 @@ describe('computeTentativeTopicStubs', () => {
     ]);
     expect(stubs.sort()).toEqual(['energy', 'sleep']);
   });
+  it('matches energy via token prefix (fatigued, exhausted, tiredness)', () => {
+    expect(
+      computeTentativeTopicStubs([
+        { type: 'symptom', canonicalKey: 'exhausted', displayName: 'Exhausted' },
+      ]),
+    ).toEqual(['energy']);
+    expect(
+      computeTentativeTopicStubs([
+        { type: 'symptom', canonicalKey: 'afternoon_tiredness', displayName: 'Afternoon tiredness' },
+      ]),
+    ).toEqual(['energy']);
+  });
   it('emits nothing when no nodes match any rule', () => {
     expect(
       computeTentativeTopicStubs([
         { type: 'medication', canonicalKey: 'metformin', displayName: 'Metformin' },
+      ]),
+    ).toEqual([]);
+  });
+  it('does NOT match iron on substring-only overlap (environmental_allergy, irony_pattern)', () => {
+    expect(
+      computeTentativeTopicStubs([
+        { type: 'symptom', canonicalKey: 'environmental_allergy', displayName: 'Environmental allergy' },
+      ]),
+    ).toEqual([]);
+    expect(
+      computeTentativeTopicStubs([
+        { type: 'symptom', canonicalKey: 'irony_pattern', displayName: 'Ironic pattern' },
+      ]),
+    ).toEqual([]);
+  });
+  it('does NOT match sleep on substring-only overlap (awaken, napper, uninterested)', () => {
+    expect(
+      computeTentativeTopicStubs([
+        { type: 'symptom', canonicalKey: 'awaken', displayName: 'Awaken' },
+        { type: 'symptom', canonicalKey: 'napper', displayName: 'Napper' },
+        { type: 'mood', canonicalKey: 'uninterested', displayName: 'Uninterested' },
+      ]),
+    ).toEqual([]);
+  });
+  it('does NOT match energy on substring-only overlap (retired)', () => {
+    expect(
+      computeTentativeTopicStubs([
+        { type: 'lifestyle', canonicalKey: 'retired', displayName: 'Retired' },
       ]),
     ).toEqual([]);
   });
@@ -197,9 +244,9 @@ describe('extractFromIntake', () => {
         }),
       },
     ]);
-    await expect(
-      extractFromIntake({ client: makeClient(), prisma }, userId, BASE_INPUT),
-    ).rejects.toThrow(/chunk 99/);
+    const promise = extractFromIntake({ client: makeClient(), prisma }, userId, BASE_INPUT);
+    await expect(promise).rejects.toThrow(/chunk 99/);
+    await expect(promise).rejects.toBeInstanceOf(LLMValidationError);
   });
 
   it('dedupes duplicate canonicalKeys within a single extraction — merges chunk citations', async () => {

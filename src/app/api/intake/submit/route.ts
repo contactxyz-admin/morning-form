@@ -31,17 +31,22 @@ import { extractFromIntake } from '@/lib/intake/extract';
 import { ingestExtraction } from '@/lib/graph/mutations';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+// 90s headroom: LLM retry budget is 3 × 30s per-attempt + backoff, and we
+// need DB work on either side. 60s could be consumed entirely by a slow
+// Anthropic endpoint, producing a platform 504 instead of our 502.
+export const maxDuration = 90;
 
+// Size caps protect against DoS / token-budget abuse. 50KB of history covers
+// a long but reasonable intake; essentials fields are short-answer by design.
 const BodySchema = z.object({
-  historyText: z.string().default(''),
+  historyText: z.string().max(50_000).default(''),
   essentials: z.object({
-    goals: z.string().default(''),
-    currentMedications: z.string().default(''),
-    currentDiagnoses: z.string().default(''),
-    allergies: z.string().default(''),
+    goals: z.string().max(2_000).default(''),
+    currentMedications: z.string().max(4_000).default(''),
+    currentDiagnoses: z.string().max(4_000).default(''),
+    allergies: z.string().max(1_000).default(''),
   }),
-  documentNames: z.array(z.string()).default([]),
+  documentNames: z.array(z.string().max(512)).max(50).default([]),
 });
 
 export async function POST(req: Request) {
@@ -84,18 +89,11 @@ export async function POST(req: Request) {
       },
     );
 
+    // ingestInput carries tentativeTopicStubs — the upserts happen inside the
+    // same transaction as the graph writes, so a partial-success window is
+    // impossible. Previously a mid-route crash could persist the graph but
+    // skip stubs, leaving a 500 despite the ingest succeeding.
     const persisted = await ingestExtraction(prisma, user.id, ingestInput);
-
-    // Tentative topic stubs — created only if not already present. We don't
-    // reset existing TopicPage rows (a topic already at status=ready must not
-    // regress to stub just because a new intake landed).
-    for (const topicKey of tentativeTopicStubs) {
-      await prisma.topicPage.upsert({
-        where: { userId_topicKey: { userId: user.id, topicKey } },
-        create: { userId: user.id, topicKey, status: 'stub' },
-        update: {}, // preserve existing status
-      });
-    }
 
     return NextResponse.json({
       documentId: persisted.documentId,
@@ -105,19 +103,24 @@ export async function POST(req: Request) {
       tentativeTopicStubs,
     });
   } catch (err) {
+    // Log message + name only — `err` itself can carry the offending user
+    // input (Zod `input` field, Prisma conflicting values), which is PHI for
+    // this route.
+    const name = err instanceof Error ? err.name : 'UnknownError';
+    const message = err instanceof Error ? err.message : String(err);
     if (
       err instanceof LLMAuthError ||
       err instanceof LLMRateLimitError ||
       err instanceof LLMTransientError ||
       err instanceof LLMValidationError
     ) {
-      console.error('[API] intake/submit LLM error:', err);
+      console.error(`[API] intake/submit LLM error: ${name}: ${message}`);
       return NextResponse.json(
         { error: 'Extraction service error', kind: err.constructor.name },
         { status: 502 },
       );
     }
-    console.error('[API] intake/submit error:', err);
+    console.error(`[API] intake/submit error: ${name}: ${message}`);
     return NextResponse.json({ error: 'Intake submit failed' }, { status: 500 });
   }
 }
