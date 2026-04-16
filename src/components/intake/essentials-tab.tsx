@@ -4,7 +4,12 @@ import { Card } from '@/components/ui/card';
 import { useIntakeStore } from '@/lib/intake/store';
 import type { EssentialsForm } from '@/lib/intake/types';
 
-const FIELDS: { id: keyof EssentialsForm; label: string; placeholder: string; required?: boolean }[] = [
+const FIELDS: {
+  id: keyof EssentialsForm;
+  label: string;
+  placeholder: string;
+  required?: boolean;
+}[] = [
   {
     id: 'goals',
     label: 'What are you trying to achieve?',
@@ -34,33 +39,42 @@ export function EssentialsTab() {
   const complete = useIntakeStore((s) => s.isEssentialsComplete());
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <h2 className="text-heading font-semibold mb-1">The essentials</h2>
-        <p className="text-body text-text-secondary mb-4">
-          The minimum we need if you can&rsquo;t share documents or write a story. Goals plus at
-          least one of meds, diagnoses, or allergies is enough to finish.
+    <div className="space-y-5 stagger">
+      <header>
+        <p className="text-label uppercase text-text-tertiary mb-3">03 — Essentials</p>
+        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-3 -tracking-[0.035em]">
+          The minimum we need.
+        </h2>
+        <p className="text-body-lg text-text-secondary max-w-lg">
+          For when you can&rsquo;t share documents or write a story. Goals plus at least one of
+          meds, diagnoses, or allergies is enough to finish.
         </p>
-      </Card>
+      </header>
 
       {FIELDS.map((field) => (
         <Card key={field.id}>
-          <label className="block text-label uppercase tracking-widest text-text-tertiary mb-2">
-            {field.label}
-            {field.required && <span className="ml-1 text-alert">*</span>}
-          </label>
+          <div className="flex items-baseline justify-between mb-3 gap-3">
+            <label className="block text-label uppercase text-text-tertiary">
+              {field.label}
+            </label>
+            {field.required && (
+              <span className="text-caption text-alert font-medium lowercase tracking-normal">
+                required
+              </span>
+            )}
+          </div>
           <textarea
             value={essentials[field.id]}
             onChange={(e) => setField(field.id, e.target.value)}
             placeholder={field.placeholder}
             rows={3}
-            className="w-full px-4 py-3 rounded-input border border-border bg-surface text-body text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent transition-colors"
+            className="w-full bg-transparent text-body-lg text-text-primary placeholder:text-text-tertiary focus:outline-none resize-none -tracking-[0.005em] leading-relaxed"
           />
         </Card>
       ))}
 
       {!complete && (
-        <p className="text-caption text-text-tertiary text-center px-4">
+        <p className="text-caption text-text-tertiary text-center px-4 pt-2 max-w-sm mx-auto leading-relaxed">
           Add a goal plus at least one of medications, diagnoses, or allergies to finish intake.
         </p>
       )}
