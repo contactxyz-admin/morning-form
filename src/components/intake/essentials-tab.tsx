@@ -39,10 +39,13 @@ export function EssentialsTab() {
   const complete = useIntakeStore((s) => s.isEssentialsComplete());
 
   return (
-    <div className="space-y-5 stagger">
+    <div className="space-y-6 stagger">
       <header>
-        <p className="text-label uppercase text-text-tertiary mb-3">03 — Essentials</p>
-        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-3 -tracking-[0.035em]">
+        <div className="flex items-baseline gap-2.5 mb-4">
+          <span className="font-mono text-label uppercase text-text-tertiary">03</span>
+          <span className="text-label uppercase text-text-tertiary">Essentials</span>
+        </div>
+        <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4 -tracking-[0.035em]">
           The minimum we need.
         </h2>
         <p className="text-body-lg text-text-secondary max-w-lg">
@@ -58,7 +61,8 @@ export function EssentialsTab() {
               {field.label}
             </label>
             {field.required && (
-              <span className="text-caption text-alert font-medium lowercase tracking-normal">
+              <span className="inline-flex items-center gap-1.5 text-caption text-alert font-medium lowercase tracking-normal">
+                <span aria-hidden className="inline-block w-1 h-1 rounded-full bg-alert" />
                 required
               </span>
             )}
@@ -68,7 +72,7 @@ export function EssentialsTab() {
             onChange={(e) => setField(field.id, e.target.value)}
             placeholder={field.placeholder}
             rows={3}
-            className="w-full bg-transparent text-body-lg text-text-primary placeholder:text-text-tertiary focus:outline-none resize-none -tracking-[0.005em] leading-relaxed"
+            className="w-full bg-transparent text-body-lg text-text-primary placeholder:text-text-whisper focus:outline-none resize-none -tracking-[0.005em] leading-relaxed"
           />
         </Card>
       ))}

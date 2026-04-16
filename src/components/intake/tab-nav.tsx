@@ -27,49 +27,71 @@ export function TabNav({ active }: TabNavProps) {
   };
 
   return (
-    <nav
-      className="flex items-center gap-1 mb-10 border-b border-border"
-      role="tablist"
-      aria-label="Intake tabs"
-    >
-      {TABS.map((tab) => {
-        const isActive = tab.id === active;
-        const hasContent = status[tab.id];
-        return (
-          <Link
-            key={tab.id}
-            href={tab.href}
-            role="tab"
-            aria-selected={isActive}
-            className={cn(
-              'group relative flex items-center gap-2 px-3 sm:px-4 py-3 text-body font-medium',
-              'transition-colors duration-250',
-              isActive
-                ? 'text-text-primary'
-                : 'text-text-tertiary hover:text-text-primary',
-            )}
-          >
-            <span className="text-label font-mono uppercase opacity-60">{tab.index}</span>
-            <span className="-tracking-[0.01em]">{tab.label}</span>
-            {hasContent && (
+    <div className="mb-12">
+      <Link
+        href="/intake"
+        className="group inline-flex items-center gap-1.5 text-label uppercase text-text-tertiary hover:text-text-primary transition-colors duration-250 mb-6"
+      >
+        <span
+          aria-hidden
+          className="inline-block transition-transform duration-450 ease-spring group-hover:-translate-x-0.5"
+        >
+          ←
+        </span>
+        Intake
+      </Link>
+      <nav
+        className="flex items-center gap-1 border-b border-border"
+        role="tablist"
+        aria-label="Intake tabs"
+      >
+        {TABS.map((tab) => {
+          const isActive = tab.id === active;
+          const hasContent = status[tab.id];
+          return (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              role="tab"
+              aria-selected={isActive}
+              className={cn(
+                'group relative flex items-center gap-2 px-3 sm:px-4 py-3.5 text-body font-medium',
+                'transition-colors duration-250',
+                isActive
+                  ? 'text-text-primary'
+                  : 'text-text-tertiary hover:text-text-primary',
+              )}
+            >
               <span
-                aria-label="Has content"
                 className={cn(
-                  'inline-block w-1.5 h-1.5 rounded-full ml-0.5',
-                  isActive ? 'bg-positive' : 'bg-positive/60',
+                  'font-mono text-label uppercase transition-colors duration-250',
+                  isActive ? 'text-text-secondary' : 'text-text-whisper',
+                )}
+              >
+                {tab.index}
+              </span>
+              <span className="-tracking-[0.01em]">{tab.label}</span>
+              {hasContent && (
+                <span
+                  aria-label="Has content"
+                  className={cn(
+                    'inline-block w-1.5 h-1.5 rounded-full ml-0.5 transition-all duration-450 ease-spring',
+                    isActive ? 'bg-positive' : 'bg-positive/60',
+                  )}
+                />
+              )}
+              <span
+                aria-hidden
+                className={cn(
+                  'absolute -bottom-px left-3 right-3 sm:left-4 sm:right-4 h-[1.5px] bg-text-primary origin-left',
+                  'transition-transform duration-600 ease-spring',
+                  isActive ? 'scale-x-100' : 'scale-x-0',
                 )}
               />
-            )}
-            <span
-              aria-hidden
-              className={cn(
-                'absolute -bottom-px left-0 right-0 h-px transition-all duration-450 ease-spring',
-                isActive ? 'bg-text-primary' : 'bg-transparent',
-              )}
-            />
-          </Link>
-        );
-      })}
-    </nav>
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useIntakeStore } from '@/lib/intake/store';
+import { cn } from '@/lib/utils';
 
 export function FinishBar() {
   const router = useRouter();
@@ -63,22 +64,39 @@ export function FinishBar() {
   }
 
   return (
-    <div className="fixed bottom-16 left-0 right-0 px-6 sm:px-8 pt-12 pb-4 pointer-events-none bg-gradient-to-t from-bg via-bg/95 to-transparent">
+    <div className="fixed bottom-16 left-0 right-0 px-6 sm:px-8 pt-16 pb-5 pointer-events-none bg-gradient-to-t from-bg via-bg/92 to-transparent">
       <div className="mx-auto max-w-2xl pointer-events-auto">
         {error && (
-          <p className="mb-3 text-caption text-alert text-center bg-surface rounded-card-sm px-4 py-3 border border-alert/30">
+          <p className="mb-3 text-caption text-alert text-center bg-surface rounded-card-sm px-4 py-3 border border-alert/30 shadow-card-hover">
             {error}
           </p>
         )}
-        <Button
-          onClick={onFinish}
-          disabled={!canFinish || submitting}
-          loading={submitting}
-          fullWidth
-          size="lg"
+        <div
+          className={cn(
+            'transition-all duration-700 ease-spring',
+            canFinish ? 'opacity-100 translate-y-0' : 'opacity-90',
+          )}
         >
-          {submitting ? 'Submitting…' : canFinish ? 'Finish intake →' : 'Finish intake'}
-        </Button>
+          <Button
+            onClick={onFinish}
+            disabled={!canFinish || submitting}
+            loading={submitting}
+            fullWidth
+            size="lg"
+          >
+            <span className="inline-flex items-center gap-2">
+              {submitting ? 'Submitting…' : 'Finish intake'}
+              {canFinish && !submitting && (
+                <span
+                  aria-hidden
+                  className="inline-block transition-transform duration-450 ease-spring group-hover:translate-x-1"
+                >
+                  →
+                </span>
+              )}
+            </span>
+          </Button>
+        </div>
         {!canFinish && (
           <p className="mt-3 text-caption text-text-tertiary text-center">
             Complete the Essentials tab to finish.
