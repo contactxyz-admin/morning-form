@@ -1,23 +1,24 @@
 /**
- * Per-process SQLite test DB for graph layer integration tests.
+ * Per-process Postgres test DB for graph layer integration tests.
  *
  * Why a real DB instead of mocks: graph operations exercise real upserts,
  * unique constraints, multi-row transactions, and JSON column round-trips
  * — all of which are pointless to mock and easy to get wrong if mocked.
  *
- * The DB lives at prisma/.test-graph.db (gitignored). Each test file is
- * expected to call `setupTestDb()` in beforeAll and `teardownTestDb()` in
- * afterAll. Each test should use a unique userId so parallel-running tests
- * don't collide on shared rows.
+ * The test DB URL is read from TEST_DATABASE_URL, defaulting to a local
+ * Postgres instance. The schema is wiped + re-pushed once per run by
+ * vitest.global-setup.ts. Each test file calls `setupTestDb()` in beforeAll
+ * and `teardownTestDb()` in afterAll, and each test should use a unique
+ * userId so parallel-running tests don't collide on shared rows.
  */
 
-import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 
-// The DB itself is provisioned once by vitest.global-setup.ts; this helper
-// only opens a per-file PrismaClient against it.
-const TEST_DB_PATH = path.resolve(process.cwd(), 'prisma/.test-graph.db');
-const TEST_DB_URL = `file:${TEST_DB_PATH}`;
+export function getTestDbUrl(): string {
+  if (process.env.TEST_DATABASE_URL) return process.env.TEST_DATABASE_URL;
+  const user = process.env.PGUSER ?? process.env.USER ?? 'postgres';
+  return `postgres://${user}@localhost:5432/morning_form_test`;
+}
 
 let client: PrismaClient | null = null;
 
@@ -27,7 +28,7 @@ export function getTestPrisma(): PrismaClient {
 }
 
 export async function setupTestDb(): Promise<PrismaClient> {
-  client = new PrismaClient({ datasources: { db: { url: TEST_DB_URL } } });
+  client = new PrismaClient({ datasources: { db: { url: getTestDbUrl() } } });
   return client;
 }
 
