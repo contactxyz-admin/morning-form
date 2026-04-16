@@ -33,8 +33,22 @@ Today the landing page ([src/app/page.tsx](src/app/page.tsx)) routes every visit
 
 ### Deferred to Separate Tasks
 
-- Real authentication (password / magic link / OAuth): future plan.
-- Migrating `getOrCreateDemoUser()` call sites to a session-aware `getCurrentUser()` helper: future plan once real auth lands.
+- Real authentication (password / magic link / OAuth): **superseded by `docs/plans/2026-04-15-004-feat-health-graph-pivot-plan.md` U0a (magic-link via Resend) + U0b (signed session cookie + `Session` table + middleware).**
+- Migrating `getOrCreateDemoUser()` call sites to a session-aware `getCurrentUser()` helper: **also covered by U0b**, which introduces `getCurrentUser()` on signed-session lookup and adds an ESLint rule forbidding re-importing the demo helper in `src/app/api/**`.
+
+### Composition with the health-graph pivot (U0a, U0b, U17)
+
+Once the pivot plan begins, this plan's redirect logic is **not deleted but re-ordered** to compose with real auth + the first-login migration. After the pivot:
+
+- The current `/api/auth/login` handler is replaced by `/api/auth/verify` (U0a magic-link verify route).
+- The signed-session cookie `mf_session_email` is replaced by the U0b signed session backed by the `Session` table.
+- The post-verify handler evaluates in this order (see deepened-plan System-Wide Impact → "First-login migration composes with assessment-gating cookie"):
+  1. **Session creation** (U0b): `createSession(userId)` sets the signed cookie.
+  2. **U17 new-user predicate**: `isNewUser(userId)` returns true iff zero rows in `HealthDataPoint`, `CheckIn`, `ProtocolItem`, `ProtocolAdjustment`, and `AssessmentResponse`. New users skip migration enqueue entirely (their `GraphMigrationState` rows are written with instant `completedAt`).
+  3. **This plan's redirect** (data-driven): `user.assessment && user.stateProfile` → `/home` else `/assessment`. Unchanged semantics; still R3.
+  4. **Migration-banner suffix** (U17): if step 2 enqueued jobs, append `?migrating=1` to whatever step 3 chose. The banner appears on both `/home?migrating=1` and `/assessment?migrating=1` — it never overrides the assessment-gating decision.
+
+**Consequence.** This plan's contract (data-driven redirect) survives the pivot. What changes: (a) the cookie/token implementation switches from plain-string to HMAC-signed + DB-backed; (b) the demo-fallback in `getCurrentUser()` is removed — unauthenticated ingestion routes hard-fail with 401 rather than silently resolving to the demo user; (c) the redirect logic runs **after** the U17 predicate rather than before. No new R-requirements; R1–R4 remain intact.
 
 ## Context & Research
 
