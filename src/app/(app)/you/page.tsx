@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
@@ -16,21 +15,30 @@ const links = [
 
 export default function YouPage() {
   return (
-    <div className="px-5 pt-6 pb-8">
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <p className="text-label uppercase text-text-tertiary mb-3">Profile</p>
-        <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary mb-8 -tracking-[0.03em]">
-          Your <span className="italic font-light">edge</span>.
-        </h1>
+    <div className="px-5 pt-6 pb-8 grain-page">
+      {/* Header */}
+      <div className="flex items-center gap-2.5 mb-5">
+        <span aria-hidden className="block w-6 h-px bg-text-primary/60" />
+        <span className="text-label uppercase text-text-tertiary">Profile</span>
+      </div>
 
+      <div className="rise">
+        <h1 className="font-display font-light text-display sm:text-display-xl text-text-primary mb-10 -tracking-[0.04em]">
+          Your <span className="italic text-accent">edge</span>.
+        </h1>
+      </div>
+
+      <div className="space-y-4 stagger">
         {/* State profile summary */}
         <Card variant="default">
           <SectionLabel>State profile</SectionLabel>
-          <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">{mockStateProfile.primaryPattern}</h3>
-          <ul className="mt-3 space-y-1.5">
+          <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
+            {mockStateProfile.primaryPattern}
+          </h3>
+          <ul className="mt-4 space-y-2">
             {mockStateProfile.observations.slice(0, 3).map((obs) => (
-              <li key={obs.label} className="text-caption text-text-secondary flex gap-2">
-                <span className="text-text-tertiary shrink-0">·</span>
+              <li key={obs.label} className="text-caption text-text-secondary flex gap-2.5 leading-relaxed">
+                <span aria-hidden className="text-text-whisper shrink-0 mt-1">·</span>
                 <span>{obs.label}</span>
               </li>
             ))}
@@ -38,12 +46,12 @@ export default function YouPage() {
         </Card>
 
         {/* Constraints */}
-        <Card variant="action" accentColor="amber" className="mt-4">
+        <Card variant="action" accentColor="amber">
           <SectionLabel>Active constraints</SectionLabel>
-          <ul className="mt-2 space-y-1.5">
+          <ul className="mt-3 space-y-2">
             {mockStateProfile.constraints.map((c) => (
-              <li key={c.label} className="text-caption text-text-secondary flex gap-2">
-                <span className="text-caution shrink-0">·</span>
+              <li key={c.label} className="text-caption text-text-secondary flex gap-2.5 leading-relaxed">
+                <span aria-hidden className="text-caution shrink-0 mt-1">·</span>
                 <span>{c.label}</span>
               </li>
             ))}
@@ -51,28 +59,29 @@ export default function YouPage() {
         </Card>
 
         {/* Connected devices */}
-        <div className="mt-8">
+        <div className="pt-4">
           <SectionLabel>Connected devices</SectionLabel>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-chip border border-border bg-surface">
-              <div className="w-1.5 h-1.5 rounded-full bg-positive" />
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-chip border border-border bg-surface hover:border-border-strong transition-colors duration-300 ease-spring">
+              <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-positive" />
               <span className="text-caption text-text-primary">Whoop</span>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-chip border border-border bg-surface">
-              <div className="w-1.5 h-1.5 rounded-full bg-positive" />
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-chip border border-border bg-surface hover:border-border-strong transition-colors duration-300 ease-spring">
+              <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-positive" />
               <span className="text-caption text-text-primary">Oura</span>
             </div>
           </div>
           <Link
             href="/settings/integrations"
-            className="mt-3 inline-block text-caption text-accent font-medium hover:underline underline-offset-4 transition-colors"
+            className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group"
           >
-            Manage connections →
+            Manage connections
+            <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
           </Link>
         </div>
 
         {/* Links */}
-        <div className="mt-12 border-t border-border">
+        <div className="mt-8 pt-4 border-t border-border">
           {links.map((link) => (
             <Link
               key={link.label}
@@ -91,7 +100,7 @@ export default function YouPage() {
             <span>Sign Out</span>
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

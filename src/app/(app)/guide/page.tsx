@@ -33,17 +33,21 @@ export default function GuidePage() {
 
   const sendMessage = (text: string) => {
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
 
-    const key = Object.keys(guideResponses).find(k => text.toLowerCase().includes(k));
+    const key = Object.keys(guideResponses).find((k) => text.toLowerCase().includes(k));
     const response = key ? guideResponses[key] : guideResponses['default'];
 
     setTimeout(() => {
       setIsTyping(false);
-      const guideMsg: Message = { id: (Date.now() + 1).toString(), role: 'guide', content: response };
-      setMessages(prev => [...prev, guideMsg]);
+      const guideMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'guide',
+        content: response,
+      };
+      setMessages((prev) => [...prev, guideMsg]);
     }, 1500);
   };
 
@@ -55,50 +59,52 @@ export default function GuidePage() {
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 pt-6 pb-4 border-b border-border">
+      <div className="flex items-center gap-2.5 px-5 pt-6 pb-4 border-b border-border">
         <button
           onClick={() => router.back()}
+          aria-label="Back"
           className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
         >
           <Icon name="back" size="md" />
         </button>
-        <p className="text-label uppercase text-text-tertiary">Guide</p>
+        <span aria-hidden className="block w-4 h-px bg-text-primary/60" />
+        <span className="text-label uppercase text-text-tertiary">Guide</span>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-6 space-y-4 no-scrollbar">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-8 space-y-4 no-scrollbar">
         {/* Intro */}
         {messages.length === 0 && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            <h2 className="font-display font-light text-heading text-text-primary mb-4 -tracking-[0.02em]">
-              Ask me <span className="italic">anything</span>.
+          <div className="rise max-w-[90%]">
+            <h2 className="font-display font-light text-display-sm sm:text-display text-text-primary mb-5 -tracking-[0.035em]">
+              Ask me <span className="italic text-accent">anything</span>.
             </h2>
-            <Card variant="default" className="max-w-[85%]">
-              <p className="text-body text-text-secondary leading-relaxed">
-                I&rsquo;m your protocol guide. I can explain recommendations, answer questions, and
-                help adjust your protocol.
-              </p>
-            </Card>
+            <p className="text-body text-text-secondary leading-relaxed mb-8 max-w-md">
+              I&rsquo;m your protocol guide. I can explain recommendations, answer questions, and
+              help adjust your protocol.
+            </p>
 
-            <div className="mt-4 space-y-2">
+            <div className="space-y-2 stagger">
+              <p className="font-mono text-label uppercase text-text-tertiary mb-2">Try asking</p>
               {suggestions.map((s) => (
                 <button
                   key={s}
                   onClick={() => sendMessage(s)}
-                  className="block w-full text-left px-4 py-3 rounded-card-sm border border-border bg-surface text-caption text-text-primary hover:border-border-strong hover:-translate-y-[1px] hover:shadow-card-hover transition-[transform,border-color,box-shadow] duration-450 ease-spring"
+                  className="block w-full text-left px-4 py-3 rounded-card-sm border border-border bg-surface text-caption text-text-primary hover:border-border-strong hover:bg-surface-warm transition-[background-color,border-color] duration-450 ease-spring"
                 >
                   {s}
                 </button>
               ))}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {messages.map((msg) => (
           <motion.div
             key={msg.id}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
             className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}
           >
             <div
@@ -110,7 +116,9 @@ export default function GuidePage() {
               )}
             >
               {msg.content.split('\n').map((line, i) => (
-                <p key={i} className={i > 0 ? 'mt-2' : ''}>{line}</p>
+                <p key={i} className={i > 0 ? 'mt-2' : ''}>
+                  {line}
+                </p>
               ))}
             </div>
           </motion.div>
@@ -118,7 +126,7 @@ export default function GuidePage() {
 
         {isTyping && (
           <div className="flex justify-start">
-            <div className="bg-surface border border-border rounded-card px-4 py-3 flex gap-1">
+            <div className="bg-surface border border-border rounded-card px-4 py-3 flex gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-pulse" style={{ animationDelay: '0ms' }} />
               <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-pulse" style={{ animationDelay: '150ms' }} />
               <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-pulse" style={{ animationDelay: '300ms' }} />
@@ -140,6 +148,7 @@ export default function GuidePage() {
           <button
             type="submit"
             disabled={!input.trim()}
+            aria-label="Send"
             className="w-11 h-11 rounded-input bg-button text-[#FFFFFF] flex items-center justify-center disabled:bg-surface-warm disabled:text-text-tertiary disabled:border disabled:border-border-strong hover:bg-button-hover transition-[background-color,transform] duration-300 ease-spring active:scale-[0.97]"
           >
             <Icon name="send" size="sm" />
