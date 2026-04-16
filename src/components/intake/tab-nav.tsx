@@ -9,10 +9,10 @@ interface TabNavProps {
   active: IntakeTab;
 }
 
-const TABS: { id: IntakeTab; label: string; href: string }[] = [
-  { id: 'upload', label: 'Upload', href: '/intake/upload' },
-  { id: 'history', label: 'Your story', href: '/intake/history' },
-  { id: 'essentials', label: 'Essentials', href: '/intake/essentials' },
+const TABS: { id: IntakeTab; label: string; href: string; index: string }[] = [
+  { id: 'upload', label: 'Upload', href: '/intake/upload', index: '01' },
+  { id: 'history', label: 'Your story', href: '/intake/history', index: '02' },
+  { id: 'essentials', label: 'Essentials', href: '/intake/essentials', index: '03' },
 ];
 
 export function TabNav({ active }: TabNavProps) {
@@ -27,7 +27,11 @@ export function TabNav({ active }: TabNavProps) {
   };
 
   return (
-    <nav className="flex gap-2 mb-6" role="tablist" aria-label="Intake tabs">
+    <nav
+      className="flex items-center gap-1 mb-10 border-b border-border"
+      role="tablist"
+      aria-label="Intake tabs"
+    >
       {TABS.map((tab) => {
         const isActive = tab.id === active;
         const hasContent = status[tab.id];
@@ -38,16 +42,31 @@ export function TabNav({ active }: TabNavProps) {
             role="tab"
             aria-selected={isActive}
             className={cn(
-              'flex-1 min-h-[44px] px-3 py-2 rounded-button text-caption font-medium text-center border transition-all',
+              'group relative flex items-center gap-2 px-3 sm:px-4 py-3 text-body font-medium',
+              'transition-colors duration-250',
               isActive
-                ? 'bg-button text-white border-button'
-                : hasContent
-                ? 'bg-accent-light text-text-primary border-accent/30'
-                : 'bg-surface text-text-secondary border-border hover:border-border-hover',
+                ? 'text-text-primary'
+                : 'text-text-tertiary hover:text-text-primary',
             )}
           >
-            {tab.label}
-            {hasContent && !isActive && <span aria-hidden className="ml-1.5">✓</span>}
+            <span className="text-label font-mono uppercase opacity-60">{tab.index}</span>
+            <span className="-tracking-[0.01em]">{tab.label}</span>
+            {hasContent && (
+              <span
+                aria-label="Has content"
+                className={cn(
+                  'inline-block w-1.5 h-1.5 rounded-full ml-0.5',
+                  isActive ? 'bg-positive' : 'bg-positive/60',
+                )}
+              />
+            )}
+            <span
+              aria-hidden
+              className={cn(
+                'absolute -bottom-px left-0 right-0 h-px transition-all duration-450 ease-spring',
+                isActive ? 'bg-text-primary' : 'bg-transparent',
+              )}
+            />
           </Link>
         );
       })}

@@ -7,10 +7,22 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
   }
 
   body {
     @apply bg-bg text-text-primary;
+    background-image:
+      radial-gradient(at 12% 0%, rgba(31, 58, 46, 0.025) 0px, transparent 55%),
+      radial-gradient(at 88% 100%, rgba(139, 107, 58, 0.02) 0px, transparent 55%);
+    background-attachment: fixed;
+  }
+
+  /* Display headings opt into Fraunces optical-size + soft axes. */
+  .font-display {
+    font-feature-settings: 'ss01', 'ss02';
+    font-variation-settings: 'opsz' 144, 'SOFT' 50;
   }
 
   ::selection {
@@ -19,6 +31,7 @@
 
   ::-webkit-scrollbar {
     width: 4px;
+    height: 4px;
   }
 
   ::-webkit-scrollbar-track {
@@ -26,10 +39,10 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
+    @apply bg-border-strong rounded-full;
   }
 
-  input[type="time"]::-webkit-calendar-picker-indicator {
+  input[type='time']::-webkit-calendar-picker-indicator {
     @apply opacity-50;
   }
 }
@@ -41,5 +54,41 @@
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Subtle paper grain — barely-there texture that catches light like oem.care. */
+  .grain::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.4;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.08  0 0 0 0 0.08  0 0 0 0 0.08  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  @keyframes staggerIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Stagger helper — 7 children with cascading entrance. */
+  .stagger > * {
+    opacity: 0;
+    animation: staggerIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.05s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.15s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.25s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.35s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.45s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.55s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.65s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stagger > * {
+      opacity: 1;
+      animation: none;
+    }
   }
 }

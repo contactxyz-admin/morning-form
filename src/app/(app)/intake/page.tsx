@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { useIntakeStore } from '@/lib/intake/store';
 
@@ -13,6 +12,7 @@ export default function IntakeLandingPage() {
   const tabs = [
     {
       href: '/intake/upload',
+      eyebrow: '01 — Documents',
       title: 'Upload',
       blurb: 'Lab results, GP exports, hospital letters. PDFs or images.',
       done: documents.length > 0,
@@ -20,6 +20,7 @@ export default function IntakeLandingPage() {
     },
     {
       href: '/intake/history',
+      eyebrow: '02 — Narrative',
       title: 'Your story',
       blurb: 'Free-text history. Tell us what feels relevant in your own words.',
       done: historyText.trim().length > 0,
@@ -27,54 +28,72 @@ export default function IntakeLandingPage() {
     },
     {
       href: '/intake/essentials',
-      title: 'Essentials',
-      blurb: 'Goals, current meds, diagnoses, allergies. The minimum we need.',
+      eyebrow: '03 — Essentials',
+      title: 'The minimum',
+      blurb: 'Goals, current meds, diagnoses, allergies. The bedrock of your graph.',
       done: essentialsComplete,
       doneLabel: 'Complete',
     },
   ];
 
   return (
-    <div className="px-5 pt-6 pb-32">
-      <motion.div
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
-      >
-        <h1 className="text-display font-semibold mb-2">Bring your health data here</h1>
-        <p className="text-body text-text-secondary mb-8">
-          Three ways in. Use any or all of them — we&rsquo;ll connect what you give us into a single
-          graph of your health, with sources you can check.
+    <div className="px-6 sm:px-8 pt-12 sm:pt-20 pb-32 max-w-2xl mx-auto">
+      <div className="stagger">
+        <p className="text-label uppercase text-text-tertiary mb-5">
+          Intake
         </p>
-      </motion.div>
+        <h1 className="font-display font-light text-display sm:text-display-xl text-text-primary mb-5 -tracking-[0.04em]">
+          Bring your health
+          <br />
+          <span className="italic font-light">into one place.</span>
+        </h1>
+        <p className="text-body-lg text-text-secondary mb-12 max-w-lg">
+          Three ways in. Use any or all — we&rsquo;ll connect what you give us into a single graph
+          of your health, with sources you can check.
+        </p>
 
-      <div className="space-y-3">
-        {tabs.map((tab) => (
-          <Link key={tab.href} href={tab.href} className="block">
-            <Card
-              variant="action"
-              accentColor={tab.done ? 'sage' : 'teal'}
-              clickable
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h2 className="text-heading font-semibold mb-1">{tab.title}</h2>
-                  <p className="text-body text-text-secondary">{tab.blurb}</p>
+        <div className="space-y-3">
+          {tabs.map((tab) => (
+            <Link key={tab.href} href={tab.href} className="block group">
+              <Card
+                variant="action"
+                accentColor={tab.done ? 'sage' : 'teal'}
+                clickable
+                className="pl-7"
+              >
+                <div className="flex items-start justify-between gap-6">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-label uppercase text-text-tertiary mb-2">
+                      {tab.eyebrow}
+                    </p>
+                    <h2 className="font-display text-heading font-normal mb-1.5 text-text-primary">
+                      {tab.title}
+                    </h2>
+                    <p className="text-body text-text-secondary leading-relaxed">{tab.blurb}</p>
+                  </div>
+                  <div className="flex items-center gap-3 pt-1 shrink-0">
+                    {tab.done && (
+                      <span className="text-caption text-positive font-medium whitespace-nowrap">
+                        {tab.doneLabel}
+                      </span>
+                    )}
+                    <span
+                      aria-hidden
+                      className="text-text-tertiary group-hover:text-text-primary group-hover:translate-x-0.5 transition-all duration-450 ease-spring"
+                    >
+                      →
+                    </span>
+                  </div>
                 </div>
-                {tab.done && (
-                  <span className="text-caption text-positive font-medium whitespace-nowrap">
-                    ✓ {tab.doneLabel}
-                  </span>
-                )}
-              </div>
-            </Card>
-          </Link>
-        ))}
-      </div>
+              </Card>
+            </Link>
+          ))}
+        </div>
 
-      <p className="mt-8 text-caption text-text-tertiary text-center px-4">
-        Staged documents stay until you finish intake. Page reloads will clear them.
-      </p>
+        <p className="mt-12 text-caption text-text-tertiary text-center px-4 max-w-md mx-auto leading-relaxed">
+          Staged documents stay until you finish intake. Page reloads will clear them.
+        </p>
+      </div>
     </div>
   );
 }

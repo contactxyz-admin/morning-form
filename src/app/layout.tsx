@@ -1,5 +1,26 @@
 import type { Metadata, Viewport } from 'next';
+import { Fraunces, Inter_Tight, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+  axes: ['opsz', 'SOFT'],
+  style: ['normal', 'italic'],
+});
+
+const interTight = Inter_Tight({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
+const mono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -20,17 +41,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      style={
-        {
-          '--font-inter': 'Inter, ui-sans-serif, system-ui, sans-serif',
-          '--font-jetbrains-mono': '"JetBrains Mono", "SFMono-Regular", ui-monospace, monospace',
-          '--font-instrument-serif': '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif',
-        } as React.CSSProperties
-      }
+      className={`${fraunces.variable} ${interTight.variable} ${mono.variable}`}
     >
-      <body className="font-sans antialiased min-h-screen">
-        {children}
-      </body>
+      <body className="font-sans antialiased min-h-screen">{children}</body>
     </html>
   );
 }

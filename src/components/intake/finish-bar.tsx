@@ -22,8 +22,6 @@ export function FinishBar() {
     setSubmitting(true);
     setError(null);
     try {
-      // Documents go to /api/intake/documents (multipart). Surface upload
-      // failures so we don't silently lose staged docs after reset().
       const failed: string[] = [];
       for (const doc of documents) {
         const fd = new FormData();
@@ -65,10 +63,10 @@ export function FinishBar() {
   }
 
   return (
-    <div className="fixed bottom-20 left-0 right-0 px-5 pointer-events-none">
-      <div className="mx-auto max-w-screen-sm pointer-events-auto">
+    <div className="fixed bottom-16 left-0 right-0 px-6 sm:px-8 pt-12 pb-4 pointer-events-none bg-gradient-to-t from-bg via-bg/95 to-transparent">
+      <div className="mx-auto max-w-2xl pointer-events-auto">
         {error && (
-          <p className="mb-2 text-caption text-alert text-center bg-surface rounded-card px-3 py-2 border border-alert/30">
+          <p className="mb-3 text-caption text-alert text-center bg-surface rounded-card-sm px-4 py-3 border border-alert/30">
             {error}
           </p>
         )}
@@ -79,8 +77,13 @@ export function FinishBar() {
           fullWidth
           size="lg"
         >
-          {submitting ? 'Submitting…' : 'Finish intake'}
+          {submitting ? 'Submitting…' : canFinish ? 'Finish intake →' : 'Finish intake'}
         </Button>
+        {!canFinish && (
+          <p className="mt-3 text-caption text-text-tertiary text-center">
+            Complete the Essentials tab to finish.
+          </p>
+        )}
       </div>
     </div>
   );
