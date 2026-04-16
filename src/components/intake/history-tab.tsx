@@ -19,7 +19,7 @@ export function HistoryTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <h2 className="text-h3 font-semibold mb-1">Your story, in your words</h2>
+        <h2 className="text-heading font-semibold mb-1">Your story, in your words</h2>
         <p className="text-body text-text-secondary mb-4">
           Free-text history. The more you tell us, the better the graph. We extract symptoms,
           conditions, medications, and the events that connect them.

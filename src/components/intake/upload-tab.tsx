@@ -31,7 +31,7 @@ export function UploadTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <h2 className="text-h3 font-semibold mb-1">Upload your records</h2>
+        <h2 className="text-heading font-semibold mb-1">Upload your records</h2>
         <p className="text-body text-text-secondary mb-4">
           Lab results, GP exports, hospital letters, anything in PDF or image form. We extract the
           health-relevant facts and link them back to the source.

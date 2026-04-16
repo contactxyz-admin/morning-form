@@ -36,7 +36,7 @@ export function EssentialsTab() {
   return (
     <div className="space-y-4">
       <Card>
-        <h2 className="text-h3 font-semibold mb-1">The essentials</h2>
+        <h2 className="text-heading font-semibold mb-1">The essentials</h2>
         <p className="text-body text-text-secondary mb-4">
           The minimum we need if you can&rsquo;t share documents or write a story. Goals plus at
           least one of meds, diagnoses, or allergies is enough to finish.

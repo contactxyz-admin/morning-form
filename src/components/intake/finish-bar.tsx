@@ -22,20 +22,25 @@ export function FinishBar() {
     setSubmitting(true);
     setError(null);
     try {
-      // Documents go to /api/intake/documents (multipart). The handler is U6;
-      // best-effort here so the UI works as soon as that lands. We don't fail
-      // the whole submit if docs upload fails — the user can re-upload later.
+      // Documents go to /api/intake/documents (multipart). Surface upload
+      // failures so we don't silently lose staged docs after reset().
+      const failed: string[] = [];
       for (const doc of documents) {
         const fd = new FormData();
         fd.append('file', doc.file);
         try {
-          await fetch('/api/intake/documents', { method: 'POST', body: fd });
+          const docRes = await fetch('/api/intake/documents', { method: 'POST', body: fd });
+          if (!docRes.ok) failed.push(doc.name);
         } catch {
-          // U6 not yet wired; ignore.
+          failed.push(doc.name);
         }
       }
+      if (failed.length > 0) {
+        throw new Error(
+          `Failed to upload ${failed.length} document${failed.length === 1 ? '' : 's'}: ${failed.join(', ')}`,
+        );
+      }
 
-      // Submit the text + essentials payload to the extraction endpoint (U5).
       const res = await fetch('/api/intake/submit', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -46,16 +51,15 @@ export function FinishBar() {
         }),
       });
 
-      if (!res.ok && res.status !== 404) {
-        // 404 means U5 isn't wired yet — treat as soft success so UI works
-        // before the backend lands.
+      if (!res.ok) {
         throw new Error(`Submit failed: ${res.status}`);
       }
 
-      reset();
       router.push('/home');
+      reset();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Submit failed');
+    } finally {
       setSubmitting(false);
     }
   }

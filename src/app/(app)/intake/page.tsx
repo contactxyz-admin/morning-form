@@ -41,7 +41,7 @@ export default function IntakeLandingPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
       >
-        <h1 className="text-h1 font-semibold mb-2">Bring your health data here</h1>
+        <h1 className="text-display font-semibold mb-2">Bring your health data here</h1>
         <p className="text-body text-text-secondary mb-8">
           Three ways in. Use any or all of them — we&rsquo;ll connect what you give us into a single
           graph of your health, with sources you can check.
@@ -58,7 +58,7 @@ export default function IntakeLandingPage() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <h2 className="text-h3 font-semibold mb-1">{tab.title}</h2>
+                  <h2 className="text-heading font-semibold mb-1">{tab.title}</h2>
                   <p className="text-body text-text-secondary">{tab.blurb}</p>
                 </div>
                 {tab.done && (
