@@ -43,8 +43,8 @@ function Card({
         ],
         clickable && [
           'cursor-pointer',
-          'hover:border-border-strong hover:shadow-card-hover hover:-translate-y-[1px]',
-          'active:translate-y-0 active:shadow-none active:duration-150',
+          'hover:border-border-strong hover:shadow-card-hover',
+          'active:shadow-none active:duration-150',
         ],
         className,
       )}
