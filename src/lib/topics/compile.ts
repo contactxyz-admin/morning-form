@@ -19,16 +19,17 @@
 import type { PrismaClient } from '@prisma/client';
 import {
   getGraphRevision,
-  getProvenanceForNode,
+  getProvenanceForNodes,
   getSubgraphForTopic,
 } from '@/lib/graph/queries';
-import type { GraphNodeRecord, ProvenanceItem, SubgraphResult } from '@/lib/graph/types';
+import type { SubgraphResult } from '@/lib/graph/types';
 import type { LLMClient } from '@/lib/llm/client';
 import {
   buildRemedialPrompt,
   lint,
   type LintContext,
   type LintResult,
+  type LintViolation,
 } from '@/lib/llm/linter';
 import { getTopicConfig } from './registry';
 import {
@@ -36,7 +37,6 @@ import {
   TopicCompiledOutputSchema,
   type TopicCompileResult,
   type TopicCompiledOutput,
-  type TopicConfig,
 } from './types';
 
 export interface CompileTopicArgs {
@@ -62,13 +62,19 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
       where: { userId_topicKey: { userId, topicKey } },
     });
     if (cached?.rendered && cached.graphRevisionHash === revision.hash) {
-      return {
-        topicKey,
-        status: 'full',
-        graphRevisionHash: revision.hash,
-        cached: true,
-        output: safeParseRendered(cached.rendered),
-      };
+      const parsed = safeParseRendered(cached.rendered);
+      if (parsed) {
+        return {
+          topicKey,
+          status: 'full',
+          graphRevisionHash: revision.hash,
+          cached: true,
+          output: parsed,
+        };
+      }
+      console.warn(
+        `[compileTopic] cached rendered JSON failed schema validation for ${topicKey}/${userId} — recompiling.`,
+      );
     }
   }
 
@@ -89,7 +95,10 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
     };
   }
 
-  const provenanceByNode = await loadProvenance(db, subgraph.nodes);
+  const provenanceByNode = await getProvenanceForNodes(
+    db,
+    subgraph.nodes.map((n) => n.id),
+  );
   const userPrompt = config.prompts.buildUserPrompt({ subgraph, provenanceByNode });
   const systemPrompt = config.prompts.systemPrompt;
 
@@ -102,7 +111,7 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
       schema: TopicCompiledOutputSchema,
       schemaDescription: `Three-tier topic page for ${config.topicKey} with per-section citations and embedded GP prep`,
     });
-    lintResult = lintTopicOutput(output, topicKey);
+    lintResult = runFullLint(output, topicKey, subgraph);
 
     if (!lintResult.passed) {
       const remedial = buildRemedialPrompt(lintResult);
@@ -112,7 +121,7 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
         schema: TopicCompiledOutputSchema,
         schemaDescription: `Three-tier topic page for ${config.topicKey} (remedial retry)`,
       });
-      lintResult = lintTopicOutput(output, topicKey);
+      lintResult = runFullLint(output, topicKey, subgraph);
       if (!lintResult.passed) {
         const err = new TopicCompileLintError(
           lintResult.violations.map((v) => ({
@@ -132,11 +141,12 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
     throw err;
   }
 
+  const renderedJson = JSON.stringify(output);
   await db.topicPage.upsert({
     where: { userId_topicKey: { userId, topicKey } },
     update: {
       status: 'full',
-      rendered: JSON.stringify(output),
+      rendered: renderedJson,
       graphRevisionHash: revision.hash,
       compileError: null,
     },
@@ -144,7 +154,7 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
       userId,
       topicKey,
       status: 'full',
-      rendered: JSON.stringify(output),
+      rendered: renderedJson,
       graphRevisionHash: revision.hash,
     },
   });
@@ -192,7 +202,7 @@ async function writeError(
     create: {
       userId,
       topicKey,
-      status: 'full',
+      status: 'error',
       graphRevisionHash,
       compileError: message,
     },
@@ -209,14 +219,51 @@ function safeParseRendered(rendered: string): TopicCompiledOutput | null {
   }
 }
 
-async function loadProvenance(
-  db: PrismaClient,
-  nodes: GraphNodeRecord[],
-): Promise<Map<string, ProvenanceItem[]>> {
-  const entries = await Promise.all(
-    nodes.map(async (n) => [n.id, await getProvenanceForNode(db, n.id)] as const),
-  );
-  return new Map(entries);
+/**
+ * Validate that every citation references a node that appears in the
+ * fetched subgraph. Hallucinated nodeIds are a load-bearing failure: the
+ * UI renders citations as links back to graph nodes, so a bad id becomes
+ * a broken link. Runs alongside the regulatory linter so both classes of
+ * violation share the same retry-with-remedial-prompt loop.
+ */
+function validateCitations(output: TopicCompiledOutput, subgraph: SubgraphResult): LintViolation[] {
+  const validIds = new Set(subgraph.nodes.map((n) => n.id));
+  const violations: LintViolation[] = [];
+  const sections = [
+    { name: 'understanding', citations: output.understanding.citations },
+    { name: 'whatYouCanDoNow', citations: output.whatYouCanDoNow.citations },
+    { name: 'discussWithClinician', citations: output.discussWithClinician.citations },
+  ];
+  for (const { name, citations } of sections) {
+    for (const citation of citations) {
+      if (!validIds.has(citation.nodeId)) {
+        violations.push({
+          rule: 'citation_nodeid',
+          message: `Citation in "${name}" references nodeId "${citation.nodeId}" which is not in the subgraph.`,
+          snippet: citation.nodeId,
+        });
+      }
+    }
+  }
+  return violations;
+}
+
+/**
+ * Regulatory lint + citation-id validation combined. Both classes of
+ * failure share one remedial retry cycle.
+ */
+function runFullLint(
+  output: TopicCompiledOutput,
+  topicKey: string,
+  subgraph: SubgraphResult,
+): LintResult {
+  const regulatory = lintTopicOutput(output, topicKey);
+  const citation = validateCitations(output, subgraph);
+  if (citation.length === 0) return regulatory;
+  return {
+    passed: regulatory.passed && citation.length === 0,
+    violations: [...regulatory.violations, ...citation],
+  };
 }
 
 /**
@@ -243,6 +290,3 @@ export function lintTopicOutput(output: TopicCompiledOutput, topicKey: string): 
   return lint(concatenated, context);
 }
 
-// Subgraph helper exported for tests that want to build a fake pipeline
-// without re-running the graph-query layer.
-export { type SubgraphResult } from '@/lib/graph/types';

@@ -41,7 +41,8 @@ export type LintRule =
   | 'clinical_directive'
   | 'diagnostic_claim'
   | 'tier_mismatch'
-  | 'missing_citation';
+  | 'missing_citation'
+  | 'citation_nodeid';
 
 export interface LintViolation {
   rule: LintRule;

@@ -13,7 +13,7 @@
  */
 import type { GraphNodeRecord } from '@/lib/graph/types';
 import type { TopicConfig } from './types';
-import { IRON_PROMPT, IRON_TOPIC_KEY_VALUE } from './prompts/iron';
+import { IRON_PROMPT, IRON_TOPIC_KEY } from './prompts/iron';
 import { SLEEP_RECOVERY_PROMPT, SLEEP_RECOVERY_TOPIC_KEY } from './prompts/sleep-recovery';
 import { ENERGY_FATIGUE_PROMPT, ENERGY_FATIGUE_TOPIC_KEY } from './prompts/energy-fatigue';
 
@@ -35,7 +35,7 @@ function hasIronEvidence(nodes: GraphNodeRecord[]): boolean {
 }
 
 const IRON_CONFIG: TopicConfig = {
-  topicKey: IRON_TOPIC_KEY_VALUE,
+  topicKey: IRON_TOPIC_KEY,
   displayName: 'Iron status',
   relevantNodeTypes: ['biomarker', 'symptom', 'condition', 'lifestyle', 'medication', 'intervention'],
   canonicalKeyPatterns: IRON_CANONICAL_KEY_PATTERNS,
@@ -103,7 +103,7 @@ export function listTopicKeys(): string[] {
 }
 
 export const TOPIC_KEYS = {
-  iron: IRON_TOPIC_KEY_VALUE,
+  iron: IRON_TOPIC_KEY,
   sleepRecovery: SLEEP_RECOVERY_TOPIC_KEY,
   energyFatigue: ENERGY_FATIGUE_TOPIC_KEY,
 } as const;

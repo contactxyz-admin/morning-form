@@ -57,7 +57,7 @@ function cleanIronOutput(overrides: Partial<TopicCompiledOutput> = {}, nodeId: s
 function setIronMock(handler: (prompt: string, system?: string) => TopicCompiledOutput) {
   const generateSpy = vi
     .spyOn(llm, 'generate')
-    .mockImplementation(async ({ prompt, system }: any) => handler(prompt, system));
+    .mockImplementation(async ({ prompt, system }) => handler(prompt, system));
   return generateSpy;
 }
 
@@ -122,6 +122,20 @@ describe('compileTopic — stub path', () => {
     await compileTopic({ db: prisma, llm, userId, topicKey: TOPIC_KEYS.iron });
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it('force=true still writes stub when there is no evidence', async () => {
+    const userId = await makeTestUser(prisma, 'compile-stub-force');
+    const spy = vi.spyOn(llm, 'generate');
+    const result = await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+      force: true,
+    });
+    expect(result.status).toBe('stub');
+    expect(spy).not.toHaveBeenCalled();
+  });
 });
 
 describe('compileTopic — full compile', () => {
@@ -158,6 +172,32 @@ describe('compileTopic — cache behavior', () => {
     expect(second.cached).toBe(true);
     expect(second.graphRevisionHash).toBe(first.graphRevisionHash);
     expect(secondSpy).not.toHaveBeenCalled();
+  });
+
+  it('falls through to recompile when cached rendered JSON is corrupt', async () => {
+    const userId = await makeTestUser(prisma, 'compile-cache-corrupt');
+    const { ferritinId } = await seedIronGraph(userId);
+
+    // Seed a TopicPage row with a CURRENT graphRevisionHash but bogus JSON.
+    // If we naively trust the hash match, we return null output. The fix:
+    // re-parse, and if it fails, fall through and recompile.
+    const { getGraphRevision } = await import('@/lib/graph/queries');
+    const currentHash = (await getGraphRevision(prisma, userId)).hash;
+    await prisma.topicPage.create({
+      data: {
+        userId,
+        topicKey: TOPIC_KEYS.iron,
+        status: 'full',
+        rendered: '{not valid json',
+        graphRevisionHash: currentHash,
+      },
+    });
+
+    const spy = setIronMock(() => cleanIronOutput({}, ferritinId));
+    const result = await compileTopic({ db: prisma, llm, userId, topicKey: TOPIC_KEYS.iron });
+    expect(result.cached).toBe(false);
+    expect(result.status).toBe('full');
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it('recompiles when the graph mutates (hash changes)', async () => {
@@ -204,7 +244,7 @@ describe('compileTopic — linter integration', () => {
     const { ferritinId } = await seedIronGraph(userId);
 
     let callNumber = 0;
-    const spy = vi.spyOn(llm, 'generate').mockImplementation(async ({ prompt }: any) => {
+    const spy = vi.spyOn(llm, 'generate').mockImplementation(async ({ prompt }) => {
       callNumber += 1;
       if (callNumber === 1) {
         // First call includes a clinical directive — will fail the linter.
@@ -246,16 +286,62 @@ describe('compileTopic — linter integration', () => {
       ),
     );
 
-    await expect(
-      compileTopic({ db: prisma, llm, userId, topicKey: TOPIC_KEYS.iron }),
-    ).rejects.toBeInstanceOf(TopicCompileLintError);
+    let caught: TopicCompileLintError | null = null;
+    try {
+      await compileTopic({ db: prisma, llm, userId, topicKey: TOPIC_KEYS.iron });
+    } catch (err) {
+      caught = err as TopicCompileLintError;
+    }
+    expect(caught).toBeInstanceOf(TopicCompileLintError);
+    expect(caught!.violations.length).toBeGreaterThan(0);
+    expect(caught!.violations.some((v) => v.rule === 'dosage_unit')).toBe(true);
 
     const row = await prisma.topicPage.findUnique({
       where: { userId_topicKey: { userId, topicKey: TOPIC_KEYS.iron } },
     });
     expect(row?.compileError).toMatch(/dosage_unit/);
-    // Important: linter rejection MUST NOT overwrite a previous rendered page.
+    // First-compile failure row exists for UI visibility but status is 'error', not 'full'.
+    expect(row?.status).toBe('error');
+    // Linter rejection MUST NOT write `rendered` — there is no previous render here.
     expect(row?.rendered).toBeNull();
+  });
+
+  it('rejects citations that reference nodeIds not in the subgraph', async () => {
+    const userId = await makeTestUser(prisma, 'compile-citation-hallucination');
+    await seedIronGraph(userId);
+
+    // Mock always returns a cleanly worded page but with an invented nodeId.
+    // This must fail the citation validator on both passes.
+    vi.spyOn(llm, 'generate').mockImplementation(async () =>
+      cleanIronOutput({}, 'node-does-not-exist'),
+    );
+
+    let caught: TopicCompileLintError | null = null;
+    try {
+      await compileTopic({ db: prisma, llm, userId, topicKey: TOPIC_KEYS.iron });
+    } catch (err) {
+      caught = err as TopicCompileLintError;
+    }
+    expect(caught).toBeInstanceOf(TopicCompileLintError);
+    expect(caught!.violations.some((v) => v.rule === 'citation_nodeid')).toBe(true);
+  });
+
+  it('retries and succeeds when the first attempt has a bad citation nodeId', async () => {
+    const userId = await makeTestUser(prisma, 'compile-citation-retry');
+    const { ferritinId } = await seedIronGraph(userId);
+
+    let callNumber = 0;
+    const spy = vi.spyOn(llm, 'generate').mockImplementation(async () => {
+      callNumber += 1;
+      if (callNumber === 1) {
+        return cleanIronOutput({}, 'node-does-not-exist');
+      }
+      return cleanIronOutput({}, ferritinId);
+    });
+
+    const result = await compileTopic({ db: prisma, llm, userId, topicKey: TOPIC_KEYS.iron });
+    expect(result.status).toBe('full');
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it('preserves previous rendered content when a later compile fails the linter', async () => {
@@ -296,6 +382,9 @@ describe('compileTopic — linter integration', () => {
     // Previous good render still there — UI falls back to it, not broken content.
     expect(row?.rendered).toContain('dark leafy greens');
     expect(row?.compileError).toMatch(/drug_name|dosage_unit|clinical_directive/);
+    // Hash must move forward so a retry (on a fresh graph) doesn't short-circuit
+    // the cache back to the stale-but-clean render.
+    expect(row?.graphRevisionHash).not.toBe(first.graphRevisionHash);
   });
 });
 

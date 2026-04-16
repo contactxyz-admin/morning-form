@@ -12,9 +12,10 @@
  * fixed to node ids — we inject those verbatim so the model doesn't
  * hallucinate ids.
  */
+import type { GraphNodeRecord } from '@/lib/graph/types';
 import type { BuildPromptArgs, TopicPromptModule } from '../types';
 
-const IRON_TOPIC_KEY = 'iron';
+export const IRON_TOPIC_KEY = 'iron';
 
 const SYSTEM_PROMPT = `You are writing a three-tier, UK-context iron-status page for a single user.
 
@@ -47,7 +48,7 @@ CITATIONS:
 - Citations live inside each section under "citations". Each entry has a nodeId (from the SUBGRAPH below) and an excerpt (copy a short, verbatim fragment from the supporting chunk — under 200 chars).
 - Prefer 2-4 citations per section over one catch-all citation.`;
 
-function lineForNode(node: { id: string; type: string; displayName: string; attributes: Record<string, unknown>; updatedAt: Date }): string {
+function lineForNode(node: GraphNodeRecord): string {
   const attrs = Object.entries(node.attributes)
     .filter(([, v]) => v !== null && v !== undefined)
     .slice(0, 6)
@@ -100,5 +101,3 @@ export const IRON_PROMPT: TopicPromptModule = {
   systemPrompt: SYSTEM_PROMPT,
   buildUserPrompt,
 };
-
-export const IRON_TOPIC_KEY_VALUE = IRON_TOPIC_KEY;

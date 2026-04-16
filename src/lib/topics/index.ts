@@ -1,13 +1,7 @@
-export { compileTopic, lintTopicOutput } from './compile';
+export { compileTopic } from './compile';
 export type { CompileTopicArgs } from './compile';
 export { getTopicConfig, listTopicConfigs, listTopicKeys, TOPIC_KEYS } from './registry';
-export {
-  TopicCompileLintError,
-  TopicCompiledOutputSchema,
-  SectionSchema,
-  CitationSchema,
-  GPPrepSchema,
-} from './types';
+export { TopicCompileLintError } from './types';
 export type {
   TopicCompileResult,
   TopicCompileStatus,

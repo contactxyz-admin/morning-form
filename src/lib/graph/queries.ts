@@ -160,31 +160,64 @@ export async function getProvenanceForNode(
   db: Db,
   nodeId: string,
 ): Promise<ProvenanceItem[]> {
+  const byNode = await getProvenanceForNodes(db, [nodeId]);
+  return byNode.get(nodeId) ?? [];
+}
+
+/**
+ * Batched provenance lookup. Returns a Map keyed by nodeId; nodes with no
+ * provenance get an empty array. Uses exactly two DB queries regardless of
+ * input size — the per-node version is a thin wrapper over this.
+ */
+export async function getProvenanceForNodes(
+  db: Db,
+  nodeIds: string[],
+): Promise<Map<string, ProvenanceItem[]>> {
+  const result = new Map<string, ProvenanceItem[]>();
+  for (const id of nodeIds) result.set(id, []);
+  if (nodeIds.length === 0) return result;
+
   const supportEdges = await db.graphEdge.findMany({
-    where: { type: 'SUPPORTS', toNodeId: nodeId, fromChunkId: { not: null } },
+    where: {
+      type: 'SUPPORTS',
+      toNodeId: { in: nodeIds },
+      fromChunkId: { not: null },
+    },
   });
-  if (supportEdges.length === 0) return [];
+  if (supportEdges.length === 0) return result;
 
-  const chunkIds = supportEdges
-    .map((e: any) => e.fromChunkId)
-    .filter((id: string | null): id is string => id !== null);
+  const chunkToNodes = new Map<string, string[]>();
+  for (const e of supportEdges) {
+    if (!e.fromChunkId) continue;
+    const arr = chunkToNodes.get(e.fromChunkId) ?? [];
+    arr.push(e.toNodeId);
+    chunkToNodes.set(e.fromChunkId, arr);
+  }
 
+  const chunkIds = Array.from(chunkToNodes.keys());
   const chunks = await db.sourceChunk.findMany({
     where: { id: { in: chunkIds } },
     include: { sourceDocument: true },
     orderBy: [{ sourceDocumentId: 'asc' }, { index: 'asc' }],
   });
 
-  return chunks.map((c: any) => ({
-    chunkId: c.id,
-    documentId: c.sourceDocumentId,
-    documentKind: c.sourceDocument.kind as SourceDocumentKind,
-    text: c.text,
-    offsetStart: c.offsetStart,
-    offsetEnd: c.offsetEnd,
-    pageNumber: c.pageNumber,
-    capturedAt: c.sourceDocument.capturedAt,
-  }));
+  for (const c of chunks) {
+    const item: ProvenanceItem = {
+      chunkId: c.id,
+      documentId: c.sourceDocumentId,
+      documentKind: c.sourceDocument.kind as SourceDocumentKind,
+      text: c.text,
+      offsetStart: c.offsetStart,
+      offsetEnd: c.offsetEnd,
+      pageNumber: c.pageNumber,
+      capturedAt: c.sourceDocument.capturedAt,
+    };
+    for (const nodeId of chunkToNodes.get(c.id) ?? []) {
+      result.get(nodeId)!.push(item);
+    }
+  }
+
+  return result;
 }
 
 export interface GraphRevision {
