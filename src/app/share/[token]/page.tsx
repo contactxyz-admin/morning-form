@@ -91,7 +91,7 @@ async function SharedTopic({
   const { output: redacted, hadRedactions } = redactTopicOutput(output, redactions);
 
   return (
-    <div className="px-5 pt-6 grain-page pb-24">
+    <div className="min-h-screen bg-record-grid px-5 pt-6 grain-page pb-24">
       <ShareBanner label={label} hadRedactions={hadRedactions} />
 
       <header className="mt-8 rise">
@@ -157,7 +157,7 @@ function SharedUnavailable({
       ? "This shared view couldn't be rendered from the latest data."
       : 'This share type is not available in this preview.';
   return (
-    <div className="px-5 pt-6 grain-page pb-24">
+    <div className="min-h-screen bg-record-grid px-5 pt-6 grain-page pb-24">
       <Card variant="paper" className="py-12 text-center">
         <SectionLabel>Shared view</SectionLabel>
         {label && (
