@@ -173,6 +173,23 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+
+        <div className="rule" />
+
+        {/* Privacy */}
+        <section>
+          <div className="flex items-baseline gap-2.5 mb-4">
+            <span className="font-mono text-label uppercase text-text-tertiary">06</span>
+            <span className="text-label uppercase text-text-tertiary">Privacy</span>
+          </div>
+          <Link
+            href="/settings/privacy"
+            className="inline-flex items-center gap-1.5 text-body text-accent font-medium group"
+          >
+            Sub-processors & your rights
+            <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+          </Link>
+        </section>
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import { ThreeTierSection } from '@/components/topic/three-tier-section';
 import { GPPrepCard } from '@/components/topic/gp-prep-card';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { ShareDialog } from '@/components/share/share-dialog';
+import { Disclaimer } from '@/components/ui/disclaimer';
 import type { TopicCompiledOutput } from '@/lib/topics/types';
 import type { GraphNodeWire } from '@/types/graph';
 
@@ -246,6 +247,10 @@ function TopicBody({
       </div>
 
       <GPPrepCard gpPrep={output.gpPrep} />
+
+      <footer className="mt-14 pt-8 border-t border-border">
+        <Disclaimer variant="topic" />
+      </footer>
     </>
   );
 }
