@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { getSessionSecret, env } from '@/lib/env';
 import { SESSION_COOKIE } from '@/lib/session-cookie';
@@ -8,9 +8,13 @@ import { SESSION_COOKIE } from '@/lib/session-cookie';
  * Signed session cookie backed by the Session table.
  *
  * Cookie value = raw session token (base64url(32B)). DB stores
- * `tokenHash = sha256(SESSION_SECRET + rawToken)` — rotating SESSION_SECRET
- * invalidates every live session. No demo-user fallback on ingestion paths:
- * unauthenticated callers get `null` from `getCurrentUser()`.
+ * `tokenHash = HMAC-SHA256(SESSION_SECRET, "session:" + rawToken)` —
+ * rotating SESSION_SECRET invalidates every live session. HMAC (not
+ * `sha256(secret + raw)`) closes length-extension attacks; the "session:"
+ * domain-separation prefix keeps session hashes from colliding with share,
+ * magic-link, or IP-bucket hashes under the same HMAC key.
+ * No demo-user fallback on ingestion paths: unauthenticated callers get
+ * `null` from `getCurrentUser()`.
  */
 
 export { SESSION_COOKIE };
@@ -23,7 +27,7 @@ export interface CreateSessionMeta {
 }
 
 export function hashSessionToken(raw: string): string {
-  return createHash('sha256').update(getSessionSecret()).update(raw).digest('hex');
+  return createHmac('sha256', getSessionSecret()).update('session:').update(raw).digest('hex');
 }
 
 /**

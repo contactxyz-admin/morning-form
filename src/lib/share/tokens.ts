@@ -1,13 +1,21 @@
 /**
  * Shareable-view tokens (U20 / DPP).
  *
- * Model: opaque raw tokens + salted sha256(tokenHash) stored in SharedView.
+ * Model: opaque raw tokens + HMAC-SHA256(tokenHash) stored in SharedView.
  * Same shape as Session cookies — secret rotation invalidates every live
  * share, and the DB is the source of truth for revocation and expiry.
  *
  * Token grammar:
  *   raw = base64url(24 random bytes)          // 32 chars, URL-safe
- *   hash = sha256(SESSION_SECRET + "share:" + raw)
+ *   hash = HMAC-SHA256(SESSION_SECRET, "share:" + raw)
+ *
+ * HMAC (not plain sha256) because a `createHash().update(secret).update(raw)`
+ * construction is vulnerable to length-extension: an attacker who learns a
+ * single (raw, hash) pair could forge new valid hashes for extended inputs
+ * without knowing the secret. HMAC structurally closes that door. The
+ * "share:" domain-separation prefix keeps share hashes from ever colliding
+ * with session, magic-link, or IP-bucket hashes even though they share the
+ * same HMAC key.
  *
  * Scope describes what the viewer sees:
  *   { kind: "topic", topicKey: string }
@@ -18,7 +26,7 @@
  * both the compiled topic content and the subgraph served to /share.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { getSessionSecret } from '@/lib/env';
 
@@ -32,7 +40,7 @@ export interface ShareRedactions {
 }
 
 export function hashShareToken(raw: string): string {
-  return createHash('sha256').update(getSessionSecret()).update('share:').update(raw).digest('hex');
+  return createHmac('sha256', getSessionSecret()).update('share:').update(raw).digest('hex');
 }
 
 export function generateRawShareToken(): string {

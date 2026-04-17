@@ -2,9 +2,13 @@
  * Magic-link token lifecycle: issue, verify, consume.
  *
  * Raw tokens are base64url(randomBytes(32)) and are only ever shown to the
- * user (in the emailed URL). The DB stores `tokenHash = sha256(secret + raw)`
- * so a DB leak does not yield usable credentials, and rotating SESSION_SECRET
- * invalidates every outstanding token.
+ * user (in the emailed URL). The DB stores
+ * `tokenHash = HMAC-SHA256(SESSION_SECRET, "magic-link:" + raw)` so a DB
+ * leak does not yield usable credentials, and rotating SESSION_SECRET
+ * invalidates every outstanding token. HMAC (not `sha256(secret + raw)`)
+ * closes length-extension attacks; the "magic-link:" domain-separation
+ * prefix keeps OTP hashes from colliding with session, share, or IP-bucket
+ * hashes under the same HMAC key.
  *
  * Rate-limiting is DB-only (no in-process cache): per-email 15-minute and
  * 24-hour windows, plus a per-IP 1-hour window. Windows are fixed buckets
@@ -12,7 +16,7 @@
  * onto a single row via upsert.
  */
 
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes, createHmac } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { getSessionSecret } from '@/lib/env';
 
@@ -47,7 +51,7 @@ export type VerifyResult =
   | { ok: false; reason: VerifyReason };
 
 export function hashToken(raw: string): string {
-  return createHash('sha256').update(getSessionSecret()).update(raw).digest('hex');
+  return createHmac('sha256', getSessionSecret()).update('magic-link:').update(raw).digest('hex');
 }
 
 function bucketStart(now: number, windowMs: number): Date {

@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createHash } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { getTestPrisma, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 
@@ -37,7 +36,7 @@ vi.mock('@/lib/env', () => ({
   getSessionSecret: () => 'test-session-secret-at-least-thirty-two-characters-long',
 }));
 
-import { issueMagicLink } from '@/lib/auth/magic-link';
+import { hashToken, issueMagicLink } from '@/lib/auth/magic-link';
 import { SESSION_COOKIE } from '@/lib/session';
 import { GET } from './route';
 
@@ -99,13 +98,10 @@ describe('GET /api/auth/verify', () => {
     const addr = `verify-expired-${Date.now()}@example.com`;
     const issued = await issueMagicLink(prisma, { email: addr, requestIpHash: 'ip-h' });
     if (issued.outcome !== 'issued') throw new Error('unreachable');
-    // Push expiresAt into the past.
-    const tokenHash = createHash('sha256')
-      .update('test-session-secret-at-least-thirty-two-characters-long')
-      .update(issued.rawToken)
-      .digest('hex');
+    // Push expiresAt into the past. Use the production hashToken helper so
+    // this test stays correct if the hash construction is ever rotated again.
     await prisma.magicLinkToken.updateMany({
-      where: { tokenHash },
+      where: { tokenHash: hashToken(issued.rawToken) },
       data: { expiresAt: new Date(Date.now() - 60_000) },
     });
     const res = await GET(makeGet(issued.rawToken));

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi, beforeEach } from 'vitest';
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { getTestPrisma, makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 
@@ -131,9 +131,11 @@ describe('getCurrentUser', () => {
     const userId = await makeTestUser(prisma, 'session-rotate');
     const { rawToken } = await createSession(userId);
     // Simulate rotation by manually hashing the same raw token with a different
-    // secret — the fresh hash should not match anything in the DB.
-    const fakeRotatedHash = createHash('sha256')
-      .update('a-completely-different-secret-used-after-rotation-0000')
+    // secret — the fresh hash should not match anything in the DB. Must mirror
+    // the production construction (HMAC-SHA256 + "session:" prefix) so the
+    // negative assertion is a meaningful check, not a trivial pass.
+    const fakeRotatedHash = createHmac('sha256', 'a-completely-different-secret-used-after-rotation-0000')
+      .update('session:')
       .update(rawToken)
       .digest('hex');
     const match = await prisma.session.findUnique({ where: { tokenHash: fakeRotatedHash } });
