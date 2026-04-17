@@ -31,6 +31,12 @@ export default function LandingPage() {
           <Link href="/onboarding">
             <Button size="lg">Begin assessment →</Button>
           </Link>
+          <Link
+            href="/sign-in"
+            className="text-caption text-text-secondary hover:text-text-primary transition-colors duration-300 ease-spring underline-offset-4 hover:underline"
+          >
+            Already signed up? Sign in →
+          </Link>
           <p className="text-caption text-text-tertiary">8 minutes · free · no commitment</p>
         </div>
       </section>
