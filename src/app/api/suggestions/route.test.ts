@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ensureTodaysSuggestionsMock = vi.fn();
+const currentUserMock = vi.fn();
 
-vi.mock('@/lib/demo-user', () => ({
-  getOrCreateDemoUser: vi.fn().mockResolvedValue({ id: 'demo-user-1' }),
+vi.mock('@/lib/session', () => ({
+  getCurrentUser: () => currentUserMock(),
 }));
 
 vi.mock('@/lib/suggestions/engine', () => ({
@@ -14,6 +15,8 @@ import { GET } from './route';
 
 beforeEach(() => {
   ensureTodaysSuggestionsMock.mockReset();
+  currentUserMock.mockReset();
+  currentUserMock.mockResolvedValue({ id: 'demo-user-1' });
 });
 
 describe('GET /api/suggestions', () => {
@@ -54,5 +57,12 @@ describe('GET /api/suggestions', () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe('Failed to load suggestions');
+  });
+
+  it('returns 401 when the caller is unauthenticated', async () => {
+    currentUserMock.mockResolvedValue(null);
+    const res = await GET();
+    expect(res.status).toBe(401);
+    expect(ensureTodaysSuggestionsMock).not.toHaveBeenCalled();
   });
 });

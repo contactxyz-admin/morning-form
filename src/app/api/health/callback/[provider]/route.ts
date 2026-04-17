@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { HealthProvider } from '@/types';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
-import { getOrCreateDemoUser } from '@/lib/demo-user';
+import { getCurrentUser } from '@/lib/session';
 import { WhoopClient } from '@/lib/health/whoop';
 import { OuraClient } from '@/lib/health/oura';
 import { FitbitClient } from '@/lib/health/fitbit';
@@ -35,8 +35,12 @@ export async function GET(request: Request, { params }: RouteContext) {
     return redirectToIntegrations('error', provider, error);
   }
 
+  const user = await getCurrentUser();
+  if (!user) {
+    return redirectToIntegrations('error', provider, 'not_authenticated');
+  }
+
   try {
-    const user = await getOrCreateDemoUser();
     const callbackUrl = `${env.NEXT_PUBLIC_APP_URL}/api/health/callback/${provider}`;
     const syncService = new HealthSyncService();
 
@@ -119,7 +123,6 @@ export async function GET(request: Request, { params }: RouteContext) {
     return redirectToIntegrations('connected', provider);
   } catch (caughtError) {
     console.error('[API] Health callback error:', caughtError);
-    const user = await getOrCreateDemoUser();
     await prisma.healthConnection.upsert({
       where: { userId_provider: { userId: user.id, provider } },
       update: {

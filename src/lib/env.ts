@@ -27,9 +27,50 @@ const optional = {
   // responses in dev/test so callers don't need to stub the SDK.
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
   MOCK_LLM: process.env.MOCK_LLM ?? '',
+  // Auth (U0a + U0b). SESSION_SECRET hashes cookie tokens and magic-link
+  // tokens — rotating it invalidates every live session + unconsumed link.
+  // RESEND_API_KEY sends magic-link emails (EU region, UK-GDPR posture).
+  // RESEND_FROM is the verified from-address once DNS lands; falls back to
+  // onboarding@resend.dev in dev.
+  SESSION_SECRET: process.env.SESSION_SECRET ?? '',
+  RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
+  RESEND_FROM: process.env.RESEND_FROM ?? 'onboarding@resend.dev',
 };
 
 export const env = {
   ...required,
   ...optional,
 };
+
+/**
+ * Fail-closed startup check for production-only required secrets.
+ *
+ * Called from server-side entry points (middleware, route handlers) on first
+ * import. In dev/test it no-ops — the magic-link + session code paths fall
+ * back to deterministic dev-only behaviour so the flow stays exercisable.
+ *
+ * Rotating SESSION_SECRET in prod invalidates every outstanding session and
+ * unconsumed magic-link token — that's the intended kill-switch.
+ */
+export function assertAuthEnv(): void {
+  if (env.NODE_ENV !== 'production') return;
+  const missing: string[] = [];
+  if (!env.SESSION_SECRET || env.SESSION_SECRET.length < 32) missing.push('SESSION_SECRET (>=32 chars)');
+  if (!env.RESEND_API_KEY) missing.push('RESEND_API_KEY');
+  if (missing.length) {
+    throw new Error(`[env] Missing required auth secrets in production: ${missing.join(', ')}`);
+  }
+}
+
+/**
+ * Dev-only fallback secret. Deterministic across restarts so tokens issued
+ * in one dev run still verify in the next. Never used in production — the
+ * `assertAuthEnv()` guard above refuses boot if SESSION_SECRET is unset.
+ */
+export function getSessionSecret(): string {
+  if (env.SESSION_SECRET) return env.SESSION_SECRET;
+  if (env.NODE_ENV === 'production') {
+    throw new Error('[env] SESSION_SECRET is required in production');
+  }
+  return 'dev-only-session-secret-not-for-prod-use-0123456789abcdef';
+}

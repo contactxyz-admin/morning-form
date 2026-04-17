@@ -1,56 +1,75 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+type Status =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'sent' }
+  | { kind: 'error'; message: string };
+
 export default function SignInPage() {
   const [email, setEmail] = useState('demo@morningform.com');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      setError('Enter your email.');
+      setStatus({ kind: 'error', message: 'Enter your email.' });
       return;
     }
 
-    setError(null);
-    setLoading(true);
+    setStatus({ kind: 'loading' });
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/request-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
+      if (res.status === 429) {
+        setStatus({
+          kind: 'error',
+          message: data.error || 'Too many requests. Try again in a few minutes.',
+        });
+        return;
+      }
       if (!res.ok) {
-        setError(data.error || 'Sign in failed.');
-        setLoading(false);
+        setStatus({ kind: 'error', message: data.error || 'Sign in failed.' });
         return;
       }
 
-      router.push(data.redirectTo || '/home');
-      router.refresh();
-      setLoading(false);
+      // Dev demo bypass: server returns the raw verify URL so we can jump
+      // straight into the /api/auth/verify flow without a mailbox roundtrip.
+      if (typeof data.verifyUrl === 'string') {
+        window.location.href = data.verifyUrl;
+        return;
+      }
+
+      setStatus({ kind: 'sent' });
     } catch (err) {
       console.error(err);
-      setError('Sign in failed. Try again.');
-      setLoading(false);
+      setStatus({ kind: 'error', message: 'Sign in failed. Try again.' });
     }
   };
+
+  const loading = status.kind === 'loading';
+  const sent = status.kind === 'sent';
+  const errorMessage = status.kind === 'error' ? status.message : undefined;
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
       <header className="px-5 sm:px-8 pt-8">
-        <Link href="/" className="text-label uppercase text-text-tertiary hover:text-text-primary transition-colors">
+        <Link
+          href="/"
+          className="text-label uppercase text-text-tertiary hover:text-text-primary transition-colors"
+        >
           Morning Form
         </Link>
       </header>
@@ -61,43 +80,64 @@ export default function SignInPage() {
           <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.035em] leading-[1.05]">
             Welcome <span className="italic font-light">back</span>.
           </h1>
-          <p className="mt-5 text-body-lg text-text-secondary">
-            Sign in with your email to return to your protocol.
-          </p>
 
-          <p className="mt-5 text-caption text-text-tertiary border border-border-strong rounded-card-sm px-4 py-3 bg-surface-warm/60">
-            Dev sign-in · data writes are still scoped to the seeded demo account until real auth
-            ships.
-          </p>
+          {sent ? (
+            <>
+              <p className="mt-5 text-body-lg text-text-secondary">
+                We sent a sign-in link to <span className="text-text-primary">{email}</span>. Open
+                it on this device to continue.
+              </p>
+              <p className="mt-5 text-caption text-text-tertiary">
+                Links expire after 15 minutes. You can request another one if yours expires.
+              </p>
+              <div className="mt-8">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  fullWidth
+                  size="lg"
+                  onClick={() => setStatus({ kind: 'idle' })}
+                >
+                  Use a different email
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mt-5 text-body-lg text-text-secondary">
+                Enter your email and we&rsquo;ll send a one-time sign-in link.
+              </p>
 
-          <div className="mt-10">
-            <Input
-              label="Email"
-              type="email"
-              autoComplete="email"
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              error={error || undefined}
-              disabled={loading}
-            />
-          </div>
+              <div className="mt-10">
+                <Input
+                  label="Email"
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  error={errorMessage}
+                  disabled={loading}
+                />
+              </div>
 
-          <div className="mt-8">
-            <Button type="submit" fullWidth size="lg" loading={loading} disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign in →'}
-            </Button>
-          </div>
+              <div className="mt-8">
+                <Button type="submit" fullWidth size="lg" loading={loading} disabled={loading}>
+                  {loading ? 'Sending link…' : 'Send sign-in link →'}
+                </Button>
+              </div>
 
-          <p className="mt-8 text-caption text-text-tertiary text-center">
-            New here?{' '}
-            <Link
-              href="/onboarding"
-              className="text-text-secondary hover:text-text-primary transition-colors underline-offset-4 hover:underline"
-            >
-              Begin assessment
-            </Link>
-          </p>
+              <p className="mt-8 text-caption text-text-tertiary text-center">
+                New here?{' '}
+                <Link
+                  href="/onboarding"
+                  className="text-text-secondary hover:text-text-primary transition-colors underline-offset-4 hover:underline"
+                >
+                  Begin assessment
+                </Link>
+              </p>
+            </>
+          )}
         </form>
       </div>
     </div>

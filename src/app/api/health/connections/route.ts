@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { HealthProvider } from '@/types';
 import { prisma } from '@/lib/db';
-import { getOrCreateDemoUser } from '@/lib/demo-user';
+import { getCurrentUser } from '@/lib/session';
 
 export async function GET() {
   try {
-    const user = await getOrCreateDemoUser();
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
     const connections = await prisma.healthConnection.findMany({
       where: { userId: user.id },
       orderBy: { provider: 'asc' },
@@ -28,8 +31,11 @@ export async function GET() {
 
 export async function DELETE(request: Request) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
     const { provider } = (await request.json()) as { provider: HealthProvider };
-    const user = await getOrCreateDemoUser();
 
     await prisma.healthConnection.upsert({
       where: { userId_provider: { userId: user.id, provider } },

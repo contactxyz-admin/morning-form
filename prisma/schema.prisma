@@ -28,6 +28,59 @@ model User {
   graphEdges       GraphEdge[]
   topicPages       TopicPage[]
   graphMigratedAt  DateTime?
+
+  magicLinkTokens  MagicLinkToken[]
+  sessions         Session[]
+}
+
+// ---------------------------------------------------------------------------
+// Auth (U0a + U0b — see docs/plans/2026-04-15-004-feat-health-graph-pivot-plan.md)
+// MagicLinkToken issues the one-time code emailed to the user.
+// MagicLinkRateLimit throttles request-link per email and per IP.
+// Session backs the signed mf_session cookie.
+// ---------------------------------------------------------------------------
+
+model MagicLinkToken {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  consumedAt  DateTime?
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model MagicLinkRateLimit {
+  id        String   @id @default(cuid())
+  // `subjectKind` = 'email' | 'ip'; `subject` = lowercased email or ip-hash.
+  subjectKind String
+  subject   String
+  window    DateTime
+  count     Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subjectKind, subject, window])
+  @@index([subjectKind, subject])
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  lastSeenAt  DateTime  @default(now())
+  userAgent   String?
+  ipHash      String?
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
 }
 
 // ---------------------------------------------------------------------------

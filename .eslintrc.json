@@ -1,0 +1,22 @@
+{
+  "extends": ["next/core-web-vitals", "next/typescript"],
+  "overrides": [
+    {
+      "files": ["src/app/api/**/*.{ts,tsx,js,jsx}"],
+      "excludedFiles": ["**/*.test.{ts,tsx,js,jsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@/lib/demo-user",
+                "message": "API route handlers must authenticate via getCurrentUser() from @/lib/session. The demo user helper is for dev seed + marketing previews only."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

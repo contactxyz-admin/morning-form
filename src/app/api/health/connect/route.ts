@@ -23,6 +23,9 @@ export async function POST(request: Request) {
     }
 
     const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
     const requestUrl = new URL(request.url);
     const origin = env.NEXT_PUBLIC_APP_URL || requestUrl.origin;
     const callbackUrl = `${origin}/api/health/callback/${provider}`;
