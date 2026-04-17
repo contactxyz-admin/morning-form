@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { MeshGradient } from '@/components/ui/mesh-gradient';
 import { SectionLabel } from '@/components/ui/section-label';
 import type { ShareScope } from '@/lib/share/tokens';
 
@@ -27,7 +28,29 @@ type DialogState =
   | { status: 'idle' }
   | { status: 'submitting' }
   | { status: 'error'; message: string }
-  | { status: 'created'; url: string; id: string };
+  | { status: 'created'; url: string; id: string; expiresAt: string | null };
+
+function formatExpiry(expiresAt: string | null): string {
+  if (!expiresAt) return 'Never expires unless you revoke it.';
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) return 'Never expires unless you revoke it.';
+  // Explicit calendar date beats "in 7 days" — the viewer, and the owner
+  // revisiting their own Shared links later, needs the absolute anchor.
+  const formatted = date.toLocaleDateString(undefined, {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  return `Expires ${formatted}`;
+}
+
+function meshSeed(scope: ShareScope, id: string): string {
+  // Prefer topic-key-derived seed so the same topic always gets the same
+  // gradient — gives the viewer a stable visual for repeat shares of the
+  // same record. Fall back to the share id for node scope.
+  if (scope.kind === 'topic') return `topic:${scope.topicKey}`;
+  return `share:${id}`;
+}
 
 export function ShareDialog({ open, onClose, scope, defaultLabel }: Props) {
   const [label, setLabel] = useState(defaultLabel ?? '');
@@ -71,8 +94,12 @@ export function ShareDialog({ open, onClose, scope, defaultLabel }: Props) {
         });
         return;
       }
-      const { url, id } = (await res.json()) as { url: string; id: string };
-      setState({ status: 'created', url, id });
+      const { url, id, expiresAt } = (await res.json()) as {
+        url: string;
+        id: string;
+        expiresAt: string | null;
+      };
+      setState({ status: 'created', url, id, expiresAt });
     } catch (err) {
       setState({
         status: 'error',
@@ -161,7 +188,7 @@ export function ShareDialog({ open, onClose, scope, defaultLabel }: Props) {
                       loading={state.status === 'submitting'}
                       disabled={state.status === 'submitting'}
                     >
-                      {state.status === 'submitting' ? 'Creating…' : 'Create link'}
+                      {state.status === 'submitting' ? 'Minting…' : 'Mint link'}
                     </Button>
                   </div>
                 </form>
@@ -169,7 +196,16 @@ export function ShareDialog({ open, onClose, scope, defaultLabel }: Props) {
 
               {state.status === 'created' && (
                 <div className="mt-5">
-                  <label className="block">
+                  <MeshGradient
+                    seed={meshSeed(scope, state.id)}
+                    variant={scope.kind}
+                    className="h-24 w-full rounded-card border border-border-subtle"
+                  />
+                  <p className="mt-2 text-caption text-text-tertiary">
+                    {formatExpiry(state.expiresAt)}
+                  </p>
+
+                  <label className="mt-5 block">
                     <span className="text-caption text-text-secondary">
                       Your share link
                     </span>
@@ -193,7 +229,7 @@ export function ShareDialog({ open, onClose, scope, defaultLabel }: Props) {
                   </label>
                   <p className="mt-3 text-caption text-text-tertiary leading-relaxed">
                     We won&apos;t show this link again. Save it somewhere, or
-                    revoke + mint a new one later.
+                    revoke and mint a new one later.
                   </p>
                   <div className="mt-5 flex gap-2 justify-end">
                     <Button type="button" variant="secondary" onClick={onClose}>
