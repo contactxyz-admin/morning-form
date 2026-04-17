@@ -10,9 +10,9 @@ describe('resolveActiveTab', () => {
     ['/record', 'record'],
     ['/record/source/abc123', 'record'],
     ['/topics/iron', 'record'],
-    ['/graph', 'record'],
+    ['/graph', 'graph'],
+    ['/graph/demo-id', 'graph'],
     ['/protocol', 'protocol'],
-    ['/insights', 'insights'],
     ['/you', 'you'],
     ['/guide', 'you'],
     ['/settings', 'you'],
@@ -24,6 +24,12 @@ describe('resolveActiveTab', () => {
   it('falls back to home for unmapped paths', () => {
     expect(resolveActiveTab('/unknown')).toBe('home');
     expect(resolveActiveTab('/')).toBe('home');
+  });
+
+  it('falls back to home for /insights (intentionally unmapped)', () => {
+    // /insights still exists as a route but is no longer a nav tab;
+    // surfaces there should show no active tab (resolves to default 'home').
+    expect(resolveActiveTab('/insights')).toBe('home');
   });
 
   it('prefers the longer prefix when both match', () => {
