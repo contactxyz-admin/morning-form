@@ -1,8 +1,9 @@
 ---
 title: "feat: Navigable Health Record — seam-inspired record surface + Karpathy framing + prototype sharing"
 type: feat
-status: active
+status: completed
 created: 2026-04-17
+completed: 2026-04-17
 origin: docs/brainstorms/2026-04-15-health-graph-pivot-requirements.md
 sibling: docs/plans/2026-04-15-004-feat-health-graph-pivot-plan.md
 ---
