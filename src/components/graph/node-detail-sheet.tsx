@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
 import { cn } from '@/lib/utils';
 import type { GraphNodeWire, NodeType } from '@/types/graph';
 import type { SourceDocumentKind } from '@/lib/graph/types';
+import type { TopicReference } from '@/lib/topics/node-topics';
 
 interface ProvenanceItemWire {
   chunkId: string;
@@ -171,6 +173,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
               <Attributes node={node} />
               <Provenance state={state} />
+              {node && <AppearsIn nodeId={node.id} />}
             </div>
           </motion.div>
         </>
@@ -252,6 +255,66 @@ function Provenance({ state }: { state: LoadState }) {
           </ul>
         )}
       </div>
+    </section>
+  );
+}
+
+type TopicsState =
+  | { status: 'loading' }
+  | { status: 'ready'; topics: TopicReference[] }
+  | { status: 'error' };
+
+function AppearsIn({ nodeId }: { nodeId: string }) {
+  const [state, setState] = useState<TopicsState>({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: 'loading' });
+    (async () => {
+      try {
+        const res = await fetch(`/api/graph/nodes/${encodeURIComponent(nodeId)}/topics`, {
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          if (!cancelled) setState({ status: 'error' });
+          return;
+        }
+        const json = (await res.json()) as { topics: TopicReference[] };
+        if (!cancelled) setState({ status: 'ready', topics: json.topics });
+      } catch {
+        if (!cancelled) setState({ status: 'error' });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [nodeId]);
+
+  if (state.status === 'loading') return null;
+  if (state.status === 'error') return null;
+  if (state.topics.length === 0) return null;
+
+  return (
+    <section>
+      <SectionLabel>Appears in</SectionLabel>
+      <ul className="mt-3 flex flex-wrap gap-2">
+        {state.topics.map((t) => (
+          <li key={t.topicKey}>
+            <Link
+              href={`/topics/${encodeURIComponent(t.topicKey)}`}
+              className={cn(
+                'inline-flex items-center rounded-full border border-border bg-surface px-3 py-1',
+                'text-caption text-text-secondary',
+                'hover:border-border-hover hover:text-text-primary',
+                'transition-colors duration-300 ease-spring',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-button-focus',
+              )}
+            >
+              {t.displayName}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

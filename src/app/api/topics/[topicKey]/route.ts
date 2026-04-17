@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/session';
 import { LLMClient } from '@/lib/llm/client';
 import { compileTopic } from '@/lib/topics/compile';
 import { getTopicConfig } from '@/lib/topics/registry';
-import { TopicCompileLintError } from '@/lib/topics/types';
+import { TopicCompileLintError, type TopicCompiledOutput } from '@/lib/topics/types';
 import {
   LLMAuthError,
   LLMRateLimitError,
@@ -54,7 +54,13 @@ export async function GET(
       force,
     });
 
-    return NextResponse.json({ ...result, displayName: config.displayName });
+    const chunkToSource = await resolveChunkToSource(user.id, result.output);
+
+    return NextResponse.json({
+      ...result,
+      displayName: config.displayName,
+      chunkToSource,
+    });
   } catch (err) {
     if (err instanceof TopicCompileLintError) {
       return NextResponse.json(
@@ -78,4 +84,40 @@ export async function GET(
     console.error('[API] topic compile error:', err);
     return NextResponse.json({ error: 'Failed to compile topic.' }, { status: 500 });
   }
+}
+
+/**
+ * Collect every non-null chunkId across the compiled citations and resolve
+ * each to its SourceDocument id, scoped to the caller. Powers the "View
+ * source" link next to each citation in `<ThreeTierSection />`. Skipped
+ * when compile produced no output (stub/error), returning an empty map.
+ */
+async function resolveChunkToSource(
+  userId: string,
+  output: TopicCompiledOutput | null,
+): Promise<Record<string, string>> {
+  if (!output) return {};
+  const chunkIds = new Set<string>();
+  for (const section of [
+    output.understanding,
+    output.whatYouCanDoNow,
+    output.discussWithClinician,
+  ]) {
+    for (const citation of section.citations) {
+      if (citation.chunkId) chunkIds.add(citation.chunkId);
+    }
+  }
+  if (chunkIds.size === 0) return {};
+
+  const chunks = await prisma.sourceChunk.findMany({
+    where: {
+      id: { in: Array.from(chunkIds) },
+      sourceDocument: { userId },
+    },
+    select: { id: true, sourceDocumentId: true },
+  });
+
+  const map: Record<string, string> = {};
+  for (const c of chunks) map[c.id] = c.sourceDocumentId;
+  return map;
 }

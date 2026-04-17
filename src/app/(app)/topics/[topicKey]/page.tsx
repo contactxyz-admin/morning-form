@@ -22,6 +22,7 @@ interface TopicResponse {
   cached: boolean;
   output: TopicCompiledOutput | null;
   errorMessage?: string;
+  chunkToSource?: Record<string, string>;
 }
 
 type LoadState =
@@ -228,6 +229,7 @@ function TopicBody({
           accent="teal"
           section={output.understanding}
           onCitationClick={onCitationClick}
+          chunkToSource={data.chunkToSource}
         />
         <ThreeTierSection
           ordinal="02"
@@ -235,6 +237,7 @@ function TopicBody({
           accent="sage"
           section={output.whatYouCanDoNow}
           onCitationClick={onCitationClick}
+          chunkToSource={data.chunkToSource}
         />
         <ThreeTierSection
           ordinal="03"
@@ -242,6 +245,7 @@ function TopicBody({
           accent="amber"
           section={output.discussWithClinician}
           onCitationClick={onCitationClick}
+          chunkToSource={data.chunkToSource}
         />
       </div>
 
