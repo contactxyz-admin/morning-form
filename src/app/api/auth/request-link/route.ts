@@ -21,8 +21,11 @@ const DEMO_EMAIL = 'demo@morningform.com';
  * (429) — both independent of which email was supplied.
  *
  * Dev-only demo bypass: `demo@morningform.com` returns the raw token in the
- * JSON body when NODE_ENV !== 'production', preserving the existing dev
- * sign-in shortcut referenced by the login-skip-assessment plan.
+ * JSON body ONLY when `ALLOW_DEMO_BYPASS=1` is explicitly set. NODE_ENV is
+ * not a safe guard — Vercel preview builds run with NODE_ENV='production'
+ * (good) but custom runtimes and CI can set it to anything. Requiring an
+ * explicit opt-in env var makes the attack surface auditable: grep for
+ * ALLOW_DEMO_BYPASS across every deployment config and confirm it's unset.
  */
 export async function POST(request: Request) {
   const json = await request.json().catch(() => null);
@@ -52,8 +55,9 @@ export async function POST(request: Request) {
   }
 
   // Dev demo bypass — return the raw token so automated flows can verify
-  // without reaching into a mailbox. Production always omits the token.
-  if (env.NODE_ENV !== 'production' && email === DEMO_EMAIL) {
+  // without reaching into a mailbox. Gated on an explicit env flag, NOT on
+  // NODE_ENV, so Vercel previews and misconfigured runtimes never leak it.
+  if (env.ALLOW_DEMO_BYPASS === '1' && email === DEMO_EMAIL) {
     return NextResponse.json({ ok: true, devRawToken: result.rawToken, verifyUrl });
   }
 

@@ -10,15 +10,20 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
-vi.mock('@/lib/env', () => ({
-  env: {
+const { envMock } = vi.hoisted(() => ({
+  envMock: {
     NODE_ENV: 'test',
     SESSION_SECRET: 'test-session-secret-at-least-thirty-two-characters-long',
     RESEND_API_KEY: '',
     RESEND_FROM: 'onboarding@resend.dev',
     DATABASE_URL: '',
     NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+    ALLOW_DEMO_BYPASS: '1',
   },
+}));
+
+vi.mock('@/lib/env', () => ({
+  env: envMock,
   assertAuthEnv: () => {},
   getSessionSecret: () => 'test-session-secret-at-least-thirty-two-characters-long',
 }));
@@ -97,7 +102,7 @@ describe('POST /api/auth/request-link', () => {
     expect(r4.status).toBe(429);
   });
 
-  it('dev demo bypass returns devRawToken in the response body', async () => {
+  it('dev demo bypass returns devRawToken in the response body when ALLOW_DEMO_BYPASS=1', async () => {
     const res = await POST(makeRequest({ email: 'demo@morningform.com' }));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -105,6 +110,21 @@ describe('POST /api/auth/request-link', () => {
     expect(typeof body.devRawToken).toBe('string');
     expect(typeof body.verifyUrl).toBe('string');
     expect(body.verifyUrl).toContain(encodeURIComponent(body.devRawToken));
+  });
+
+  it('does NOT leak devRawToken when ALLOW_DEMO_BYPASS is unset (simulates Vercel preview)', async () => {
+    const prev = envMock.ALLOW_DEMO_BYPASS;
+    envMock.ALLOW_DEMO_BYPASS = '';
+    try {
+      const res = await POST(makeRequest({ email: 'demo@morningform.com' }));
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+      expect(body.devRawToken).toBeUndefined();
+      expect(body.verifyUrl).toBeUndefined();
+    } finally {
+      envMock.ALLOW_DEMO_BYPASS = prev;
+    }
   });
 
   it('still returns 200 when the email sender throws', async () => {

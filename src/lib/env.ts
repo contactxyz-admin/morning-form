@@ -35,6 +35,13 @@ const optional = {
   SESSION_SECRET: process.env.SESSION_SECRET ?? '',
   RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
   RESEND_FROM: process.env.RESEND_FROM ?? 'onboarding@resend.dev',
+  // Explicit opt-in for the demo bypass on /api/auth/request-link. When true,
+  // POSTing with demo@morningform.com returns the raw verify token in the
+  // response body — a dev convenience that must NEVER be true in Vercel
+  // preview or production. Gating on NODE_ENV alone is unsafe: Next.js builds
+  // run with NODE_ENV='production' on every Vercel environment (including
+  // previews), and ambient-env semantics could change between runtimes.
+  ALLOW_DEMO_BYPASS: process.env.ALLOW_DEMO_BYPASS ?? '',
 };
 
 export const env = {
