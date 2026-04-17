@@ -92,7 +92,7 @@ export default function TopicPage() {
   };
 
   return (
-    <div className="px-5 pt-6 grain-page pb-24">
+    <div className="min-h-screen bg-record-grid px-5 pt-6 grain-page pb-24">
       {/* Back + kicker */}
       <div className="flex items-center justify-between mb-8">
         <Link
