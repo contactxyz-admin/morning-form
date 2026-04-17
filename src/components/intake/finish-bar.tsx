@@ -54,7 +54,7 @@ export function FinishBar() {
         throw new Error(`Submit failed: ${res.status}`);
       }
 
-      router.push('/home');
+      router.push('/record');
       reset();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Submit failed');

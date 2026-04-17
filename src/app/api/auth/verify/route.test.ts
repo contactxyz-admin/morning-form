@@ -72,13 +72,51 @@ describe('GET /api/auth/verify', () => {
 
     const res = await GET(makeGet(issued.rawToken));
     expect(res.status).toBe(303);
-    expect(res.headers.get('location')).toMatch(/\/(home|assessment)$/);
+    expect(res.headers.get('location')).toMatch(/\/(record|assessment)$/);
     expect(cookieJar.get(SESSION_COOKIE)).toBeTypeOf('string');
 
     // Token is marked consumed.
     const user = await prisma.user.findUnique({ where: { email: addr } });
     const token = await prisma.magicLinkToken.findFirst({ where: { userId: user!.id } });
     expect(token?.consumedAt).not.toBeNull();
+  });
+
+  it('redirects onboarded users to /record', async () => {
+    const addr = `verify-onboarded-${Date.now()}@example.com`;
+    const issued = await issueMagicLink(prisma, { email: addr, requestIpHash: 'ip-h' });
+    if (issued.outcome !== 'issued') throw new Error('unreachable');
+
+    // Simulate completed onboarding: user has both AssessmentResponse and StateProfile.
+    const user = await prisma.user.findUnique({ where: { email: addr } });
+    await prisma.assessmentResponse.create({
+      data: { userId: user!.id, responses: '{}' },
+    });
+    await prisma.stateProfile.create({
+      data: {
+        userId: user!.id,
+        archetype: 'test',
+        primaryPattern: 'test',
+        patternDescription: 'test',
+        observations: '[]',
+        constraints: '[]',
+        sensitivities: '[]',
+      },
+    });
+
+    const res = await GET(makeGet(issued.rawToken));
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toMatch(/\/record$/);
+  });
+
+  it('redirects non-onboarded users to /assessment', async () => {
+    const addr = `verify-new-${Date.now()}@example.com`;
+    const issued = await issueMagicLink(prisma, { email: addr, requestIpHash: 'ip-h' });
+    if (issued.outcome !== 'issued') throw new Error('unreachable');
+
+    // No assessment / stateProfile created — user is fresh.
+    const res = await GET(makeGet(issued.rawToken));
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toMatch(/\/assessment$/);
   });
 
   it('returns 410 when the token has already been consumed', async () => {
