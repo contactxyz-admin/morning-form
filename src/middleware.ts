@@ -15,11 +15,12 @@ assertAuthEnv();
  * Route handlers still call `getCurrentUser()` for the authoritative
  * check (which rejects tampered tokens that don't match a Session row).
  *
- * For `/share/*` matches (the public DPP view), we do NOT require auth.
- * We do set security headers so shared pages can't be indexed, framed,
- * or embedded: no-index/no-cache for crawlers, DENY for framing, and a
- * `frame-ancestors 'none'` CSP as belt-and-braces. Token resolution +
- * revocation still happen in the SSR handler itself.
+ * For `/share/*` matches (the public DPP view) and `/r/*` matches (the
+ * public demo-slug URL), we do NOT require auth. We do set security
+ * headers so these pages can't be indexed, framed, or embedded:
+ * no-index/no-cache for crawlers, DENY for framing, and a
+ * `frame-ancestors 'none'` CSP as belt-and-braces. Token / slug
+ * resolution still happens in the SSR handler itself.
  *
  * Marketing pages, the sign-in flow, auth endpoints, and provider
  * webhooks stay public and are excluded by the matcher below.
@@ -27,7 +28,7 @@ assertAuthEnv();
 export function middleware(request: NextRequest): NextResponse {
   const path = request.nextUrl.pathname;
 
-  if (path.startsWith('/share/')) {
+  if (path.startsWith('/share/') || path.startsWith('/r/')) {
     const res = NextResponse.next();
     res.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
     res.headers.set('X-Frame-Options', 'DENY');
@@ -71,5 +72,6 @@ export const config = {
     '/api/suggestions',
     '/api/topics/:path*',
     '/share/:path*',
+    '/r/:path*',
   ],
 };
