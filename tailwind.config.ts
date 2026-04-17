@@ -76,6 +76,14 @@ const config: Config = {
         '22': '5.5rem',
         '30': '7.5rem',
       },
+      backgroundImage: {
+        // Record-family grid pattern — a 40×40 dot motif at border-strong (#D0C8B6)
+        // with low alpha so it reads as paper tooth, not a ruled sheet. Tiles
+        // naturally at its intrinsic size; consumers pair with `.bg-record-grid`
+        // (globals.css) for the opacity/blend defaults.
+        'grid-pattern':
+          "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><path d='M19 19h2v2h-2z' fill='%23D0C8B6' fill-opacity='0.6'/></svg>\")",
+      },
       borderRadius: {
         // Architectural corners — tighter than pillowed, closer to editorial grid.
         'card': '14px',
