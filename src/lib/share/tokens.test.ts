@@ -113,6 +113,33 @@ describe('revokeShare', () => {
     expect(ok).toBe(false);
     expect(await resolveShare(prisma, rawToken)).not.toBeNull();
   });
+
+  it('is idempotent — revoking twice both return true and preserve the original revokedAt', async () => {
+    // The atomic updateMany closes the findUnique-then-update TOCTOU window.
+    // An idempotent re-revoke must report success (the caller's intent is
+    // satisfied) without touching the already-set revokedAt timestamp.
+    const userId = await makeTestUser(prisma, 'share-revoke-idem');
+    const { id } = await createShare(prisma, {
+      userId,
+      scope: { kind: 'topic', topicKey: 'iron' },
+    });
+    expect(await revokeShare(prisma, userId, id)).toBe(true);
+    const first = await prisma.sharedView.findUnique({ where: { id } });
+    expect(first?.revokedAt).not.toBeNull();
+    const firstTs = first!.revokedAt!.getTime();
+
+    // Gap to make any accidental overwrite observable.
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(await revokeShare(prisma, userId, id)).toBe(true);
+    const second = await prisma.sharedView.findUnique({ where: { id } });
+    expect(second?.revokedAt?.getTime()).toBe(firstTs);
+  });
+
+  it('returns false for an unknown id without leaking existence', async () => {
+    const userId = await makeTestUser(prisma, 'share-revoke-unknown');
+    expect(await revokeShare(prisma, userId, 'does-not-exist')).toBe(false);
+  });
 });
 
 describe('markShareViewed', () => {

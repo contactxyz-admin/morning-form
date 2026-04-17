@@ -145,19 +145,30 @@ export async function markShareViewed(
   });
 }
 
+/**
+ * Atomically revoke a share owned by `userId`. Returns true on successful
+ * revocation or idempotent re-revocation; false when the id doesn't exist
+ * or belongs to another user.
+ *
+ * Implemented as a single gated UPDATE to close the findUnique-then-update
+ * TOCTOU window — otherwise two concurrent revokes (or a revoke racing a
+ * user-delete) could step on each other and produce surprising state. The
+ * second findUnique only runs when the update matched zero rows, so the
+ * idempotency branch reads one row in the cold path, none in the hot path.
+ */
 export async function revokeShare(
   db: PrismaClient,
   userId: string,
   id: string,
 ): Promise<boolean> {
-  const row = await db.sharedView.findUnique({ where: { id } });
-  if (!row || row.userId !== userId) return false;
-  if (row.revokedAt) return true;
-  await db.sharedView.update({
-    where: { id },
+  const result = await db.sharedView.updateMany({
+    where: { id, userId, revokedAt: null },
     data: { revokedAt: new Date() },
   });
-  return true;
+  if (result.count === 1) return true;
+  const row = await db.sharedView.findUnique({ where: { id } });
+  if (row && row.userId === userId && row.revokedAt) return true;
+  return false;
 }
 
 export async function listSharesForUser(

@@ -98,6 +98,7 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
   const provenanceByNode = await getProvenanceForNodes(
     db,
     subgraph.nodes.map((n) => n.id),
+    userId,
   );
   const userPrompt = config.prompts.buildUserPrompt({ subgraph, provenanceByNode });
   const systemPrompt = config.prompts.systemPrompt;

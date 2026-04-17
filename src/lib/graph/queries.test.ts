@@ -160,7 +160,7 @@ describe('getProvenanceForNode', () => {
       ],
       edges: [],
     });
-    const provenance = await getProvenanceForNode(prisma, out.nodeIds[0]);
+    const provenance = await getProvenanceForNode(prisma, out.nodeIds[0], userId);
     expect(provenance).toHaveLength(2);
     expect(provenance.map((p) => p.text)).toEqual(['Ferritin 18', 'Hb 12.1']);
     expect(provenance[0].documentKind).toBe('lab_pdf');
@@ -174,7 +174,31 @@ describe('getProvenanceForNode', () => {
       canonicalKey: 'fatigue',
       displayName: 'Fatigue',
     });
-    expect(await getProvenanceForNode(prisma, node.id)).toEqual([]);
+    expect(await getProvenanceForNode(prisma, node.id, userId)).toEqual([]);
+  });
+
+  it('returns empty when the caller asks with the wrong userId — defence in depth for IDOR', async () => {
+    // Even if a future caller forgets the node-ownership check at the route
+    // layer, the helper itself must not surface another user's chunks.
+    const ownerId = await makeTestUser(prisma, 'provenance-owner');
+    const attackerId = await makeTestUser(prisma, 'provenance-attacker');
+    const out = await ingestExtraction(prisma, ownerId, {
+      document: { kind: 'lab_pdf', capturedAt: new Date('2026-04-01'), contentHash: 'p-idor' },
+      chunks: [{ index: 0, text: 'Ferritin 18', offsetStart: 0, offsetEnd: 11, pageNumber: 1 }],
+      nodes: [
+        {
+          type: 'biomarker',
+          canonicalKey: 'ferritin',
+          displayName: 'Ferritin',
+          supportingChunkIndices: [0],
+        },
+      ],
+      edges: [],
+    });
+    // Owner sees their own provenance.
+    expect(await getProvenanceForNode(prisma, out.nodeIds[0], ownerId)).toHaveLength(1);
+    // Attacker asking for the same node id gets nothing — no chunk text leaks.
+    expect(await getProvenanceForNode(prisma, out.nodeIds[0], attackerId)).toEqual([]);
   });
 });
 

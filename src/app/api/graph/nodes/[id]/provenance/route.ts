@@ -29,7 +29,7 @@ export async function GET(
       return NextResponse.json({ error: 'Not found.' }, { status: 404 });
     }
 
-    const provenance = await getProvenanceForNode(prisma, node.id);
+    const provenance = await getProvenanceForNode(prisma, node.id, user.id);
     return NextResponse.json({ node, provenance });
   } catch (error) {
     console.error('[API] Provenance fetch error:', error);
