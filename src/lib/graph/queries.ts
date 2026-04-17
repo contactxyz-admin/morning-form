@@ -159,8 +159,9 @@ export async function getSubgraphForTopic(
 export async function getProvenanceForNode(
   db: Db,
   nodeId: string,
+  userId: string,
 ): Promise<ProvenanceItem[]> {
-  const byNode = await getProvenanceForNodes(db, [nodeId]);
+  const byNode = await getProvenanceForNodes(db, [nodeId], userId);
   return byNode.get(nodeId) ?? [];
 }
 
@@ -168,10 +169,18 @@ export async function getProvenanceForNode(
  * Batched provenance lookup. Returns a Map keyed by nodeId; nodes with no
  * provenance get an empty array. Uses exactly two DB queries regardless of
  * input size — the per-node version is a thin wrapper over this.
+ *
+ * `userId` is required and filters at both layers (graphEdge.userId +
+ * SourceDocument.userId via the chunk join). Callers are expected to have
+ * already verified the requesting user owns the referenced nodes, but this
+ * helper is self-guarding: if a future caller forgets that check, a
+ * malformed graphEdge row pointing cross-user still cannot leak a chunk
+ * from another user's document. Defence in depth for IDOR.
  */
 export async function getProvenanceForNodes(
   db: Db,
   nodeIds: string[],
+  userId: string,
 ): Promise<Map<string, ProvenanceItem[]>> {
   const result = new Map<string, ProvenanceItem[]>();
   for (const id of nodeIds) result.set(id, []);
@@ -179,6 +188,7 @@ export async function getProvenanceForNodes(
 
   const supportEdges = await db.graphEdge.findMany({
     where: {
+      userId,
       type: 'SUPPORTS',
       toNodeId: { in: nodeIds },
       fromChunkId: { not: null },
@@ -196,7 +206,10 @@ export async function getProvenanceForNodes(
 
   const chunkIds = Array.from(chunkToNodes.keys());
   const chunks = await db.sourceChunk.findMany({
-    where: { id: { in: chunkIds } },
+    where: {
+      id: { in: chunkIds },
+      sourceDocument: { userId },
+    },
     include: { sourceDocument: true },
     orderBy: [{ sourceDocumentId: 'asc' }, { index: 'asc' }],
   });
