@@ -4,16 +4,25 @@
  * Filtering happens at the edge of the share-render pipeline, once, after
  * the topic has been compiled but before it ships to the /share page. We
  * don't mutate the DB — the owner's full view is untouched — and we don't
- * re-run the LLM: we structurally strip citations + bullet lines that
- * reference hidden nodes, then validate the result still has at least one
- * citation per section. Sections that would otherwise go empty are
- * flagged in the returned metadata so the UI can show an honest "redacted"
- * indicator rather than pretending the section has nothing to say.
+ * re-run the LLM: we replace body prose on any section whose citations
+ * pointed at a hidden node (the prose almost certainly repeated the same
+ * facts), and we scrub the GP-prep block wholesale whenever any node is
+ * hidden because its narrative draws from the full subgraph and can't be
+ * cleaned surgically.
  */
 
-import type { Section, TopicCompiledOutput } from '@/lib/topics/types';
+import type { GPPrep, Section, TopicCompiledOutput } from '@/lib/topics/types';
 import type { GraphEdgeRecord, GraphNodeRecord, SubgraphResult } from '@/lib/graph/types';
 import type { ShareRedactions } from './tokens';
+
+const REDACTED_BODY_PLACEHOLDER =
+  '_Content from this section has been hidden from this shared view._';
+const REDACTED_GPPREP_PLACEHOLDER =
+  '_GP prep details have been hidden from this shared view._';
+const REDACTED_CITATION = {
+  nodeId: '__redacted__',
+  excerpt: 'Redacted for this share.',
+} as const;
 
 export interface RedactedTopic {
   output: TopicCompiledOutput;
@@ -47,8 +56,9 @@ export function redactTopicOutput(
       understanding: redactedUnderstanding.section,
       whatYouCanDoNow: redactedWhatYouCanDoNow.section,
       discussWithClinician: redactedDiscuss.section,
+      gpPrep: redactGPPrep(),
     },
-    hadRedactions: affected.length > 0,
+    hadRedactions: true,
     affectedSections: affected,
   };
 }
@@ -60,19 +70,36 @@ function redactSection(
   const keptCitations = section.citations.filter((c) => !hide.has(c.nodeId));
   const removed = section.citations.length - keptCitations.length;
 
-  if (keptCitations.length === 0) {
-    return {
-      section: {
-        ...section,
-        bodyMarkdown:
-          '_Content from this section has been hidden from this shared view._',
-        citations: [{ nodeId: '__redacted__', excerpt: 'Redacted for this share.' }],
-      },
-      removed,
-    };
+  if (removed === 0) {
+    return { section, removed };
   }
 
-  return { section: { ...section, citations: keptCitations }, removed };
+  // Any stripped citation means the prose likely referenced hidden data.
+  // Replace the body; keep surviving citations so the reader knows which
+  // other nodes the section touched. If nothing survived, stamp the
+  // placeholder citation so the section still satisfies its schema.
+  return {
+    section: {
+      ...section,
+      bodyMarkdown: REDACTED_BODY_PLACEHOLDER,
+      citations: keptCitations.length > 0 ? keptCitations : [REDACTED_CITATION],
+    },
+    removed,
+  };
+}
+
+/**
+ * GP-prep prose aggregates across the whole subgraph (questions, history,
+ * tests, printable markdown), so there's no surgical way to strip refs to
+ * hidden nodes. When any node is hidden we return a schema-shaped stub.
+ */
+function redactGPPrep(): GPPrep {
+  return {
+    questionsToAsk: [REDACTED_GPPREP_PLACEHOLDER],
+    relevantHistory: [],
+    testsToConsiderRequesting: [],
+    printableMarkdown: REDACTED_GPPREP_PLACEHOLDER,
+  };
 }
 
 /**
