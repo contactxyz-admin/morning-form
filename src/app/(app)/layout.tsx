@@ -7,7 +7,7 @@ import type { NavTab } from '@/types';
 const pathToTab: Record<string, NavTab> = {
   '/home': 'home',
   '/protocol': 'protocol',
-  '/check-in': 'check-in',
+  '/record': 'record',
   '/insights': 'insights',
   '/you': 'you',
 };
