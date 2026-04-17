@@ -1,9 +1,17 @@
 ---
 title: Login that skips the self-assessment
 type: feat
-status: active
+status: done
 date: 2026-04-14
+completed: 2026-04-17
 ---
+
+> **Status note (2026-04-17):** Delivered by U0a + U0b (PR #32, merged as `3248282`).
+> The plan's four Implementation Units are satisfied in a stronger form than originally
+> proposed (HMAC-signed + DB-backed session instead of a plain email cookie, magic-link
+> instead of trusted-on-input email). R1–R3 verified end-to-end; R4's demo-fallback was
+> explicitly removed per the "Composition with pivot" section — ingestion routes now
+> hard-fail 401 when unauthenticated.
 
 # Login that skips the self-assessment
 
@@ -87,7 +95,7 @@ Once the pivot plan begins, this plan's redirect logic is **not deleted but re-o
 
 ## Implementation Units
 
-- [ ] **Unit 1: Session helper and cookie**
+- [x] **Unit 1: Session helper and cookie** — shipped as `src/lib/session.ts` + `src/lib/session-cookie.ts` (U0b). Stronger than plan: HMAC-signed token + DB-backed `Session` table with 30-day rolling TTL, no demo fallback.
 
 **Goal:** Centralize "who is the current user" behind a helper that reads a cookie, falling back to the demo user.
 
@@ -114,7 +122,7 @@ Once the pivot plan begins, this plan's redirect logic is **not deleted but re-o
 **Verification:**
 - Unit-level smoke via a temporary route or a `tsx` script; no call-site churn yet.
 
-- [ ] **Unit 2: `/api/auth/login` and `/api/auth/logout` routes**
+- [x] **Unit 2: `/api/auth/login` and `/api/auth/logout` routes** — shipped as `/api/auth/request-link` + `/api/auth/verify` + `/api/auth/logout` (U0a). R3 data-driven redirect lives in `src/app/api/auth/verify/route.ts:42-43` (`user.assessment && user.stateProfile ? '/home' : '/assessment'`).
 
 **Goal:** Provide the POST endpoints the sign-in UI will call.
 
@@ -142,7 +150,7 @@ Once the pivot plan begins, this plan's redirect logic is **not deleted but re-o
 **Verification:**
 - `curl` round-trip against the dev server on port 3847 confirms cookie set/clear and correct redirect targets.
 
-- [ ] **Unit 3: `/sign-in` page**
+- [x] **Unit 3: `/sign-in` page** — shipped as `src/app/sign-in/page.tsx`. Pre-fills `demo@morningform.com`, handles `ALLOW_DEMO_BYPASS=1` dev-jump (navigates directly to `verifyUrl` skipping mailbox roundtrip).
 
 **Goal:** Minimal UI entry point matching the existing landing aesthetic.
 
@@ -168,7 +176,7 @@ Once the pivot plan begins, this plan's redirect logic is **not deleted but re-o
 **Verification:**
 - In-browser run on [http://localhost:3847/sign-in](http://localhost:3847/sign-in): fill, submit, land on `/home` without passing through `/assessment`.
 
-- [ ] **Unit 4: Landing page entry point + Settings sign-out**
+- [x] **Unit 4: Landing page entry point + Settings sign-out** — landing sign-in link shipped at [src/app/page.tsx:11](src/app/page.tsx#L11). Sign-out route exists as `src/app/api/auth/logout/route.ts` (POST → `destroyCurrentSession()` → `{ redirectTo: '/' }`).
 
 **Goal:** Make the new flow discoverable and reversible.
 
