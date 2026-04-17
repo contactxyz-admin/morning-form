@@ -1,4 +1,10 @@
 import { PrismaClient } from '@prisma/client';
+import { createHash } from 'crypto';
+import { DEMO_NAVIGABLE_RECORD } from './fixtures/demo-navigable-record';
+import type { DemoRecordFixture } from './fixtures/demo-navigable-record';
+import { compileTopic } from '../src/lib/topics/compile';
+import { listTopicKeys } from '../src/lib/topics/registry';
+import { LLMClient } from '../src/lib/llm/client';
 
 const prisma = new PrismaClient();
 
@@ -197,6 +203,155 @@ async function main() {
         },
       ],
     });
+  }
+
+  await seedDemoNavigableRecord(user.id, DEMO_NAVIGABLE_RECORD);
+}
+
+/**
+ * Seed the `/r/demo-navigable-record` graph.
+ *
+ * Wipe-and-recreate pattern: fixture-sourced rows are always owned by the
+ * fixture, so we nuke any prior demo rows for this user before inserting.
+ * Avoids the nullable-unique upsert gymnastics on GraphEdge and keeps the
+ * seed idempotent when the fixture changes shape.
+ *
+ * Compile is best-effort: if `ANTHROPIC_API_KEY` is missing and `MOCK_LLM`
+ * isn't set (typical CI), we skip compile. The graph still lands, and the
+ * `/r/demo-navigable-record` page falls back to the "Nothing here yet"
+ * card — which is fine for CI environments where we're not trying to
+ * render live topics.
+ */
+async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixture) {
+  // Wipe prior fixture rows for this user. Nodes cascade to edges.
+  const fixtureSourceRefs = fixture.sources
+    .map((s) => s.sourceRef)
+    .filter((ref): ref is string => Boolean(ref));
+  if (fixtureSourceRefs.length > 0) {
+    await prisma.sourceDocument.deleteMany({
+      where: { userId, sourceRef: { in: fixtureSourceRefs } },
+    });
+  }
+  const fixtureNodeKeys = fixture.nodes.map((n) => ({
+    type: n.type,
+    canonicalKey: n.canonicalKey,
+  }));
+  if (fixtureNodeKeys.length > 0) {
+    await prisma.graphNode.deleteMany({
+      where: {
+        userId,
+        OR: fixtureNodeKeys.map(({ type, canonicalKey }) => ({ type, canonicalKey })),
+      },
+    });
+  }
+
+  // Insert sources with deterministic contentHash so re-seeds don't churn.
+  const sourceIdBySourceKey = new Map<string, string>();
+  const chunkIdByChunkKey = new Map<string, string>();
+  for (const source of fixture.sources) {
+    const contentHash = createHash('sha256').update(source.sourceKey).digest('hex');
+    const created = await prisma.sourceDocument.create({
+      data: {
+        userId,
+        kind: source.kind,
+        sourceRef: source.sourceRef,
+        contentHash,
+        capturedAt: new Date(source.capturedAt),
+        chunks: {
+          create: source.chunks.map((c) => ({
+            index: c.index,
+            text: c.text,
+            offsetStart: c.offsetStart,
+            offsetEnd: c.offsetEnd,
+            pageNumber: c.pageNumber,
+          })),
+        },
+      },
+      include: { chunks: true },
+    });
+    sourceIdBySourceKey.set(source.sourceKey, created.id);
+    for (const chunk of created.chunks) {
+      const fixtureChunk = source.chunks.find((c) => c.index === chunk.index);
+      if (fixtureChunk) {
+        chunkIdByChunkKey.set(fixtureChunk.chunkKey, chunk.id);
+      }
+    }
+  }
+
+  // Upsert nodes.
+  const nodeIdByNodeKey = new Map<string, string>();
+  for (const node of fixture.nodes) {
+    const upserted = await prisma.graphNode.upsert({
+      where: {
+        userId_type_canonicalKey: {
+          userId,
+          type: node.type,
+          canonicalKey: node.canonicalKey,
+        },
+      },
+      update: {
+        displayName: node.displayName,
+        attributes: node.attributes ? JSON.stringify(node.attributes) : null,
+      },
+      create: {
+        userId,
+        type: node.type,
+        canonicalKey: node.canonicalKey,
+        displayName: node.displayName,
+        attributes: node.attributes ? JSON.stringify(node.attributes) : null,
+      },
+    });
+    nodeIdByNodeKey.set(node.nodeKey, upserted.id);
+  }
+
+  // Create edges. Prior rows were deleted above via node cascade.
+  for (const edge of fixture.edges) {
+    const fromNodeId = nodeIdByNodeKey.get(edge.fromNodeKey);
+    const toNodeId = nodeIdByNodeKey.get(edge.toNodeKey);
+    if (!fromNodeId || !toNodeId) {
+      console.warn(
+        `[seedDemoNavigableRecord] skipping edge with unresolved node(s): ${edge.fromNodeKey} -> ${edge.toNodeKey}`,
+      );
+      continue;
+    }
+    const fromChunkId = edge.fromChunkKey ? chunkIdByChunkKey.get(edge.fromChunkKey) : undefined;
+    const fromDocumentId = edge.fromSourceKey
+      ? sourceIdBySourceKey.get(edge.fromSourceKey)
+      : undefined;
+    await prisma.graphEdge.create({
+      data: {
+        userId,
+        type: edge.type,
+        fromNodeId,
+        toNodeId,
+        fromChunkId: fromChunkId ?? null,
+        fromDocumentId: fromDocumentId ?? null,
+      },
+    });
+  }
+
+  // Best-effort compile. Skip quietly if no LLM access in this environment.
+  const canCompile = Boolean(process.env.ANTHROPIC_API_KEY) || process.env.MOCK_LLM === 'true';
+  if (!canCompile) {
+    console.log(
+      '[seedDemoNavigableRecord] skipping topic compile — ANTHROPIC_API_KEY missing and MOCK_LLM not set.',
+    );
+    return;
+  }
+
+  const llm = new LLMClient();
+  for (const topicKey of listTopicKeys()) {
+    try {
+      const result = await compileTopic({ db: prisma, llm, userId, topicKey });
+      console.log(
+        `[seedDemoNavigableRecord] compiled ${topicKey} → ${result.status}${result.cached ? ' (cached)' : ''}`,
+      );
+    } catch (error) {
+      console.warn(
+        `[seedDemoNavigableRecord] compile failed for ${topicKey}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 }
 
