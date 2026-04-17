@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/session';
 import { generateStateProfile, generateProtocol } from '@/lib/protocol-engine';
 import type { AssessmentResponses } from '@/types';
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const responses = body.responses as AssessmentResponses;

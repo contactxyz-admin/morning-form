@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getOrCreateDemoUser } from '@/lib/demo-user';
+import { getCurrentUser } from '@/lib/session';
 
 type AppleHealthSnapshotPayload = {
   stepCount?: number | null;
@@ -13,8 +13,11 @@ type AppleHealthSnapshotPayload = {
 
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
     const body = (await request.json()) as AppleHealthSnapshotPayload;
-    const user = await getOrCreateDemoUser();
     const capturedAt = body.capturedAt ? new Date(body.capturedAt) : new Date();
 
     await prisma.healthConnection.upsert({

@@ -2,15 +2,18 @@ import { NextResponse } from 'next/server';
 import { HealthSyncService } from '@/lib/health/sync';
 import type { HealthCategory, HealthDataPoint, HealthProvider } from '@/types';
 import { prisma } from '@/lib/db';
-import { getOrCreateDemoUser } from '@/lib/demo-user';
+import { getCurrentUser } from '@/lib/session';
 
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
     const body = await request.json();
     const { providers } = body as { providers?: HealthProvider[] };
 
     const syncService = new HealthSyncService();
-    const user = await getOrCreateDemoUser();
     const storedConnections = await prisma.healthConnection.findMany({
       where: { userId: user.id, status: 'connected' },
     });
@@ -50,7 +53,10 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const user = await getOrCreateDemoUser();
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
     const syncService = new HealthSyncService();
     const since = new Date();
     since.setDate(since.getDate() - 7);

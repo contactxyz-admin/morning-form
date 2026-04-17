@@ -26,7 +26,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '@/lib/db';
@@ -108,6 +108,9 @@ export async function POST(req: Request) {
 
   try {
     const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
 
     // Dedup: if this exact content is already ingested for this user, return
     // the existing document id so the UI stays idempotent.

@@ -77,6 +77,9 @@ export async function POST(req: Request) {
 
   try {
     const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    }
     const client = new LLMClient();
 
     const { ingestInput, tentativeTopicStubs } = await extractFromIntake(

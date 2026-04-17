@@ -1,39 +1,116 @@
 import { cookies } from 'next/headers';
+import { createHash, randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/db';
-import { getOrCreateDemoUser } from '@/lib/demo-user';
+import { getSessionSecret, env } from '@/lib/env';
+import { SESSION_COOKIE } from '@/lib/session-cookie';
 
-// TODO(auth): This is a dev-grade sign-in. Replace with real auth
-// (password / magic link / OAuth) before shipping to anything beyond demo.
-// The `getCurrentUser()` seam is the one to swap; call sites should keep working.
+/**
+ * Signed session cookie backed by the Session table.
+ *
+ * Cookie value = raw session token (base64url(32B)). DB stores
+ * `tokenHash = sha256(SESSION_SECRET + rawToken)` — rotating SESSION_SECRET
+ * invalidates every live session. No demo-user fallback on ingestion paths:
+ * unauthenticated callers get `null` from `getCurrentUser()`.
+ */
 
-export const SESSION_COOKIE = 'mf_session_email';
-const THIRTY_DAYS_SECONDS = 60 * 60 * 24 * 30;
+export { SESSION_COOKIE };
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const TTL_BUMP_RATE_LIMIT_MS = 5 * 60 * 1000;
 
-export async function getCurrentUser() {
-  const email = cookies().get(SESSION_COOKIE)?.value;
-
-  if (!email) {
-    return getOrCreateDemoUser();
-  }
-
-  return prisma.user.upsert({
-    where: { email },
-    update: {},
-    create: { email },
-    include: { assessment: true, stateProfile: true },
-  });
+export interface CreateSessionMeta {
+  userAgent?: string | null;
+  ipHash?: string | null;
 }
 
-export function setSessionCookie(email: string) {
-  cookies().set(SESSION_COOKIE, email, {
+export function hashSessionToken(raw: string): string {
+  return createHash('sha256').update(getSessionSecret()).update(raw).digest('hex');
+}
+
+/**
+ * Mint a fresh session: creates a Session row, sets the httpOnly cookie, and
+ * returns the raw token (for callers that need it to build a verify-page URL).
+ */
+export async function createSession(userId: string, meta: CreateSessionMeta = {}): Promise<{ rawToken: string }> {
+  const rawToken = randomBytes(32).toString('base64url');
+  const tokenHash = hashSessionToken(rawToken);
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  await prisma.session.create({
+    data: {
+      userId,
+      tokenHash,
+      expiresAt,
+      userAgent: meta.userAgent ?? null,
+      ipHash: meta.ipHash ?? null,
+    },
+  });
+
+  cookies().set(SESSION_COOKIE, rawToken, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: env.NODE_ENV === 'production',
     path: '/',
-    maxAge: THIRTY_DAYS_SECONDS,
+    expires: expiresAt,
   });
+  return { rawToken };
 }
 
-export function clearSessionCookie() {
+/**
+ * Read the session cookie, validate the row (not revoked, not expired), and
+ * return the user with the relations callers actually need. Returns `null`
+ * on any failure — no demo fallback. Lazily bumps `lastSeenAt` + `expiresAt`
+ * on each call, rate-limited to once per 5 minutes so we don't churn writes.
+ */
+export async function getCurrentUser() {
+  const raw = cookies().get(SESSION_COOKIE)?.value;
+  if (!raw) return null;
+  const tokenHash = hashSessionToken(raw);
+  const session = await prisma.session.findUnique({
+    where: { tokenHash },
+    include: {
+      user: {
+        include: { assessment: true, stateProfile: true },
+      },
+    },
+  });
+  if (!session) return null;
+  if (session.revokedAt) return null;
+  const now = Date.now();
+  if (session.expiresAt.getTime() <= now) return null;
+
+  // Rolling TTL: bump lastSeenAt + expiresAt at most once per 5 min.
+  if (now - session.lastSeenAt.getTime() > TTL_BUMP_RATE_LIMIT_MS) {
+    const newExpiresAt = new Date(now + SESSION_TTL_MS);
+    await prisma.session
+      .update({
+        where: { id: session.id },
+        data: { lastSeenAt: new Date(now), expiresAt: newExpiresAt },
+      })
+      .catch(() => {});
+    cookies().set(SESSION_COOKIE, raw, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: env.NODE_ENV === 'production',
+      path: '/',
+      expires: newExpiresAt,
+    });
+  }
+  return session.user;
+}
+
+/**
+ * Revoke the current session server-side and clear the cookie client-side.
+ * Safe to call when no session is present.
+ */
+export async function destroyCurrentSession(): Promise<void> {
+  const raw = cookies().get(SESSION_COOKIE)?.value;
+  if (raw) {
+    const tokenHash = hashSessionToken(raw);
+    await prisma.session
+      .updateMany({
+        where: { tokenHash, revokedAt: null },
+        data: { revokedAt: new Date() },
+      })
+      .catch(() => {});
+  }
   cookies().delete(SESSION_COOKIE);
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/session';
 import { guideResponses } from '@/lib/mock-data';
 
 const responsePatterns: [RegExp, string][] = [
@@ -16,6 +17,10 @@ const responsePatterns: [RegExp, string][] = [
 ];
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const { message } = body;
