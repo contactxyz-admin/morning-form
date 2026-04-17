@@ -165,19 +165,28 @@ export async function verifyMagicLink(
   }
   const tokenHash = hashToken(raw);
 
-  // Atomic consume: find-then-update inside a transaction so two concurrent
-  // verifies of the same token land exactly one "consumed" outcome.
-  return prisma.$transaction(async (tx) => {
-    const token = await tx.magicLinkToken.findUnique({ where: { tokenHash } });
-    if (!token) return { ok: false, reason: 'invalid' } as const;
-    if (token.consumedAt) return { ok: false, reason: 'consumed' } as const;
-    if (token.expiresAt.getTime() <= Date.now()) {
-      return { ok: false, reason: 'expired' } as const;
-    }
-    await tx.magicLinkToken.update({
-      where: { tokenHash },
-      data: { consumedAt: new Date() },
-    });
-    return { ok: true, userId: token.userId } as const;
+  // Atomic consume: a single UPDATE…WHERE gated on (not consumed, not expired)
+  // so the DB decides the winner under concurrent verifies. Two simultaneous
+  // requests on the same token — even at READ COMMITTED — can have only one
+  // `count: 1`; the loser sees `count: 0` and falls through to the read below
+  // to report the precise failure reason (consumed vs expired vs invalid).
+  const now = new Date();
+  const consumed = await prisma.magicLinkToken.updateMany({
+    where: { tokenHash, consumedAt: null, expiresAt: { gt: now } },
+    data: { consumedAt: now },
   });
+
+  if (consumed.count === 1) {
+    const token = await prisma.magicLinkToken.findUnique({ where: { tokenHash } });
+    // token is guaranteed present because updateMany succeeded; narrow for TS.
+    if (!token) return { ok: false, reason: 'invalid' };
+    return { ok: true, userId: token.userId };
+  }
+
+  const token = await prisma.magicLinkToken.findUnique({ where: { tokenHash } });
+  if (!token) return { ok: false, reason: 'invalid' };
+  if (token.consumedAt) return { ok: false, reason: 'consumed' };
+  if (token.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: 'expired' };
+  // Unreachable in practice: updateMany would have matched. Treat as invalid.
+  return { ok: false, reason: 'invalid' };
 }

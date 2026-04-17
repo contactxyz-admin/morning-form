@@ -1,12 +1,20 @@
 import { NextResponse } from 'next/server';
+import { getCurrentUser } from '@/lib/session';
 import { mockProtocol } from '@/lib/mock-data';
 
 export async function GET() {
-  // In production: fetch from database for authenticated user
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
   return NextResponse.json({ protocol: mockProtocol });
 }
 
 export async function PATCH(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const { adjustmentId, action } = body;

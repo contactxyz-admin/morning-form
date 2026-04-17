@@ -1,5 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { assertAuthEnv } from '@/lib/env';
 import { SESSION_COOKIE } from '@/lib/session';
+
+// Module-scope boot check: fails the first Edge invocation fast if prod
+// is missing SESSION_SECRET or RESEND_API_KEY, instead of silently falling
+// through to dev defaults on hot paths. No-ops outside production.
+assertAuthEnv();
 
 /**
  * Edge gate for authenticated API surfaces.

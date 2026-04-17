@@ -113,9 +113,3 @@ export async function destroyCurrentSession(): Promise<void> {
   }
   cookies().delete(SESSION_COOKIE);
 }
-
-/**
- * Backward-compat shim for code still reaching for the old API. Keeps existing
- * logout route working until call sites finish migrating.
- */
-export const clearSessionCookie = () => cookies().delete(SESSION_COOKIE);

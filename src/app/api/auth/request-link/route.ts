@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 
 function buildVerifyUrl(rawToken: string): string {
   const base = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
-  return `${base}/auth/verify?token=${encodeURIComponent(rawToken)}`;
+  return `${base}/api/auth/verify?token=${encodeURIComponent(rawToken)}`;
 }
 
 function hashIp(request: Request): string {
