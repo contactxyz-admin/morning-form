@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { env, getSessionSecret } from '@/lib/env';
@@ -74,5 +74,5 @@ function hashIp(request: Request): string {
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
     request.headers.get('x-real-ip') ||
     'unknown';
-  return createHash('sha256').update(getSessionSecret()).update(ip).digest('hex').slice(0, 32);
+  return createHmac('sha256', getSessionSecret()).update('ip:').update(ip).digest('hex').slice(0, 32);
 }
