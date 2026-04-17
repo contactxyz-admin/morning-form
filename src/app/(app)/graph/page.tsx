@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-view';
+import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import type { GraphNodeWire, GraphResponse } from '@/types/graph';
 
@@ -15,6 +16,7 @@ type LoadState =
 
 export default function GraphPage() {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const [selectedNode, setSelectedNode] = useState<GraphNodeWire | null>(null);
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
   useEffect(() => {
@@ -47,10 +49,7 @@ export default function GraphPage() {
   }, []);
 
   const handleNodeClick = (node: GraphNodeWire) => {
-    // U13d wires the provenance bottom-sheet; until then, log so the click
-    // path is exercised end-to-end during browser verification.
-    // eslint-disable-next-line no-console
-    console.debug('[graph] node click', node.id, node.displayName);
+    setSelectedNode(node);
   };
 
   return (
@@ -141,6 +140,8 @@ export default function GraphPage() {
           </>
         )}
       </div>
+
+      <NodeDetailSheet node={selectedNode} onClose={() => setSelectedNode(null)} />
     </div>
   );
 }
