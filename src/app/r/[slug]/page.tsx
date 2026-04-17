@@ -56,7 +56,7 @@ export default async function DemoRecordPage({ params }: Props) {
   const topics = await loadCompiledTopics(user.id);
 
   return (
-    <div className="px-5 pt-6 grain-page pb-24">
+    <div className="min-h-screen bg-record-grid px-5 pt-6 grain-page pb-24">
       <DemoBanner />
 
       {topics.length === 0 ? (

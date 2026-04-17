@@ -60,7 +60,7 @@ export default function GraphPage() {
   };
 
   return (
-    <div className="px-5 pt-6 grain-page">
+    <div className="min-h-screen bg-record-grid px-5 pt-6 grain-page">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-2.5">
