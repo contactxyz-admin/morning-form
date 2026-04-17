@@ -4,8 +4,54 @@ type: feat
 status: active
 created: 2026-04-15
 deepened: 2026-04-16
+last_status_audit: 2026-04-17
 origin: docs/brainstorms/2026-04-15-health-graph-pivot-requirements.md
+sibling: docs/plans/2026-04-17-001-feat-navigable-health-record-plan.md
 ---
+
+## Shipped Status (audited 2026-04-17)
+
+Ground-truth snapshot at merge of PR #41. Marked by evidence in `src/` and merged PRs, not by plan intent.
+
+| Unit | Status | Evidence |
+|------|--------|----------|
+| U0a Magic-link auth (Resend) | **Shipped** | PR #32. `src/app/api/auth/request-link/route.ts`, `/verify/route.ts`, `MagicLinkToken` table. `demo@morningform.com` dev bypass in place. |
+| U0b Signed session cookie + middleware | **Shipped** | PR #32. `src/middleware.ts` edge-gates `/share/*` + auth paths; `Session` table; session lifecycle wired. |
+| U1 Prisma schema (graph + sources + topic pages + erasure) | **Partial** | Core graph tables (`GraphNode`, `GraphEdge`, `SourceDocument`, `SourceChunk`, `TopicPage`, `SharedView`, `GraphNodeLayout`) are in `prisma/schema.prisma`. **Not yet landed**: `User.hasData`, `User.graphRevision`, `GraphMigrationState`, cascade-delete review per plan refinements, erasure helper `src/lib/user/erase.ts`. |
+| U2 LLM client infrastructure | **Shipped** | `src/lib/llm/{client,errors,index}.ts` with typed errors + tool-use path. |
+| U3 Graph query layer | **Shipped** | `src/lib/graph/{queries,mutations,importance,types}.ts` + `src/app/api/graph/route.ts` + `/api/graph/nodes/[id]/provenance/route.ts`. |
+| U4 Import-first intake UI | **Shipped** | `src/app/(app)/intake/{page,essentials,history,upload}/page.tsx`; `src/components/intake/*`; polished via PRs #29, #30, #41. |
+| U5 Intake extraction pipeline | **Shipped** | `src/lib/intake/{extract,prompts,store,types}.ts`, `src/app/api/intake/submit/route.ts` — end-to-end ingest persists nodes + edges + stub topic rows. |
+| U6 Lab PDF ingestion | **Shipped** | `src/lib/intake/{pdf-extract,biomarkers,lab-prompts}.ts` + tests. |
+| U7 GP-record import pipeline | **Pending** | No `src/lib/intake/gp-record*` or equivalent importer. Free-text path may be in use as a stand-in. |
+| U8 Per-topic compile pipeline | **Shipped** | `src/lib/topics/{compile,registry,types,prompts}` + `src/app/api/topics/[topicKey]/route.ts`. |
+| U9 Iron topic page | **Shipped** | PR #36. Pilot route live at `/topics/iron` via shared `[topicKey]/page.tsx`. |
+| U10 Sleep & recovery topic page | **Pending** | No sleep-specific prompt module or fixture. `topicKey` router supports it once registry + prompts land. |
+| U11 Energy & fatigue synthesis page | **Pending** | Same status as U10. |
+| U12 GP appointment prep output | **Shipped** (embedded) | `GPPrepSchema` embedded in `TopicCompiledOutputSchema`; compiled alongside each topic. |
+| U13 Health Graph view | **Shipped (MVP)** | PR #36. `src/app/(app)/graph/page.tsx`, `src/components/graph/{graph-list-view,node-detail-sheet}.tsx`. Desktop ReactFlow canvas refinement may still be ahead per plan — verify against R11 unify sweep in sibling plan. |
+| U14 Daily brief | **Pending** | No `daily-brief*` code in `src/`. `/home` exists but is legacy pre-pivot. |
+| U15 Reframe check-ins as graph input | **Pending** | `src/app/(app)/check-in/page.tsx` + `/api/check-in/route.ts` unchanged from pre-pivot. |
+| U16 Reframe protocols as intervention nodes | **Pending** | `/protocol` routes unchanged from pre-pivot. |
+| U17 First-login migration | **Pending** | `User.graphMigratedAt` column exists in schema but no `GraphMigrationState` table, no migration worker, no invocation. |
+| U18 Copy, disclaimer, sub-processor disclosure | **In flight** | PR #40 open against `feat/regulatory-scaffolding`. |
+| U19 Prompt guardrails + linter + graph health-check | **Partial** | `src/lib/llm/{linter,guardrail-fixtures}.ts` + tests exist. Graph health-check job and full guardrail suite may still be incomplete — verify against plan. |
+| U20 Shareable views (HMAC) | **Shipped + hardened** | PRs #36 (base), #37 (cascade delete), #38 (HMAC-SHA256 for all hashes), #39 (IDOR/TOCTOU/host-header fixes). `src/lib/share/{tokens,redact}.ts` + `src/app/api/share/{create,list,revoke}/route.ts` + `src/app/(app)/settings/shared-links/page.tsx`. |
+
+**Next-priority pending units (product-ordered):**
+1. U10 Sleep topic page — unlocks second v1 topic; easiest win since pipeline exists
+2. U11 Energy topic page — completes v1 topic triad
+3. U14 Daily brief — only wearable-informed surface; needed for returning-user narrative
+4. U7 GP-record import — closes the R8 requirements gap (patient-exported records)
+5. U17 First-login migration — required before existing-user rollout
+6. U1 refinements (`hasData`, `graphRevision`, `GraphMigrationState`, erasure helper) — unblocks U17 + DPIA requirements
+7. U15/U16 reframing — visible IA change; coordinated with sibling plan's R10 (bottom-nav swap) and R1 (`/record` landing)
+8. U19 remaining guardrails + graph health-check — safety completion
+
+**Sibling plan coordination:**
+`docs/plans/2026-04-17-001-feat-navigable-health-record-plan.md` delivers the visual/IA system that U10, U11, U13 refinements, and U20 polish will consume. Implement sibling plan's R2 (grid + mesh-gradient primitives), R3 (source cards), and R6 (cross-linking) **before** U10/U11 so the new topic pages inherit the new system rather than getting re-styled twice.
+
+
 
 ## Problem
 
