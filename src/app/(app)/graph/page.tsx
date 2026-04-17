@@ -67,6 +67,12 @@ export default function GraphPage() {
           <span aria-hidden className="block w-6 h-px bg-text-primary/60" />
           <SectionLabel>Health Graph</SectionLabel>
         </div>
+        <Link
+          href="/settings/shared-links"
+          className="text-caption text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
+        >
+          Shared links →
+        </Link>
       </div>
 
       {/* Title */}

@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
 import { ThreeTierSection } from '@/components/topic/three-tier-section';
 import { GPPrepCard } from '@/components/topic/gp-prep-card';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
+import { ShareDialog } from '@/components/share/share-dialog';
 import type { TopicCompiledOutput } from '@/lib/topics/types';
 import type { GraphNodeWire } from '@/types/graph';
 
@@ -34,6 +36,7 @@ export default function TopicPage() {
   const topicKey = params?.topicKey;
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [citedNode, setCitedNode] = useState<GraphNodeWire | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (!topicKey) return;
@@ -98,7 +101,19 @@ export default function TopicPage() {
           <Icon name="back" size="sm" />
           <span className="text-caption">Graph</span>
         </Link>
-        <SectionLabel>Topic</SectionLabel>
+        <div className="flex items-center gap-3">
+          {state.status === 'ready' && state.data.status === 'full' && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setShareOpen(true)}
+            >
+              Share
+            </Button>
+          )}
+          <SectionLabel>Topic</SectionLabel>
+        </div>
       </div>
 
       {state.status === 'loading' && (
@@ -159,6 +174,17 @@ export default function TopicPage() {
       )}
 
       <NodeDetailSheet node={citedNode} onClose={() => setCitedNode(null)} />
+
+      {topicKey && (
+        <ShareDialog
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          scope={{ kind: 'topic', topicKey }}
+          defaultLabel={
+            state.status === 'ready' ? state.data.displayName : undefined
+          }
+        />
+      )}
     </div>
   );
 }
