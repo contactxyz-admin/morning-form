@@ -26,7 +26,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '@/lib/db';

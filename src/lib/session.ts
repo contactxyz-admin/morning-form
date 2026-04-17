@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { createHash, randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { getSessionSecret, env } from '@/lib/env';
+import { SESSION_COOKIE } from '@/lib/session-cookie';
 
 /**
  * Signed session cookie backed by the Session table.
@@ -12,7 +13,7 @@ import { getSessionSecret, env } from '@/lib/env';
  * unauthenticated callers get `null` from `getCurrentUser()`.
  */
 
-export const SESSION_COOKIE = 'mf_session';
+export { SESSION_COOKIE };
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TTL_BUMP_RATE_LIMIT_MS = 5 * 60 * 1000;
 
