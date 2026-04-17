@@ -44,7 +44,16 @@ export default async function DemoRecordPage({ params }: Props) {
   const record = resolveDemoSlug(params.slug);
   if (!record) notFound();
 
-  const topics = await loadCompiledTopics(record.userId);
+  // Email is the stable demo identifier — `User.id` is a cuid that
+  // changes on every fresh DB, but the seed always re-creates this
+  // email. 404 (not 500) if the seed hasn't run yet on a new env.
+  const user = await prisma.user.findUnique({
+    where: { email: record.email },
+    select: { id: true },
+  });
+  if (!user) notFound();
+
+  const topics = await loadCompiledTopics(user.id);
 
   return (
     <div className="px-5 pt-6 grain-page pb-24">

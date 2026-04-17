@@ -1,26 +1,35 @@
 /**
  * Public demo-slug registry for `/r/[slug]` URLs.
  *
- * Slugs are a tiny hand-maintained TS map: `slug → userId`. No DB schema.
- * Promote to a `DemoSlug` model when we need a second slug or dynamic
- * enable/disable. `enabled: false` returns 404, not 500, so we can hide
- * a slug without tearing down the route.
+ * Slugs are a tiny hand-maintained TS map: `slug → email`. We use
+ * the demo user's email as the stable identifier because `User.id`
+ * is a cuid that changes on every fresh database — the email is
+ * the one thing a re-seeded demo user always re-creates. The SSR
+ * handler resolves the email to a `User.id` at request time.
  *
- * The URL shape — `/r/<slug>` — stays stable across re-seeds: we can
- * rebuild the demo user (new UUID) without breaking the shared link.
+ * `enabled: false` returns `null` from `resolveDemoSlug`, letting
+ * us hide a slug without removing the route.
  *
- * Seeding of the demo user itself lives in R8. Until R8 runs, the map
- * is empty and every `/r/*` request 404s.
+ * Promote to a `DemoSlug` model when we need a second slug or
+ * dynamic enable/disable. The demo user itself is seeded by
+ * `prisma/seed.ts` (R8).
  */
+
+import { DEMO_NAVIGABLE_RECORD_SLUG } from '../../../prisma/fixtures/demo-navigable-record';
 
 export interface DemoSlugRecord {
   slug: string;
-  userId: string;
+  /** Email used to locate the seeded demo user at request time. */
+  email: string;
   enabled: boolean;
 }
 
 const DEMO_SLUGS: Readonly<Record<string, DemoSlugRecord>> = {
-  // R8 populates this map with the seeded demo user id.
+  [DEMO_NAVIGABLE_RECORD_SLUG]: {
+    slug: DEMO_NAVIGABLE_RECORD_SLUG,
+    email: 'demo@morningform.com',
+    enabled: true,
+  },
 };
 
 export function resolveDemoSlug(slug: string): DemoSlugRecord | null {
