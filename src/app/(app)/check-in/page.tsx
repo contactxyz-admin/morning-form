@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '@/components/ui/icon';
@@ -119,6 +120,16 @@ export default function CheckInPage() {
 
   return (
     <div className="px-5 pt-6 pb-32 grain-page">
+      <Link
+        href="/record"
+        className="group mb-5 flex items-center justify-between rounded-card border border-border-subtle bg-surface-paper/60 px-4 py-3 text-caption text-text-secondary transition-colors duration-300 ease-spring hover:border-border hover:text-text-primary"
+      >
+        <span>
+          Now part of your{' '}
+          <span className="font-medium text-text-primary">record</span>.
+        </span>
+        <Icon name="arrow-right" size="sm" className="text-text-tertiary group-hover:text-text-primary" />
+      </Link>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2.5">
           <span aria-hidden className="block w-6 h-px bg-text-primary/60" />
