@@ -1,12 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-view';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import type { GraphNodeWire, GraphResponse } from '@/types/graph';
+
+const FEATURED_TOPICS = [
+  { key: 'iron', label: 'Iron status', accent: 'teal' as const },
+  { key: 'sleep-recovery', label: 'Sleep & recovery', accent: 'sage' as const },
+  { key: 'energy-fatigue', label: 'Energy & fatigue', accent: 'amber' as const },
+];
 
 type LoadState =
   | { status: 'loading' }
@@ -91,6 +98,33 @@ export default function GraphPage() {
               Showing top {state.data.nodes.length} by importance.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Featured topics */}
+      {state.status === 'ready' && state.data.nodes.length > 0 && (
+        <div className="mt-12">
+          <SectionLabel>Topics</SectionLabel>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {FEATURED_TOPICS.map((t) => (
+              <Link key={t.key} href={`/topics/${t.key}`} className="block">
+                <Card variant="action" accentColor={t.accent} clickable>
+                  <p className="font-display font-normal text-subheading text-text-primary -tracking-[0.01em]">
+                    {t.label}
+                  </p>
+                  <p className="mt-2 inline-flex items-center gap-1.5 text-caption text-accent font-medium group">
+                    Open
+                    <span
+                      aria-hidden
+                      className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5"
+                    >
+                      →
+                    </span>
+                  </p>
+                </Card>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 
