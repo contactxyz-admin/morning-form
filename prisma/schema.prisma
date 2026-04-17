@@ -193,7 +193,7 @@ model TopicPage {
 model GraphNodeLayout {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   nodeId    String
   x         Float
   y         Float
@@ -213,7 +213,7 @@ model GraphNodeLayout {
 model SharedView {
   id         String    @id @default(cuid())
   userId     String
-  user       User      @relation(fields: [userId], references: [id])
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash  String    @unique
   scope      String
   redactions String?
