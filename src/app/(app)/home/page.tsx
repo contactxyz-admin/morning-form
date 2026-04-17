@@ -164,6 +164,23 @@ export default function HomePage() {
           </Link>
         </Card>
 
+        {/* Your graph */}
+        <Link href="/graph" className="block">
+          <Card variant="action" accentColor="sage" clickable>
+            <div className="flex items-baseline gap-2.5 mb-2">
+              <span className="font-mono text-label uppercase text-text-tertiary">·</span>
+              <span className="text-label uppercase text-text-tertiary">Your record</span>
+            </div>
+            <p className="mt-2 text-body text-text-secondary leading-relaxed">
+              Every lab value, symptom, and intervention — connected.
+            </p>
+            <p className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group">
+              Open health graph
+              <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+            </p>
+          </Card>
+        </Link>
+
         {/* Health data summary (if connected) */}
         {healthSummary.recovery.hrv && (
           <Card variant="default">

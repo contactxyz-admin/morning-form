@@ -220,6 +220,75 @@ export async function getProvenanceForNodes(
   return result;
 }
 
+/**
+ * Full user graph for the Health Graph view (U13). Returns every node and
+ * every edge (including SUPPORTS) so the caller can score importance and
+ * build provenance chains without another round-trip. Caps are applied by
+ * the API route after importance scoring, not here.
+ */
+export async function getFullGraphForUser(
+  db: Db,
+  userId: string,
+): Promise<SubgraphResult> {
+  const [nodeRows, edgeRows] = await Promise.all([
+    db.graphNode.findMany({ where: { userId } }),
+    db.graphEdge.findMany({ where: { userId } }),
+  ]);
+  return {
+    nodes: nodeRows.map(rowToNode),
+    edges: edgeRows.map(rowToEdge),
+  };
+}
+
+/**
+ * Per-node latest supporting-document capturedAt. Used by `computeImportance`
+ * to decide the +1 recency bonus. Nodes with no SUPPORTS edge map to null.
+ * One SQL query regardless of input size.
+ */
+export async function getLatestSupportCapturedAt(
+  db: Db,
+  userId: string,
+  nodeIds: string[],
+): Promise<Map<string, Date | null>> {
+  const result = new Map<string, Date | null>();
+  for (const id of nodeIds) result.set(id, null);
+  if (nodeIds.length === 0) return result;
+
+  const supportEdges = await db.graphEdge.findMany({
+    where: {
+      userId,
+      type: 'SUPPORTS',
+      toNodeId: { in: nodeIds },
+      fromChunkId: { not: null },
+    },
+    select: { toNodeId: true, fromChunkId: true },
+  });
+  if (supportEdges.length === 0) return result;
+
+  const chunkIds = Array.from(
+    new Set(
+      supportEdges
+        .map((e: { fromChunkId: string | null }) => e.fromChunkId)
+        .filter((id): id is string => !!id),
+    ),
+  );
+  const chunks = await db.sourceChunk.findMany({
+    where: { id: { in: chunkIds } },
+    include: { sourceDocument: { select: { capturedAt: true } } },
+  });
+  const chunkCapturedAt = new Map<string, Date>();
+  for (const c of chunks) chunkCapturedAt.set(c.id, c.sourceDocument.capturedAt);
+
+  for (const e of supportEdges) {
+    if (!e.fromChunkId) continue;
+    const ts = chunkCapturedAt.get(e.fromChunkId);
+    if (!ts) continue;
+    const prev = result.get(e.toNodeId);
+    if (!prev || ts.getTime() > prev.getTime()) result.set(e.toNodeId, ts);
+  }
+  return result;
+}
+
 export interface GraphRevision {
   nodeCount: number;
   edgeCount: number;
