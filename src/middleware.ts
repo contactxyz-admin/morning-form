@@ -8,18 +8,35 @@ import { SESSION_COOKIE } from '@/lib/session-cookie';
 assertAuthEnv();
 
 /**
- * Edge gate for authenticated API surfaces.
+ * Edge gate for authenticated API surfaces and public share pages.
  *
- * The middleware only checks for cookie presence — it cannot verify the
- * session against the DB from the Edge runtime. Route handlers still call
- * `getCurrentUser()` for the authoritative check (which rejects tampered
- * tokens that don't match a Session row). This short-circuits the obvious
- * unauthenticated case before we spin up a handler + Prisma query.
+ * For `/api/*` matches, the middleware only checks for cookie presence —
+ * it cannot verify the session against the DB from the Edge runtime.
+ * Route handlers still call `getCurrentUser()` for the authoritative
+ * check (which rejects tampered tokens that don't match a Session row).
  *
- * Marketing pages, the sign-in flow, auth endpoints, and provider webhooks
- * stay public and are excluded by the matcher below.
+ * For `/share/*` matches (the public DPP view), we do NOT require auth.
+ * We do set security headers so shared pages can't be indexed, framed,
+ * or embedded: no-index/no-cache for crawlers, DENY for framing, and a
+ * `frame-ancestors 'none'` CSP as belt-and-braces. Token resolution +
+ * revocation still happen in the SSR handler itself.
+ *
+ * Marketing pages, the sign-in flow, auth endpoints, and provider
+ * webhooks stay public and are excluded by the matcher below.
  */
 export function middleware(request: NextRequest): NextResponse {
+  const path = request.nextUrl.pathname;
+
+  if (path.startsWith('/share/')) {
+    const res = NextResponse.next();
+    res.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    res.headers.set('X-Frame-Options', 'DENY');
+    res.headers.set('Content-Security-Policy', "frame-ancestors 'none'");
+    res.headers.set('Referrer-Policy', 'no-referrer');
+    res.headers.set('Cache-Control', 'private, no-store');
+    return res;
+  }
+
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
   if (hasSession) {
     return NextResponse.next();
@@ -53,5 +70,6 @@ export const config = {
     '/api/share/:path*',
     '/api/suggestions',
     '/api/topics/:path*',
+    '/share/:path*',
   ],
 };
