@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
 import { ThreeTierSection } from '@/components/topic/three-tier-section';
 import { GPPrepCard } from '@/components/topic/gp-prep-card';
+import { TopicLogFooter } from '@/components/record/topic-log-footer';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { ShareDialog } from '@/components/share/share-dialog';
 import type { TopicCompiledOutput } from '@/lib/topics/types';
@@ -172,6 +173,8 @@ export default function TopicPage() {
       {state.status === 'ready' && state.data.status === 'full' && state.data.output && (
         <TopicBody data={state.data} onCitationClick={handleCitationClick} />
       )}
+
+      {state.status === 'ready' && topicKey && <TopicLogFooter topicKey={topicKey} />}
 
       <NodeDetailSheet node={citedNode} onClose={() => setCitedNode(null)} />
 
