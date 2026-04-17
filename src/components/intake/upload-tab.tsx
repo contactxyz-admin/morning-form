@@ -32,8 +32,8 @@ export function UploadTab() {
     <div className="space-y-6 stagger">
       <header>
         <div className="flex items-baseline gap-2.5 mb-4">
-          <span className="font-mono text-label uppercase text-text-tertiary">01</span>
-          <span className="text-label uppercase text-text-tertiary">Documents</span>
+          <span className="font-mono text-label uppercase text-text-whisper">01</span>
+          <span className="text-label uppercase text-text-whisper">Documents</span>
         </div>
         <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4 -tracking-[0.035em]">
           Upload your records.
@@ -44,7 +44,7 @@ export function UploadTab() {
         </p>
       </header>
 
-      <Card variant="paper" inset className="overflow-hidden">
+      <Card inset className="overflow-hidden">
         <label
           onDragOver={(e) => {
             e.preventDefault();

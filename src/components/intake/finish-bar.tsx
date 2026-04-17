@@ -64,7 +64,7 @@ export function FinishBar() {
   }
 
   return (
-    <div className="fixed bottom-16 left-0 right-0 px-6 sm:px-8 pt-16 pb-5 pointer-events-none bg-gradient-to-t from-bg via-bg/92 to-transparent">
+    <div className="fixed bottom-16 left-0 right-0 px-6 sm:px-8 pt-20 pb-5 pointer-events-none bg-gradient-to-t from-bg via-bg/85 via-35% to-transparent">
       <div className="mx-auto max-w-2xl pointer-events-auto">
         {error && (
           <p className="mb-3 text-caption text-alert text-center bg-surface rounded-card-sm px-4 py-3 border border-alert/30 shadow-card-hover">

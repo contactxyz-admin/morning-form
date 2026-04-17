@@ -20,8 +20,8 @@ export function HistoryTab() {
     <div className="space-y-6 stagger">
       <header>
         <div className="flex items-baseline gap-2.5 mb-4">
-          <span className="font-mono text-label uppercase text-text-tertiary">02</span>
-          <span className="text-label uppercase text-text-tertiary">Narrative</span>
+          <span className="font-mono text-label uppercase text-text-whisper">02</span>
+          <span className="text-label uppercase text-text-whisper">Narrative</span>
         </div>
         <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4 -tracking-[0.035em]">
           Your story,{' '}
