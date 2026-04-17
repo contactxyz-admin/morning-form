@@ -42,7 +42,7 @@ describe('redactTopicOutput', () => {
     expect(output.gpPrep).toEqual(original.gpPrep);
   });
 
-  it('replaces bodyMarkdown on partial citation removal (prose may still reference hidden data)', () => {
+  it('scrubs heading and body on any section whose citation is removed, keeps surviving citations', () => {
     const { output, hadRedactions, affectedSections } = redactTopicOutput(sampleOutput(), {
       hideNodeIds: ['n-haemoglobin'],
     });
@@ -52,13 +52,59 @@ describe('redactTopicOutput', () => {
     expect(output.understanding.citations).toEqual([
       { nodeId: 'n-ferritin', excerpt: 'Ferritin 18 ng/mL' },
     ]);
-    // Body is scrubbed — the original prose mentioned Hb 11.5.
+    // Body AND heading are scrubbed — any value leaked via either field is stopped.
     expect(output.understanding.bodyMarkdown).toContain('hidden from this shared view');
     expect(output.understanding.bodyMarkdown).not.toContain('Hb');
     expect(output.understanding.bodyMarkdown).not.toContain('11.5');
+    expect(output.understanding.heading).toBe('Section details hidden');
+    expect(output.understanding.heading).not.toContain('Iron');
   });
 
-  it('replaces body + stamps a placeholder citation when all citations are hidden', () => {
+  it('scrubs every section body + heading when any node is hidden — not just cite-matched sections (closes cross-section leak)', () => {
+    // LLM-style output: the hidden node is mentioned in understanding.bodyMarkdown
+    // but cited only in discussWithClinician. Cite-keyed scrubbing would leave
+    // the Hb 11.5 leak in understanding; this assertion locks that door.
+    const leaky: TopicCompiledOutput = {
+      ...sampleOutput(),
+      understanding: {
+        heading: 'Iron status',
+        bodyMarkdown: 'Your ferritin is 18 ng/mL and your haemoglobin is 11.5 g/dL.',
+        citations: [{ nodeId: 'n-ferritin', excerpt: 'Ferritin 18 ng/mL' }],
+      },
+      discussWithClinician: {
+        heading: 'Bring to your GP',
+        bodyMarkdown: 'Ask about tolerance given low Hb.',
+        citations: [{ nodeId: 'n-haemoglobin', excerpt: 'Hb 11.5 g/dL' }],
+      },
+    };
+    const { output } = redactTopicOutput(leaky, { hideNodeIds: ['n-haemoglobin'] });
+    // understanding had no n-haemoglobin citation but its prose did — must be scrubbed.
+    expect(output.understanding.bodyMarkdown).not.toContain('11.5');
+    expect(output.understanding.bodyMarkdown).not.toContain('haemoglobin');
+    expect(output.understanding.bodyMarkdown).toContain('hidden from this shared view');
+    expect(output.understanding.heading).toBe('Section details hidden');
+    // whatYouCanDoNow is unrelated to either node but is scrubbed defensively —
+    // we cannot prove prose doesn't mention a hidden node without semantic inspection.
+    expect(output.whatYouCanDoNow.bodyMarkdown).toContain('hidden from this shared view');
+    expect(output.whatYouCanDoNow.heading).toBe('Section details hidden');
+  });
+
+  it('replaces section.heading so a value-bearing heading cannot leak in the share page <h1>', () => {
+    const leaky: TopicCompiledOutput = {
+      ...sampleOutput(),
+      understanding: {
+        heading: 'Haemoglobin 11.5 g/dL — borderline anaemia',
+        bodyMarkdown: 'See your GP about iron.',
+        citations: [{ nodeId: 'n-haemoglobin', excerpt: 'Hb 11.5' }],
+      },
+    };
+    const { output } = redactTopicOutput(leaky, { hideNodeIds: ['n-haemoglobin'] });
+    expect(output.understanding.heading).toBe('Section details hidden');
+    expect(output.understanding.heading).not.toContain('11.5');
+    expect(output.understanding.heading).not.toContain('Haemoglobin');
+  });
+
+  it('stamps a placeholder citation when every citation in a section is hidden', () => {
     const { output, hadRedactions, affectedSections } = redactTopicOutput(sampleOutput(), {
       hideNodeIds: ['n-iron-supp'],
     });
@@ -86,21 +132,27 @@ describe('redactTopicOutput', () => {
       hideNodeIds: ['n-haemoglobin'],
     });
     expect(hadRedactions).toBe(true);
-    // None of the original prose should survive in gpPrep.
-    expect(output.gpPrep.questionsToAsk).not.toContain('What ferritin level should we target?');
+    expect(output.gpPrep.questionsToAsk).toEqual([
+      '_GP prep details have been hidden from this shared view._',
+    ]);
     expect(output.gpPrep.relevantHistory).toEqual([]);
     expect(output.gpPrep.testsToConsiderRequesting).toEqual([]);
     expect(output.gpPrep.printableMarkdown).not.toContain('Ferritin 18 ng/mL');
     expect(output.gpPrep.printableMarkdown).toContain('hidden from this shared view');
   });
 
-  it('flags hadRedactions even when no citation matches — gpPrep is still scrubbed', () => {
+  it('flags hadRedactions even when no citation matches — gpPrep and section bodies are still scrubbed', () => {
     const { output, hadRedactions, affectedSections } = redactTopicOutput(sampleOutput(), {
       hideNodeIds: ['n-does-not-match-anything'],
     });
     expect(hadRedactions).toBe(true);
     expect(affectedSections).toEqual([]);
+    // Defence in depth: unrelated hidden id still triggers the full scrub,
+    // because we cannot semantically verify the LLM didn't mention it.
     expect(output.gpPrep.printableMarkdown).toContain('hidden from this shared view');
+    expect(output.understanding.bodyMarkdown).toContain('hidden from this shared view');
+    expect(output.whatYouCanDoNow.bodyMarkdown).toContain('hidden from this shared view');
+    expect(output.discussWithClinician.bodyMarkdown).toContain('hidden from this shared view');
   });
 
   it('redacted output still validates against TopicCompiledOutputSchema', () => {

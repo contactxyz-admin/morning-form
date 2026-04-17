@@ -4,17 +4,26 @@
  * Filtering happens at the edge of the share-render pipeline, once, after
  * the topic has been compiled but before it ships to the /share page. We
  * don't mutate the DB — the owner's full view is untouched — and we don't
- * re-run the LLM: we replace body prose on any section whose citations
- * pointed at a hidden node (the prose almost certainly repeated the same
- * facts), and we scrub the GP-prep block wholesale whenever any node is
- * hidden because its narrative draws from the full subgraph and can't be
- * cleaned surgically.
+ * re-run the LLM.
+ *
+ * The earlier cite-keyed approach (scrub only sections whose citations
+ * reference a hidden node) was unsound. The LLM can mention a hidden
+ * node's values in prose without citing that node in the same section
+ * ("Your haemoglobin is 11.5 g/dL" in the understanding body while the
+ * n-haemoglobin citation lives in discussWithClinician), and headings
+ * like "Ferritin 8 ng/mL — borderline" bypass citation filtering
+ * entirely. When any node is hidden we conservatively scrub every
+ * section's heading + bodyMarkdown, filter citations, and wholesale
+ * scrub gpPrep. Surviving citations are kept so the reader can still
+ * navigate to non-hidden nodes; if every citation in a section is
+ * hidden we stamp a placeholder citation to keep the schema valid.
  */
 
 import type { GPPrep, Section, TopicCompiledOutput } from '@/lib/topics/types';
 import type { GraphEdgeRecord, GraphNodeRecord, SubgraphResult } from '@/lib/graph/types';
 import type { ShareRedactions } from './tokens';
 
+const REDACTED_HEADING_PLACEHOLDER = 'Section details hidden';
 const REDACTED_BODY_PLACEHOLDER =
   '_Content from this section has been hidden from this shared view._';
 const REDACTED_GPPREP_PLACEHOLDER =
@@ -41,21 +50,21 @@ export function redactTopicOutput(
 
   const affected: string[] = [];
 
-  const redactedUnderstanding = redactSection(output.understanding, hide);
-  if (redactedUnderstanding.removed > 0) affected.push('understanding');
+  const understanding = redactSection(output.understanding, hide);
+  if (understanding.removed > 0) affected.push('understanding');
 
-  const redactedWhatYouCanDoNow = redactSection(output.whatYouCanDoNow, hide);
-  if (redactedWhatYouCanDoNow.removed > 0) affected.push('whatYouCanDoNow');
+  const whatYouCanDoNow = redactSection(output.whatYouCanDoNow, hide);
+  if (whatYouCanDoNow.removed > 0) affected.push('whatYouCanDoNow');
 
-  const redactedDiscuss = redactSection(output.discussWithClinician, hide);
-  if (redactedDiscuss.removed > 0) affected.push('discussWithClinician');
+  const discussWithClinician = redactSection(output.discussWithClinician, hide);
+  if (discussWithClinician.removed > 0) affected.push('discussWithClinician');
 
   return {
     output: {
       ...output,
-      understanding: redactedUnderstanding.section,
-      whatYouCanDoNow: redactedWhatYouCanDoNow.section,
-      discussWithClinician: redactedDiscuss.section,
+      understanding: understanding.section,
+      whatYouCanDoNow: whatYouCanDoNow.section,
+      discussWithClinician: discussWithClinician.section,
       gpPrep: redactGPPrep(),
     },
     hadRedactions: true,
@@ -70,17 +79,9 @@ function redactSection(
   const keptCitations = section.citations.filter((c) => !hide.has(c.nodeId));
   const removed = section.citations.length - keptCitations.length;
 
-  if (removed === 0) {
-    return { section, removed };
-  }
-
-  // Any stripped citation means the prose likely referenced hidden data.
-  // Replace the body; keep surviving citations so the reader knows which
-  // other nodes the section touched. If nothing survived, stamp the
-  // placeholder citation so the section still satisfies its schema.
   return {
     section: {
-      ...section,
+      heading: REDACTED_HEADING_PLACEHOLDER,
       bodyMarkdown: REDACTED_BODY_PLACEHOLDER,
       citations: keptCitations.length > 0 ? keptCitations : [REDACTED_CITATION],
     },
