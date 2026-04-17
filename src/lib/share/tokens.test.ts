@@ -143,4 +143,53 @@ describe('listSharesForUser', () => {
     expect(shares[0].scope).toEqual({ kind: 'topic', topicKey: 'sleep-recovery' });
     expect(shares[1].scope).toEqual({ kind: 'topic', topicKey: 'iron' });
   });
+
+  it('skips rows with unparseable scope rather than throwing', async () => {
+    // A single corrupt row must not 500 the whole endpoint and strand the
+    // owner unable to revoke their other shares via the UI.
+    const userId = await makeTestUser(prisma, 'share-list-corrupt');
+    const good = await createShare(prisma, {
+      userId,
+      scope: { kind: 'topic', topicKey: 'iron' },
+    });
+    // Forge a corrupt row directly via Prisma — the public API won't let us
+    // persist one, but the DB certainly can via migrations or manual edits.
+    await prisma.sharedView.create({
+      data: {
+        userId,
+        tokenHash: hashShareToken(generateRawShareToken()),
+        scope: 'not json',
+        expiresAt: null,
+      },
+    });
+    await prisma.sharedView.create({
+      data: {
+        userId,
+        tokenHash: hashShareToken(generateRawShareToken()),
+        scope: JSON.stringify({ kind: 'topic' }), // missing topicKey
+        expiresAt: null,
+      },
+    });
+
+    const shares = await listSharesForUser(prisma, userId);
+    expect(shares).toHaveLength(1);
+    expect(shares[0].id).toBe(good.id);
+  });
+});
+
+describe('resolveShare corrupt scope', () => {
+  it('returns null for a row with unparseable scope rather than throwing', async () => {
+    const userId = await makeTestUser(prisma, 'share-resolve-corrupt');
+    const rawToken = generateRawShareToken();
+    await prisma.sharedView.create({
+      data: {
+        userId,
+        tokenHash: hashShareToken(rawToken),
+        scope: 'this-is-not-json-at-all',
+        expiresAt: null,
+      },
+    });
+    const resolved = await resolveShare(prisma, rawToken);
+    expect(resolved).toBeNull();
+  });
 });

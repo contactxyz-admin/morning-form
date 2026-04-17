@@ -107,10 +107,13 @@ export async function resolveShare(
   if (row.revokedAt) return null;
   if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return null;
 
+  const scope = parseScope(row.scope);
+  if (!scope) return null;
+
   return {
     id: row.id,
     userId: row.userId,
-    scope: parseScope(row.scope),
+    scope,
     redactions: parseRedactions(row.redactions),
     label: row.label,
     expiresAt: row.expiresAt,
@@ -157,29 +160,48 @@ export async function listSharesForUser(
     where: { userId },
     orderBy: { createdAt: 'desc' },
   });
-  return rows.map((row: any) => ({
-    id: row.id,
-    userId: row.userId,
-    scope: parseScope(row.scope),
-    redactions: parseRedactions(row.redactions),
-    label: row.label,
-    expiresAt: row.expiresAt,
-    revokedAt: row.revokedAt,
-    viewCount: row.viewCount,
-    createdAt: row.createdAt,
-  }));
+  // Rows with unparseable scope JSON are filtered out rather than throwing —
+  // a single corrupt row would otherwise 500 /api/share/list and block the
+  // owner from revoking any share via the UI. The row still exists in the
+  // DB and can be revoked directly via its id.
+  const resolved: ResolvedShare[] = [];
+  for (const row of rows) {
+    const scope = parseScope(row.scope);
+    if (!scope) {
+      console.warn('[share] skipping row with unparseable scope', { id: row.id });
+      continue;
+    }
+    resolved.push({
+      id: row.id,
+      userId: row.userId,
+      scope,
+      redactions: parseRedactions(row.redactions),
+      label: row.label,
+      expiresAt: row.expiresAt,
+      revokedAt: row.revokedAt,
+      viewCount: row.viewCount,
+      createdAt: row.createdAt,
+    });
+  }
+  return resolved;
 }
 
-function parseScope(raw: string): ShareScope {
+function parseScope(raw: string): ShareScope | null {
   try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && 'kind' in parsed) {
-      return parsed as ShareScope;
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      if (obj.kind === 'topic' && typeof obj.topicKey === 'string' && obj.topicKey.length > 0) {
+        return { kind: 'topic', topicKey: obj.topicKey };
+      }
+      if (obj.kind === 'node' && typeof obj.nodeId === 'string' && obj.nodeId.length > 0) {
+        return { kind: 'node', nodeId: obj.nodeId };
+      }
     }
   } catch {
     /* fall-through */
   }
-  throw new Error(`[share] unparseable scope: ${raw}`);
+  return null;
 }
 
 function parseRedactions(raw: string | null): ShareRedactions {
