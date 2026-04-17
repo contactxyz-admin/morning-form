@@ -72,10 +72,10 @@ export default function IntakeLandingPage() {
               <div className="flex items-start justify-between gap-6">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2.5 mb-2">
-                    <span className="font-mono text-label uppercase text-text-tertiary">
+                    <span className="font-mono text-label uppercase text-text-whisper">
                       {tab.number}
                     </span>
-                    <span className="text-label uppercase text-text-tertiary">
+                    <span className="text-label uppercase text-text-whisper">
                       {tab.kicker}
                     </span>
                   </div>

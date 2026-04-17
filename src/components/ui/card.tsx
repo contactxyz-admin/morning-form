@@ -47,9 +47,10 @@ function Card({
         ],
         clickable && [
           'cursor-pointer',
-          'hover:border-border-strong hover:shadow-card-hover hover:bg-surface',
+          // Hover leads with the border — a half-tone darker, never a lift. border-hover is reserved for focus/active.
+          'hover:border-border-mid hover:shadow-card-hover',
           'active:shadow-card-press active:duration-150',
-          variant === 'action' && 'hover:before:top-5 hover:before:bottom-5',
+          variant === 'action' && 'hover:before:top-5 hover:before:bottom-5 hover:before:w-[2.5px]',
         ],
         className,
       )}

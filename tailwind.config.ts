@@ -9,14 +9,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Warm paper — a touch creamier than the previous pass so highlights read as light, not white.
-        bg: '#F7F3EB',
-        'bg-deep': '#F1ECE1',
-        surface: '#FFFDFA',
-        'surface-warm': '#F2EDE3',
-        'surface-sunken': '#EDE7DA',
-        // Hairlines. Lighter by default; strong variant for hover + focus.
-        border: '#E7E1D3',
+        // Warm paper — lifted toward near-white for editorial clarity while keeping the uncoated-stock warmth.
+        bg: '#FAF6EE',
+        'bg-deep': '#F4EFE4',
+        surface: '#FEFCF6',
+        'surface-warm': '#F5F0E6',
+        'surface-sunken': '#F0EADC',
+        // Hairlines. Two-step hover so default -> hover is a half-tone, not a jump.
+        border: '#EAE4D7',
+        'border-mid': '#D8D0BE',
         'border-strong': '#D0C8B6',
         'border-hover': '#B6AD98',
         // Ink — warmed into the paper palette so type sits on the page, not on it.
@@ -67,7 +68,7 @@ const config: Config = {
         'body-lg': ['1.0625rem', { lineHeight: '1.6', letterSpacing: '-0.005em' }],
         'body': ['0.9375rem', { lineHeight: '1.58', letterSpacing: '-0.003em' }],
         'caption': ['0.8125rem', { lineHeight: '1.5', letterSpacing: '0.002em' }],
-        'label': ['0.6875rem', { lineHeight: '1.4', letterSpacing: '0.14em' }],
+        'label': ['0.6875rem', { lineHeight: '1.4', letterSpacing: '0.11em' }],
         'data': ['0.875rem', { lineHeight: '1.5', letterSpacing: '0' }],
       },
       spacing: {
@@ -76,28 +77,28 @@ const config: Config = {
         '30': '7.5rem',
       },
       borderRadius: {
-        // Tighter, more architectural — Apple-grade corners rather than pillowed.
-        'card': '16px',
-        'card-sm': '12px',
-        'button': '12px',
+        // Architectural corners — tighter than pillowed, closer to editorial grid.
+        'card': '14px',
+        'card-sm': '10px',
+        'button': '10px',
         'chip': '999px',
-        'input': '10px',
-        'well': '14px',
+        'input': '8px',
+        'well': '12px',
       },
       boxShadow: {
         'hairline': '0 0 0 1px rgba(26, 20, 16, 0.04)',
         'hairline-strong': '0 0 0 1px rgba(26, 20, 16, 0.08)',
         'card': 'none',
-        // Paper lift — barely there, two layers: contact shadow + soft ambient.
+        // Paper lift — quieter contact + ambient, leaning on border transitions to carry interaction.
         'card-hover':
-          '0 1px 1px rgba(26, 20, 16, 0.03), 0 10px 28px -12px rgba(26, 20, 16, 0.10)',
-        'card-press': 'inset 0 1px 2px rgba(26, 20, 16, 0.06)',
-        'button-primary': '0 1px 0 rgba(255, 253, 250, 0.08) inset, 0 6px 18px -10px rgba(18, 31, 23, 0.55)',
+          '0 1px 1px rgba(26, 20, 16, 0.02), 0 6px 18px -12px rgba(26, 20, 16, 0.08)',
+        'card-press': 'inset 0 1px 2px rgba(26, 20, 16, 0.05)',
+        'button-primary': '0 1px 0 rgba(255, 253, 250, 0.08) inset, 0 4px 14px -8px rgba(18, 31, 23, 0.45)',
         'button-primary-hover':
-          '0 1px 0 rgba(255, 253, 250, 0.10) inset, 0 10px 28px -14px rgba(18, 31, 23, 0.70)',
-        'modal': '0 16px 48px -12px rgba(26, 20, 16, 0.22), 0 4px 14px -6px rgba(26, 20, 16, 0.10)',
+          '0 1px 0 rgba(255, 253, 250, 0.10) inset, 0 8px 22px -12px rgba(18, 31, 23, 0.60)',
+        'modal': '0 16px 48px -12px rgba(26, 20, 16, 0.20), 0 4px 14px -6px rgba(26, 20, 16, 0.09)',
         'ring-accent': '0 0 0 1px rgba(31, 58, 46, 0.22)',
-        'ring-focus': '0 0 0 2px rgba(31, 58, 46, 0.28)',
+        'ring-focus': '0 0 0 2px rgba(31, 58, 46, 0.26)',
       },
       transitionDuration: {
         '250': '250ms',

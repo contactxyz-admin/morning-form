@@ -42,8 +42,8 @@ export function EssentialsTab() {
     <div className="space-y-6 stagger">
       <header>
         <div className="flex items-baseline gap-2.5 mb-4">
-          <span className="font-mono text-label uppercase text-text-tertiary">03</span>
-          <span className="text-label uppercase text-text-tertiary">Essentials</span>
+          <span className="font-mono text-label uppercase text-text-whisper">03</span>
+          <span className="text-label uppercase text-text-whisper">Essentials</span>
         </div>
         <h2 className="font-display text-display-sm sm:text-display font-light text-text-primary mb-4 -tracking-[0.035em]">
           The minimum we need.
@@ -54,28 +54,31 @@ export function EssentialsTab() {
         </p>
       </header>
 
-      {FIELDS.map((field) => (
-        <Card key={field.id}>
-          <div className="flex items-baseline justify-between mb-3 gap-3">
-            <label className="block text-label uppercase text-text-tertiary">
-              {field.label}
-            </label>
-            {field.required && (
-              <span className="inline-flex items-center gap-1.5 text-caption text-alert font-medium lowercase tracking-normal">
-                <span aria-hidden className="inline-block w-1 h-1 rounded-full bg-alert" />
-                required
-              </span>
-            )}
-          </div>
-          <textarea
-            value={essentials[field.id]}
-            onChange={(e) => setField(field.id, e.target.value)}
-            placeholder={field.placeholder}
-            rows={3}
-            className="w-full bg-transparent text-body-lg text-text-primary placeholder:text-text-whisper focus:outline-none resize-none -tracking-[0.005em] leading-relaxed"
-          />
-        </Card>
-      ))}
+      <Card inset>
+        <div className="divide-y divide-border">
+          {FIELDS.map((field) => (
+            <div key={field.id} className="px-5 sm:px-6 py-5 sm:py-6">
+              <div className="flex items-baseline justify-between mb-3 gap-3">
+                <label className="block text-label uppercase text-text-tertiary">
+                  {field.label}
+                </label>
+                {field.required && (
+                  <span className="text-caption italic text-text-tertiary lowercase tracking-normal">
+                    required
+                  </span>
+                )}
+              </div>
+              <textarea
+                value={essentials[field.id]}
+                onChange={(e) => setField(field.id, e.target.value)}
+                placeholder={field.placeholder}
+                rows={3}
+                className="w-full bg-transparent text-body-lg text-text-primary placeholder:text-text-whisper focus:outline-none resize-none -tracking-[0.005em] leading-relaxed"
+              />
+            </div>
+          ))}
+        </div>
+      </Card>
 
       {!complete && (
         <p className="text-caption text-text-tertiary text-center px-4 pt-2 max-w-sm mx-auto leading-relaxed">

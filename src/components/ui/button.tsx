@@ -36,7 +36,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           'focus-visible:outline-none focus-visible:shadow-ring-focus',
           {
             // Primary — ink button with paired shadows (inset highlight + soft drop) for depth.
-            'bg-button text-[#FDFBF6] shadow-button-primary hover:bg-button-hover hover:shadow-button-primary-hover active:bg-button-active disabled:bg-surface-warm disabled:text-text-tertiary disabled:shadow-none disabled:border disabled:border-border-strong':
+            'bg-button text-[#FDFBF6] shadow-button-primary hover:bg-button-hover hover:shadow-button-primary-hover active:bg-button-active disabled:bg-surface-warm disabled:text-text-secondary disabled:shadow-none disabled:border disabled:border-border-strong':
               variant === 'primary',
             // Secondary — flat paper, hairline border, pulls toward ink on hover.
             'border border-border-strong text-text-primary bg-surface hover:border-text-primary hover:shadow-card-hover active:bg-surface-warm disabled:opacity-50':
