@@ -4,16 +4,22 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
-import { SectionLabel } from '@/components/ui/section-label';
+import {
+  RecordAnchorCard,
+  type RecordAnchorState,
+} from '@/components/home/record-anchor-card';
+import { deriveStatus } from '@/components/home/record-anchor-helpers';
 import { getGreeting, formatDate, getTimeOfDay, getDateKey } from '@/lib/utils';
 import { mockProtocolItems, mockHealthSummary } from '@/lib/mock-data';
 import type { HealthSummary } from '@/types';
+import type { RecordIndex } from '@/lib/record/types';
 
 export default function HomePage() {
   const [morningDone, setMorningDone] = useState(false);
   const [eveningDone, setEveningDone] = useState(false);
   const [sleepQuality, setSleepQuality] = useState<string | null>(null);
   const [healthSummary, setHealthSummary] = useState<HealthSummary>(mockHealthSummary);
+  const [recordState, setRecordState] = useState<RecordAnchorState>({ status: 'loading' });
   const timeOfDay = getTimeOfDay();
 
   useEffect(() => {
@@ -41,6 +47,31 @@ export default function HomePage() {
     };
 
     loadHealthSummary();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/record/index', { cache: 'no-store' });
+        if (cancelled) return;
+        const data = res.ok ? ((await res.json()) as RecordIndex) : null;
+        if (cancelled) return;
+        const status = deriveStatus({ ok: res.ok, status: res.status, data });
+        if (status === 'ready' && data) {
+          setRecordState({ status: 'ready', data });
+        } else if (status === 'ready') {
+          setRecordState({ status: 'error' });
+        } else {
+          setRecordState({ status });
+        }
+      } catch {
+        if (!cancelled) setRecordState({ status: 'error' });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const currentProtocolItem = timeOfDay === 'morning' || timeOfDay === 'night'
@@ -144,6 +175,9 @@ export default function HomePage() {
           </Card>
         )}
 
+        {/* Your record — anchor card, position 3 */}
+        <RecordAnchorCard state={recordState} />
+
         {/* Next protocol */}
         <Card variant="default">
           <div className="flex items-baseline gap-2.5 mb-2">
@@ -164,18 +198,18 @@ export default function HomePage() {
           </Link>
         </Card>
 
-        {/* Your graph */}
+        {/* Graph view */}
         <Link href="/graph" className="block">
           <Card variant="action" accentColor="sage" clickable>
             <div className="flex items-baseline gap-2.5 mb-2">
               <span className="font-mono text-label uppercase text-text-tertiary">·</span>
-              <span className="text-label uppercase text-text-tertiary">Your record</span>
+              <span className="text-label uppercase text-text-tertiary">The graph view</span>
             </div>
             <p className="mt-2 text-body text-text-secondary leading-relaxed">
-              Every lab value, symptom, and intervention — connected.
+              See how it all connects.
             </p>
             <p className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group">
-              Open health graph
+              Open graph
               <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
             </p>
           </Card>
