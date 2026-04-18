@@ -104,7 +104,7 @@ describe('recordAudit', () => {
       toolCalls: [{ name: 'graph.findNodesForTopic', args: { topicKey: 'iron' } }],
       output: 'Ferritin 18 ug/L — below the 30-300 reference range.',
       citations: [{ nodeId: 'n1', chunkId: null, excerpt: 'Ferritin 18 ug/L' }],
-      safetyClassification: 'within-scope',
+      safetyClassification: 'clinical-safe' as const,
       modelVersion: 'gpt-4.1-2026-01-01',
     };
 
@@ -139,7 +139,7 @@ describe('recordAudit', () => {
       toolCalls: [],
       output: 'o1',
       citations: [],
-      safetyClassification: 'within-scope',
+      safetyClassification: 'clinical-safe',
       modelVersion: 'v1',
     });
     await recordAudit(prisma, userId, scribe.id, {
@@ -150,7 +150,7 @@ describe('recordAudit', () => {
       toolCalls: [],
       output: 'o2',
       citations: [],
-      safetyClassification: 'within-scope',
+      safetyClassification: 'clinical-safe',
       modelVersion: 'v1',
     });
 

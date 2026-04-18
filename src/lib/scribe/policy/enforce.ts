@@ -39,19 +39,11 @@ export function enforce(
   candidate: PolicyCandidate,
 ): EnforceResult {
   // 1. Forbidden phrases — dominates. Runs before the judgment-kind gate so
-  //    an out-of-scope wrapper cannot hide a drug mention. Collect every
-  //    match so the remedial path sees all violations in one shot.
-  const phraseViolations: PolicyViolation[] = [];
-  for (const pattern of policy.forbiddenPhrasePatterns) {
-    const match = candidate.output.match(pattern);
-    if (match) {
-      phraseViolations.push({
-        kind: 'forbidden-phrase',
-        detail: `Output contains a forbidden phrase pattern (${pattern.source}).`,
-        match: match[0],
-      });
-    }
-  }
+  //    an out-of-scope wrapper cannot hide a drug mention.
+  const phraseViolations = scanForbiddenPhrases(
+    candidate.output,
+    policy.forbiddenPhrasePatterns,
+  );
   if (phraseViolations.length > 0) {
     return {
       ok: false,
@@ -119,4 +111,32 @@ export function enforce(
     classification: 'rejected',
     violations: densityViolations,
   };
+}
+
+/**
+ * Collect every forbidden-phrase match in `text`, one violation per match.
+ * Callers reuse this on the compile-time annotation merge path so a drug
+ * mention inside `ScribeAnnotation.content` is caught by the same rule-set
+ * that scans the raw `output` text. Patterns without the `g` flag are
+ * cloned with `g` added — `String.prototype.match(non-global)` would
+ * return only the first hit, causing stacked violations to under-count.
+ */
+export function scanForbiddenPhrases(
+  text: string,
+  patterns: readonly RegExp[],
+): PolicyViolation[] {
+  const violations: PolicyViolation[] = [];
+  for (const pattern of patterns) {
+    const global = pattern.flags.includes('g')
+      ? pattern
+      : new RegExp(pattern.source, pattern.flags + 'g');
+    for (const match of Array.from(text.matchAll(global))) {
+      violations.push({
+        kind: 'forbidden-phrase',
+        detail: `Text contains a forbidden phrase pattern (${pattern.source}).`,
+        match: match[0],
+      });
+    }
+  }
+  return violations;
 }

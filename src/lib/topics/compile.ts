@@ -33,7 +33,6 @@ import {
 } from '@/lib/llm/linter';
 import {
   parseScribeAnnotations,
-  stripAnnotationBlock,
   targetSectionFor,
   type ScribeAnnotation,
 } from '@/lib/scribe/annotations';
@@ -42,9 +41,10 @@ import {
   type ScribeExecuteResult,
   type ScribeLLMClient,
 } from '@/lib/scribe/execute';
-import { getOrCreateScribeForTopic } from '@/lib/scribe/repo';
+import { getOrCreateScribeForTopic, SCRIBE_MODEL_VERSION_PENDING } from '@/lib/scribe/repo';
 import { getPolicy } from '@/lib/scribe/policy/registry';
-import type { JudgmentKind } from '@/lib/scribe/policy/types';
+import { scanForbiddenPhrases } from '@/lib/scribe/policy/enforce';
+import type { JudgmentKind, SafetyPolicy } from '@/lib/scribe/policy/types';
 import { getTopicConfig } from './registry';
 import {
   TopicCompileLintError,
@@ -187,6 +187,7 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
         userId,
         topicKey,
         output,
+        subgraph,
         scribeLlm,
         requestIdForTest: scribeRequestIdForTest,
       });
@@ -247,7 +248,7 @@ async function hasScribeModelDrift(
     where: { userId_topicKey: { userId, topicKey } },
   });
   if (!scribe) return false;
-  if (scribe.modelVersion === 'pending') return false;
+  if (scribe.modelVersion === SCRIBE_MODEL_VERSION_PENDING) return false;
   const lastAudit = await db.scribeAudit.findFirst({
     where: { scribeId: scribe.id, mode: 'compile' },
     orderBy: { createdAt: 'desc' },
@@ -261,6 +262,8 @@ interface RunScribePassArgs {
   userId: string;
   topicKey: string;
   output: TopicCompiledOutput;
+  /** Subgraph fetched for the narrative — used to validate annotation citation nodeIds. */
+  subgraph: SubgraphResult;
   scribeLlm: ScribeLLMClient;
   requestIdForTest?: string;
 }
@@ -282,14 +285,16 @@ interface RunScribePassArgs {
  * lands. We only need to surface the classification here.
  */
 async function runScribePass(args: RunScribePassArgs): Promise<TopicCompiledOutput> {
-  const { db, userId, topicKey, output, scribeLlm, requestIdForTest } = args;
+  const { db, userId, topicKey, output, subgraph, scribeLlm, requestIdForTest } = args;
   const policy = getPolicy(topicKey);
   if (!policy) {
     // No policy = no scribe surface. Narrative ships untouched.
     return output;
   }
 
-  await getOrCreateScribeForTopic(db, userId, topicKey, { modelVersion: 'pending' });
+  await getOrCreateScribeForTopic(db, userId, topicKey, {
+    modelVersion: SCRIBE_MODEL_VERSION_PENDING,
+  });
 
   const userMessage = buildScribeUserMessage(output, policy.allowedJudgmentKinds);
   const sectionsForPolicy = [
@@ -298,6 +303,7 @@ async function runScribePass(args: RunScribePassArgs): Promise<TopicCompiledOutp
     asPolicySection(output.discussWithClinician),
   ];
   const declared = pickDeclaredJudgmentKind(policy.allowedJudgmentKinds);
+  const validNodeIds = new Set(subgraph.nodes.map((n) => n.id));
 
   const first = await executeScribe({
     db,
@@ -312,7 +318,7 @@ async function runScribePass(args: RunScribePassArgs): Promise<TopicCompiledOutp
   });
 
   if (first.classification !== 'rejected') {
-    return mergeAnnotations(output, first);
+    return mergeAnnotations(output, first, policy, validNodeIds);
   }
 
   // One remedial retry. Supply the prior output + classification so the
@@ -336,7 +342,7 @@ async function runScribePass(args: RunScribePassArgs): Promise<TopicCompiledOutp
     );
   }
 
-  return mergeAnnotations(output, retry);
+  return mergeAnnotations(output, retry, policy, validNodeIds);
 }
 
 export class ScribeRejectedError extends Error {
@@ -397,18 +403,35 @@ function pickDeclaredJudgmentKind(
 }
 
 /**
- * Merges parsed `ScribeAnnotation[]` back into the narrative. Out-of-scope
- * annotations become `gpPrep.questionsToAsk` entries (deduped against
- * existing entries). In-scope annotations land on whichever section's
- * `bodyMarkdown` substring-matches the `spanAnchor` — unmatched anchors
- * fall through to `discussWithClinician` so the judgment is surfaced
- * somewhere rather than dropped.
+ * Merges parsed `ScribeAnnotation[]` back into the narrative. Applies three
+ * filters between parse and merge that the scribe's LLM loop cannot
+ * self-enforce:
+ *
+ *   1. Forbidden-phrase scan on `annotation.content` — a drug name inside
+ *      an annotation pill bypasses the enforce() scan at the executor
+ *      level, which only sees the raw prose output.
+ *   2. Per-annotation `judgmentKind` ∈ `policy.allowedJudgmentKinds` —
+ *      `enforce()` only checks the single declared kind for the whole
+ *      invocation; individual annotations may carry a disallowed kind and
+ *      must not land inline. Those are routed to gpPrep instead.
+ *   3. Citation `nodeId` ∈ subgraph — the main pipeline runs
+ *      `validateCitations` for section citations but not for annotation
+ *      citations. A hallucinated nodeId renders as a broken pill in the
+ *      UI. Unknown ids are filtered; annotations left with zero citations
+ *      are dropped (the schema requires ≥1).
+ *
+ * Out-of-scope annotations become `gpPrep.questionsToAsk` entries (deduped
+ * against existing entries). In-scope annotations land on whichever
+ * section's `bodyMarkdown` substring-matches the `spanAnchor` — unmatched
+ * anchors fall through to `discussWithClinician` so the judgment is
+ * surfaced somewhere rather than dropped.
  */
 function mergeAnnotations(
   output: TopicCompiledOutput,
   scribeResult: ScribeExecuteResult,
+  policy: SafetyPolicy,
+  validNodeIds: ReadonlySet<string>,
 ): TopicCompiledOutput {
-  const prose = stripAnnotationBlock(scribeResult.output);
   const { annotations } = parseScribeAnnotations(scribeResult.output);
   if (annotations.length === 0) {
     return { ...output, gpPrep: { ...output.gpPrep } };
@@ -427,11 +450,37 @@ function mergeAnnotations(
       discussWithClinician: [],
     };
   const routed: ScribeAnnotation[] = [];
+  const allowedKinds = new Set<JudgmentKind>(policy.allowedJudgmentKinds);
 
   for (const ann of annotations) {
-    const target = targetSectionFor(ann, sectionsText);
-    if (target === 'gpPrep') routed.push(ann);
-    else bySection[target].push(ann);
+    // (1) Forbidden-phrase scan — drop silently rather than route, since
+    //     gpPrep is user-visible and we cannot launder a drug mention
+    //     through the handoff path either.
+    if (scanForbiddenPhrases(ann.content, policy.forbiddenPhrasePatterns).length > 0) {
+      continue;
+    }
+
+    // (3) Citation nodeId validation — drop citations that reference ids
+    //     not in the subgraph. If the filter leaves an annotation with no
+    //     citations, drop the whole annotation (schema requires ≥1).
+    const validCitations = ann.citations.filter((c) => validNodeIds.has(c.nodeId));
+    if (validCitations.length === 0) {
+      continue;
+    }
+    const cleaned: ScribeAnnotation = { ...ann, citations: validCitations };
+
+    // (2) Per-annotation judgmentKind — a disallowed kind must route to
+    //     gpPrep regardless of the explicit outOfScopeRoute flag.
+    const explicitOOS = cleaned.outOfScopeRoute === 'gpPrep';
+    const disallowedKind = !allowedKinds.has(cleaned.judgmentKind);
+    if (explicitOOS || disallowedKind) {
+      routed.push(cleaned);
+      continue;
+    }
+
+    const target = targetSectionFor(cleaned, sectionsText);
+    if (target === 'gpPrep') routed.push(cleaned);
+    else bySection[target].push(cleaned);
   }
 
   const addAnnotations = (section: Section, toAdd: ScribeAnnotation[]): Section =>
@@ -441,12 +490,6 @@ function mergeAnnotations(
   const newQs = routed
     .map((ann) => ann.content.trim())
     .filter((q) => q.length > 0 && !existingQs.has(q));
-
-  // Suppress unused-var warning — `prose` is computed so audit logs + future
-  // consumers can read prose-only (without the ANNOTATIONS_JSON tail). It's
-  // not embedded in the topic page yet; keep the call-site so the parser
-  // exercises the strip path in tests.
-  void prose;
 
   return {
     ...output,

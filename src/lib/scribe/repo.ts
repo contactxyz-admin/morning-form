@@ -13,12 +13,23 @@
  */
 
 import type { Prisma, PrismaClient, Scribe, ScribeAudit } from '@prisma/client';
+import type { SafetyClassification } from './policy/types';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
 export const DEFAULT_SCRIBE_MODEL = 'openrouter/openai/gpt-4.1';
 
 export const DEFAULT_SCRIBE_TEMPERATURE = 0.3;
+
+/**
+ * Sentinel written to `Scribe.modelVersion` when a lazy-create path has no
+ * pinned upstream version. Shared across `execute.ts` (writer) and
+ * `compile.ts` (drift-check reader) so a typo in one file cannot silently
+ * break D9. A drifted scribe whose pin is still `'pending'` is treated as
+ * "no operator baseline", so drift detection is skipped until an operator
+ * writes a real version.
+ */
+export const SCRIBE_MODEL_VERSION_PENDING = 'pending';
 
 /**
  * The six tool names every new scribe is seeded with. Names match the U3
@@ -57,8 +68,24 @@ export interface RecordAuditInput {
   toolCalls: unknown;
   output: string;
   citations: unknown;
-  safetyClassification: string;
+  safetyClassification: SafetyClassification;
   modelVersion: string;
+}
+
+/**
+ * Thrown by `recordAudit` call sites when the audit-before-gate write fails.
+ * D11 requires every scribe invocation to land an audit row before the
+ * policy gate runs, so a DB error here is a structurally-load-bearing
+ * failure that upstream callers must surface distinctly from a scribe-loop
+ * error — dropping it silently would break the regulatory audit trail.
+ */
+export class ScribeAuditWriteError extends Error {
+  readonly cause: unknown;
+  constructor(message: string, cause: unknown) {
+    super(message);
+    this.name = 'ScribeAuditWriteError';
+    this.cause = cause;
+  }
 }
 
 /**

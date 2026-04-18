@@ -29,6 +29,8 @@ import {
   DEFAULT_SCRIBE_TEMPERATURE,
   getOrCreateScribeForTopic,
   recordAudit,
+  SCRIBE_MODEL_VERSION_PENDING,
+  ScribeAuditWriteError,
   type ScribeMode,
 } from './repo';
 import { enforce } from './policy/enforce';
@@ -41,6 +43,8 @@ import type {
 } from './policy/types';
 import { getToolHandler, listToolDefinitions } from './tool-catalog';
 import type { Db, ToolContext } from './tools/types';
+import { parseScribeAnnotations } from './annotations';
+import type { Citation } from '@/lib/topics/types';
 
 export const DEFAULT_MAX_TOOL_CALLS = 6;
 
@@ -148,8 +152,9 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
   const ctx: ToolContext = { db: req.db, userId: req.userId, topicKey: req.topicKey };
 
   const scribe = await getOrCreateScribeForTopic(req.db, req.userId, req.topicKey, {
-    modelVersion: 'pending', // executors calling without a pinned version would reach this;
-                             // tests always pre-seed a scribe so this default stays unused.
+    modelVersion: SCRIBE_MODEL_VERSION_PENDING, // executors calling without a pinned version would
+                                                // reach this; tests always pre-seed a scribe so
+                                                // this default stays unused.
   });
 
   const requestId = req.requestId ?? randomUUID();
@@ -256,17 +261,37 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
 
   // D11: audit lands on every code path — success, throw, or rejection.
   // Upsert is idempotent on requestId so retries fold into the same row.
-  const audit = await recordAudit(req.db, req.userId, scribe.id, {
-    requestId,
-    topicKey: req.topicKey,
-    mode: req.mode,
-    prompt: req.userMessage,
-    toolCalls: collectedToolCalls,
-    output,
-    citations: [],
-    safetyClassification: classification,
-    modelVersion,
-  });
+  // Citations are extracted from the scribe's ANNOTATIONS_JSON block when
+  // present (compile-time pass); the runtime-scribe path emits no annotation
+  // block so citations stays empty and U5 will surface runtime citations
+  // through its own extraction. Parse failures degrade to `[]` rather than
+  // losing the audit row — the partial audit is still R19-compliant.
+  const citations = extractCitationsFromOutput(output);
+  let audit: Awaited<ReturnType<typeof recordAudit>>;
+  try {
+    audit = await recordAudit(req.db, req.userId, scribe.id, {
+      requestId,
+      topicKey: req.topicKey,
+      mode: req.mode,
+      prompt: req.userMessage,
+      toolCalls: collectedToolCalls,
+      output,
+      citations,
+      safetyClassification: classification,
+      modelVersion,
+    });
+  } catch (auditErr) {
+    // D11 breach: audit-before-gate failed to persist. Surface distinctly so
+    // upstream (route handler, compile pipeline) can log the regulatory gap
+    // separately from a scribe-loop failure. Include the prior loop error in
+    // the message so diagnostics keep the full causal chain.
+    const loopContext =
+      loopError instanceof Error ? ` (prior loop error: ${loopError.message})` : '';
+    throw new ScribeAuditWriteError(
+      `scribe.execute: failed to persist audit for requestId=${requestId}${loopContext}`,
+      auditErr,
+    );
+  }
 
   if (loopError) throw loopError;
 
@@ -278,4 +303,27 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     modelVersion,
     auditId: audit.id,
   };
+}
+
+/**
+ * Collect citations referenced by any annotation in the scribe's output
+ * block, deduped by `(nodeId, chunkId)`. A malformed or missing block
+ * yields `[]` — the audit row still writes, just without citations. The
+ * R19 audit compliance requirement is "citations recorded when present",
+ * not "reject the whole write when parsing fails".
+ */
+function extractCitationsFromOutput(output: string): Citation[] {
+  const { annotations } = parseScribeAnnotations(output);
+  if (annotations.length === 0) return [];
+  const seen = new Set<string>();
+  const out: Citation[] = [];
+  for (const ann of annotations) {
+    for (const citation of ann.citations) {
+      const key = `${citation.nodeId}:${citation.chunkId ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(citation);
+    }
+  }
+  return out;
 }
