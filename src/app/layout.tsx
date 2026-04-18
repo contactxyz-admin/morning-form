@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import { Bricolage_Grotesque, Fraunces, Instrument_Sans, JetBrains_Mono } from 'next/font/google';
+import { Archivo, Fraunces, Instrument_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
-// Bricolage Grotesque — modern grotesque with slight character (rounded
-// terminals, soft quirk). Pairs consumer warmth with wellness calm.
-const bricolage = Bricolage_Grotesque({
+// Archivo — variable grotesque with width + weight axes. The wdth axis lets a
+// single family carry both compressed Pentagon-style headlines and standard
+// display weights; pair with mono labels for the engineered/instrument feel.
+const archivo = Archivo({
   subsets: ['latin'],
   variable: '--font-display',
   display: 'swap',
-  axes: ['opsz', 'wdth'],
+  axes: ['wdth'],
 });
 
 // Fraunces — kept as a serif-italic accent for pull-phrases via .voice-italic.
@@ -53,7 +54,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${fraunces.variable} ${instrumentSans.variable} ${mono.variable}`}
+      className={`${archivo.variable} ${fraunces.variable} ${instrumentSans.variable} ${mono.variable}`}
     >
       <body className="font-sans antialiased min-h-screen">{children}</body>
     </html>

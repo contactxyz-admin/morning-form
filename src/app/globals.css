@@ -22,16 +22,54 @@
     background-attachment: fixed;
   }
 
-  /* Bricolage Grotesque — lean into optical-size at large sizes; tighten width
-     on hero scale so the headline sits like a poster, not a paragraph. */
+  /* Archivo — default display settings. Standard width, tight tracking
+     handled at the size-token level. */
   .font-display {
-    font-variation-settings: 'opsz' 96, 'wdth' 92;
+    font-variation-settings: 'wdth' 100;
   }
 
-  /* Small display use (chip titles, buttons) — looser opsz so strokes don't thin. */
+  /* Compressed display — Pentagon-style headline. Pulls width to 85 so the
+     hero sits like a wordmark, not a paragraph. Pair with uppercase + tight
+     tracking on the consumer. */
+  .font-display-narrow {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-variation-settings: 'wdth' 85;
+    letter-spacing: -0.025em;
+  }
+
+  /* Small display use (chip titles, in-card headings) — open width so strokes
+     don't crowd at small sizes. */
   .font-display-ui {
     font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-    font-variation-settings: 'opsz' 18, 'wdth' 100;
+    font-variation-settings: 'wdth' 100;
+  }
+
+  /* Technical label — mono uppercase with version-style framing.
+     Use as eyebrow above headlines:  <span class="tech-label">▲ MF / 02</span> */
+  .tech-label {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: theme(colors.text-tertiary);
+    font-feature-settings: 'tnum', 'lnum', 'zero';
+  }
+
+  /* Technical stamp — a bracketed metadata block. Use for build IDs,
+     version stamps, coordinates:  <span class="tech-stamp">[ v3.0.0 / 18.04 ]</span> */
+  .tech-stamp {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.65rem;
+    font-weight: 400;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: theme(colors.text-whisper);
+    padding: 0.15em 0.45em;
+    border: 1px solid theme(colors.border-mid);
+    border-radius: 3px;
+    font-feature-settings: 'tnum', 'lnum', 'zero';
+    white-space: nowrap;
   }
 
   /* Italic voice — Fraunces italic reserved for empathetic pull-phrases.
@@ -177,6 +215,51 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  /* Corner-marks — engineered crosshair brackets at the four corners of any
+     positioned container. Anduril/Pentagon precision device for imagery,
+     panels, hero blocks. Pair on a `relative` container; marks sit just
+     outside the content edge. */
+  .mark-corner {
+    position: relative;
+  }
+  .mark-corner::before,
+  .mark-corner::after,
+  .mark-corner > .mark-corner-bl,
+  .mark-corner > .mark-corner-br {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-color: theme(colors.text-primary / 55%);
+    border-style: solid;
+    border-width: 0;
+    pointer-events: none;
+  }
+  .mark-corner::before {
+    top: -4px;
+    left: -4px;
+    border-top-width: 1.25px;
+    border-left-width: 1.25px;
+  }
+  .mark-corner::after {
+    top: -4px;
+    right: -4px;
+    border-top-width: 1.25px;
+    border-right-width: 1.25px;
+  }
+  .mark-corner > .mark-corner-bl {
+    bottom: -4px;
+    left: -4px;
+    border-bottom-width: 1.25px;
+    border-left-width: 1.25px;
+  }
+  .mark-corner > .mark-corner-br {
+    bottom: -4px;
+    right: -4px;
+    border-bottom-width: 1.25px;
+    border-right-width: 1.25px;
   }
 
   /* Sticker — Depop-flavoured cutout for accents / illustrations / labels.
