@@ -139,9 +139,9 @@ Each unit carries an Execution note where test-first discipline is appropriate. 
 
 ### U2 — Clinical safety policy layer
 
-- [ ] policy types + per-topic modules land
-- [ ] `enforce.ts` passes exhaustive unit tests (including positive scope-appropriate scenarios)
-- [ ] registry lookup wired
+- [x] policy types + per-topic modules land
+- [x] `enforce.ts` passes exhaustive unit tests (including positive scope-appropriate scenarios)
+- [x] registry lookup wired
 
 **Goal:** Declarative, testable policy module per topic that gates every scribe output.
 
