@@ -8,7 +8,7 @@ import { createSession } from '@/lib/session';
  * GET /api/auth/verify?token=<raw>
  *
  * Validates the magic-link token, marks it consumed, mints a session, then
- * redirects the user to `/home` (or `/assessment` if they haven't finished
+ * redirects the user to `/record` (or `/assessment` if they haven't finished
  * onboarding). On any failure returns a small HTML page that nudges the user
  * to request a fresh link, avoiding existence leaks in the response.
  */
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   });
 
   const onboarded = Boolean(user.assessment && user.stateProfile);
-  const redirectTo = onboarded ? '/home' : '/assessment';
+  const redirectTo = onboarded ? '/record' : '/assessment';
   const base = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
   return NextResponse.redirect(`${base}${redirectTo}`, { status: 303 });
 }
