@@ -1,15 +1,44 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { Icon } from '@/components/ui/icon';
-import { mockProtocol, mockProtocolItems } from '@/lib/mock-data';
+import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
+import type { Protocol } from '@/types';
 import { cn } from '@/lib/utils';
 
 export default function ProtocolPage() {
+  const router = useRouter();
+  const state = useAssessmentData();
+
+  useEffect(() => {
+    if (state.kind === 'not-onboarded') router.replace('/assessment');
+    if (state.kind === 'unauthenticated') router.replace('/sign-in');
+  }, [state.kind, router]);
+
+  if (state.kind !== 'ready') {
+    return (
+      <div className="px-5 pt-6 pb-8 grain-page">
+        <div className="flex items-center gap-2.5 mb-5">
+          <span aria-hidden className="block w-6 h-px bg-text-primary/60" />
+          <span className="text-label uppercase text-text-tertiary">Protocol</span>
+        </div>
+        <p className="text-caption text-text-tertiary">
+          {state.kind === 'error' ? 'Couldn’t load your protocol.' : 'Loading…'}
+        </p>
+      </div>
+    );
+  }
+
+  return <ProtocolView protocol={state.data.protocol} />;
+}
+
+function ProtocolView({ protocol }: { protocol: Protocol }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const items = protocol.items;
 
   return (
     <div className="px-5 pt-6 pb-8 grain-page">
@@ -19,7 +48,7 @@ export default function ProtocolPage() {
           <span aria-hidden className="block w-6 h-px bg-text-primary/60" />
           <span className="text-label uppercase text-text-tertiary">Protocol</span>
         </div>
-        <span className="font-mono text-caption text-text-tertiary">v{mockProtocol.version}</span>
+        <span className="font-mono text-caption text-text-tertiary">v{protocol.version}</span>
       </div>
 
       <div className="rise">
@@ -27,8 +56,7 @@ export default function ProtocolPage() {
           Designed for <span className="italic text-accent">you</span>.
         </h1>
         <p className="text-body-lg text-text-secondary mb-12 max-w-lg">
-          Sustained activation in the morning, clean downshift by evening — engineered around
-          your patterns, not generalized advice.
+          {protocol.rationale}
         </p>
       </div>
 
@@ -36,7 +64,7 @@ export default function ProtocolPage() {
       <div className="relative pl-8 stagger">
         <div aria-hidden className="absolute left-3 top-4 bottom-4 w-px bg-border" />
 
-        {mockProtocolItems.map((item, index) => {
+        {items.map((item, index) => {
           const isExpanded = expanded === item.id;
           return (
             <div key={item.id} className="relative mb-5 last:mb-0">
@@ -112,8 +140,9 @@ export default function ProtocolPage() {
       {/* Confidence */}
       <Card variant="contextual" className="mt-10">
         <p className="text-caption text-text-secondary leading-relaxed">
-          <span className="font-medium text-accent">Confidence: {mockProtocol.confidence}</span>{' '}
-          — Your profile maps clearly to well-studied compounds.
+          <span className="font-medium text-accent capitalize">Confidence: {protocol.confidence}</span>
+          {' — '}
+          Your profile maps clearly to well-studied compounds.
         </p>
       </Card>
     </div>
