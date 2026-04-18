@@ -10,16 +10,35 @@ import {
 } from '@/components/home/record-anchor-card';
 import { deriveStatus } from '@/components/home/record-anchor-helpers';
 import { getGreeting, formatDate, getTimeOfDay, getDateKey } from '@/lib/utils';
-import { mockProtocolItems, mockHealthSummary } from '@/lib/mock-data';
-import type { HealthSummary } from '@/types';
+import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
+import type { HealthSummary, ProtocolItem } from '@/types';
 import type { RecordIndex } from '@/lib/record/types';
+
+const EMPTY_HEALTH_SUMMARY: HealthSummary = {
+  sleep: { duration: null, quality: null, deepSleep: null, remSleep: null, restingHR: null },
+  activity: { steps: null, calories: null, activeMinutes: null, strain: null },
+  recovery: { hrv: null, recoveryScore: null, respiratoryRate: null },
+  heart: { restingHR: null, maxHR: null, avgHR: null },
+  metabolic: { glucose: null },
+};
+
+function pickNextProtocolItem(
+  items: ProtocolItem[],
+  timeOfDay: ReturnType<typeof getTimeOfDay>,
+): ProtocolItem | undefined {
+  if (items.length === 0) return undefined;
+  const targetSlot =
+    timeOfDay === 'afternoon' ? 'afternoon' : timeOfDay === 'evening' ? 'evening' : 'morning';
+  return items.find((item) => item.timeSlot === targetSlot) ?? items[0];
+}
 
 export default function HomePage() {
   const [morningDone, setMorningDone] = useState(false);
   const [eveningDone, setEveningDone] = useState(false);
   const [sleepQuality, setSleepQuality] = useState<string | null>(null);
-  const [healthSummary, setHealthSummary] = useState<HealthSummary>(mockHealthSummary);
+  const [healthSummary, setHealthSummary] = useState<HealthSummary>(EMPTY_HEALTH_SUMMARY);
   const [recordState, setRecordState] = useState<RecordAnchorState>({ status: 'loading' });
+  const assessment = useAssessmentData();
   const timeOfDay = getTimeOfDay();
 
   useEffect(() => {
@@ -74,11 +93,10 @@ export default function HomePage() {
     };
   }, []);
 
-  const currentProtocolItem = timeOfDay === 'morning' || timeOfDay === 'night'
-    ? mockProtocolItems[0]
-    : timeOfDay === 'afternoon'
-    ? mockProtocolItems[1]
-    : mockProtocolItems[2];
+  const currentProtocolItem =
+    assessment.kind === 'ready'
+      ? pickNextProtocolItem(assessment.data.protocol.items, timeOfDay)
+      : undefined;
 
   const showMorningCheckin = (timeOfDay === 'morning' || timeOfDay === 'afternoon') && !morningDone;
   const showEveningCheckin = (timeOfDay === 'evening' || timeOfDay === 'night') && !eveningDone;
@@ -182,25 +200,27 @@ export default function HomePage() {
         {/* Your record — anchor card, position 3 */}
         <RecordAnchorCard state={recordState} />
 
-        {/* Next protocol */}
-        <Card variant="default">
-          <div className="flex items-baseline gap-2.5 mb-2">
-            <span className="font-mono text-label uppercase text-text-tertiary">02</span>
-            <span className="text-label uppercase text-text-tertiary">Next up</span>
-          </div>
-          <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
-            {currentProtocolItem.compounds}
-          </h3>
-          <p className="mt-1 font-mono text-data text-accent">{currentProtocolItem.dosage}</p>
-          <p className="mt-1 text-caption text-text-tertiary">{currentProtocolItem.timingCue}</p>
-          <Link
-            href="/protocol"
-            className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group"
-          >
-            View detail
-            <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
-          </Link>
-        </Card>
+        {/* Next protocol — shown only when the user has a real protocol */}
+        {currentProtocolItem && (
+          <Card variant="default">
+            <div className="flex items-baseline gap-2.5 mb-2">
+              <span className="font-mono text-label uppercase text-text-tertiary">02</span>
+              <span className="text-label uppercase text-text-tertiary">Next up</span>
+            </div>
+            <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
+              {currentProtocolItem.compounds}
+            </h3>
+            <p className="mt-1 font-mono text-data text-accent">{currentProtocolItem.dosage}</p>
+            <p className="mt-1 text-caption text-text-tertiary">{currentProtocolItem.timingCue}</p>
+            <Link
+              href="/protocol"
+              className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group"
+            >
+              View detail
+              <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+            </Link>
+          </Card>
+        )}
 
         {/* Graph view */}
         <Link href="/graph" className="block">
