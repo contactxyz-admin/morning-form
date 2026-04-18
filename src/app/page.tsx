@@ -8,7 +8,7 @@ export default function LandingPage() {
       {/* Header — fixed visual rhythm; nav sits in optical alignment with the wordmark. */}
       <header className="px-6 sm:px-10 lg:px-16 pt-7 pb-4 flex items-center justify-between max-w-[1400px] mx-auto">
         <Link href="/" aria-label="Morning Form — home" className="-m-1 p-1">
-          <Wordmark variant="inline" size="sm" />
+          <Wordmark variant="inline" size="md" />
         </Link>
         <nav className="flex items-center gap-8 text-[0.8125rem] text-text-secondary">
           <Link href="#how" className="hover:text-text-primary transition-colors">How it works</Link>
