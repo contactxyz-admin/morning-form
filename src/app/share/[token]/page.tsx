@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { ThreeTierSection } from '@/components/topic/three-tier-section';
 import { GPPrepCard } from '@/components/topic/gp-prep-card';
+import { Disclaimer } from '@/components/ui/disclaimer';
 
 /**
  * Public SSR share page.
@@ -123,6 +124,10 @@ async function SharedTopic({
       </div>
 
       <GPPrepCard gpPrep={redacted.gpPrep} />
+
+      <footer className="mt-14 pt-8 border-t border-border">
+        <Disclaimer variant="topic" />
+      </footer>
     </div>
   );
 }
