@@ -1,10 +1,19 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Fraunces, Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
+// Fraunces — variable serif for display headings. opsz tracks the optical size
+// axis, SOFT relaxes the terminals so it reads editorial rather than literary.
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+  axes: ['opsz', 'SOFT'],
+  style: ['normal', 'italic'],
+});
+
 // Inter — neutral grotesque, the closest free analogue to SF Pro. Carries
-// display and body so the brand reads as one designer-modern voice.
-// `cv11` ssXX stylistic sets bring the character closer to SF / Söhne.
+// body text and UI.
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
@@ -36,7 +45,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable}`}
+      className={`${fraunces.variable} ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-sans antialiased min-h-screen">{children}</body>
     </html>

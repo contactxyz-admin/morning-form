@@ -15,8 +15,9 @@
     overflow-x: clip;
   }
 
-  /* Display family alias — Inter throughout. Per-size tracking tokens carry
-     the display feel; no special variation settings required. */
+  /* Display-UI sans alias — sans-serif variant for spots that want display
+     emphasis without the serif voice (e.g. interactive UI labels nested in
+     otherwise serif-heading regions). Falls back to system stack. */
   .font-display-ui {
     font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui, sans-serif;
   }
@@ -144,7 +145,10 @@
     background: theme(colors.surface-warm);
     box-shadow: inset 0 0 0 1px theme(colors.border);
   }
-  .panel-arch > * {
+  /* Only scope media children — text labels and flex children must lay out normally. */
+  .panel-arch > img,
+  .panel-arch > svg,
+  .panel-arch > video {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -171,14 +175,6 @@
     height: 6px;
     border-radius: 9999px;
     background: theme(colors.text-tertiary);
-  }
-  .chip-soft-meta {
-    display: block;
-    font-size: 0.7rem;
-    font-weight: 400;
-    color: theme(colors.text-tertiary);
-    letter-spacing: 0;
-    margin-bottom: 1px;
   }
 
   @media (prefers-reduced-motion: reduce) {

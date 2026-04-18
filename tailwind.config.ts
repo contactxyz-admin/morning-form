@@ -41,37 +41,26 @@ const config: Config = {
           active: '#000000',
           focus: '#424245',
         },
+        // Status — desaturated Apple-system hues, tuned for AA contrast on #FBFBFD.
+        // Restraint: these appear only for real status signal (success, warning,
+        // error) — never decorative. `.light` tokens back badge fills.
         positive: {
-          DEFAULT: '#1D1D1F',
-          light: '#F0F0F2',
-        },
-        // Legacy accent families retained at neutral values so any token
-        // reference still resolves cleanly. Avoid using these on net-new work.
-        honey: {
-          DEFAULT: '#6E6E73',
-          light: '#F0F0F2',
-          muted: '#86868B',
-          deep: '#424245',
-        },
-        pop: {
-          DEFAULT: '#1D1D1F',
-          light: '#F0F0F2',
-          muted: '#424245',
-          deep: '#000000',
+          DEFAULT: '#248A3D',
+          light: '#E8F4EC',
         },
         caution: {
-          DEFAULT: '#6E6E73',
-          light: '#F0F0F2',
+          DEFAULT: '#AD6200',
+          light: '#FAF0E0',
         },
         alert: {
-          DEFAULT: '#1D1D1F',
-          light: '#F0F0F2',
+          DEFAULT: '#C4271A',
+          light: '#FBEAE7',
         },
       },
       fontFamily: {
-        // Inter carries display and body. SF / system fallbacks keep parity
-        // before the web font lands.
-        display: ['var(--font-sans)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Display — Fraunces serif for editorial headings. Paired with Inter
+        // for body/UI. Mono for data and small caps.
+        display: ['var(--font-display)', 'Georgia', '"Times New Roman"', 'ui-serif', 'serif'],
         sans: ['var(--font-sans)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', '"SFMono-Regular"', 'ui-monospace', 'monospace'],
       },
@@ -124,8 +113,6 @@ const config: Config = {
           '0 1px 0 rgba(255, 253, 250, 0.14) inset, 0 10px 26px -12px rgba(92, 74, 63, 0.70)',
         'modal': '0 16px 48px -12px rgba(34, 25, 19, 0.20), 0 4px 14px -6px rgba(34, 25, 19, 0.09)',
         'sheet': '0 -32px 80px -24px rgba(34, 25, 19, 0.22), 0 -4px 14px -6px rgba(34, 25, 19, 0.08)',
-        // Sticker lift — for .sticker imagery cards that should feel cut-out.
-        'sticker': '0 2px 0 rgba(34, 25, 19, 0.08), 0 8px 22px -10px rgba(34, 25, 19, 0.18)',
         'ring-accent': '0 0 0 1px rgba(126, 145, 131, 0.34)',
         'ring-focus': '0 0 0 2px rgba(126, 145, 131, 0.42)',
       },

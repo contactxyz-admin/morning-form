@@ -148,20 +148,20 @@ export default function LandingPage() {
           {[
             {
               quote:
-                'I&rsquo;d been stacking ten supplements based on Reddit. Morning Form ranked four of them as doing nothing for my actual bloods. Saved me about £80 a month inside a week.',
-              name: 'Placeholder · M, 34',
-              meta: 'Whoop · quarterly bloods',
+                'I\u2019d been stacking ten supplements based on Reddit. Morning Form ranked four of them as doing nothing for my actual bloods. Saved me about \u00a380 a month inside a week.',
+              name: 'Placeholder \u00b7 M, 34',
+              meta: 'Whoop \u00b7 quarterly bloods',
             },
             {
               quote:
-                'It&rsquo;s the first thing that read my Oura, my CGM, and my last lab and gave me a sentence I could act on. Every other app made me do the synthesis.',
-              name: 'Placeholder · M, 29',
-              meta: 'Oura · Libre · Apple Health',
+                'It\u2019s the first thing that read my Oura, my CGM, and my last lab and gave me a sentence I could act on. Every other app made me do the synthesis.',
+              name: 'Placeholder \u00b7 M, 29',
+              meta: 'Oura \u00b7 Libre \u00b7 Apple Health',
             },
             {
               quote:
                 'Flagged a liver marker my GP had told me to ignore and pushed me to retest. Came back in range after twelve weeks on the protocol. That alone paid for the year.',
-              name: 'Placeholder · M, 38',
+              name: 'Placeholder \u00b7 M, 38',
               meta: 'Annual blood panel',
             },
           ].map((t, i) => (
@@ -170,7 +170,7 @@ export default function LandingPage() {
               className="rounded-card border border-border bg-surface p-7 sm:p-8 flex flex-col gap-6"
             >
               <blockquote className="text-[0.9375rem] text-text-primary leading-[1.55]">
-                &ldquo;<span dangerouslySetInnerHTML={{ __html: t.quote }} />&rdquo;
+                {'\u201c'}{t.quote}{'\u201d'}
               </blockquote>
               <figcaption className="mt-auto">
                 <p className="text-[0.8125rem] font-medium text-text-primary">{t.name}</p>
@@ -213,9 +213,9 @@ export default function LandingPage() {
           <Wordmark variant="lockup" size="lg" />
           <div className="flex flex-col gap-3 sm:items-end">
             <div className="flex flex-wrap gap-7 text-[0.8125rem] text-text-tertiary">
-              <span className="hover:text-text-secondary cursor-pointer transition-colors">Privacy</span>
-              <span className="hover:text-text-secondary cursor-pointer transition-colors">Safety &amp; clinical</span>
-              <span className="hover:text-text-secondary cursor-pointer transition-colors">Contact</span>
+              <Link href="/privacy" className="hover:text-text-secondary transition-colors">Privacy</Link>
+              <Link href="/safety" className="hover:text-text-secondary transition-colors">Safety &amp; clinical</Link>
+              <Link href="/contact" className="hover:text-text-secondary transition-colors">Contact</Link>
             </div>
             <p className="text-[0.8125rem] text-text-tertiary">© 2026 Morning Form</p>
           </div>
