@@ -1,14 +1,15 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Wordmark } from '@/components/brand/wordmark';
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-bg">
       {/* Header */}
-      <header className="px-6 sm:px-10 pt-8 pb-4 flex items-center justify-between">
-        <span className="text-base font-medium text-text-primary tracking-[-0.01em]">
-          Morning Form
-        </span>
+      <header className="px-6 sm:px-10 pt-7 pb-4 flex items-center justify-between">
+        <Link href="/" aria-label="Morning Form — home" className="-m-1 p-1">
+          <Wordmark variant="inline" size="sm" />
+        </Link>
         <nav className="flex items-center gap-7 text-caption text-text-secondary">
           <Link href="#how" className="hover:text-text-primary transition-colors">How it works</Link>
           <Link href="#proof" className="hover:text-text-primary transition-colors">Members</Link>
@@ -41,7 +42,7 @@ export default function LandingPage() {
           </span>
         </div>
 
-        <h1 className="text-[2.5rem] sm:text-[4.25rem] lg:text-[5.25rem] font-medium text-text-primary leading-[1.02] tracking-[-0.035em] max-w-5xl">
+        <h1 className="text-[2.5rem] sm:text-[4.25rem] lg:text-[5.25rem] font-extrabold text-text-primary leading-[0.96] tracking-[-0.045em] max-w-5xl">
           One daily protocol from{' '}
           <span className="text-gradient-warm">every wearable, app, and blood test.</span>
         </h1>
@@ -87,7 +88,7 @@ export default function LandingPage() {
       {/* Why it pays — three benefits, each tied to a real ROI lever. */}
       <section id="how" className="px-6 sm:px-10 py-24 border-t border-border">
         <p className="text-caption text-text-tertiary mb-3">Why it pays</p>
-        <h2 className="text-[2rem] sm:text-[3rem] font-medium text-text-primary max-w-3xl leading-[1.08] tracking-[-0.03em]">
+        <h2 className="text-[2rem] sm:text-[3rem] font-extrabold text-text-primary max-w-3xl leading-[1.02] tracking-[-0.04em]">
           The clearest return on the time and money you&rsquo;re already spending on your health.
         </h2>
 
@@ -157,7 +158,7 @@ export default function LandingPage() {
       {/* Social proof — placeholder testimonials in the early-adopter voice. */}
       <section id="proof" className="px-6 sm:px-10 py-24 border-t border-border">
         <p className="text-caption text-text-tertiary mb-3">Members</p>
-        <h2 className="text-[1.75rem] sm:text-[2.25rem] font-medium text-text-primary max-w-2xl leading-[1.12] tracking-[-0.02em]">
+        <h2 className="text-[1.75rem] sm:text-[2.25rem] font-extrabold text-text-primary max-w-2xl leading-[1.05] tracking-[-0.035em]">
           From people who were already tracking everything.
         </h2>
 
@@ -204,7 +205,7 @@ export default function LandingPage() {
 
       {/* Final CTA — restate the value, then the same low-commitment ask. */}
       <section className="px-6 sm:px-10 py-28 border-t border-border">
-        <h2 className="text-[2rem] sm:text-[3.25rem] font-medium text-text-primary max-w-3xl leading-[1.05] tracking-[-0.03em]">
+        <h2 className="text-[2rem] sm:text-[3.25rem] font-extrabold text-text-primary max-w-3xl leading-[1] tracking-[-0.04em]">
           Get the answer your wearable has been hinting at.{' '}
           <span className="text-gradient-warm">In eight minutes, free.</span>
         </h2>
@@ -226,13 +227,18 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="px-6 sm:px-10 py-10 border-t border-border">
-        <div className="flex flex-wrap gap-6 text-caption text-text-tertiary">
-          <span className="hover:text-text-secondary cursor-pointer transition-colors">Privacy</span>
-          <span className="hover:text-text-secondary cursor-pointer transition-colors">Safety &amp; clinical</span>
-          <span className="hover:text-text-secondary cursor-pointer transition-colors">Contact</span>
+      <footer className="px-6 sm:px-10 py-14 border-t border-border">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
+          <Wordmark variant="lockup" size="lg" />
+          <div className="flex flex-col gap-3 sm:items-end">
+            <div className="flex flex-wrap gap-6 text-caption text-text-tertiary">
+              <span className="hover:text-text-secondary cursor-pointer transition-colors">Privacy</span>
+              <span className="hover:text-text-secondary cursor-pointer transition-colors">Safety &amp; clinical</span>
+              <span className="hover:text-text-secondary cursor-pointer transition-colors">Contact</span>
+            </div>
+            <p className="text-caption text-text-tertiary">© 2026 Morning Form</p>
+          </div>
         </div>
-        <p className="mt-4 text-caption text-text-tertiary">© 2026 Morning Form</p>
       </footer>
     </div>
   );
