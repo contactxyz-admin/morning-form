@@ -1,8 +1,12 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { addEdge, addNode, addSourceChunks, addSourceDocument } from '@/lib/graph/mutations';
 import { LLMClient } from '@/lib/llm/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
+import type {
+  ScribeLLMClient,
+  ScribeLLMTurn,
+} from '@/lib/scribe/execute';
 import { compileTopic, lintTopicOutput } from './compile';
 import { TOPIC_KEYS } from './registry';
 import {
@@ -450,3 +454,323 @@ describe('lintTopicOutput — unit', () => {
     expect(result.violations.some((v) => v.rule === 'drug_name')).toBe(true);
   });
 });
+
+/**
+ * U4 compile-time scribe integration — exercises the post-narrative scribe
+ * pass. Uses a scripted scribe-LLM fake (same shape as
+ * `src/lib/scribe/execute.test.ts`) so we can assert exact behavior without
+ * an LLM roundtrip.
+ */
+function scriptedScribeLLM(turns: ScribeLLMTurn[]): {
+  client: ScribeLLMClient;
+  calls: Array<{ system: string; userMessages: string[] }>;
+} {
+  const calls: Array<{ system: string; userMessages: string[] }> = [];
+  const queue = [...turns];
+  const client: ScribeLLMClient = {
+    async turn(req) {
+      const userMessages = req.messages
+        .filter((m) => m.role === 'user')
+        .map((m) => m.content);
+      calls.push({ system: req.system, userMessages });
+      const next = queue.shift();
+      if (!next) throw new Error('scriptedScribeLLM: queue exhausted');
+      return next;
+    },
+  };
+  return { client, calls };
+}
+
+function endTurn(text: string, modelVersion = 'v-actual'): ScribeLLMTurn {
+  return { stopReason: 'end_turn', text, modelVersion, toolCalls: [] };
+}
+
+function annotationBlock(annotations: unknown[]): string {
+  return `ANNOTATIONS_JSON: ${JSON.stringify(annotations)}`;
+}
+
+describe('compileTopic — scribe pass (U4)', () => {
+  it('happy path: scribe annotation lands on the understanding section, audit writes with clinical-safe', async () => {
+    const userId = await makeTestUser(prisma, 'compile-scribe-happy');
+    const { ferritinId } = await seedIronGraph(userId);
+    setIronMock(() =>
+      cleanIronOutput(
+        {
+          understanding: {
+            heading: 'Your iron picture',
+            bodyMarkdown:
+              'Ferritin is the main store of iron in the body; your latest ferritin sits below the printed reference band for this panel.',
+            citations: [{ nodeId: ferritinId, chunkId: null, excerpt: 'Ferritin 18 ug/L' }],
+          },
+        },
+        ferritinId,
+      ),
+    );
+
+    const { client } = scriptedScribeLLM([
+      endTurn(
+        `I reviewed the ferritin value.\n${annotationBlock([
+          {
+            spanAnchor: 'below the printed reference band',
+            judgmentKind: 'reference-range-comparison',
+            content: 'Your ferritin is below the lab reference range.',
+            citations: [{ nodeId: ferritinId, chunkId: null, excerpt: 'Ferritin 18 ug/L' }],
+          },
+        ])}`,
+      ),
+    ]);
+
+    const result = await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+      scribeLlm: client,
+      scribeRequestIdForTest: 'aaaa1111-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
+
+    expect(result.status).toBe('full');
+    const understanding = result.output?.understanding;
+    expect(understanding?.scribeAnnotations?.length).toBe(1);
+    expect(understanding?.scribeAnnotations?.[0].judgmentKind).toBe('reference-range-comparison');
+    expect(understanding?.scribeAnnotations?.[0].citations[0].nodeId).toBe(ferritinId);
+
+    const scribe = await prisma.scribe.findUniqueOrThrow({
+      where: { userId_topicKey: { userId, topicKey: TOPIC_KEYS.iron } },
+    });
+    const audit = await prisma.scribeAudit.findUnique({
+      where: {
+        scribeId_requestId: { scribeId: scribe.id, requestId: 'aaaa1111-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+      },
+    });
+    expect(audit?.safetyClassification).toBe('clinical-safe');
+    expect(audit?.mode).toBe('compile');
+  });
+
+  it('out-of-scope: gpPrep.questionsToAsk grows with the routed annotation', async () => {
+    const userId = await makeTestUser(prisma, 'compile-scribe-out-of-scope');
+    const { ferritinId } = await seedIronGraph(userId);
+    setIronMock(() => cleanIronOutput({}, ferritinId));
+
+    const { client } = scriptedScribeLLM([
+      endTurn(
+        annotationBlock([
+          {
+            spanAnchor: 'below the printed reference band',
+            judgmentKind: 'citation-surfacing',
+            content: 'Can we check whether low ferritin is contributing to fatigue?',
+            citations: [{ nodeId: ferritinId, chunkId: null, excerpt: 'Ferritin 18 ug/L' }],
+            outOfScopeRoute: 'gpPrep',
+          },
+        ]),
+      ),
+    ]);
+
+    const result = await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+      scribeLlm: client,
+    });
+
+    expect(result.status).toBe('full');
+    expect(result.output?.gpPrep.questionsToAsk).toContain(
+      'Can we check whether low ferritin is contributing to fatigue?',
+    );
+    // Out-of-scope annotation MUST NOT also land as an inline section annotation.
+    expect(result.output?.understanding.scribeAnnotations).toBeUndefined();
+  });
+
+  it('cache short-circuit: second compile with unchanged graph hash does not invoke the scribe', async () => {
+    const userId = await makeTestUser(prisma, 'compile-scribe-cache');
+    const { ferritinId } = await seedIronGraph(userId);
+    setIronMock(() => cleanIronOutput({}, ferritinId));
+
+    const firstScribe = scriptedScribeLLM([endTurn(annotationBlock([]))]);
+    await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+      scribeLlm: firstScribe.client,
+    });
+    expect(firstScribe.calls).toHaveLength(1);
+
+    vi.restoreAllMocks();
+    const secondScribe = scriptedScribeLLM([]);
+    const generateSpy = vi.spyOn(llm, 'generate');
+    const second = await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+      scribeLlm: secondScribe.client,
+    });
+    expect(second.cached).toBe(true);
+    expect(secondScribe.calls).toHaveLength(0);
+    expect(generateSpy).not.toHaveBeenCalled();
+  });
+
+  it('model-version drift: stale audit modelVersion vs Scribe.modelVersion forces a recompile', async () => {
+    const userId = await makeTestUser(prisma, 'compile-scribe-drift');
+    const { ferritinId } = await seedIronGraph(userId);
+    setIronMock(() => cleanIronOutput({}, ferritinId));
+
+    const firstScribe = scriptedScribeLLM([endTurn(annotationBlock([]), 'v-pin-original')]);
+    const first = await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+      scribeLlm: firstScribe.client,
+    });
+    expect(first.cached).toBe(false);
+
+    // Operator rolls the scribe forward to a new pinned version. The
+    // last-audit modelVersion ('v-pin-original', stored by the scribe's
+    // upstream turn) no longer matches — drift => recompile.
+    await prisma.scribe.update({
+      where: { userId_topicKey: { userId, topicKey: TOPIC_KEYS.iron } },
+      data: { modelVersion: 'v-pin-upgraded' },
+    });
+
+    vi.restoreAllMocks();
+    const secondMock = setIronMock(() => cleanIronOutput({}, ferritinId));
+    const secondScribe = scriptedScribeLLM([endTurn(annotationBlock([]), 'v-pin-upgraded')]);
+    const second = await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+      scribeLlm: secondScribe.client,
+    });
+    expect(second.cached).toBe(false);
+    expect(secondMock).toHaveBeenCalledTimes(1);
+    expect(secondScribe.calls).toHaveLength(1);
+  });
+
+  it('rejection first attempt writes audit BEFORE remedial retry (D11 ordering)', async () => {
+    const userId = await makeTestUser(prisma, 'compile-scribe-reject-first');
+    const { ferritinId } = await seedIronGraph(userId);
+    setIronMock(() => cleanIronOutput({}, ferritinId));
+
+    // First scribe attempt emits a forbidden phrase -> policy rejects.
+    // Second attempt is clean.
+    const { client, calls } = scriptedScribeLLM([
+      endTurn('You should take ferrous sulfate 14 mg daily.'),
+      endTurn(annotationBlock([])),
+    ]);
+
+    const result = await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+      scribeLlm: client,
+      scribeRequestIdForTest: 'bbbb2222-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    });
+    expect(result.status).toBe('full');
+    expect(calls).toHaveLength(2);
+
+    // The first-attempt audit landed under the pinned requestId, classification 'rejected'.
+    const scribe = await prisma.scribe.findUniqueOrThrow({
+      where: { userId_topicKey: { userId, topicKey: TOPIC_KEYS.iron } },
+    });
+    const firstAudit = await prisma.scribeAudit.findUnique({
+      where: {
+        scribeId_requestId: { scribeId: scribe.id, requestId: 'bbbb2222-bbbb-4bbb-8bbb-bbbbbbbbbbbb' },
+      },
+    });
+    expect(firstAudit?.safetyClassification).toBe('rejected');
+
+    // Retry produced a second, DISTINCT audit row.
+    const allAudits = await prisma.scribeAudit.findMany({
+      where: { scribeId: scribe.id },
+    });
+    expect(allAudits.length).toBe(2);
+    expect(allAudits.some((a) => a.safetyClassification === 'clinical-safe')).toBe(true);
+
+    // Verify the retry actually carried the remedial hint.
+    expect(calls[1].userMessages.some((m) => /rejected by the safety policy/i.test(m))).toBe(
+      true,
+    );
+  });
+
+  it('rejection after retry preserves previous rendered content, records compileError, writes second rejected audit', async () => {
+    const userId = await makeTestUser(prisma, 'compile-scribe-reject-both');
+    const { ferritinId } = await seedIronGraph(userId);
+
+    // First compile: clean narrative + scribe to establish a good render.
+    setIronMock(() => cleanIronOutput({}, ferritinId));
+    const firstScribe = scriptedScribeLLM([endTurn(annotationBlock([]))]);
+    const first = await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+      scribeLlm: firstScribe.client,
+    });
+    expect(first.status).toBe('full');
+
+    // Invalidate cache, then scribe rejects both attempts.
+    await addNode(prisma, userId, {
+      type: 'symptom',
+      canonicalKey: 'fatigue',
+      displayName: 'Fatigue',
+    });
+    vi.restoreAllMocks();
+    setIronMock(() => cleanIronOutput({}, ferritinId));
+    const { client } = scriptedScribeLLM([
+      endTurn('Take ferrous sulfate 14 mg daily.'),
+      endTurn('Ferrous gluconate 300 mg is another option.'),
+    ]);
+
+    await expect(
+      compileTopic({
+        db: prisma,
+        llm,
+        userId,
+        topicKey: TOPIC_KEYS.iron,
+        scribeLlm: client,
+      }),
+    ).rejects.toThrow(/ScribeRejectedError|Scribe remained 'rejected'/);
+
+    const row = await prisma.topicPage.findUnique({
+      where: { userId_topicKey: { userId, topicKey: TOPIC_KEYS.iron } },
+    });
+    // Prior render preserved (contains the clean ferritin prose).
+    expect(row?.rendered).toContain('dark leafy greens');
+    expect(row?.compileError).toMatch(/ScribeRejectedError|rejected/i);
+
+    // Two new rejected audits landed, both keyed by distinct requestIds.
+    const scribe = await prisma.scribe.findUniqueOrThrow({
+      where: { userId_topicKey: { userId, topicKey: TOPIC_KEYS.iron } },
+    });
+    const rejectedAudits = await prisma.scribeAudit.findMany({
+      where: { scribeId: scribe.id, safetyClassification: 'rejected' },
+    });
+    expect(rejectedAudits.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('regression: existing three-tier schema still validates when scribe is disabled', async () => {
+    const userId = await makeTestUser(prisma, 'compile-scribe-regression');
+    const { ferritinId } = await seedIronGraph(userId);
+    setIronMock(() => cleanIronOutput({}, ferritinId));
+    // No scribeLlm — pre-U4 shape.
+    const result = await compileTopic({
+      db: prisma,
+      llm,
+      userId,
+      topicKey: TOPIC_KEYS.iron,
+    });
+    expect(result.status).toBe('full');
+    expect(result.output?.understanding.scribeAnnotations).toBeUndefined();
+    // No scribe row should have been created when scribeLlm is omitted.
+    const scribe = await prisma.scribe.findUnique({
+      where: { userId_topicKey: { userId, topicKey: TOPIC_KEYS.iron } },
+    });
+    expect(scribe).toBeNull();
+  });
+});
+

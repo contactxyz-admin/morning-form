@@ -10,11 +10,13 @@
  * answered.
  */
 
-export type JudgmentKind =
-  | 'reference-range-comparison'
-  | 'pattern-vs-own-history'
-  | 'citation-surfacing'
-  | 'definition-lookup';
+export const JUDGMENT_KINDS = [
+  'reference-range-comparison',
+  'pattern-vs-own-history',
+  'citation-surfacing',
+  'definition-lookup',
+] as const;
+export type JudgmentKind = (typeof JUDGMENT_KINDS)[number];
 
 export type SafetyClassification =
   | 'clinical-safe'
