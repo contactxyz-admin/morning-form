@@ -22,54 +22,11 @@
     background-attachment: fixed;
   }
 
-  /* Archivo — default display settings. Standard width, tight tracking
-     handled at the size-token level. */
-  .font-display {
-    font-variation-settings: 'wdth' 100;
-  }
-
-  /* Compressed display — Pentagon-style headline. Pulls width to 85 so the
-     hero sits like a wordmark, not a paragraph. Pair with uppercase + tight
-     tracking on the consumer. */
-  .font-display-narrow {
-    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-    font-variation-settings: 'wdth' 85;
-    letter-spacing: -0.025em;
-  }
-
-  /* Small display use (chip titles, in-card headings) — open width so strokes
-     don't crowd at small sizes. */
+  /* Display sizes use Onest at the body family — a single humanist voice
+     end-to-end. Tracking tightens at hero scale via per-size tokens; no
+     special variation settings needed. */
   .font-display-ui {
-    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-    font-variation-settings: 'wdth' 100;
-  }
-
-  /* Technical label — mono uppercase with version-style framing.
-     Use as eyebrow above headlines:  <span class="tech-label">▲ MF / 02</span> */
-  .tech-label {
-    font-family: var(--font-mono), ui-monospace, monospace;
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: theme(colors.text-tertiary);
-    font-feature-settings: 'tnum', 'lnum', 'zero';
-  }
-
-  /* Technical stamp — a bracketed metadata block. Use for build IDs,
-     version stamps, coordinates:  <span class="tech-stamp">[ v3.0.0 / 18.04 ]</span> */
-  .tech-stamp {
-    font-family: var(--font-mono), ui-monospace, monospace;
-    font-size: 0.65rem;
-    font-weight: 400;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: theme(colors.text-whisper);
-    padding: 0.15em 0.45em;
-    border: 1px solid theme(colors.border-mid);
-    border-radius: 3px;
-    font-feature-settings: 'tnum', 'lnum', 'zero';
-    white-space: nowrap;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   }
 
   /* Italic voice — Fraunces italic reserved for empathetic pull-phrases.
@@ -217,115 +174,75 @@
     object-fit: cover;
   }
 
-  /* Corner-marks — engineered crosshair brackets at the four corners of any
-     positioned container. Anduril/Pentagon precision device for imagery,
-     panels, hero blocks. Pair on a `relative` container; marks sit just
-     outside the content edge. */
-  .mark-corner {
-    position: relative;
-  }
-  .mark-corner::before,
-  .mark-corner::after,
-  .mark-corner > .mark-corner-bl,
-  .mark-corner > .mark-corner-br {
-    content: '';
-    position: absolute;
-    width: 10px;
-    height: 10px;
-    border-color: theme(colors.text-primary / 55%);
-    border-style: solid;
-    border-width: 0;
-    pointer-events: none;
-  }
-  .mark-corner::before {
-    top: -4px;
-    left: -4px;
-    border-top-width: 1.25px;
-    border-left-width: 1.25px;
-  }
-  .mark-corner::after {
-    top: -4px;
-    right: -4px;
-    border-top-width: 1.25px;
-    border-right-width: 1.25px;
-  }
-  .mark-corner > .mark-corner-bl {
-    bottom: -4px;
-    left: -4px;
-    border-bottom-width: 1.25px;
-    border-left-width: 1.25px;
-  }
-  .mark-corner > .mark-corner-br {
-    bottom: -4px;
-    right: -4px;
-    border-bottom-width: 1.25px;
-    border-right-width: 1.25px;
+  /* Brand gradient text — coral → dusty mauve → deep slate. The single
+     signature moment per page; reserved for one phrase in the hero
+     headline. Composes onto any text size. */
+  .text-gradient-warm {
+    background: linear-gradient(
+      90deg,
+      #F4A47C 0%,
+      #E88A6E 18%,
+      #B8838C 48%,
+      #6E6E8E 72%,
+      #3D4D6E 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
   }
 
-  /* Sticker — Depop-flavoured cutout for accents / illustrations / labels.
-     Small tilt + dashed border + lift shadow. Hover settles to flat.
-     Compose:  <span class="sticker sticker-pop">new ✷</span> */
-  .sticker {
+  /* Soft chip — premium-wellness pill with a tiny status dot, optional
+     meta caption above the body. Composes:
+       <span class="chip-soft chip-soft-positive">
+         <span class="chip-soft-dot" />
+         <span>
+           <span class="chip-soft-meta">Continental US only</span>
+           Free shipping on orders $75+
+         </span>
+       </span> */
+  .chip-soft {
     display: inline-flex;
     align-items: center;
-    gap: 0.4em;
-    padding: 0.3em 0.7em;
-    border-radius: 10px;
-    border: 1.5px dashed theme(colors.text-primary / 35%);
-    background: theme(colors.surface);
+    gap: 0.625rem;
+    padding: 0.55rem 0.95rem 0.55rem 0.75rem;
+    border-radius: 9999px;
+    background: theme(colors.surface-warm);
     color: theme(colors.text-primary);
-    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    transform: rotate(-2.5deg);
-    box-shadow: theme(boxShadow.sticker);
-    transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1);
+    font-size: 0.875rem;
+    line-height: 1.25;
+    font-weight: 500;
+    letter-spacing: -0.005em;
   }
-  .sticker:hover {
-    transform: rotate(0deg) scale(1.04);
+  .chip-soft-dot {
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: theme(colors.text-tertiary);
   }
-  .sticker-pop {
-    background: theme(colors.pop.light);
-    border-color: theme(colors.pop.deep / 60%);
-    color: theme(colors.pop.deep);
-  }
-  .sticker-honey {
-    background: theme(colors.honey.light);
-    border-color: theme(colors.honey.deep / 55%);
-    color: theme(colors.honey.deep);
-  }
-  .sticker-sage {
-    background: theme(colors.accent.light);
-    border-color: theme(colors.accent.deep / 50%);
-    color: theme(colors.accent.deep);
-  }
-
-  /* Ornament rule — tapered hairline with a central serif dot-triplet.
-     Use .rule-ornament in place of .rule for section breaks that should
-     feel editorial, not technical. */
-  .rule-ornament {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    color: theme(colors.border-strong);
-  }
-  .rule-ornament::before,
-  .rule-ornament::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: linear-gradient(to right, transparent, theme(colors.border-strong) 45%, theme(colors.border-strong) 55%, transparent);
-  }
-  .rule-ornament > span {
-    font-family: var(--font-display), Georgia, serif;
-    font-size: 0.85rem;
-    letter-spacing: 0.4em;
+  .chip-soft-meta {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 400;
     color: theme(colors.text-tertiary);
-    line-height: 1;
-    transform: translateY(-1px);
+    letter-spacing: 0;
+    margin-bottom: 1px;
+  }
+  .chip-soft-positive {
+    background: theme(colors.positive.light);
+  }
+  .chip-soft-positive .chip-soft-dot {
+    background: theme(colors.positive.DEFAULT);
+  }
+  .chip-soft-pop .chip-soft-dot {
+    background: theme(colors.pop.DEFAULT);
+  }
+  .chip-soft-honey {
+    background: theme(colors.honey.light);
+  }
+  .chip-soft-honey .chip-soft-dot {
+    background: theme(colors.honey.DEFAULT);
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -69,10 +69,11 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // Display — Bricolage Grotesque. Modern grotesque with soft character.
-        display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // One humanist family does both display and body — premium wellness
+        // brands (OEM, Walden) read as one voice end-to-end.
+        display: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Serif — Fraunces, reserved for italic pull-phrases (.voice-italic).
+        // Serif — Fraunces italic only, for the .voice-italic pull-phrase moment.
         serif: ['var(--font-serif)', '"Iowan Old Style"', 'Georgia', 'serif'],
         mono: ['var(--font-mono)', '"SFMono-Regular"', 'ui-monospace', 'monospace'],
       },

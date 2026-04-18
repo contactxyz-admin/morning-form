@@ -4,158 +4,156 @@ import { Button } from '@/components/ui/button';
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-bg">
-      {/* Header — wordmark + version stamp + sign-in. The stamp anchors the
-          engineered/instrument feel from the first pixel. */}
-      <header className="px-5 sm:px-8 pt-8 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="font-display-narrow font-bold text-text-primary text-lg uppercase">Morning Form</span>
-          <span className="tech-stamp">v3.0 / Q2·26</span>
-        </div>
-        <Link
-          href="/sign-in"
-          className="text-caption text-text-secondary hover:text-text-primary transition-colors duration-300 ease-spring underline-offset-4 hover:underline"
-        >
-          Sign in
-        </Link>
+      {/* Header — small, calm, generous spacing. */}
+      <header className="px-6 sm:px-10 pt-8 pb-4 flex items-center justify-between">
+        <span className="text-base font-medium text-text-primary tracking-[-0.01em]">
+          Morning Form
+        </span>
+        <nav className="flex items-center gap-7 text-caption text-text-secondary">
+          <Link href="#" className="hover:text-text-primary transition-colors">Journal</Link>
+          <Link href="#" className="hover:text-text-primary transition-colors">About</Link>
+          <Link
+            href="/sign-in"
+            className="hover:text-text-primary transition-colors"
+          >
+            Sign in
+          </Link>
+        </nav>
       </header>
 
-      {/* Hero — Pentagon-style: compressed display headline, mono technical
-          eyebrow, supporting metadata, corner-marked imagery rail. */}
-      <section className="grain px-5 sm:px-8 pt-20 sm:pt-28 pb-24 stagger">
-        <div className="mb-8 flex items-center gap-4 flex-wrap">
-          <span className="tech-label">▲ MF / 01 — System</span>
-          <span aria-hidden className="hidden sm:block h-px w-12 bg-border-strong" />
-          <span className="tech-stamp">REV 2026.04</span>
+      {/* Hero — OEM-style: a soft chip rail floating above a generous
+          humanist headline whose middle clause carries the brand gradient.
+          Inline "Read more" sits in the prose, not as a separate CTA. */}
+      <section className="px-6 sm:px-10 pt-16 sm:pt-24 pb-24">
+        <div className="mb-10 flex flex-wrap gap-3">
+          <span className="chip-soft chip-soft-positive">
+            <span className="chip-soft-dot" />
+            <span>
+              <span className="chip-soft-meta">8 minutes · no commitment</span>
+              Free assessment, free protocol
+            </span>
+          </span>
+          <span className="chip-soft chip-soft-pop">
+            <span className="chip-soft-dot" />
+            <span>
+              <span className="chip-soft-meta">Now in private beta</span>
+              Adaptive daily protocols
+            </span>
+          </span>
         </div>
-        <h1 className="font-display-narrow font-bold text-display sm:text-display-2xl text-text-primary max-w-3xl uppercase leading-[0.92]">
-          A system for
-          <br />
-          <span className="voice-italic normal-case">understanding</span>
-          <br />
-          your state.
+
+        <h1 className="text-[2.75rem] sm:text-[4.5rem] lg:text-[5.5rem] font-medium text-text-primary leading-[1.02] tracking-[-0.035em] max-w-5xl">
+          A system for{' '}
+          <span className="text-gradient-warm">understanding the patterns</span>{' '}
+          that shape how you feel.{' '}
+          <Link
+            href="#how"
+            className="text-text-whisper hover:text-text-secondary transition-colors duration-300 underline-offset-[0.18em] hover:underline"
+          >
+            Read more
+          </Link>
         </h1>
-        <p className="mt-10 text-body-lg text-text-secondary max-w-lg leading-relaxed">
-          Morning Form assesses your patterns, builds a personalised protocol, and adapts with
-          you over time.
-        </p>
-        <div className="mt-12 flex items-center gap-5 flex-wrap">
+
+        <div className="mt-14 flex items-center gap-6 flex-wrap">
           <Link href="/onboarding">
-            <Button size="lg">Begin assessment →</Button>
+            <Button size="lg">Begin assessment</Button>
           </Link>
           <Link
             href="/sign-in"
-            className="text-caption text-text-secondary hover:text-text-primary transition-colors duration-300 ease-spring underline-offset-4 hover:underline"
+            className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300 underline-offset-4 hover:underline"
           >
             Already signed up? Sign in →
           </Link>
-          <span className="tech-stamp">08:00 · FREE · NO COMMIT</span>
-        </div>
-
-        {/* Imagery rail — panel-arch frames with corner-mark precision and
-            mono index stamps below. Drop <Image /> children in later. */}
-        <div className="mt-20 max-w-3xl">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="tech-label">Fig. 01 — Daily Loop</span>
-            <span className="tech-stamp">3 / 3</span>
-          </div>
-          <div className="grid grid-cols-3 gap-5 sm:gap-7">
-            {[
-              { i: '001', label: 'Morning' },
-              { i: '002', label: 'Protocol' },
-              { i: '003', label: 'Evening' },
-            ].map((p, idx) => (
-              <div key={p.i} className={idx === 1 ? '-translate-y-3' : ''}>
-                <div className="mark-corner panel-arch aspect-[3/4] flex items-end justify-center pb-4 text-caption text-text-whisper">
-                  {p.label.toLowerCase()}
-                  <span className="mark-corner-bl" />
-                  <span className="mark-corner-br" />
-                </div>
-                <div className="mt-2.5 flex items-center justify-between">
-                  <span className="font-mono text-[10px] tracking-[0.18em] text-text-tertiary uppercase">{p.i}</span>
-                  <span className="font-mono text-[10px] tracking-[0.18em] text-text-tertiary uppercase">{p.label}</span>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
-      {/* The Problem */}
-      <section className="px-5 sm:px-8 py-24 border-t border-border">
-        <div className="mb-6 flex items-center gap-4">
-          <span className="tech-label">▲ MF / 02 — Problem</span>
-          <span aria-hidden className="hidden sm:block h-px flex-1 max-w-[120px] bg-border-strong" />
+      {/* Imagery rail — soft arch frames, no labels, no marks. The arch
+          is the brand's window; let the imagery speak. */}
+      <section className="px-6 sm:px-10 pb-28">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-7 max-w-6xl">
+          {[
+            { label: 'Morning' },
+            { label: 'Protocol' },
+            { label: 'Evening' },
+          ].map((p, idx) => (
+            <figure key={p.label} className={idx === 1 ? 'sm:-translate-y-6' : ''}>
+              <div className="panel-arch aspect-[3/4] flex items-end justify-center pb-5 text-caption text-text-whisper">
+                {p.label.toLowerCase()}
+              </div>
+              <figcaption className="mt-4 text-caption text-text-secondary">
+                {p.label}.{' '}
+                <span className="text-text-tertiary">
+                  {idx === 0 && 'A short check-in to map the day ahead.'}
+                  {idx === 1 && 'Personalised, adaptive, explained.'}
+                  {idx === 2 && 'Reflection, refinement, sleep prep.'}
+                </span>
+              </figcaption>
+            </figure>
+          ))}
         </div>
-        <p className="font-display-narrow font-medium text-display-sm sm:text-display text-text-primary max-w-2xl uppercase leading-[1.05]">
+      </section>
+
+      {/* The Problem — quiet eyebrow, generous body. No tech labels. */}
+      <section id="how" className="px-6 sm:px-10 py-24 border-t border-border">
+        <p className="text-caption text-text-tertiary mb-6">The problem</p>
+        <p className="text-[1.75rem] sm:text-[2.5rem] font-medium text-text-primary max-w-3xl leading-[1.15] tracking-[-0.025em]">
           You&rsquo;ve tried supplements, tracked your sleep, read the research.{' '}
           <span className="text-text-tertiary">But nothing connects into a system.</span>
         </p>
-        <p className="mt-8 text-body-lg text-text-secondary max-w-lg">
-          Fragmented advice produces fragmented results. You need a protocol that understands
-          your patterns — not another product that ignores them.
+        <p className="mt-8 text-body-lg text-text-secondary max-w-xl leading-relaxed">
+          Fragmented advice produces fragmented results. You need a protocol that
+          understands your patterns — not another product that ignores them.
         </p>
       </section>
 
-      {/* How it works */}
-      <section className="px-5 sm:px-8 py-24 border-t border-border">
-        <div className="mb-10 flex items-center gap-4">
-          <span className="tech-label">▲ MF / 03 — Method</span>
-          <span aria-hidden className="hidden sm:block h-px flex-1 max-w-[120px] bg-border-strong" />
-        </div>
-        <div className="space-y-12 max-w-xl">
+      {/* How it works — three quiet steps; numerals in mono for rhythm,
+          but no engineered framing. */}
+      <section className="px-6 sm:px-10 py-24 border-t border-border">
+        <p className="text-caption text-text-tertiary mb-10">How it works</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-10 sm:gap-12 max-w-5xl">
           {[
             {
-              n: '001',
+              n: '01',
               title: 'Assess',
-              body: '8-minute intake maps your state patterns, sensitivities, and constraints.',
+              body: 'An 8-minute intake maps your state, sensitivities, and constraints.',
             },
             {
-              n: '002',
+              n: '02',
               title: 'Protocol',
-              body: 'Personalised to your biology. Every recommendation explained with mechanism and evidence.',
+              body: 'Personalised to your biology. Every recommendation explained with mechanism.',
             },
             {
-              n: '003',
+              n: '03',
               title: 'Adapt',
               body: 'Daily feedback refines your protocol over time. The system learns, you improve.',
             },
           ].map((step) => (
-            <div key={step.n} className="grid grid-cols-[auto_1fr] gap-6 items-baseline">
-              <span className="font-mono text-[11px] tracking-[0.18em] text-text-tertiary uppercase pt-1">{step.n}</span>
-              <div>
-                <h3 className="font-display-narrow font-bold text-heading text-text-primary uppercase">
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-body-lg text-text-secondary leading-relaxed">{step.body}</p>
-              </div>
+            <div key={step.n}>
+              <span className="font-mono text-caption text-text-tertiary">{step.n}</span>
+              <h3 className="mt-3 text-heading font-medium text-text-primary tracking-[-0.015em]">
+                {step.title}
+              </h3>
+              <p className="mt-2 text-body text-text-secondary leading-relaxed">{step.body}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Statement */}
-      <section className="px-5 sm:px-8 py-28 border-t border-border">
-        <div className="mb-8 flex items-center gap-4">
-          <span className="tech-label">▲ MF / 04 — Position</span>
-        </div>
-        <h2 className="font-display-narrow font-bold text-display-sm sm:text-display text-text-primary uppercase leading-[1.0]">
-          Not a supplement brand.
-          <br />
-          <span className="voice-italic normal-case font-light">A state system.</span>
+      {/* Statement — the brand voice. Gradient on the closing phrase. */}
+      <section className="px-6 sm:px-10 py-28 border-t border-border">
+        <h2 className="text-[2rem] sm:text-[3rem] font-medium text-text-primary max-w-3xl leading-[1.08] tracking-[-0.03em]">
+          We don&rsquo;t sell products through quizzes.{' '}
+          <span className="text-gradient-warm">We build protocols through data.</span>
         </h2>
-        <p className="mt-8 text-body-lg text-text-secondary max-w-lg">
-          We don&rsquo;t sell products through quizzes. We build protocols through data.
-        </p>
-        <div className="mt-12 flex items-center gap-4 flex-wrap">
+        <div className="mt-12">
           <Link href="/onboarding">
-            <Button size="lg">Begin assessment →</Button>
+            <Button size="lg">Begin assessment</Button>
           </Link>
-          <span className="tech-stamp">EST 2026 / V3.0</span>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="px-5 sm:px-8 py-10 border-t border-border">
+      <footer className="px-6 sm:px-10 py-10 border-t border-border">
         <div className="flex flex-wrap gap-6 text-caption text-text-tertiary">
           <span className="hover:text-text-secondary cursor-pointer transition-colors">Privacy</span>
           <span className="hover:text-text-secondary cursor-pointer transition-colors">About</span>
