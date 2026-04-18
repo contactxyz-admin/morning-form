@@ -27,18 +27,18 @@ export default function LandingPage() {
         </div>
 
         <h1 className="text-[2.75rem] sm:text-[4.5rem] lg:text-[5.5rem] font-semibold text-text-primary leading-[1.02] tracking-[-0.04em] max-w-5xl">
-          One daily protocol from every wearable, app, and blood test.
+          One health record from every wearable, app, and blood test.
         </h1>
 
         <p className="mt-10 text-[1.125rem] sm:text-[1.25rem] text-text-secondary max-w-2xl leading-[1.5] tracking-[-0.005em]">
-          Morning Form connects your wearables, tracking apps, and blood work in one place.
-          AI translates the noise into plain-English actions: what to change today, which
-          supplements actually move your numbers, when to see a clinician.
+          The longitudinal view your GP doesn&rsquo;t have — written in plain English.
+          Morning Form reads your Whoop, Oura, Apple Health, and blood panels and tells
+          you what&rsquo;s changed, what it means, and what to do today.
         </p>
 
         <div className="mt-14 flex items-center gap-6 flex-wrap">
           <Link href="/onboarding">
-            <Button size="lg">Get your starter protocol</Button>
+            <Button size="lg">See your record</Button>
           </Link>
           <p className="text-[0.8125rem] text-text-tertiary">
             8 minutes · free · no signup
@@ -50,9 +50,9 @@ export default function LandingPage() {
       <section className="px-6 sm:px-10 lg:px-16 pb-28 sm:pb-40 max-w-[1400px] mx-auto">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
           {[
-            { label: 'Morning', caption: 'A 30-second check-in maps the day ahead.' },
-            { label: 'Protocol', caption: 'Personalised, adaptive, and explained — not prescribed.' },
-            { label: 'Evening', caption: 'Reflect, refine, prep for sleep.' },
+            { label: 'Trend', caption: 'Every marker moving in one view, month over month.' },
+            { label: 'Read', caption: 'What your numbers mean, written in plain English.' },
+            { label: 'Action', caption: 'What to change today, ranked by impact on your data.' },
           ].map((p) => (
             <figure key={p.label}>
               <div className="panel-arch aspect-[4/5] flex items-end p-5 text-[0.75rem] uppercase tracking-[0.08em] text-text-whisper">
@@ -78,18 +78,18 @@ export default function LandingPage() {
           {[
             {
               n: '01',
+              title: 'A longitudinal record your GP doesn\u2019t have',
+              body: 'Most clinicians see you for ten minutes every two years, on a single snapshot. Morning Form builds the thread — month over month, panel over panel — so patterns surface before they become problems.',
+            },
+            {
+              n: '02',
               title: 'No more supplement guesswork',
               body: 'Every recommendation is justified by your bloods and wearable trends — never generic. Spend less, on the things that actually move your numbers.',
             },
             {
-              n: '02',
-              title: 'Every device and lab in one view',
-              body: 'Whoop, Oura, Apple Health, MyFitnessPal, your last blood panel — connected and translated into one daily protocol you can read in sixty seconds.',
-            },
-            {
               n: '03',
               title: 'A medical safety net, built in',
-              body: 'When your numbers cross thresholds that need a real clinician, Morning Form flags it clearly with a referral. Never buried, never hyped, never sold around.',
+              body: 'When a marker crosses a threshold that needs a real clinician, Morning Form flags it clearly with a referral. Never buried, never hyped, never sold around.',
             },
           ].map((b) => (
             <div key={b.n}>
@@ -115,13 +115,13 @@ export default function LandingPage() {
             },
             {
               n: 'Step 02',
-              title: 'Receive',
-              body: 'Your starter protocol arrives in minutes — lifestyle changes and supplements ranked by impact on your data.',
+              title: 'Read',
+              body: 'Your record arrives in minutes — every number in plain English, with the lifestyle changes and supplements ranked by impact on your data.',
             },
             {
               n: 'Step 03',
               title: 'Adapt',
-              body: 'Daily check-ins refine the protocol. Quarterly bloods recalibrate it. The system learns; you improve.',
+              body: 'Daily check-ins refine the read. Quarterly bloods recalibrate it. The record builds; you improve.',
             },
           ].map((step) => (
             <div key={step.n}>
@@ -188,15 +188,15 @@ export default function LandingPage() {
       {/* Final CTA — restate the value, ink only, low-commitment ask. */}
       <section className="px-6 sm:px-10 lg:px-16 py-32 sm:py-44 border-t border-border max-w-[1400px] mx-auto">
         <h2 className="text-[2.25rem] sm:text-[3.5rem] font-semibold text-text-primary max-w-3xl leading-[1.02] tracking-[-0.035em]">
-          Get the answer your wearable has been hinting at. In eight minutes, free.
+          See what your numbers have been trying to tell you. In eight minutes, free.
         </h2>
         <p className="mt-8 text-[1.125rem] text-text-secondary max-w-xl leading-[1.55]">
-          Take the assessment, link one wearable, see your starter protocol. No card, no signup
-          until you decide to keep going.
+          Take the assessment, link one wearable, see your record. No card, no signup until
+          you decide to keep going.
         </p>
         <div className="mt-14 flex items-center gap-6 flex-wrap">
           <Link href="/onboarding">
-            <Button size="lg">Get your starter protocol</Button>
+            <Button size="lg">See your record</Button>
           </Link>
           <Link
             href="/sign-in"
