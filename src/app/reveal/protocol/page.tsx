@@ -1,11 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
-import { mockProtocolItems } from '@/lib/mock-data';
+import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
 
 const stagger = {
   hidden: { opacity: 0 },
@@ -19,6 +20,24 @@ const fadeUp = {
 
 export default function ProtocolRevealPage() {
   const router = useRouter();
+  const state = useAssessmentData();
+
+  useEffect(() => {
+    if (state.kind === 'not-onboarded') router.replace('/assessment');
+    if (state.kind === 'unauthenticated') router.replace('/sign-in');
+  }, [state.kind, router]);
+
+  if (state.kind !== 'ready') {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center px-5">
+        <p className="text-caption text-text-tertiary">
+          {state.kind === 'error' ? 'Something went wrong.' : 'Loading…'}
+        </p>
+      </div>
+    );
+  }
+
+  const { stateProfile, protocol } = state.data;
 
   return (
     <div className="min-h-screen bg-bg px-5 sm:px-8 pt-16 pb-32">
@@ -26,14 +45,12 @@ export default function ProtocolRevealPage() {
         <motion.div variants={fadeUp}>
           <SectionLabel>Your protocol</SectionLabel>
           <h2 className="mt-4 font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.03em] leading-[1.1]">
-            Sustained activation.
-            <br />
-            <span className="italic font-light">Clean</span> downshift.
+            {stateProfile.primaryPattern}
           </h2>
         </motion.div>
 
         <div className="mt-12 space-y-4">
-          {mockProtocolItems.map((item) => (
+          {protocol.items.map((item) => (
             <motion.div key={item.id} variants={fadeUp}>
               <Card variant="default" className="space-y-3">
                 <SectionLabel>{item.timeLabel}</SectionLabel>

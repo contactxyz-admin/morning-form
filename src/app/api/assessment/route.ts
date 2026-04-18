@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { generateStateProfile, generateProtocol } from '@/lib/protocol-engine';
-import type { AssessmentResponses } from '@/types';
+import type {
+  AssessmentResponses,
+  Constraint,
+  Observation,
+  Protocol,
+  Sensitivity,
+  StateProfile,
+} from '@/types';
 
 /**
  * POST /api/assessment — persist the answers and the derived state/protocol.
@@ -104,4 +111,59 @@ export async function POST(request: Request) {
     console.error('[API] Assessment error:', error);
     return NextResponse.json({ error: 'Failed to process assessment' }, { status: 500 });
   }
+}
+
+/**
+ * GET /api/assessment — return the persisted state profile + protocol for the
+ * current user. Powers /reveal/* pages, which used to read mockStateProfile.
+ * Returns 404 when the user hasn't completed onboarding yet; callers should
+ * route back to /assessment in that case.
+ */
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
+
+  const [stateRow, protocolRow] = await Promise.all([
+    prisma.stateProfile.findUnique({ where: { userId: user.id } }),
+    prisma.protocol.findUnique({
+      where: { userId: user.id },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    }),
+  ]);
+
+  if (!stateRow || !protocolRow) {
+    return NextResponse.json({ error: 'Assessment not completed.' }, { status: 404 });
+  }
+
+  const stateProfile: StateProfile = {
+    archetype: stateRow.archetype,
+    primaryPattern: stateRow.primaryPattern,
+    patternDescription: stateRow.patternDescription,
+    observations: JSON.parse(stateRow.observations) as Observation[],
+    constraints: JSON.parse(stateRow.constraints) as Constraint[],
+    sensitivities: JSON.parse(stateRow.sensitivities) as Sensitivity[],
+  };
+
+  const protocol: Protocol = {
+    id: protocolRow.id,
+    version: protocolRow.version,
+    status: protocolRow.status as Protocol['status'],
+    rationale: protocolRow.rationale,
+    confidence: protocolRow.confidence as Protocol['confidence'],
+    items: protocolRow.items.map((item) => ({
+      id: item.id,
+      timeSlot: item.timeSlot as 'morning' | 'afternoon' | 'evening',
+      timeLabel: item.timeLabel,
+      compounds: item.compounds,
+      dosage: item.dosage,
+      timingCue: item.timingCue,
+      mechanism: item.mechanism,
+      evidenceTier: item.evidenceTier as 'strong' | 'moderate' | 'emerging',
+      sortOrder: item.sortOrder,
+    })),
+  };
+
+  return NextResponse.json({ stateProfile, protocol });
 }
