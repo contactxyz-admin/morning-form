@@ -67,7 +67,6 @@ export const config = {
     '/api/health/apple-health',
     '/api/health/callback/:path*',
     '/api/intake/:path*',
-    '/api/protocol',
     '/api/share/:path*',
     '/api/suggestions',
     '/api/topics/:path*',
