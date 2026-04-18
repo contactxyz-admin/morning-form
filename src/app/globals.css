@@ -8,7 +8,6 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    font-feature-settings: 'cv11', 'ss01', 'ss03';
   }
 
   body {
@@ -17,8 +16,8 @@
     /* Paper wash — two warm radials layered with a faint accent tint near the top.
        Catches light the way an uncoated page does, without ever reading as a gradient. */
     background-image:
-      radial-gradient(at 8% -6%, rgba(31, 58, 46, 0.04) 0px, transparent 48%),
-      radial-gradient(at 94% 104%, rgba(139, 107, 58, 0.035) 0px, transparent 52%),
+      radial-gradient(at 8% -6%, rgba(47, 87, 65, 0.045) 0px, transparent 48%),
+      radial-gradient(at 94% 104%, rgba(139, 107, 58, 0.04) 0px, transparent 52%),
       radial-gradient(at 50% 50%, rgba(26, 20, 16, 0.012) 0px, transparent 70%);
     background-attachment: fixed;
   }

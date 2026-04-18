@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Fraunces, Inter_Tight, JetBrains_Mono } from 'next/font/google';
+import { Fraunces, Instrument_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
 const fraunces = Fraunces({
@@ -10,7 +10,9 @@ const fraunces = Fraunces({
   style: ['normal', 'italic'],
 });
 
-const interTight = Inter_Tight({
+// Instrument Sans — editorial-modern sans with stroke character that pairs
+// with Fraunces. Warmer than Inter; keeps the page from reading clinical.
+const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
@@ -41,7 +43,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${interTight.variable} ${mono.variable}`}
+      className={`${fraunces.variable} ${instrumentSans.variable} ${mono.variable}`}
     >
       <body className="font-sans antialiased min-h-screen">{children}</body>
     </html>

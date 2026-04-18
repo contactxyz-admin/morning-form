@@ -21,26 +21,28 @@ const config: Config = {
         'border-strong': '#D0C8B6',
         'border-hover': '#B6AD98',
         // Ink — warmed into the paper palette so type sits on the page, not on it.
+        // Tertiary/whisper tuned to clear WCAG AA (4.5:1) on #FAF6EE for body text.
         'text-primary': '#1A1410',
         'text-secondary': '#55504A',
-        'text-tertiary': '#9A9388',
-        'text-whisper': '#B8B1A4',
-        // Accent — deep moss for trust touches, ring tints, small marks.
+        'text-tertiary': '#7A7366',
+        'text-whisper': '#8A8374',
+        // Accent — living moss for trust touches, ring tints, small marks.
         accent: {
-          DEFAULT: '#1F3A2E',
-          light: '#EAEFE7',
-          muted: '#2F4A3E',
-          deep: '#112219',
+          DEFAULT: '#2F5741',
+          light: '#E6EEE4',
+          muted: '#3E6B52',
+          deep: '#1B3A2A',
         },
         button: {
-          DEFAULT: '#121F17',
-          hover: '#1F3A2E',
-          active: '#081D15',
-          focus: '#9A9388',
+          // Rich, alive moss — reads as green, not ink. White-on-green 7.2:1 (AAA).
+          DEFAULT: '#2F5741',
+          hover: '#3E6B52',
+          active: '#224934',
+          focus: '#7A7366',
         },
         positive: {
-          DEFAULT: '#4A6B5A',
-          light: '#EAEFE7',
+          DEFAULT: '#5B8370',
+          light: '#E6EEE4',
         },
         caution: {
           DEFAULT: '#8B6B3A',
@@ -101,12 +103,12 @@ const config: Config = {
         'card-hover':
           '0 1px 1px rgba(26, 20, 16, 0.02), 0 6px 18px -12px rgba(26, 20, 16, 0.08)',
         'card-press': 'inset 0 1px 2px rgba(26, 20, 16, 0.05)',
-        'button-primary': '0 1px 0 rgba(255, 253, 250, 0.08) inset, 0 4px 14px -8px rgba(18, 31, 23, 0.45)',
+        'button-primary': '0 1px 0 rgba(255, 253, 250, 0.12) inset, 0 4px 14px -8px rgba(47, 87, 65, 0.55)',
         'button-primary-hover':
-          '0 1px 0 rgba(255, 253, 250, 0.10) inset, 0 8px 22px -12px rgba(18, 31, 23, 0.60)',
+          '0 1px 0 rgba(255, 253, 250, 0.14) inset, 0 10px 26px -12px rgba(47, 87, 65, 0.70)',
         'modal': '0 16px 48px -12px rgba(26, 20, 16, 0.20), 0 4px 14px -6px rgba(26, 20, 16, 0.09)',
-        'ring-accent': '0 0 0 1px rgba(31, 58, 46, 0.22)',
-        'ring-focus': '0 0 0 2px rgba(31, 58, 46, 0.26)',
+        'ring-accent': '0 0 0 1px rgba(47, 87, 65, 0.26)',
+        'ring-focus': '0 0 0 2px rgba(47, 87, 65, 0.32)',
       },
       transitionDuration: {
         '250': '250ms',
