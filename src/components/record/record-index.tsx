@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SectionLabel } from '@/components/ui/section-label';
+import { DEMO_NAVIGABLE_RECORD_SLUG } from '@/lib/record/demo';
 import { ActivityFeed } from './activity-feed';
 import { TopicCard } from './topic-card';
 import { WhatWeKnowCard } from './what-we-know-card';
@@ -13,7 +14,7 @@ interface RecordIndexProps {
 
 function RecordIndex({ data }: RecordIndexProps) {
   const { topics, recentActivity, graphSummary } = data;
-  const isEmpty = topics.length === 0;
+  const isEmpty = graphSummary.sourceCount === 0;
 
   return (
     <div className="space-y-14">
@@ -43,7 +44,7 @@ function RecordIndex({ data }: RecordIndexProps) {
               <Button variant="primary">Start intake</Button>
             </Link>
             <Link
-              href="/r/demo-navigable-record"
+              href={`/r/${DEMO_NAVIGABLE_RECORD_SLUG}`}
               className="text-caption text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
             >
               Or explore the demo record →

@@ -17,6 +17,8 @@
 
 import { DEMO_NAVIGABLE_RECORD_SLUG } from '../../../prisma/fixtures/demo-navigable-record';
 
+export { DEMO_NAVIGABLE_RECORD_SLUG };
+
 export interface DemoSlugRecord {
   slug: string;
   /** Email used to locate the seeded demo user at request time. */

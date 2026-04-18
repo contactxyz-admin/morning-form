@@ -6,8 +6,8 @@ import { Icon } from '@/components/ui/icon';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SectionLabel } from '@/components/ui/section-label';
+import { DEMO_NAVIGABLE_RECORD_SLUG } from '@/lib/record/demo';
 import type { ShareScope } from '@/lib/share/tokens';
-import { DEMO_NAVIGABLE_RECORD_SLUG } from '../../../../../prisma/fixtures/demo-navigable-record';
 
 /**
  * /settings/shared-links
