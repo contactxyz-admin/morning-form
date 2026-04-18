@@ -221,6 +221,49 @@ describe('POST /api/intake/documents', () => {
     expect(supportsEdges.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('promotes sleep stub→full when a sleep-linked biomarker (cortisol) lands', async () => {
+    const userId = await makeTestUser(prisma, 'docs-sleep-promote');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    await prisma.topicPage.create({
+      data: { userId, topicKey: 'sleep', status: 'stub', rendered: '' },
+    });
+
+    mockGetText.mockResolvedValue({
+      pages: [{ num: 1, text: LAB_PAGE_TEXT }],
+      text: '',
+      total: 1,
+    });
+
+    setExtraction({
+      biomarkers: [
+        {
+          canonicalKey: 'cortisol',
+          displayName: 'Cortisol',
+          value: 520,
+          unit: 'nmol/L',
+          referenceRangeLow: 150,
+          referenceRangeHigh: 500,
+          flaggedOutOfRange: true,
+          collectionDate: '2026-04-01',
+          supportingChunkIndices: [0],
+        },
+      ],
+      reportCollectionDate: '2026-04-01',
+      labProvider: 'Medichecks',
+    });
+
+    const res = await POST(makeRequest({}));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.promotedTopics).toEqual(['sleep']);
+
+    const sleepPage = await prisma.topicPage.findUnique({
+      where: { userId_topicKey: { userId, topicKey: 'sleep' } },
+    });
+    expect(sleepPage?.status).toBe('full');
+  });
+
   it('dedup — second upload of identical bytes returns existing document id', async () => {
     const userId = await makeTestUser(prisma, 'docs-dedup');
     currentUserMock.mockResolvedValue({ id: userId });

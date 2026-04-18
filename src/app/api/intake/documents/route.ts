@@ -73,6 +73,15 @@ const PROMOTION_RULES: Array<{ topicKey: string; biomarkerKeys: readonly string[
     // Low vitamin D / B12 / thyroid are common fatigue drivers.
     biomarkerKeys: ['vitamin_d', 'vitamin_b12', 'folate', 'tsh', 'free_t4', 'free_t3'],
   },
+  {
+    topicKey: 'sleep',
+    // HPA axis, mineral/vitamin drivers, and thyroid — the lab-detectable
+    // sleep drivers. Overlap with iron/energy rules is intentional: a user
+    // with low ferritin has a sleep-adjacent issue too, and overlapping
+    // triggers don't double-promote since each rule runs against its own
+    // topicKey.
+    biomarkerKeys: ['cortisol', 'magnesium', 'vitamin_d', 'ferritin', 'tsh'],
+  },
 ];
 
 export async function POST(req: Request) {
