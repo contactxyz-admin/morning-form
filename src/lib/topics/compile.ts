@@ -111,6 +111,7 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
       system: systemPrompt,
       schema: TopicCompiledOutputSchema,
       schemaDescription: `Three-tier topic page for ${config.topicKey} with per-section citations and embedded GP prep`,
+      maxTokens: 8192,
     });
     lintResult = runFullLint(output, topicKey, subgraph);
 
@@ -121,6 +122,7 @@ export async function compileTopic(args: CompileTopicArgs): Promise<TopicCompile
         system: systemPrompt,
         schema: TopicCompiledOutputSchema,
         schemaDescription: `Three-tier topic page for ${config.topicKey} (remedial retry)`,
+        maxTokens: 8192,
       });
       lintResult = runFullLint(output, topicKey, subgraph);
       if (!lintResult.passed) {

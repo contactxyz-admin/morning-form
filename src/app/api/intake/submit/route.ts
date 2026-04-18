@@ -31,10 +31,10 @@ import { extractFromIntake } from '@/lib/intake/extract';
 import { ingestExtraction } from '@/lib/graph/mutations';
 
 export const dynamic = 'force-dynamic';
-// 90s headroom: LLM retry budget is 3 × 30s per-attempt + backoff, and we
-// need DB work on either side. 60s could be consumed entirely by a slow
-// Anthropic endpoint, producing a platform 504 instead of our 502.
-export const maxDuration = 90;
+// LLM per-attempt timeout is 90 s with up to 3 attempts, and we need DB
+// work on either side. A 90 s ceiling would 504 on the first slow
+// attempt before the retry budget could run. Vercel Pro caps at 300 s.
+export const maxDuration = 300;
 
 // Size caps protect against DoS / token-budget abuse. 50KB of history covers
 // a long but reasonable intake; essentials fields are short-answer by design.

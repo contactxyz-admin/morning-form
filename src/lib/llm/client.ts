@@ -29,7 +29,7 @@ export const DEFAULT_MODEL: LLMModel = 'claude-opus-4-6';
 export const LIGHTWEIGHT_MODEL: LLMModel = 'claude-sonnet-4-6';
 
 const STRUCTURED_OUTPUT_TOOL_NAME = 'emit_structured_output';
-const PER_ATTEMPT_TIMEOUT_MS = 30_000;
+const PER_ATTEMPT_TIMEOUT_MS = 90_000;
 const MAX_ATTEMPTS = 3;
 
 export interface GenerateOptions<T> {

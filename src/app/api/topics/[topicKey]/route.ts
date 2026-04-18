@@ -26,7 +26,12 @@ import {
  */
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 90;
+// `compileTopic` can issue up to two sequential LLM calls (primary + one
+// remedial retry), and `PER_ATTEMPT_TIMEOUT_MS` is 90 s. A 90 s function
+// ceiling would 504 on any slow first attempt before the remedial retry
+// could run. Vercel Pro caps at 300 s; leave headroom for DB write + source
+// resolution after compile.
+export const maxDuration = 300;
 
 export async function GET(
   req: NextRequest,

@@ -50,7 +50,11 @@ import {
 import { resolveBiomarker } from '@/lib/intake/biomarkers';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 90;
+// Lab extraction runs one LLM call with a 90 s per-attempt timeout and up
+// to 3 attempts on retryable failures. A 90 s ceiling would 504 on the
+// first slow attempt before the retry budget could run. Vercel Pro caps
+// at 300 s.
+export const maxDuration = 300;
 
 const MAX_PDF_BYTES = 20 * 1024 * 1024; // 20MB — generous for a lab panel scan
 const ALLOWED_MIME = new Set(['application/pdf']);
