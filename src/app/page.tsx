@@ -16,9 +16,12 @@ export default function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="grain px-5 sm:px-8 pt-24 sm:pt-32 pb-24 stagger">
-        <p className="text-label uppercase text-text-tertiary mb-4">An operating system for state</p>
-        <h1 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-2xl -tracking-[0.04em]">
+      <section className="grain px-5 sm:px-8 pt-20 sm:pt-28 pb-24 stagger">
+        <div className="mb-6 flex items-center gap-3">
+          <span className="sticker sticker-pop">new ✷ 2026</span>
+          <p className="text-label uppercase text-text-tertiary">An operating system for state</p>
+        </div>
+        <h1 className="font-display text-display sm:text-display-xl text-text-primary max-w-2xl -tracking-[0.035em] leading-[1.02]">
           A system for
           <br />
           <span className="voice-italic">understanding</span> your state.
@@ -38,6 +41,20 @@ export default function LandingPage() {
             Already signed up? Sign in →
           </Link>
           <p className="text-caption text-text-tertiary">8 minutes · free · no commitment</p>
+        </div>
+
+        {/* Imagery rail — panel-arch is the brand's frame for illustrations
+            and product imagery. Replace placeholder children with <Image /> later. */}
+        <div className="mt-16 grid grid-cols-3 gap-3 sm:gap-5 max-w-3xl">
+          <div className="panel-arch aspect-[3/4] flex items-end justify-center pb-4 text-caption text-text-whisper">
+            morning
+          </div>
+          <div className="panel-arch aspect-[3/4] flex items-end justify-center pb-4 text-caption text-text-whisper -translate-y-4">
+            protocol
+          </div>
+          <div className="panel-arch aspect-[3/4] flex items-end justify-center pb-4 text-caption text-text-whisper">
+            evening
+          </div>
         </div>
       </section>
 

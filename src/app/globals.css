@@ -16,29 +16,28 @@
     /* Paper wash — two warm radials layered with a faint accent tint near the top.
        Catches light the way an uncoated page does, without ever reading as a gradient. */
     background-image:
-      radial-gradient(at 8% -6%, rgba(47, 87, 65, 0.045) 0px, transparent 48%),
-      radial-gradient(at 94% 104%, rgba(139, 107, 58, 0.04) 0px, transparent 52%),
-      radial-gradient(at 50% 50%, rgba(26, 20, 16, 0.012) 0px, transparent 70%);
+      radial-gradient(at 8% -6%, rgba(232, 138, 110, 0.045) 0px, transparent 48%),
+      radial-gradient(at 94% 104%, rgba(126, 145, 131, 0.06) 0px, transparent 52%),
+      radial-gradient(at 50% 50%, rgba(34, 25, 19, 0.014) 0px, transparent 70%);
     background-attachment: fixed;
   }
 
-  /* Fraunces — lean into optical-size at large sizes for editorial display. */
+  /* Bricolage Grotesque — lean into optical-size at large sizes; tighten width
+     on hero scale so the headline sits like a poster, not a paragraph. */
   .font-display {
-    font-feature-settings: 'ss01', 'ss02';
-    font-variation-settings: 'opsz' 144, 'SOFT' 50;
+    font-variation-settings: 'opsz' 96, 'wdth' 92;
   }
 
-  /* Small display use (buttons, card titles) — pull opsz down a touch so strokes don't thin. */
+  /* Small display use (chip titles, buttons) — looser opsz so strokes don't thin. */
   .font-display-ui {
-    font-family: var(--font-display), 'Iowan Old Style', Georgia, serif;
-    font-feature-settings: 'ss01', 'ss02';
-    font-variation-settings: 'opsz' 24, 'SOFT' 60;
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-variation-settings: 'opsz' 18, 'wdth' 100;
   }
 
-  /* Italic voice — Fraunces italic reserved for empathetic phrases, pull-quotes,
-     and section openers. Brand device that works as a single utility. */
+  /* Italic voice — Fraunces italic reserved for empathetic pull-phrases.
+     The single serif moment in an otherwise sans-led brand. */
   .voice-italic {
-    font-family: var(--font-display), 'Iowan Old Style', Georgia, serif;
+    font-family: var(--font-serif), 'Iowan Old Style', Georgia, serif;
     font-style: italic;
     font-weight: 300;
     font-feature-settings: 'ss01', 'ss02';
@@ -46,19 +45,14 @@
     letter-spacing: -0.015em;
   }
 
-  /* Editorial numerals — old-style (text) figures sit with prose in Fraunces;
-     lining + tabular for data and mono for aligned columns. */
-  .font-display,
-  .font-display-ui {
-    font-feature-settings: 'ss01', 'ss02', 'onum';
-  }
+  /* Editorial numerals — tabular + lining for data/mono so columns align cleanly. */
   .font-mono,
   .text-data {
     font-feature-settings: 'tnum', 'lnum', 'zero';
   }
 
   ::selection {
-    @apply bg-accent/15 text-accent-deep;
+    @apply bg-pop/20 text-text-primary;
   }
 
   ::-webkit-scrollbar {
@@ -163,6 +157,66 @@
   .rule {
     height: 1px;
     background: linear-gradient(to right, transparent, theme(colors.border) 18%, theme(colors.border) 82%, transparent);
+  }
+
+  /* Panel-arch — wellness arch frame for imagery/illustration containers.
+     Pair with an aspect-ratio utility on the consumer. The arch is the
+     brand's "windowed" shape; consumers compose:
+       <div class="panel-arch aspect-[3/4]"><Image ... /></div> */
+  .panel-arch {
+    position: relative;
+    border-top-left-radius: 9999px;
+    border-top-right-radius: 9999px;
+    border-bottom-left-radius: theme(borderRadius.card);
+    border-bottom-right-radius: theme(borderRadius.card);
+    overflow: hidden;
+    background: theme(colors.surface-warm);
+    box-shadow: inset 0 0 0 1px theme(colors.border-strong);
+  }
+  .panel-arch > * {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Sticker — Depop-flavoured cutout for accents / illustrations / labels.
+     Small tilt + dashed border + lift shadow. Hover settles to flat.
+     Compose:  <span class="sticker sticker-pop">new ✷</span> */
+  .sticker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0.3em 0.7em;
+    border-radius: 10px;
+    border: 1.5px dashed theme(colors.text-primary / 35%);
+    background: theme(colors.surface);
+    color: theme(colors.text-primary);
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    transform: rotate(-2.5deg);
+    box-shadow: theme(boxShadow.sticker);
+    transition: transform 250ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .sticker:hover {
+    transform: rotate(0deg) scale(1.04);
+  }
+  .sticker-pop {
+    background: theme(colors.pop.light);
+    border-color: theme(colors.pop.deep / 60%);
+    color: theme(colors.pop.deep);
+  }
+  .sticker-honey {
+    background: theme(colors.honey.light);
+    border-color: theme(colors.honey.deep / 55%);
+    color: theme(colors.honey.deep);
+  }
+  .sticker-sage {
+    background: theme(colors.accent.light);
+    border-color: theme(colors.accent.deep / 50%);
+    color: theme(colors.accent.deep);
   }
 
   /* Ornament rule — tapered hairline with a central serif dot-triplet.

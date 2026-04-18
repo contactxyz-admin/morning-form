@@ -9,65 +9,72 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Warm paper — lifted toward near-white for editorial clarity while keeping the uncoated-stock warmth.
-        // Surface spread widened so card-on-page actually lifts; steps are ~3-4% apart now, not 1%.
-        bg: '#FAF6EE',
-        'bg-deep': '#F1EAD9',
-        surface: '#FFFDF8',
-        'surface-warm': '#F3EDDE',
-        'surface-sunken': '#ECE4D1',
-        // Hairlines. Two-step hover so default -> hover is a half-tone, not a jump.
-        border: '#EAE4D7',
-        'border-mid': '#D8D0BE',
-        'border-strong': '#D0C8B6',
-        'border-hover': '#B6AD98',
-        // Ink — warmed into the paper palette so type sits on the page, not on it.
-        // Tertiary/whisper tuned to clear WCAG AA (4.5:1) on #FAF6EE for body text.
-        'text-primary': '#1A1410',
-        'text-secondary': '#55504A',
-        'text-tertiary': '#7A7366',
-        'text-whisper': '#8A8374',
-        // Accent — living moss for trust touches, ring tints, small marks.
+        // Warm cream paper — meditation-hue ground; oat/sand family rather than the previous moss-paper.
+        bg: '#F6F0E5',
+        'bg-deep': '#EDE5D3',
+        surface: '#FBF7EE',
+        'surface-warm': '#EFE6D2',
+        'surface-sunken': '#E6DCC4',
+        // Hairlines warmed toward clay so they sit on the new ground.
+        border: '#E5DCC8',
+        'border-mid': '#D4C8B0',
+        'border-strong': '#C8BBA0',
+        'border-hover': '#A89B82',
+        // Ink — warm coffee/clay; slightly less saturated than pure black so it breathes.
+        'text-primary': '#221913',
+        'text-secondary': '#5A4F45',
+        'text-tertiary': '#7E7263',
+        'text-whisper': '#8E8270',
+        // Accent — dusty sage. A calm, low-saturation grey-green for trust marks
+        // and ring tints. Reads as "meditation" rather than "growth/finance".
         accent: {
-          DEFAULT: '#2F5741',
-          light: '#E6EEE4',
-          muted: '#3E6B52',
-          deep: '#1B3A2A',
+          DEFAULT: '#7E9183',
+          light: '#E8EBE6',
+          muted: '#8FA092',
+          deep: '#4F6058',
         },
         button: {
-          // Rich, alive moss — reads as green, not ink. White-on-green 7.2:1 (AAA).
-          DEFAULT: '#2F5741',
-          hover: '#3E6B52',
-          active: '#224934',
-          focus: '#7A7366',
+          // Warm clay — neutral, grounded, modern wellness. White-on-clay 8.4:1 (AAA).
+          DEFAULT: '#5C4A3F',
+          hover: '#6F5A4D',
+          active: '#473830',
+          focus: '#7E7263',
         },
         positive: {
-          DEFAULT: '#5B8370',
-          light: '#E6EEE4',
+          DEFAULT: '#7E9183',
+          light: '#E8EBE6',
         },
-        // Honey — a second warm accent reserved for milestones, streaks, moments
-        // of care. Gives the brand emotional range beyond moss. White-on-honey
-        // at the deep step clears AA for labels and small UI.
+        // Honey — warm consumer accent for milestones and streaks.
         honey: {
           DEFAULT: '#C98B5A',
           light: '#F7EADA',
           muted: '#B87A49',
           deep: '#8E5A2F',
         },
+        // Pop — Depop-flavoured coral for small bursts of brand energy
+        // (badges, "you did it" chips, hero stickers). Use sparingly.
+        pop: {
+          DEFAULT: '#E88A6E',
+          light: '#FBE1D5',
+          muted: '#D5755A',
+          deep: '#A85440',
+        },
         caution: {
-          DEFAULT: '#8B6B3A',
+          DEFAULT: '#B8884A',
           light: '#F3EDDF',
         },
         alert: {
-          DEFAULT: '#8B4A3A',
-          light: '#F3E9E3',
+          DEFAULT: '#9A4F3A',
+          light: '#F3E2DA',
         },
       },
       fontFamily: {
-        display: ['var(--font-display)', '"Iowan Old Style"', 'Georgia', 'serif'],
+        // Display — Bricolage Grotesque. Modern grotesque with soft character.
+        display: ['var(--font-display)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Serif — Fraunces, reserved for italic pull-phrases (.voice-italic).
+        serif: ['var(--font-serif)', '"Iowan Old Style"', 'Georgia', 'serif'],
         mono: ['var(--font-mono)', '"SFMono-Regular"', 'ui-monospace', 'monospace'],
-        serif: ['var(--font-display)', 'Georgia', 'serif'],
       },
       fontSize: {
         // Display — generous hero gravity. 2xl is reserved for the one headline per page.
@@ -113,14 +120,15 @@ const config: Config = {
         'card-hover':
           '0 1px 1px rgba(26, 20, 16, 0.02), 0 6px 18px -12px rgba(26, 20, 16, 0.08)',
         'card-press': 'inset 0 1px 2px rgba(26, 20, 16, 0.05)',
-        'button-primary': '0 1px 0 rgba(255, 253, 250, 0.12) inset, 0 4px 14px -8px rgba(47, 87, 65, 0.55)',
+        'button-primary': '0 1px 0 rgba(255, 253, 250, 0.12) inset, 0 4px 14px -8px rgba(92, 74, 63, 0.55)',
         'button-primary-hover':
-          '0 1px 0 rgba(255, 253, 250, 0.14) inset, 0 10px 26px -12px rgba(47, 87, 65, 0.70)',
-        'modal': '0 16px 48px -12px rgba(26, 20, 16, 0.20), 0 4px 14px -6px rgba(26, 20, 16, 0.09)',
-        // Sheet / drawer — deep ambient lift that reads as a floating paper layer.
-        'sheet': '0 -32px 80px -24px rgba(26, 20, 16, 0.22), 0 -4px 14px -6px rgba(26, 20, 16, 0.08)',
-        'ring-accent': '0 0 0 1px rgba(47, 87, 65, 0.26)',
-        'ring-focus': '0 0 0 2px rgba(47, 87, 65, 0.32)',
+          '0 1px 0 rgba(255, 253, 250, 0.14) inset, 0 10px 26px -12px rgba(92, 74, 63, 0.70)',
+        'modal': '0 16px 48px -12px rgba(34, 25, 19, 0.20), 0 4px 14px -6px rgba(34, 25, 19, 0.09)',
+        'sheet': '0 -32px 80px -24px rgba(34, 25, 19, 0.22), 0 -4px 14px -6px rgba(34, 25, 19, 0.08)',
+        // Sticker lift — for .sticker imagery cards that should feel cut-out.
+        'sticker': '0 2px 0 rgba(34, 25, 19, 0.08), 0 8px 22px -10px rgba(34, 25, 19, 0.18)',
+        'ring-accent': '0 0 0 1px rgba(126, 145, 131, 0.34)',
+        'ring-focus': '0 0 0 2px rgba(126, 145, 131, 0.42)',
       },
       transitionDuration: {
         '250': '250ms',
