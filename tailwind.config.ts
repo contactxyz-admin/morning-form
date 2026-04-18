@@ -113,69 +113,25 @@ const config: Config = {
           '0 1px 0 rgba(255, 253, 250, 0.14) inset, 0 10px 26px -12px rgba(92, 74, 63, 0.70)',
         'modal': '0 16px 48px -12px rgba(34, 25, 19, 0.20), 0 4px 14px -6px rgba(34, 25, 19, 0.09)',
         'sheet': '0 -32px 80px -24px rgba(34, 25, 19, 0.22), 0 -4px 14px -6px rgba(34, 25, 19, 0.08)',
-        'ring-accent': '0 0 0 1px rgba(126, 145, 131, 0.34)',
-        'ring-focus': '0 0 0 2px rgba(126, 145, 131, 0.42)',
+        'ring-accent': '0 0 0 1px rgba(29, 29, 31, 0.34)',
+        'ring-focus': '0 0 0 2px rgba(29, 29, 31, 0.42)',
       },
       transitionDuration: {
         '250': '250ms',
         '450': '450ms',
         '600': '600ms',
-        '700': '700ms',
-        '1000': '1000ms',
       },
       transitionTimingFunction: {
         // Apple-style spring — overshoots softly then settles.
         'spring': 'cubic-bezier(0.32, 0.72, 0, 1)',
-        'soft-out': 'cubic-bezier(0.22, 1, 0.36, 1)',
-        'soft-in-out': 'cubic-bezier(0.65, 0, 0.35, 1)',
       },
       animation: {
-        'fade-in': 'fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1)',
-        'fade-in-up': 'fadeInUp 0.7s cubic-bezier(0.22, 1, 0.36, 1)',
-        'slide-up': 'slideUp 0.45s cubic-bezier(0.32, 0.72, 0, 1)',
-        'rise-in': 'riseIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards',
-        'progress': 'progress 1s cubic-bezier(0.22, 1, 0.36, 1)',
         'pulse-subtle': 'pulseSubtle 2.4s ease-in-out infinite',
-        'text-reveal': 'textReveal 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards',
-        'underline-in': 'underlineIn 0.55s cubic-bezier(0.32, 0.72, 0, 1) forwards',
-        'shimmer': 'shimmer 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite',
       },
       keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
-        fadeInUp: {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
-        slideUp: {
-          '0%': { transform: 'translateY(100%)' },
-          '100%': { transform: 'translateY(0)' },
-        },
-        riseIn: {
-          '0%': { opacity: '0', transform: 'translateY(14px)', filter: 'blur(4px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)', filter: 'blur(0)' },
-        },
-        progress: {
-          '0%': { width: '0%' },
-          '100%': { width: 'var(--progress-width)' },
-        },
         pulseSubtle: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.55' },
-        },
-        textReveal: {
-          '0%': { opacity: '0', filter: 'blur(8px)', transform: 'translateY(8px)' },
-          '100%': { opacity: '1', filter: 'blur(0)', transform: 'translateY(0)' },
-        },
-        underlineIn: {
-          '0%': { transform: 'scaleX(0)', transformOrigin: 'left' },
-          '100%': { transform: 'scaleX(1)', transformOrigin: 'left' },
-        },
-        shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
         },
       },
     },
