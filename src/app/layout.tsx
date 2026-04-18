@@ -1,17 +1,17 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
-// Geist — Vercel's neutral grotesque. Modern, designer-leaning, sits in
-// the same family as SF / Söhne / ABC Diatype without their licensing
-// weight. Carries display and body together for one consistent voice.
-const geist = Geist({
+// Inter — neutral grotesque, the closest free analogue to SF Pro. Carries
+// display and body so the brand reads as one designer-modern voice.
+// `cv11` ssXX stylistic sets bring the character closer to SF / Söhne.
+const inter = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
   display: 'swap',
 });
 
-const geistMono = Geist_Mono({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
   display: 'swap',
@@ -36,7 +36,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geist.variable} ${geistMono.variable}`}
+      className={`${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-sans antialiased min-h-screen">{children}</body>
     </html>

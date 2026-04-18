@@ -15,7 +15,7 @@
     overflow-x: clip;
   }
 
-  /* Display family alias — Geist throughout. Per-size tracking tokens carry
+  /* Display family alias — Inter throughout. Per-size tracking tokens carry
      the display feel; no special variation settings required. */
   .font-display-ui {
     font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui, sans-serif;

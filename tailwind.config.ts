@@ -69,7 +69,7 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // Geist carries display and body. SF / system fallbacks keep parity
+        // Inter carries display and body. SF / system fallbacks keep parity
         // before the web font lands.
         display: ['var(--font-sans)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['var(--font-sans)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
