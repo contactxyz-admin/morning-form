@@ -4,6 +4,7 @@ import { DEMO_NAVIGABLE_RECORD } from './fixtures/demo-navigable-record';
 import type { DemoRecordFixture } from './fixtures/demo-navigable-record';
 import { compileTopic } from '../src/lib/topics/compile';
 import { listTopicKeys } from '../src/lib/topics/registry';
+import { TopicCompileLintError } from '../src/lib/topics/types';
 import { LLMClient } from '../src/lib/llm/client';
 
 const prisma = new PrismaClient();
@@ -211,10 +212,12 @@ async function main() {
 /**
  * Seed the `/r/demo-navigable-record` graph.
  *
- * Wipe-and-recreate pattern: fixture-sourced rows are always owned by the
- * fixture, so we nuke any prior demo rows for this user before inserting.
- * Avoids the nullable-unique upsert gymnastics on GraphEdge and keeps the
- * seed idempotent when the fixture changes shape.
+ * Wipe-and-recreate pattern: every SourceDocument and GraphNode owned by
+ * the demo user is fixture-derived, so we nuke the lot before inserting.
+ * A prior contentHash-filtered wipe left v1 rows with `contentHash = null`
+ * behind (Postgres: `NULL IN (list)` evaluates to NULL, not true), which
+ * then violated `@@unique([userId, contentHash])` on re-seed and also
+ * leaked stale chunks into later provenance queries.
  *
  * Compile is best-effort: if `ANTHROPIC_API_KEY` is missing and `MOCK_LLM`
  * isn't set (typical CI), we skip compile. The graph still lands, and the
@@ -223,27 +226,10 @@ async function main() {
  * render live topics.
  */
 async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixture) {
-  // Wipe prior fixture rows for this user. Nodes cascade to edges.
-  const fixtureSourceRefs = fixture.sources
-    .map((s) => s.sourceRef)
-    .filter((ref): ref is string => Boolean(ref));
-  if (fixtureSourceRefs.length > 0) {
-    await prisma.sourceDocument.deleteMany({
-      where: { userId, sourceRef: { in: fixtureSourceRefs } },
-    });
-  }
-  const fixtureNodeKeys = fixture.nodes.map((n) => ({
-    type: n.type,
-    canonicalKey: n.canonicalKey,
-  }));
-  if (fixtureNodeKeys.length > 0) {
-    await prisma.graphNode.deleteMany({
-      where: {
-        userId,
-        OR: fixtureNodeKeys.map(({ type, canonicalKey }) => ({ type, canonicalKey })),
-      },
-    });
-  }
+  // Wipe every fixture-owned row for this user.
+  // SourceChunks cascade from SourceDocument; GraphEdges cascade from GraphNode.
+  await prisma.sourceDocument.deleteMany({ where: { userId } });
+  await prisma.graphNode.deleteMany({ where: { userId } });
 
   // Insert sources with deterministic contentHash so re-seeds don't churn.
   const sourceIdBySourceKey = new Map<string, string>();
@@ -340,6 +326,7 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
   }
 
   const llm = new LLMClient();
+  const failures: Array<{ topicKey: string; error: string; violations?: unknown }> = [];
   for (const topicKey of listTopicKeys()) {
     try {
       const result = await compileTopic({ db: prisma, llm, userId, topicKey });
@@ -347,11 +334,31 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
         `[seedDemoNavigableRecord] compiled ${topicKey} → ${result.status}${result.cached ? ' (cached)' : ''}`,
       );
     } catch (error) {
-      console.warn(
-        `[seedDemoNavigableRecord] compile failed for ${topicKey}:`,
-        error instanceof Error ? error.message : error,
-      );
+      if (error instanceof TopicCompileLintError) {
+        console.warn(
+          `[seedDemoNavigableRecord] compile failed for ${topicKey}: ${error.message}\n` +
+            `  violations: ${JSON.stringify(error.violations, null, 2)}`,
+        );
+        failures.push({ topicKey, error: error.message, violations: error.violations });
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[seedDemoNavigableRecord] compile failed for ${topicKey}: ${message}`);
+        failures.push({ topicKey, error: message });
+      }
     }
+  }
+  if (failures.length > 0) {
+    // Emit a structured summary so downstream readers (CI, scripts) can
+    // parse the outcome without scraping log prose. Exit non-zero so CI
+    // pipelines surface the failure instead of marking the seed green.
+    console.error(
+      `[seedDemoNavigableRecord] compile-summary ${JSON.stringify({
+        total: listTopicKeys().length,
+        failed: failures.length,
+        failures,
+      })}`,
+    );
+    process.exitCode = 1;
   }
 }
 
