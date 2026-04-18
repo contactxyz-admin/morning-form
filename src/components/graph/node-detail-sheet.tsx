@@ -133,7 +133,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
               'inset-x-0 bottom-0 rounded-t-[28px] border-t',
               'md:inset-y-0 md:right-0 md:left-auto md:rounded-t-none md:rounded-l-[28px] md:border-t-0 md:border-l md:w-[440px]',
               'max-h-[88vh] md:max-h-none overflow-hidden flex flex-col',
-              'shadow-[0_-32px_80px_-24px_rgba(0,0,0,0.25)]',
+              'shadow-sheet',
             )}
           >
             {/* Mobile grab handle */}

@@ -16,12 +16,12 @@ export default function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="px-5 sm:px-8 pt-24 sm:pt-32 pb-24 stagger">
+      <section className="grain px-5 sm:px-8 pt-24 sm:pt-32 pb-24 stagger">
         <p className="text-label uppercase text-text-tertiary mb-4">An operating system for state</p>
         <h1 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-2xl -tracking-[0.04em]">
           A system for
           <br />
-          <span className="italic font-light">understanding</span> your state.
+          <span className="voice-italic">understanding</span> your state.
         </h1>
         <p className="mt-8 text-body-lg text-text-secondary max-w-lg leading-relaxed">
           Morning Form assesses your patterns, builds a personalised protocol, and adapts with
@@ -91,7 +91,7 @@ export default function LandingPage() {
         <h2 className="font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.03em] leading-[1.05]">
           Not a supplement brand.
           <br />
-          <span className="italic font-light">A state system.</span>
+          <span className="voice-italic">A state system.</span>
         </h2>
         <p className="mt-8 text-body-lg text-text-secondary max-w-lg">
           We don&rsquo;t sell products through quizzes. We build protocols through data.

@@ -10,11 +10,12 @@ const config: Config = {
     extend: {
       colors: {
         // Warm paper — lifted toward near-white for editorial clarity while keeping the uncoated-stock warmth.
+        // Surface spread widened so card-on-page actually lifts; steps are ~3-4% apart now, not 1%.
         bg: '#FAF6EE',
-        'bg-deep': '#F4EFE4',
-        surface: '#FEFCF6',
-        'surface-warm': '#F5F0E6',
-        'surface-sunken': '#F0EADC',
+        'bg-deep': '#F1EAD9',
+        surface: '#FFFDF8',
+        'surface-warm': '#F3EDDE',
+        'surface-sunken': '#ECE4D1',
         // Hairlines. Two-step hover so default -> hover is a half-tone, not a jump.
         border: '#EAE4D7',
         'border-mid': '#D8D0BE',
@@ -43,6 +44,15 @@ const config: Config = {
         positive: {
           DEFAULT: '#5B8370',
           light: '#E6EEE4',
+        },
+        // Honey — a second warm accent reserved for milestones, streaks, moments
+        // of care. Gives the brand emotional range beyond moss. White-on-honey
+        // at the deep step clears AA for labels and small UI.
+        honey: {
+          DEFAULT: '#C98B5A',
+          light: '#F7EADA',
+          muted: '#B87A49',
+          deep: '#8E5A2F',
         },
         caution: {
           DEFAULT: '#8B6B3A',
@@ -107,6 +117,8 @@ const config: Config = {
         'button-primary-hover':
           '0 1px 0 rgba(255, 253, 250, 0.14) inset, 0 10px 26px -12px rgba(47, 87, 65, 0.70)',
         'modal': '0 16px 48px -12px rgba(26, 20, 16, 0.20), 0 4px 14px -6px rgba(26, 20, 16, 0.09)',
+        // Sheet / drawer — deep ambient lift that reads as a floating paper layer.
+        'sheet': '0 -32px 80px -24px rgba(26, 20, 16, 0.22), 0 -4px 14px -6px rgba(26, 20, 16, 0.08)',
         'ring-accent': '0 0 0 1px rgba(47, 87, 65, 0.26)',
         'ring-focus': '0 0 0 2px rgba(47, 87, 65, 0.32)',
       },

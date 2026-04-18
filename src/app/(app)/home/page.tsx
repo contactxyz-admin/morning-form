@@ -92,7 +92,11 @@ export default function HomePage() {
           <span aria-hidden className="block w-6 h-px bg-text-primary/60" />
           <span className="text-label uppercase text-text-tertiary">Morning Form</span>
         </div>
-        <Link href="/guide" aria-label="Open guide">
+        <Link
+          href="/guide"
+          aria-label="Open guide"
+          className="inline-flex items-center justify-center rounded-full -m-2 p-2 focus-visible:outline-none focus-visible:shadow-ring-focus"
+        >
           <Icon
             name="guide"
             size="md"
@@ -102,7 +106,7 @@ export default function HomePage() {
       </div>
 
       {/* Greeting */}
-      <div className="rise">
+      <div className="grain rise -mx-5 px-5 py-4">
         <p className="font-mono text-label uppercase text-text-tertiary mb-4">
           {formatDate(new Date())}
         </p>

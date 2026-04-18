@@ -36,7 +36,7 @@ export default function SettingsPage() {
           <button
             onClick={() => router.back()}
             aria-label="Back"
-            className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
+            className="inline-flex items-center justify-center rounded-full -m-2 p-2 text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring focus-visible:outline-none focus-visible:shadow-ring-focus"
           >
             <Icon name="back" size="md" />
           </button>

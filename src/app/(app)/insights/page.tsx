@@ -94,7 +94,7 @@ export default function InsightsPage() {
                 <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
                   <div className="w-full flex items-end h-20">
                     <div
-                      className={cn('w-full rounded-t-sm transition-all duration-700 ease-spring', color)}
+                      className={cn('w-full rounded-t-sm transition-all duration-450 ease-spring', color)}
                       style={{ height: `${height}%` }}
                     />
                   </div>
@@ -120,7 +120,7 @@ export default function InsightsPage() {
                 <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
                   <div className="w-full flex items-end h-20">
                     <div
-                      className="w-full rounded-t-sm bg-accent/60 transition-all duration-700 ease-spring"
+                      className="w-full rounded-t-sm bg-accent/60 transition-all duration-450 ease-spring"
                       style={{ height: `${height}%` }}
                     />
                   </div>
