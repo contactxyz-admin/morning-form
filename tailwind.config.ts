@@ -9,72 +9,70 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Warm cream paper — meditation-hue ground; oat/sand family rather than the previous moss-paper.
-        bg: '#F6F0E5',
-        'bg-deep': '#EDE5D3',
-        surface: '#FBF7EE',
-        'surface-warm': '#EFE6D2',
-        'surface-sunken': '#E6DCC4',
-        // Hairlines warmed toward clay so they sit on the new ground.
-        border: '#E5DCC8',
-        'border-mid': '#D4C8B0',
-        'border-strong': '#C8BBA0',
-        'border-hover': '#A89B82',
-        // Ink — warm coffee/clay; slightly less saturated than pure black so it breathes.
-        'text-primary': '#221913',
-        'text-secondary': '#5A4F45',
-        'text-tertiary': '#7E7263',
-        'text-whisper': '#8E8270',
-        // Accent — dusty sage. A calm, low-saturation grey-green for trust marks
-        // and ring tints. Reads as "meditation" rather than "growth/finance".
+        // Neutral system — Apple-flavoured off-white ground with a near-black ink.
+        // Strips the previous warm cream so the brand reads quieter / more designer.
+        bg: '#FBFBFD',
+        'bg-deep': '#F5F5F7',
+        surface: '#FFFFFF',
+        'surface-warm': '#F5F5F7',
+        'surface-sunken': '#EEEEF1',
+        // Hairlines pulled to neutral system grey.
+        border: '#E5E5EA',
+        'border-mid': '#D2D2D7',
+        'border-strong': '#BDBDC4',
+        'border-hover': '#86868B',
+        // Ink — Apple's near-black, with system grey ramp under it.
+        'text-primary': '#1D1D1F',
+        'text-secondary': '#424245',
+        'text-tertiary': '#6E6E73',
+        'text-whisper': '#86868B',
+        // Accent — desaturated graphite for focus rings and active states.
+        // Held back from any warm/colourful read.
         accent: {
-          DEFAULT: '#7E9183',
-          light: '#E8EBE6',
-          muted: '#8FA092',
-          deep: '#4F6058',
+          DEFAULT: '#1D1D1F',
+          light: '#F0F0F2',
+          muted: '#6E6E73',
+          deep: '#000000',
         },
         button: {
-          // Warm clay — neutral, grounded, modern wellness. White-on-clay 8.4:1 (AAA).
-          DEFAULT: '#5C4A3F',
-          hover: '#6F5A4D',
-          active: '#473830',
-          focus: '#7E7263',
+          // Pure ink primary — high contrast, neutral, designer.
+          DEFAULT: '#1D1D1F',
+          hover: '#2D2D2F',
+          active: '#000000',
+          focus: '#424245',
         },
         positive: {
-          DEFAULT: '#7E9183',
-          light: '#E8EBE6',
+          DEFAULT: '#1D1D1F',
+          light: '#F0F0F2',
         },
-        // Honey — warm consumer accent for milestones and streaks.
+        // Legacy accent families retained at neutral values so any token
+        // reference still resolves cleanly. Avoid using these on net-new work.
         honey: {
-          DEFAULT: '#C98B5A',
-          light: '#F7EADA',
-          muted: '#B87A49',
-          deep: '#8E5A2F',
+          DEFAULT: '#6E6E73',
+          light: '#F0F0F2',
+          muted: '#86868B',
+          deep: '#424245',
         },
-        // Pop — Depop-flavoured coral for small bursts of brand energy
-        // (badges, "you did it" chips, hero stickers). Use sparingly.
         pop: {
-          DEFAULT: '#E88A6E',
-          light: '#FBE1D5',
-          muted: '#D5755A',
-          deep: '#A85440',
+          DEFAULT: '#1D1D1F',
+          light: '#F0F0F2',
+          muted: '#424245',
+          deep: '#000000',
         },
         caution: {
-          DEFAULT: '#B8884A',
-          light: '#F3EDDF',
+          DEFAULT: '#6E6E73',
+          light: '#F0F0F2',
         },
         alert: {
-          DEFAULT: '#9A4F3A',
-          light: '#F3E2DA',
+          DEFAULT: '#1D1D1F',
+          light: '#F0F0F2',
         },
       },
       fontFamily: {
-        // One humanist family does both display and body — premium wellness
-        // brands (OEM, Walden) read as one voice end-to-end.
-        display: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // Serif — Fraunces italic only, for the .voice-italic pull-phrase moment.
-        serif: ['var(--font-serif)', '"Iowan Old Style"', 'Georgia', 'serif'],
+        // Geist carries display and body. SF / system fallbacks keep parity
+        // before the web font lands.
+        display: ['var(--font-sans)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', '"SFMono-Regular"', 'ui-monospace', 'monospace'],
       },
       fontSize: {

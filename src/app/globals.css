@@ -13,31 +13,12 @@
   body {
     @apply bg-bg text-text-primary;
     overflow-x: clip;
-    /* Paper wash — two warm radials layered with a faint accent tint near the top.
-       Catches light the way an uncoated page does, without ever reading as a gradient. */
-    background-image:
-      radial-gradient(at 8% -6%, rgba(232, 138, 110, 0.045) 0px, transparent 48%),
-      radial-gradient(at 94% 104%, rgba(126, 145, 131, 0.06) 0px, transparent 52%),
-      radial-gradient(at 50% 50%, rgba(34, 25, 19, 0.014) 0px, transparent 70%);
-    background-attachment: fixed;
   }
 
-  /* Display sizes use Onest at the body family — a single humanist voice
-     end-to-end. Tracking tightens at hero scale via per-size tokens; no
-     special variation settings needed. */
+  /* Display family alias — Geist throughout. Per-size tracking tokens carry
+     the display feel; no special variation settings required. */
   .font-display-ui {
-    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  }
-
-  /* Italic voice — Fraunces italic reserved for empathetic pull-phrases.
-     The single serif moment in an otherwise sans-led brand. */
-  .voice-italic {
-    font-family: var(--font-serif), 'Iowan Old Style', Georgia, serif;
-    font-style: italic;
-    font-weight: 300;
-    font-feature-settings: 'ss01', 'ss02';
-    font-variation-settings: 'opsz' 72, 'SOFT' 70;
-    letter-spacing: -0.015em;
+    font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui, sans-serif;
   }
 
   /* Editorial numerals — tabular + lining for data/mono so columns align cleanly. */
@@ -47,7 +28,7 @@
   }
 
   ::selection {
-    @apply bg-pop/20 text-text-primary;
+    @apply bg-text-primary/15 text-text-primary;
   }
 
   ::-webkit-scrollbar {
@@ -154,19 +135,14 @@
     background: linear-gradient(to right, transparent, theme(colors.border) 18%, theme(colors.border) 82%, transparent);
   }
 
-  /* Panel-arch — wellness arch frame for imagery/illustration containers.
-     Pair with an aspect-ratio utility on the consumer. The arch is the
-     brand's "windowed" shape; consumers compose:
+  /* Image frame — neutral rounded card. Pair with an aspect-ratio utility:
        <div class="panel-arch aspect-[3/4]"><Image ... /></div> */
   .panel-arch {
     position: relative;
-    border-top-left-radius: 9999px;
-    border-top-right-radius: 9999px;
-    border-bottom-left-radius: theme(borderRadius.card);
-    border-bottom-right-radius: theme(borderRadius.card);
+    border-radius: theme(borderRadius.card);
     overflow: hidden;
     background: theme(colors.surface-warm);
-    box-shadow: inset 0 0 0 1px theme(colors.border-strong);
+    box-shadow: inset 0 0 0 1px theme(colors.border);
   }
   .panel-arch > * {
     width: 100%;
@@ -174,50 +150,25 @@
     object-fit: cover;
   }
 
-  /* Brand gradient text — coral → dusty mauve → deep slate. The single
-     signature moment per page; reserved for one phrase in the hero
-     headline. Composes onto any text size. */
-  .text-gradient-warm {
-    background: linear-gradient(
-      90deg,
-      #F4A47C 0%,
-      #E88A6E 18%,
-      #B8838C 48%,
-      #6E6E8E 72%,
-      #3D4D6E 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-  }
-
-  /* Soft chip — premium-wellness pill with a tiny status dot, optional
-     meta caption above the body. Composes:
-       <span class="chip-soft chip-soft-positive">
-         <span class="chip-soft-dot" />
-         <span>
-           <span class="chip-soft-meta">Continental US only</span>
-           Free shipping on orders $75+
-         </span>
-       </span> */
+  /* Soft chip — neutral pill with a tiny status dot. Optional meta caption
+     above the body line. Apple-style: monochrome by default. */
   .chip-soft {
     display: inline-flex;
     align-items: center;
     gap: 0.625rem;
-    padding: 0.55rem 0.95rem 0.55rem 0.75rem;
+    padding: 0.5rem 0.9rem 0.5rem 0.7rem;
     border-radius: 9999px;
     background: theme(colors.surface-warm);
-    color: theme(colors.text-primary);
-    font-size: 0.875rem;
+    color: theme(colors.text-secondary);
+    font-size: 0.8125rem;
     line-height: 1.25;
     font-weight: 500;
-    letter-spacing: -0.005em;
+    letter-spacing: -0.003em;
   }
   .chip-soft-dot {
     flex-shrink: 0;
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     border-radius: 9999px;
     background: theme(colors.text-tertiary);
   }
@@ -228,21 +179,6 @@
     color: theme(colors.text-tertiary);
     letter-spacing: 0;
     margin-bottom: 1px;
-  }
-  .chip-soft-positive {
-    background: theme(colors.positive.light);
-  }
-  .chip-soft-positive .chip-soft-dot {
-    background: theme(colors.positive.DEFAULT);
-  }
-  .chip-soft-pop .chip-soft-dot {
-    background: theme(colors.pop.DEFAULT);
-  }
-  .chip-soft-honey {
-    background: theme(colors.honey.light);
-  }
-  .chip-soft-honey .chip-soft-dot {
-    background: theme(colors.honey.DEFAULT);
   }
 
   @media (prefers-reduced-motion: reduce) {
