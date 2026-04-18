@@ -300,6 +300,7 @@ model CheckIn {
   date      String
   createdAt DateTime @default(now())
 
+  @@unique([userId, date, type])
   @@index([userId, date])
   @@index([userId, type])
 }

@@ -1,4 +1,4 @@
-import type { StateProfile, Protocol, ProtocolItem, WeeklyReview, MorningCheckIn, EveningCheckIn, HealthSummary } from '@/types';
+import type { StateProfile, Protocol, ProtocolItem, HealthSummary } from '@/types';
 
 export const mockStateProfile: StateProfile = {
   archetype: 'sustained-activator',
@@ -64,26 +64,6 @@ export const mockProtocol: Protocol = {
   items: mockProtocolItems,
 };
 
-export const mockWeeklyReview: WeeklyReview = {
-  weekStart: '2026-03-20',
-  weekEnd: '2026-03-26',
-  sleepQuality: { filled: 5, total: 7, trend: 'improving', label: '5 of 7 nights rated "Well" or better' },
-  focusConsistency: { filled: 4, total: 7, trend: 'stable', label: '4 of 7 days rated "Good" or better' },
-  protocolAdherence: { filled: 6, total: 7, trend: 'improving', label: '6 of 7 days "Fully" or "Mostly"' },
-  patternInsight: 'Your best focus days followed nights where you completed your evening protocol before 10pm.',
-  protocolStatus: 'no-changes',
-};
-
-export const mockCheckInHistory: { date: string; morning?: MorningCheckIn; evening?: EveningCheckIn }[] = [
-  { date: '2026-03-20', morning: { sleepQuality: 'ok', currentFeeling: 'flat' }, evening: { focusQuality: 'variable', afternoonEnergy: 'dipped', protocolAdherence: 'mostly' } },
-  { date: '2026-03-21', morning: { sleepQuality: 'well', currentFeeling: 'steady' }, evening: { focusQuality: 'good', afternoonEnergy: 'steady', protocolAdherence: 'fully' } },
-  { date: '2026-03-22', morning: { sleepQuality: 'well', currentFeeling: 'sharp' }, evening: { focusQuality: 'locked-in', afternoonEnergy: 'strong', protocolAdherence: 'fully' } },
-  { date: '2026-03-23', morning: { sleepQuality: 'poorly', currentFeeling: 'low' }, evening: { focusQuality: 'scattered', afternoonEnergy: 'crashed', protocolAdherence: 'partially' } },
-  { date: '2026-03-24', morning: { sleepQuality: 'ok', currentFeeling: 'flat' }, evening: { focusQuality: 'variable', afternoonEnergy: 'dipped', protocolAdherence: 'fully' } },
-  { date: '2026-03-25', morning: { sleepQuality: 'great', currentFeeling: 'sharp' }, evening: { focusQuality: 'good', afternoonEnergy: 'steady', protocolAdherence: 'fully' } },
-  { date: '2026-03-26', morning: { sleepQuality: 'well', currentFeeling: 'steady' }, evening: { focusQuality: 'good', afternoonEnergy: 'steady', protocolAdherence: 'mostly' } },
-];
-
 export const mockHealthSummary: HealthSummary = {
   sleep: { duration: 7.2, quality: 82, deepSleep: 1.4, remSleep: 1.8, restingHR: 52 },
   activity: { steps: 8430, calories: 2180, activeMinutes: 45, strain: 12.4 },
@@ -91,18 +71,6 @@ export const mockHealthSummary: HealthSummary = {
   heart: { restingHR: 52, maxHR: 168, avgHR: 72 },
   metabolic: { glucose: 98 },
 };
-
-export const mockHealthHistory = Array.from({ length: 7 }, (_, i) => {
-  const date = new Date(2026, 2, 20 + i);
-  return {
-    date: date.toISOString().split('T')[0],
-    hrv: 55 + Math.floor(Math.random() * 30),
-    recoveryScore: 60 + Math.floor(Math.random() * 35),
-    sleepDuration: 6.5 + Math.random() * 1.5,
-    restingHR: 48 + Math.floor(Math.random() * 10),
-    steps: 5000 + Math.floor(Math.random() * 8000),
-  };
-});
 
 export const guideResponses: Record<string, string> = {
   'why this protocol': `Your profile shows sustained activation with impaired downshift — you stay "on" too long. The morning protocol (L-tyrosine + Alpha-GPC) supports focus through dopamine and acetylcholine pathways without the adrenergic load of caffeine, which your stimulant sensitivity would make counterproductive by afternoon.\n\nThe midday L-theanine acts as a transition buffer — it promotes alpha wave activity that smooths the shift from high output to recovery mode. The evening combination of magnesium L-threonate and apigenin targets the specific mechanisms your pattern needs: GABAergic calming and melatonin onset support.\n\nEach compound was chosen to address a specific observation in your profile. This isn't a generic stack — it's sequenced for your state pattern.`,
