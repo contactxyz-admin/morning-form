@@ -1,13 +1,48 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
+import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
+
+const CONFIDENCE_COPY: Record<'high' | 'moderate' | 'low', string> = {
+  high: 'Your profile maps clearly to well-studied compounds with strong evidence for this state pattern.',
+  moderate:
+    'Your profile points to a likely pattern, but we have moderate confidence — signals are consistent but not overdetermined.',
+  low: 'Your responses leave more room for interpretation. This protocol is a reasonable starting point; we may refine it as we learn more.',
+};
 
 export default function RationalePage() {
   const router = useRouter();
+  const state = useAssessmentData();
+
+  useEffect(() => {
+    if (state.kind === 'not-onboarded') router.replace('/assessment');
+    if (state.kind === 'unauthenticated') router.replace('/sign-in');
+  }, [state.kind, router]);
+
+  if (state.kind !== 'ready') {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center px-5">
+        <p className="text-caption text-text-tertiary">
+          {state.kind === 'error' ? 'Something went wrong.' : 'Loading…'}
+        </p>
+      </div>
+    );
+  }
+
+  const { protocol } = state.data;
+  const paragraphs = protocol.rationale
+    .split(/\n\s*\n/) // blank-line paragraph split
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const paragraphsToRender =
+    paragraphs.length > 1 ? paragraphs : splitBySentence(protocol.rationale, 2);
+  const confidenceLabel =
+    protocol.confidence.charAt(0).toUpperCase() + protocol.confidence.slice(1);
 
   return (
     <div className="min-h-screen bg-bg px-5 sm:px-8 pt-16 pb-32">
@@ -23,32 +58,18 @@ export default function RationalePage() {
         </h2>
 
         <div className="mt-10 space-y-6 text-body-lg text-text-secondary leading-relaxed">
-          <p>
-            Your profile suggests sustained sympathetic activation through the afternoon. L-tyrosine
-            and Alpha-GPC in the morning support clean focus via dopamine and acetylcholine pathways —
-            without the adrenergic load of caffeine, which your moderate-high stimulant sensitivity
-            would make counterproductive by early afternoon.
-          </p>
-          <p>
-            L-theanine at midday creates a buffer — reducing norepinephrine without impairing
-            alertness — making your evening downshift protocol more effective. It smooths the
-            transition from sustained output to recovery mode.
-          </p>
-          <p>
-            The evening combination of magnesium L-threonate and apigenin targets the specific
-            mechanisms your pattern needs: GABAergic calming and melatonin onset support. Your
-            poor wind-down ability and delayed sleep onset pointed clearly to this combination.
-          </p>
+          {paragraphsToRender.map((p, i) => (
+            <p key={i}>{p}</p>
+          ))}
         </div>
 
         <Card variant="contextual" className="mt-12">
           <SectionLabel>Confidence</SectionLabel>
           <p className="mt-3 font-display font-normal text-heading text-accent -tracking-[0.02em]">
-            High
+            {confidenceLabel}
           </p>
           <p className="mt-3 text-body text-text-secondary leading-relaxed">
-            Your profile maps clearly to well-studied compounds with strong evidence for this state
-            pattern. All three protocol items have robust clinical support.
+            {CONFIDENCE_COPY[protocol.confidence]}
           </p>
         </Card>
       </motion.div>
@@ -62,4 +83,18 @@ export default function RationalePage() {
       </div>
     </div>
   );
+}
+
+// The protocol-engine emits a single-paragraph rationale. Breaking roughly in
+// half by sentence keeps the reveal page's existing two-column reading rhythm
+// without forcing the engine to change shape.
+function splitBySentence(text: string, chunks: number): string[] {
+  const sentences = text.match(/[^.!?]+[.!?]+\s*/g) ?? [text];
+  if (sentences.length <= chunks) return [text];
+  const per = Math.ceil(sentences.length / chunks);
+  const out: string[] = [];
+  for (let i = 0; i < sentences.length; i += per) {
+    out.push(sentences.slice(i, i + per).join('').trim());
+  }
+  return out;
 }
