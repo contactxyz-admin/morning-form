@@ -39,6 +39,10 @@ export default function TopicPage() {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [citedNode, setCitedNode] = useState<GraphNodeWire | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  // Incrementing this re-fires the effect. `true` on the first bit means
+  // "bypass the compile cache" — used by the retry button when the last
+  // compile errored and the error is pinned to the current graph revision.
+  const [reload, setReload] = useState<{ seq: number; force: boolean }>({ seq: 0, force: false });
 
   useEffect(() => {
     if (!topicKey) return;
@@ -46,9 +50,10 @@ export default function TopicPage() {
     setState({ status: 'loading' });
     (async () => {
       try {
-        const res = await fetch(`/api/topics/${encodeURIComponent(topicKey)}`, {
-          cache: 'no-store',
-        });
+        const url = reload.force
+          ? `/api/topics/${encodeURIComponent(topicKey)}?force=1`
+          : `/api/topics/${encodeURIComponent(topicKey)}`;
+        const res = await fetch(url, { cache: 'no-store' });
         if (res.status === 401) {
           if (!cancelled) setState({ status: 'unauth' });
           return;
@@ -75,7 +80,10 @@ export default function TopicPage() {
     return () => {
       cancelled = true;
     };
-  }, [topicKey]);
+  }, [topicKey, reload]);
+
+  const retry = (force: boolean) =>
+    setReload((r) => ({ seq: r.seq + 1, force }));
 
   const handleCitationClick = async (nodeId: string) => {
     try {
@@ -151,6 +159,15 @@ export default function TopicPage() {
           <p className="mt-2 font-mono text-caption text-text-tertiary">
             {state.message}
           </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="mt-4"
+            onClick={() => retry(false)}
+          >
+            Try again
+          </Button>
         </Card>
       )}
 
@@ -168,6 +185,15 @@ export default function TopicPage() {
               {state.data.errorMessage}
             </p>
           )}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="mt-4"
+            onClick={() => retry(true)}
+          >
+            Try again
+          </Button>
         </Card>
       )}
 
