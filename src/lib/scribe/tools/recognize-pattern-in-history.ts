@@ -14,11 +14,17 @@
  *     aggregate a huge dataset inside a tool call; the compile path has cheaper
  *     aggregate queries, and the runtime path shouldn't block on this either.
  *
- * Scope: user-scoped at the DB layer; topic-scoped by metric filter. Callers
- * pass a category or a set of metric keys; unknown topics yield no filter
- * and therefore no results.
+ * Scope:
+ *   - User-scoped at the DB layer (every query includes ctx.userId).
+ *   - Topic-scoped by the registry: the requested metrics are filtered to
+ *     those that substring-match one of the topic's `canonicalKeyPatterns`
+ *     before any DB query runs. An unknown topic, or a request with only
+ *     off-topic metrics, returns `too-little-data` without touching the DB —
+ *     a hallucinated cross-topic metric cannot leak the user's data from
+ *     another topic.
  */
 import { z } from 'zod';
+import { getTopicConfig } from '@/lib/topics/registry';
 import type { ToolContext, ToolHandler } from './types';
 
 export const recognizePatternInHistorySchema = z.object({
@@ -61,11 +67,32 @@ export const recognizePatternInHistoryHandler: ToolHandler<
   parameters: recognizePatternInHistorySchema,
   async execute(ctx: ToolContext, args: RecognizePatternInHistoryArgs) {
     const windowDays = args.windowDays ?? DEFAULT_PATTERN_WINDOW_DAYS;
+
+    // Topic scope gate — filter requested metrics down to those that match
+    // this topic's canonicalKeyPatterns. An unknown topic filters everything
+    // out. If nothing survives the filter we return too-little-data without
+    // touching the DB, so a hallucinated off-topic metric cannot probe the
+    // user's data from another topic.
+    const topic = getTopicConfig(ctx.topicKey);
+    const topicMetrics = topic
+      ? args.metrics.filter((m) =>
+          topic.canonicalKeyPatterns.some((p) => m.toLowerCase().includes(p.toLowerCase())),
+        )
+      : [];
+    if (topicMetrics.length === 0) {
+      return {
+        status: 'too-little-data',
+        windowDays,
+        metrics: [],
+        checkInCount: 0,
+      };
+    }
+
     const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
 
     const [dataCount, checkInCount] = await Promise.all([
       ctx.db.healthDataPoint.count({
-        where: { userId: ctx.userId, metric: { in: args.metrics }, timestamp: { gte: since } },
+        where: { userId: ctx.userId, metric: { in: topicMetrics }, timestamp: { gte: since } },
       }),
       ctx.db.checkIn.count({
         where: { userId: ctx.userId, createdAt: { gte: since } },
@@ -92,7 +119,7 @@ export const recognizePatternInHistoryHandler: ToolHandler<
     }
 
     const rows = await ctx.db.healthDataPoint.findMany({
-      where: { userId: ctx.userId, metric: { in: args.metrics }, timestamp: { gte: since } },
+      where: { userId: ctx.userId, metric: { in: topicMetrics }, timestamp: { gte: since } },
       orderBy: { timestamp: 'asc' },
     });
 
@@ -103,7 +130,7 @@ export const recognizePatternInHistoryHandler: ToolHandler<
       byMetric.set(r.metric, arr);
     }
 
-    const metrics: MetricSeries[] = args.metrics.map((m) => {
+    const metrics: MetricSeries[] = topicMetrics.map((m) => {
       const series = byMetric.get(m) ?? [];
       if (series.length === 0) {
         return { metric: m, count: 0, first: null, last: null, average: null };

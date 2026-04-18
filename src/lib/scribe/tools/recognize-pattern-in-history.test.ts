@@ -93,6 +93,86 @@ describe('recognize_pattern_in_history handler', () => {
     expect(result.metrics).toEqual([]);
   }, 30_000);
 
+  it('topic-scope gate: returns too-little-data when no metric matches the topic\'s patterns', async () => {
+    // Regression (D10): the Sleep/Recovery scribe must not probe ferritin
+    // data even if it exists on the graph. The topic scope filters out
+    // off-topic metrics BEFORE any DB query runs — we seed a ferritin
+    // healthDataPoint and assert the handler reports too-little-data.
+    const userId = await makeTestUser(prisma, 'pattern-topic-scope');
+    const now = Date.now();
+    await prisma.healthDataPoint.createMany({
+      data: Array.from({ length: 5 }, (_, i) => ({
+        userId,
+        provider: 'manual',
+        category: 'bloodwork',
+        metric: 'ferritin',
+        value: 12 + i,
+        unit: 'ug/L',
+        timestamp: new Date(now - i * 24 * 60 * 60 * 1000),
+      })),
+    });
+
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery' };
+    const result = await recognizePatternInHistoryHandler.execute(ctx, {
+      metrics: ['ferritin'],
+      windowDays: 30,
+    });
+    expect(result.status).toBe('too-little-data');
+    expect(result.metrics).toEqual([]);
+    expect(result.checkInCount).toBe(0);
+  });
+
+  it('topic-scope gate: filters mixed on/off-topic metrics down to the on-topic ones', async () => {
+    // Mixed request: 'hrv' is on-topic for sleep-recovery, 'ferritin' is not.
+    // The handler should query only 'hrv' data. We seed both, and assert the
+    // result contains only 'hrv' series.
+    const userId = await makeTestUser(prisma, 'pattern-mixed-metrics');
+    const now = Date.now();
+    for (let i = 0; i < 5; i++) {
+      await prisma.healthDataPoint.create({
+        data: {
+          userId,
+          provider: 'terra',
+          category: 'recovery',
+          metric: 'hrv',
+          value: 40 + i,
+          unit: 'ms',
+          timestamp: new Date(now - i * 24 * 60 * 60 * 1000),
+        },
+      });
+      await prisma.healthDataPoint.create({
+        data: {
+          userId,
+          provider: 'manual',
+          category: 'bloodwork',
+          metric: 'ferritin',
+          value: 12 + i,
+          unit: 'ug/L',
+          timestamp: new Date(now - i * 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery' };
+    const result = await recognizePatternInHistoryHandler.execute(ctx, {
+      metrics: ['hrv', 'ferritin'],
+      windowDays: 30,
+    });
+    expect(result.status).toBe('ok');
+    expect(result.metrics.map((m) => m.metric)).toEqual(['hrv']);
+    expect(result.metrics[0].count).toBe(5);
+  });
+
+  it('topic-scope gate: returns too-little-data when topicKey is unknown', async () => {
+    const userId = await makeTestUser(prisma, 'pattern-unknown-topic');
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'nonsense-topic' };
+    const result = await recognizePatternInHistoryHandler.execute(ctx, {
+      metrics: ['hrv'],
+      windowDays: 30,
+    });
+    expect(result.status).toBe('too-little-data');
+  });
+
   it('cannot see another user\'s data points', async () => {
     const userA = await makeTestUser(prisma, 'pattern-userA');
     const userB = await makeTestUser(prisma, 'pattern-userB');

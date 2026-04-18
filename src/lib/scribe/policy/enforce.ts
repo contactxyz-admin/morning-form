@@ -6,20 +6,25 @@
  * function is deliberately pure: no I/O, no network, no mutation of its
  * inputs, no hidden state.
  *
- * Three checks, in order:
- *   1. `judgmentKind` must be non-null AND present in `allowedJudgmentKinds`
+ * Three checks — forbidden phrases run FIRST and DOMINATE, because a drug
+ * name or dose string is unsafe regardless of whether the scribe believed
+ * it was within scope. The remaining checks only run on otherwise-clean
+ * output:
+ *   1. Forbidden phrase patterns (dominates) — drugs, dose strings,
+ *      imperative verbs. Any hit rejects the candidate. We scan the full
+ *      output, not just sections, so boilerplate headers can't smuggle a
+ *      dose string through — and we scan even when `judgmentKind` is null
+ *      or disallowed, so an "out of scope" wrapper cannot launder a drug
+ *      mention.
+ *   2. `judgmentKind` must be non-null AND present in `allowedJudgmentKinds`
  *      — otherwise `'out-of-scope-routed'`. This is categorical: no
  *      content-level fix can rescue an out-of-scope judgment, so we stop here
  *      and let the caller route (GP prep or clinician handoff).
- *   2. Forbidden phrase patterns — drugs, dose strings, imperative verbs.
- *      Any hit rejects the candidate. We scan the full output, not just
- *      sections, so boilerplate headers can't smuggle a dose string through.
  *   3. Citation density per section — every section's (citationCount /
- *      paragraphCount) must meet the policy floor.
- *
- * Steps 2 and 3 both run even when one fails, so a single enforce() call
- * surfaces every violation at once — the LLM can fix them in one remedial
- * retry instead of an N-round back-and-forth.
+ *      paragraphCount) must meet the policy floor. A `citation-surfacing`
+ *      judgment with zero sections cannot vacuously pass — citation-surfacing
+ *      means "point at your source" and an empty sections array is either a
+ *      bug or a model trying to skip the requirement.
  */
 
 import type {
@@ -33,7 +38,29 @@ export function enforce(
   policy: SafetyPolicy,
   candidate: PolicyCandidate,
 ): EnforceResult {
-  // 1. Judgment kind — categorical; no content-level rescue.
+  // 1. Forbidden phrases — dominates. Runs before the judgment-kind gate so
+  //    an out-of-scope wrapper cannot hide a drug mention. Collect every
+  //    match so the remedial path sees all violations in one shot.
+  const phraseViolations: PolicyViolation[] = [];
+  for (const pattern of policy.forbiddenPhrasePatterns) {
+    const match = candidate.output.match(pattern);
+    if (match) {
+      phraseViolations.push({
+        kind: 'forbidden-phrase',
+        detail: `Output contains a forbidden phrase pattern (${pattern.source}).`,
+        match: match[0],
+      });
+    }
+  }
+  if (phraseViolations.length > 0) {
+    return {
+      ok: false,
+      classification: 'rejected',
+      violations: phraseViolations,
+    };
+  }
+
+  // 2. Judgment kind — categorical; no content-level rescue.
   if (candidate.judgmentKind === null) {
     return {
       ok: false,
@@ -59,22 +86,19 @@ export function enforce(
     };
   }
 
-  // 2. Forbidden phrases — scan the whole output. We collect every match so
-  //    the remedial path sees all violations in one shot.
-  const phraseViolations: PolicyViolation[] = [];
-  for (const pattern of policy.forbiddenPhrasePatterns) {
-    const match = candidate.output.match(pattern);
-    if (match) {
-      phraseViolations.push({
-        kind: 'forbidden-phrase',
-        detail: `Output contains a forbidden phrase pattern (${pattern.source}).`,
-        match: match[0],
-      });
-    }
-  }
-
   // 3. Citation density per section.
   const densityViolations: PolicyViolation[] = [];
+  // Guard: citation-surfacing requires at least one section. An empty
+  // sections array would otherwise vacuously pass the density loop — the
+  // scribe must actually point at a source to call itself citation-surfacing.
+  if (candidate.judgmentKind === 'citation-surfacing' && candidate.sections.length === 0) {
+    densityViolations.push({
+      kind: 'insufficient-citation-density',
+      detail:
+        'Citation-surfacing judgments require at least one section with a citation; received zero sections.',
+      sectionHeading: '(no sections)',
+    });
+  }
   for (const section of candidate.sections) {
     if (section.paragraphCount <= 0) continue;
     const density = section.citationCount / section.paragraphCount;
@@ -87,13 +111,12 @@ export function enforce(
     }
   }
 
-  const allViolations = [...phraseViolations, ...densityViolations];
-  if (allViolations.length === 0) {
+  if (densityViolations.length === 0) {
     return { ok: true, classification: 'clinical-safe', violations: [] };
   }
   return {
     ok: false,
     classification: 'rejected',
-    violations: allViolations,
+    violations: densityViolations,
   };
 }

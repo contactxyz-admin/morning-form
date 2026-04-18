@@ -110,6 +110,46 @@ describe('compare_to_reference_range handler', () => {
     expect(result.nodeId).toBeNull();
   });
 
+  it('topic-scope gate: returns not-found for a canonicalKey outside the topic\'s patterns even when a node exists', async () => {
+    // Regression (D10): the Iron scribe must not surface a testosterone reading
+    // even if one exists on the graph for this user. The handler should not
+    // query the DB at all — the topic scope gate short-circuits before the
+    // findUnique. We verify by seeding the node and asserting the handler
+    // reports not-found and nodeId === null.
+    const userId = await makeTestUser(prisma, 'range-topic-scope');
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'testosterone',
+      displayName: 'Testosterone',
+      attributes: { latestValue: 15, referenceRangeLow: 10, referenceRangeHigh: 30, unit: 'nmol/L' },
+    });
+
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const result = await compareToReferenceRangeHandler.execute(ctx, {
+      canonicalKey: 'testosterone',
+    });
+    expect(result.found).toBe(false);
+    expect(result.classification).toBe('not-found');
+    expect(result.nodeId).toBeNull();
+    expect(result.value).toBeNull();
+  });
+
+  it('topic-scope gate: returns not-found when topicKey is unknown', async () => {
+    const userId = await makeTestUser(prisma, 'range-unknown-topic');
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: { latestValue: 12, referenceRangeLow: 15, referenceRangeHigh: 150 },
+    });
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'nonsense-topic' };
+    const result = await compareToReferenceRangeHandler.execute(ctx, {
+      canonicalKey: 'ferritin',
+    });
+    expect(result.found).toBe(false);
+    expect(result.classification).toBe('not-found');
+  });
+
   it('does not return another user\'s biomarker', async () => {
     const userA = await makeTestUser(prisma, 'range-userA');
     const userB = await makeTestUser(prisma, 'range-userB');

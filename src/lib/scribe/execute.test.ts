@@ -270,6 +270,56 @@ describe('scribe executor — error surfaces', () => {
     ).rejects.toThrow(/exceeded maxToolCalls/);
   });
 
+  it('D11: writes a rejected ScribeAudit row even when the LLM loop throws past maxToolCalls', async () => {
+    // Regression for the audit-before-gate invariant: any throw between the
+    // first LLM turn and the final enforce() must still land an audit row.
+    // We trigger the maxToolCalls throw and assert the row exists with
+    // safetyClassification='rejected'.
+    const userId = await makeTestUser(prisma, 'exec-runaway-audit');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+
+    const toolTurn: ScribeLLMTurn = {
+      stopReason: 'tool_use',
+      text: '',
+      modelVersion: 'v-runaway',
+      toolCalls: [
+        { id: 'c1', name: 'search_graph_nodes', input: { query: 'ferritin' } },
+      ],
+    };
+    const { client } = scriptedLLM([toolTurn, toolTurn, toolTurn]);
+
+    const requestId = '66666666-6666-4666-8666-666666666666';
+    await expect(
+      execute(baseRequest({ userId, llm: client, maxToolCalls: 2, requestId })),
+    ).rejects.toThrow(/exceeded maxToolCalls/);
+
+    const audits = await prisma.scribeAudit.findMany({ where: { userId, requestId } });
+    expect(audits).toHaveLength(1);
+    expect(audits[0].safetyClassification).toBe('rejected');
+    expect(audits[0].modelVersion).toBe('v-runaway');
+  });
+
+  it('D11: writes a rejected ScribeAudit row when the LLM emits tool_use with no tool_calls', async () => {
+    // A malformed tool_use response (stopReason='tool_use' but toolCalls=[])
+    // throws mid-loop. The audit must still land — same invariant as the
+    // maxToolCalls case.
+    const userId = await makeTestUser(prisma, 'exec-malformed-tool-use');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+
+    const { client } = scriptedLLM([
+      { stopReason: 'tool_use', text: '', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const requestId = '77777777-7777-4777-8777-777777777777';
+    await expect(
+      execute(baseRequest({ userId, llm: client, requestId })),
+    ).rejects.toThrow(/tool_use stop with no tool_calls/);
+
+    const audits = await prisma.scribeAudit.findMany({ where: { userId, requestId } });
+    expect(audits).toHaveLength(1);
+    expect(audits[0].safetyClassification).toBe('rejected');
+  });
+
   it('throws when no policy exists for the topicKey', async () => {
     const userId = await makeTestUser(prisma, 'exec-unknown-policy');
     const { client } = scriptedLLM([]);

@@ -165,75 +165,87 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
 
   let lastTurn: ScribeLLMTurn | null = null;
   let modelVersion = scribe.modelVersion;
+  let output = '';
+  let classification: SafetyClassification = 'rejected';
+  let loopError: unknown = null;
 
-  for (let step = 0; step < maxCalls + 1; step++) {
-    const turn = await req.llm.turn({
-      system,
-      messages,
-      tools,
-      model: scribe.model ?? DEFAULT_SCRIBE_MODEL,
-      temperature: scribe.temperature ?? DEFAULT_SCRIBE_TEMPERATURE,
-    });
-    lastTurn = turn;
-    modelVersion = turn.modelVersion;
+  // D11: every exit path below MUST fall through to the recordAudit call so a
+  // thrown LLM loop or a thrown enforce still lands a row. We capture the
+  // error, default classification to 'rejected' (any thrown path produced no
+  // clinically-safe output), record the audit, then rethrow.
+  try {
+    for (let step = 0; step < maxCalls + 1; step++) {
+      const turn = await req.llm.turn({
+        system,
+        messages,
+        tools,
+        model: scribe.model ?? DEFAULT_SCRIBE_MODEL,
+        temperature: scribe.temperature ?? DEFAULT_SCRIBE_TEMPERATURE,
+      });
+      lastTurn = turn;
+      modelVersion = turn.modelVersion;
 
-    if (turn.stopReason === 'end_turn') break;
+      if (turn.stopReason === 'end_turn') break;
 
-    if (turn.toolCalls.length === 0) {
-      throw new Error('scribe.execute: LLM returned tool_use stop with no tool_calls');
-    }
-    if (step === maxCalls) {
-      throw new Error(
-        `scribe.execute: exceeded maxToolCalls=${maxCalls} without end_turn`,
-      );
-    }
-
-    messages.push({
-      role: 'assistant',
-      content: turn.text,
-      toolCalls: [...turn.toolCalls],
-    });
-
-    const toolResults: ScribeLLMToolResult[] = [];
-    for (const call of turn.toolCalls) {
-      const handler = getToolHandler(call.name);
-      if (!handler) {
-        const error = { error: `unknown tool '${call.name}'` };
-        collectedToolCalls.push({ name: call.name, input: call.input, output: error, isError: true });
-        toolResults.push({ toolUseId: call.id, output: error, isError: true });
-        continue;
+      if (turn.toolCalls.length === 0) {
+        throw new Error('scribe.execute: LLM returned tool_use stop with no tool_calls');
       }
-      const parsed = handler.parameters.safeParse(call.input);
-      if (!parsed.success) {
-        const error = { error: 'invalid tool input', detail: parsed.error.message };
-        collectedToolCalls.push({ name: call.name, input: call.input, output: error, isError: true });
-        toolResults.push({ toolUseId: call.id, output: error, isError: true });
-        continue;
+      if (step === maxCalls) {
+        throw new Error(
+          `scribe.execute: exceeded maxToolCalls=${maxCalls} without end_turn`,
+        );
       }
-      try {
-        const output = await handler.execute(ctx, parsed.data);
-        collectedToolCalls.push({ name: call.name, input: parsed.data, output, isError: false });
-        toolResults.push({ toolUseId: call.id, output });
-      } catch (err) {
-        const error = { error: err instanceof Error ? err.message : 'handler failed' };
-        collectedToolCalls.push({ name: call.name, input: parsed.data, output: error, isError: true });
-        toolResults.push({ toolUseId: call.id, output: error, isError: true });
+
+      messages.push({
+        role: 'assistant',
+        content: turn.text,
+        toolCalls: [...turn.toolCalls],
+      });
+
+      const toolResults: ScribeLLMToolResult[] = [];
+      for (const call of turn.toolCalls) {
+        const handler = getToolHandler(call.name);
+        if (!handler) {
+          const error = { error: `unknown tool '${call.name}'` };
+          collectedToolCalls.push({ name: call.name, input: call.input, output: error, isError: true });
+          toolResults.push({ toolUseId: call.id, output: error, isError: true });
+          continue;
+        }
+        const parsed = handler.parameters.safeParse(call.input);
+        if (!parsed.success) {
+          const error = { error: 'invalid tool input', detail: parsed.error.message };
+          collectedToolCalls.push({ name: call.name, input: call.input, output: error, isError: true });
+          toolResults.push({ toolUseId: call.id, output: error, isError: true });
+          continue;
+        }
+        try {
+          const toolOutput = await handler.execute(ctx, parsed.data);
+          collectedToolCalls.push({ name: call.name, input: parsed.data, output: toolOutput, isError: false });
+          toolResults.push({ toolUseId: call.id, output: toolOutput });
+        } catch (err) {
+          const error = { error: err instanceof Error ? err.message : 'handler failed' };
+          collectedToolCalls.push({ name: call.name, input: parsed.data, output: error, isError: true });
+          toolResults.push({ toolUseId: call.id, output: error, isError: true });
+        }
       }
+      messages.push({ role: 'tool_result', content: '', toolResults });
     }
-    messages.push({ role: 'tool_result', content: '', toolResults });
+
+    output = lastTurn?.text ?? '';
+    const candidate: PolicyCandidate = {
+      judgmentKind: req.declaredJudgmentKind,
+      output,
+      sections: req.sections ?? [],
+    };
+    classification = enforce(policy, candidate).classification;
+  } catch (err) {
+    loopError = err;
+    output = lastTurn?.text ?? '';
+    classification = 'rejected';
   }
 
-  const output = lastTurn?.text ?? '';
-  const candidate: PolicyCandidate = {
-    judgmentKind: req.declaredJudgmentKind,
-    output,
-    sections: req.sections ?? [],
-  };
-
-  // D11: audit the invocation BEFORE the final policy gate so rejected
-  // outputs still land in the trail. Upsert is idempotent on requestId.
-  const provisionalEnforce = enforce(policy, candidate);
-
+  // D11: audit lands on every code path — success, throw, or rejection.
+  // Upsert is idempotent on requestId so retries fold into the same row.
   const audit = await recordAudit(req.db, req.userId, scribe.id, {
     requestId,
     topicKey: req.topicKey,
@@ -242,14 +254,16 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     toolCalls: collectedToolCalls,
     output,
     citations: [],
-    safetyClassification: provisionalEnforce.classification,
+    safetyClassification: classification,
     modelVersion,
   });
+
+  if (loopError) throw loopError;
 
   return {
     requestId,
     output,
-    classification: provisionalEnforce.classification,
+    classification,
     toolCalls: collectedToolCalls,
     modelVersion,
     auditId: audit.id,

@@ -93,6 +93,38 @@ describe('enforce — out-of-scope routing', () => {
   });
 });
 
+describe('enforce — forbidden phrases dominate judgment-kind routing', () => {
+  it('rejects (not routes out-of-scope) when a null judgmentKind output mentions a drug', () => {
+    // Regression: an "I cannot help" preamble that still names a drug must not
+    // be laundered through the out-of-scope path. Phrase scan dominates.
+    const candidate = makeCandidate({
+      judgmentKind: null,
+      output: 'I cannot advise on this, but ferrous sulfate is commonly prescribed.',
+      sections: [],
+    });
+    const result = enforce(IRON_POLICY, candidate);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.classification).toBe('rejected');
+    expect(result.violations.every((v) => v.kind === 'forbidden-phrase')).toBe(true);
+  });
+
+  it('rejects (not routes out-of-scope) when a disallowed judgmentKind output mentions a drug', () => {
+    // definition-lookup is out-of-scope on Iron, but a drug name still lands
+    // in the "rejected" bucket rather than "out-of-scope-routed".
+    const candidate = makeCandidate({
+      judgmentKind: 'definition-lookup',
+      output: 'Iron-deficiency anaemia is treated with ferrous sulfate 65mg.',
+      sections: [],
+    });
+    const result = enforce(IRON_POLICY, candidate);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.classification).toBe('rejected');
+    expect(result.violations.some((v) => v.kind === 'forbidden-phrase')).toBe(true);
+  });
+});
+
 describe('enforce — rejection on forbidden phrase patterns', () => {
   it('rejects output containing a drug name + dose (stacked violations)', () => {
     const candidate = makeCandidate({
@@ -164,6 +196,34 @@ describe('enforce — citation density', () => {
     if (result.ok) return;
     expect(result.classification).toBe('rejected');
     expect(result.violations.some((v) => v.kind === 'insufficient-citation-density')).toBe(true);
+  });
+
+  it('rejects a citation-surfacing judgment with zero sections (vacuous-pass guard)', () => {
+    // Regression: citation-surfacing means "point at your source" — an empty
+    // sections array cannot be interpreted as "nothing to cite, therefore
+    // passes." A zero-section citation-surfacing claim is always rejected.
+    const candidate = makeCandidate({
+      judgmentKind: 'citation-surfacing',
+      output: 'Your GP note recorded this as iron-deficiency anaemia.',
+      sections: [],
+    });
+    const result = enforce(IRON_POLICY, candidate);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.classification).toBe('rejected');
+    expect(result.violations.some((v) => v.kind === 'insufficient-citation-density')).toBe(true);
+  });
+
+  it('accepts a non-citation-surfacing judgment with zero sections', () => {
+    // Sibling of the guard above: an empty sections array is fine for other
+    // judgment kinds — only citation-surfacing requires at least one section.
+    const candidate = makeCandidate({
+      judgmentKind: 'reference-range-comparison',
+      output: 'Your ferritin of 12 ug/L is below the typical reference range.',
+      sections: [],
+    });
+    const result = enforce(IRON_POLICY, candidate);
+    expect(result.ok).toBe(true);
   });
 
   it('accepts a section that exactly meets the density floor', () => {

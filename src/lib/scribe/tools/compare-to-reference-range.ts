@@ -5,6 +5,13 @@
  * at ingest in `GraphNode.attributes` (see `src/lib/intake/biomarkers.ts`
  * for the source-of-truth range table).
  *
+ * Scope:
+ *   - User-scoped by ctx.userId at the DB layer.
+ *   - Topic-scoped by the registry: a canonicalKey that doesn't substring-
+ *     match any of the topic's `canonicalKeyPatterns` returns `not-found`
+ *     without querying. A hallucinated `compare_to_reference_range` call
+ *     on an unrelated biomarker cannot leak cross-topic data.
+ *
  * Deliberately returns structured data, not prose — the scribe composes the
  * natural-language claim from the result and must still cite the biomarker
  * node. Classification buckets are the three a specialist GP uses in-clinic:
@@ -12,6 +19,7 @@
  * ingest pipeline knows the biomarker but hasn't captured a range.
  */
 import { z } from 'zod';
+import { getTopicConfig } from '@/lib/topics/registry';
 import type { ToolContext, ToolHandler } from './types';
 
 export const compareToReferenceRangeSchema = z.object({
@@ -64,6 +72,25 @@ export const compareToReferenceRangeHandler: ToolHandler<
   parameters: compareToReferenceRangeSchema,
   async execute(ctx: ToolContext, args: CompareToReferenceRangeArgs) {
     const canonicalKey = args.canonicalKey.toLowerCase();
+
+    // Topic scope gate — if the canonicalKey isn't one of this topic's
+    // patterns, return not-found without a DB query. An unknown topic
+    // (no registry entry) falls through the same way.
+    const topic = getTopicConfig(ctx.topicKey);
+    const matchesTopic =
+      topic?.canonicalKeyPatterns.some((p) => canonicalKey.includes(p.toLowerCase())) ?? false;
+    if (!matchesTopic) {
+      return {
+        canonicalKey,
+        found: false,
+        classification: 'not-found',
+        nodeId: null,
+        value: null,
+        unit: null,
+        range: null,
+      };
+    }
+
     const node = await ctx.db.graphNode.findUnique({
       where: {
         userId_type_canonicalKey: {
