@@ -31,17 +31,18 @@ function RecordIndex({ data }: RecordIndexProps) {
       </header>
 
       {isEmpty ? (
-        <Card variant="paper" className="py-10 text-center">
+        <Card variant="paper" className="py-12 text-center">
           <p className="font-display font-light text-heading text-text-primary -tracking-[0.02em]">
-            Your record is empty.
+            A blank record.
           </p>
-          <p className="mt-3 text-body text-text-secondary max-w-sm mx-auto leading-relaxed">
-            Start the intake to begin populating topics, sources, and a
-            navigable graph of what matters.
+          <p className="mt-4 text-body text-text-secondary max-w-md mx-auto leading-relaxed">
+            Add a lab result, a GP letter, or a few lines about what
+            you&rsquo;re tracking. We&rsquo;ll read it, place it, and build
+            you a page for each topic it touches.
           </p>
-          <div className="mt-6 flex flex-col items-center gap-3">
+          <div className="mt-8 flex flex-col items-center gap-4">
             <Link href="/intake">
-              <Button variant="primary">Start intake</Button>
+              <Button variant="primary">Add your first source</Button>
             </Link>
             <Link
               href={`/r/${DEMO_NAVIGABLE_RECORD_SLUG}`}
