@@ -6,6 +6,7 @@ import { compileTopic } from '../src/lib/topics/compile';
 import { listTopicKeys } from '../src/lib/topics/registry';
 import { TopicCompileLintError } from '../src/lib/topics/types';
 import { LLMClient } from '../src/lib/llm/client';
+import { getOrCreateScribeForTopic } from '../src/lib/scribe/repo';
 
 const prisma = new PrismaClient();
 
@@ -207,6 +208,23 @@ async function main() {
   }
 
   await seedDemoNavigableRecord(user.id, DEMO_NAVIGABLE_RECORD);
+
+  await seedScribes(user.id);
+}
+
+/**
+ * Seed one clinical scribe per topic for the demo user. The repo is
+ * idempotent, so re-running the seed leaves existing scribes untouched —
+ * including the originally captured `modelVersion` (see D9).
+ */
+async function seedScribes(userId: string) {
+  const modelVersion = process.env.SCRIBE_MODEL_VERSION ?? 'gpt-4.1-2026-01-01';
+  for (const topicKey of listTopicKeys()) {
+    const scribe = await getOrCreateScribeForTopic(prisma, userId, topicKey, { modelVersion });
+    console.log(
+      `[seedScribes] ${topicKey} → scribe ${scribe.id} (model=${scribe.model}, version=${scribe.modelVersion})`,
+    );
+  }
 }
 
 /**

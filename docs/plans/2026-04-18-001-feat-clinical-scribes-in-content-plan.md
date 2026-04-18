@@ -104,9 +104,9 @@ Each unit carries an Execution note where test-first discipline is appropriate. 
 
 ### U1 — Scribe data model + migrations
 
-- [ ] migration + models land
-- [ ] seed produces 3 scribes for demo user
-- [ ] `repo.ts` unit tests green
+- [x] migration + models land
+- [x] seed produces 3 scribes for demo user
+- [x] `repo.ts` unit tests green
 
 **Goal:** Persist per-user, per-topic scribes, their tool-enable state, topic-link (1:1), and audit trail.
 
