@@ -383,7 +383,7 @@ export default function IntegrationsPage() {
                             placeholder="LibreLinkUp email"
                             value={libreEmail}
                             onChange={(e) => setLibreEmail(e.target.value)}
-                            className="w-full rounded-card border border-border bg-surface px-3 py-2 text-body text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent"
+                            className="w-full rounded-card border border-border bg-surface px-3 py-2 text-body text-text-primary placeholder:text-text-tertiary transition-[border-color,box-shadow] duration-300 ease-spring focus:outline-none focus:border-text-primary focus:shadow-ring-accent"
                           />
                           <input
                             type="password"
@@ -392,7 +392,7 @@ export default function IntegrationsPage() {
                             placeholder="LibreLinkUp password"
                             value={librePassword}
                             onChange={(e) => setLibrePassword(e.target.value)}
-                            className="w-full rounded-card border border-border bg-surface px-3 py-2 text-body text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent"
+                            className="w-full rounded-card border border-border bg-surface px-3 py-2 text-body text-text-primary placeholder:text-text-tertiary transition-[border-color,box-shadow] duration-300 ease-spring focus:outline-none focus:border-text-primary focus:shadow-ring-accent"
                           />
                           <div className="flex gap-2">
                             <Button type="submit" size="sm" loading={loadingProvider === 'libre'}>

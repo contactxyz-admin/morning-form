@@ -9,53 +9,60 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Warm paper — lifted toward near-white for editorial clarity while keeping the uncoated-stock warmth.
-        bg: '#FAF6EE',
-        'bg-deep': '#F4EFE4',
-        surface: '#FEFCF6',
-        'surface-warm': '#F5F0E6',
-        'surface-sunken': '#F0EADC',
-        // Hairlines. Two-step hover so default -> hover is a half-tone, not a jump.
-        border: '#EAE4D7',
-        'border-mid': '#D8D0BE',
-        'border-strong': '#D0C8B6',
-        'border-hover': '#B6AD98',
-        // Ink — warmed into the paper palette so type sits on the page, not on it.
-        'text-primary': '#1A1410',
-        'text-secondary': '#55504A',
-        'text-tertiary': '#9A9388',
-        'text-whisper': '#B8B1A4',
-        // Accent — deep moss for trust touches, ring tints, small marks.
+        // Neutral system — Apple-flavoured off-white ground with a near-black ink.
+        // Strips the previous warm cream so the brand reads quieter / more designer.
+        bg: '#FBFBFD',
+        'bg-deep': '#F5F5F7',
+        surface: '#FFFFFF',
+        'surface-warm': '#F5F5F7',
+        'surface-sunken': '#EEEEF1',
+        // Hairlines pulled to neutral system grey.
+        border: '#E5E5EA',
+        'border-mid': '#D2D2D7',
+        'border-strong': '#BDBDC4',
+        'border-hover': '#86868B',
+        // Ink — Apple's near-black, with system grey ramp under it.
+        'text-primary': '#1D1D1F',
+        'text-secondary': '#424245',
+        'text-tertiary': '#6E6E73',
+        'text-whisper': '#86868B',
+        // Accent — desaturated graphite for focus rings and active states.
+        // Held back from any warm/colourful read.
         accent: {
-          DEFAULT: '#1F3A2E',
-          light: '#EAEFE7',
-          muted: '#2F4A3E',
-          deep: '#112219',
+          DEFAULT: '#1D1D1F',
+          light: '#F0F0F2',
+          muted: '#6E6E73',
+          deep: '#000000',
         },
         button: {
-          DEFAULT: '#121F17',
-          hover: '#1F3A2E',
-          active: '#081D15',
-          focus: '#9A9388',
+          // Pure ink primary — high contrast, neutral, designer.
+          DEFAULT: '#1D1D1F',
+          hover: '#2D2D2F',
+          active: '#000000',
+          focus: '#424245',
         },
+        // Status — desaturated Apple-system hues, tuned for AA contrast on #FBFBFD.
+        // Restraint: these appear only for real status signal (success, warning,
+        // error) — never decorative. `.light` tokens back badge fills.
         positive: {
-          DEFAULT: '#4A6B5A',
-          light: '#EAEFE7',
+          DEFAULT: '#248A3D',
+          light: '#E8F4EC',
         },
         caution: {
-          DEFAULT: '#8B6B3A',
-          light: '#F3EDDF',
+          DEFAULT: '#AD6200',
+          light: '#FAF0E0',
         },
         alert: {
-          DEFAULT: '#8B4A3A',
-          light: '#F3E9E3',
+          DEFAULT: '#C4271A',
+          light: '#FBEAE7',
         },
       },
       fontFamily: {
-        display: ['var(--font-display)', '"Iowan Old Style"', 'Georgia', 'serif'],
-        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Display — Fraunces serif for editorial headings. Paired with Inter
+        // for body/UI. Mono for data and small caps.
+        display: ['var(--font-display)', 'Georgia', '"Times New Roman"', 'ui-serif', 'serif'],
+        sans: ['var(--font-sans)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', '"SFMono-Regular"', 'ui-monospace', 'monospace'],
-        serif: ['var(--font-display)', 'Georgia', 'serif'],
       },
       fontSize: {
         // Display — generous hero gravity. 2xl is reserved for the one headline per page.
@@ -101,12 +108,13 @@ const config: Config = {
         'card-hover':
           '0 1px 1px rgba(26, 20, 16, 0.02), 0 6px 18px -12px rgba(26, 20, 16, 0.08)',
         'card-press': 'inset 0 1px 2px rgba(26, 20, 16, 0.05)',
-        'button-primary': '0 1px 0 rgba(255, 253, 250, 0.08) inset, 0 4px 14px -8px rgba(18, 31, 23, 0.45)',
+        'button-primary': '0 1px 0 rgba(255, 253, 250, 0.12) inset, 0 4px 14px -8px rgba(92, 74, 63, 0.55)',
         'button-primary-hover':
-          '0 1px 0 rgba(255, 253, 250, 0.10) inset, 0 8px 22px -12px rgba(18, 31, 23, 0.60)',
-        'modal': '0 16px 48px -12px rgba(26, 20, 16, 0.20), 0 4px 14px -6px rgba(26, 20, 16, 0.09)',
-        'ring-accent': '0 0 0 1px rgba(31, 58, 46, 0.22)',
-        'ring-focus': '0 0 0 2px rgba(31, 58, 46, 0.26)',
+          '0 1px 0 rgba(255, 253, 250, 0.14) inset, 0 10px 26px -12px rgba(92, 74, 63, 0.70)',
+        'modal': '0 16px 48px -12px rgba(34, 25, 19, 0.20), 0 4px 14px -6px rgba(34, 25, 19, 0.09)',
+        'sheet': '0 -32px 80px -24px rgba(34, 25, 19, 0.22), 0 -4px 14px -6px rgba(34, 25, 19, 0.08)',
+        'ring-accent': '0 0 0 1px rgba(126, 145, 131, 0.34)',
+        'ring-focus': '0 0 0 2px rgba(126, 145, 131, 0.42)',
       },
       transitionDuration: {
         '250': '250ms',

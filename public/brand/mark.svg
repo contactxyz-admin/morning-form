@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+  <!-- Morning Form mark: nine dots arranged as a sundial / opening flower.
+       Mass is concentrated lower-left and disperses clockwise toward smaller
+       dots on the upper-right — reads as "morning, opening". -->
+  <ellipse cx="27" cy="26" rx="7" ry="8" />
+  <circle cx="50" cy="19" r="6" />
+  <circle cx="71" cy="27" r="4.5" />
+  <circle cx="83" cy="49" r="3.2" />
+  <circle cx="73" cy="71" r="4.2" />
+  <ellipse cx="51" cy="83" rx="7" ry="6" />
+  <circle cx="28" cy="74" r="7.5" />
+  <ellipse cx="14" cy="51" rx="8.5" ry="10" />
+  <circle cx="42" cy="48" r="2.6" />
+</svg>

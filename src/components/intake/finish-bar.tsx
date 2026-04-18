@@ -73,7 +73,7 @@ export function FinishBar() {
         )}
         <div
           className={cn(
-            'transition-all duration-700 ease-spring',
+            'transition-all duration-450 ease-spring',
             canFinish ? 'opacity-100 translate-y-0' : 'opacity-90',
           )}
         >

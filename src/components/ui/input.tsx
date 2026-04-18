@@ -24,6 +24,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             'placeholder:text-text-tertiary',
             'transition-[border-color,box-shadow] duration-300 ease-spring',
             'focus:outline-none focus:border-text-primary focus:shadow-ring-accent',
+            'disabled:bg-surface-warm disabled:text-text-secondary disabled:placeholder:text-text-whisper disabled:cursor-not-allowed disabled:opacity-60',
             error ? 'border-alert focus:border-alert' : 'border-border',
             className,
           )}
