@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { RecordIndex } from '@/components/record/record-index';
 import type { RecordIndex as RecordIndexData } from '@/lib/record/types';
@@ -46,6 +47,14 @@ export default function RecordPage() {
   return (
     <div className="min-h-screen bg-record-grid">
       <div className="px-5 pt-6 pb-16 grain-page">
+        <div className="flex items-center justify-end mb-6">
+          <Link
+            href="/settings/shared-links"
+            className="text-caption text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
+          >
+            Shared links →
+          </Link>
+        </div>
         {state.status === 'loading' && (
           <Card variant="sunken" className="opacity-60 py-16 text-center">
             <p className="font-display font-light text-heading text-text-primary">

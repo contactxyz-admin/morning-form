@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/icon';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SectionLabel } from '@/components/ui/section-label';
+import { DEMO_NAVIGABLE_RECORD_SLUG } from '@/lib/record/demo';
 import type { ShareScope } from '@/lib/share/tokens';
 
 /**
@@ -98,6 +99,30 @@ export default function SharedLinksPage() {
           stop working immediately; the recipient will see a &ldquo;not
           active&rdquo; page on their next reload.
         </p>
+      </div>
+
+      <div className="mt-10">
+        <div className="mb-3">
+          <SectionLabel>Example</SectionLabel>
+        </div>
+        <Link href={`/r/${DEMO_NAVIGABLE_RECORD_SLUG}`} className="block">
+          <Card variant="paper" className="py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="font-mono text-label uppercase text-text-tertiary tracking-wider">
+                  Demo · Public
+                </p>
+                <p className="mt-1.5 text-body text-text-primary truncate">
+                  Demo navigable record
+                </p>
+                <p className="mt-1 text-caption text-text-tertiary">
+                  A fully-populated example to see what a shared record feels like.
+                </p>
+              </div>
+              <Icon name="arrow-right" size="sm" className="text-text-tertiary mt-1" />
+            </div>
+          </Card>
+        </Link>
       </div>
 
       <div className="mt-10 stagger">
