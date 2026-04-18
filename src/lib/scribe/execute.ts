@@ -185,7 +185,17 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
       lastTurn = turn;
       modelVersion = turn.modelVersion;
 
-      if (turn.stopReason === 'end_turn') break;
+      if (turn.stopReason === 'end_turn') {
+        if (turn.toolCalls.length > 0) {
+          // A clean end_turn must not carry pending tool_use blocks — if the
+          // provider returned both, we'd silently drop the tool calls on the
+          // floor. Fail loud so the audit trail records the bad shape.
+          throw new Error(
+            'scribe.execute: LLM returned end_turn with non-empty tool_calls (ambiguous stop reason)',
+          );
+        }
+        break;
+      }
 
       if (turn.toolCalls.length === 0) {
         throw new Error('scribe.execute: LLM returned tool_use stop with no tool_calls');

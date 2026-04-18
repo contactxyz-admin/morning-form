@@ -299,6 +299,35 @@ describe('scribe executor — error surfaces', () => {
     expect(audits[0].modelVersion).toBe('v-runaway');
   });
 
+  it('rejects end_turn that carries non-empty tool_calls (ambiguous stop), with audit still landing', async () => {
+    // Regression: a provider that returns stopReason='end_turn' AND tool_calls
+    // is ambiguous — silently dropping the tool calls would let unexpected
+    // tool intent into the audit output field without any trace of the
+    // dangling calls. Fail loud; D11 still lands the audit.
+    const userId = await makeTestUser(prisma, 'exec-end-turn-with-tools');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+
+    const { client } = scriptedLLM([
+      {
+        stopReason: 'end_turn',
+        text: 'Your ferritin is below range.',
+        modelVersion: 'v1',
+        toolCalls: [
+          { id: 'call-1', name: 'compare_to_reference_range', input: { canonicalKey: 'ferritin' } },
+        ],
+      },
+    ]);
+
+    const requestId = '88888888-8888-4888-8888-888888888888';
+    await expect(
+      execute(baseRequest({ userId, llm: client, requestId })),
+    ).rejects.toThrow(/end_turn with non-empty tool_calls/);
+
+    const audits = await prisma.scribeAudit.findMany({ where: { userId, requestId } });
+    expect(audits).toHaveLength(1);
+    expect(audits[0].safetyClassification).toBe('rejected');
+  });
+
   it('D11: writes a rejected ScribeAudit row when the LLM emits tool_use with no tool_calls', async () => {
     // A malformed tool_use response (stopReason='tool_use' but toolCalls=[])
     // throws mid-loop. The audit must still land — same invariant as the
