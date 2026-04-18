@@ -28,7 +28,7 @@ vi.mock('@/lib/env', () => ({
   },
 }));
 
-import { POST } from './route';
+import { GET, POST } from './route';
 
 let prisma: PrismaClient;
 
@@ -156,5 +156,67 @@ describe('POST /api/assessment', () => {
     const firstCompounds = firstItems.map((i) => i.compounds).join('|');
     const secondCompounds = secondItems.map((i) => i.compounds).join('|');
     expect(secondCompounds).not.toBe(firstCompounds);
+  });
+});
+
+describe('GET /api/assessment', () => {
+  it('returns 401 when unauthenticated', async () => {
+    currentUserMock.mockResolvedValue(null);
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 when the user has not completed onboarding', async () => {
+    const userId = await makeTestUser(prisma, 'assess-get-unseeded');
+    currentUserMock.mockResolvedValue({ id: userId });
+    const res = await GET();
+    expect(res.status).toBe(404);
+  });
+
+  it('returns persisted state profile and protocol with items ordered by sortOrder', async () => {
+    const userId = await makeTestUser(prisma, 'assess-get-ready');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    // Seed via POST so the shape matches what the production path writes.
+    await POST(makeRequest({ responses: SUSTAINED_ACTIVATOR_RESPONSES }));
+
+    currentUserMock.mockResolvedValue({ id: userId });
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      stateProfile: {
+        archetype: string;
+        observations: unknown[];
+        constraints: unknown[];
+        sensitivities: unknown[];
+      };
+      protocol: {
+        status: string;
+        confidence: string;
+        items: Array<{ sortOrder: number; compounds: string }>;
+      };
+    };
+
+    expect(body.stateProfile.archetype).toBe('sustained-activator');
+    expect(Array.isArray(body.stateProfile.observations)).toBe(true);
+    expect(Array.isArray(body.stateProfile.constraints)).toBe(true);
+    expect(Array.isArray(body.stateProfile.sensitivities)).toBe(true);
+
+    expect(body.protocol.status).toBe('active');
+    expect(body.protocol.items.length).toBeGreaterThanOrEqual(3);
+    const sortOrders = body.protocol.items.map((i) => i.sortOrder);
+    expect(sortOrders).toEqual([...sortOrders].sort((a, b) => a - b));
+  });
+
+  it('scopes by userId: one user cannot read another user‘s assessment', async () => {
+    const aliceId = await makeTestUser(prisma, 'assess-get-alice');
+    const bobId = await makeTestUser(prisma, 'assess-get-bob');
+
+    currentUserMock.mockResolvedValue({ id: aliceId });
+    await POST(makeRequest({ responses: SUSTAINED_ACTIVATOR_RESPONSES }));
+
+    currentUserMock.mockResolvedValue({ id: bobId });
+    const res = await GET();
+    expect(res.status).toBe(404);
   });
 });
