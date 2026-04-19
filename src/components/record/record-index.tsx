@@ -1,25 +1,43 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SectionLabel } from '@/components/ui/section-label';
 import { DEMO_NAVIGABLE_RECORD_SLUG } from '@/lib/record/demo';
 import { ActivityFeed } from './activity-feed';
+import { AddDocumentsDialog } from './add-documents-dialog';
 import { TopicCard } from './topic-card';
 import { WhatWeKnowCard } from './what-we-know-card';
 import type { RecordIndex as RecordIndexData } from '@/lib/record/types';
 
 interface RecordIndexProps {
   data: RecordIndexData;
+  onDocumentsAdded?: () => void;
 }
 
-function RecordIndex({ data }: RecordIndexProps) {
+function RecordIndex({ data, onDocumentsAdded }: RecordIndexProps) {
   const { topics, recentActivity, graphSummary } = data;
   const isEmpty = graphSummary.sourceCount === 0;
+  const [addOpen, setAddOpen] = useState(false);
 
   return (
     <div className="space-y-14">
       <header className="rise">
-        <SectionLabel className="text-text-whisper">Your record</SectionLabel>
+        <div className="flex items-start justify-between gap-4">
+          <SectionLabel className="text-text-whisper">Your record</SectionLabel>
+          {!isEmpty && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setAddOpen(true)}
+            >
+              Add documents
+            </Button>
+          )}
+        </div>
         <h1 className="mt-4 font-display font-light text-display-xl sm:text-display-2xl text-text-primary -tracking-[0.045em] leading-[0.98]">
           The living <span className="italic text-accent">index</span> of
           everything we&rsquo;ve gathered.
@@ -70,6 +88,14 @@ function RecordIndex({ data }: RecordIndexProps) {
           </section>
         </div>
       )}
+
+      <AddDocumentsDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCompleted={() => {
+          if (onDocumentsAdded) onDocumentsAdded();
+        }}
+      />
     </div>
   );
 }

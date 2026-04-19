@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { RecordIndex } from '@/components/record/record-index';
@@ -15,21 +15,43 @@ type LoadState =
 export default function RecordPage() {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
 
+  const refreshRecord = useCallback(async () => {
+    try {
+      const res = await fetch('/api/record/index', { cache: 'no-store' });
+      if (res.status === 401) {
+        setState({ status: 'unauth' });
+        return;
+      }
+      if (!res.ok) {
+        setState({ status: 'error', message: `HTTP ${res.status}` });
+        return;
+      }
+      const json = (await res.json()) as RecordIndexData;
+      setState({ status: 'ready', data: json });
+    } catch (err) {
+      setState({
+        status: 'error',
+        message: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch('/api/record/index', { cache: 'no-store' });
+        if (cancelled) return;
         if (res.status === 401) {
-          if (!cancelled) setState({ status: 'unauth' });
+          setState({ status: 'unauth' });
           return;
         }
         if (!res.ok) {
-          if (!cancelled) setState({ status: 'error', message: `HTTP ${res.status}` });
+          setState({ status: 'error', message: `HTTP ${res.status}` });
           return;
         }
         const json = (await res.json()) as RecordIndexData;
-        if (!cancelled) setState({ status: 'ready', data: json });
+        setState({ status: 'ready', data: json });
       } catch (err) {
         if (!cancelled) {
           setState({
@@ -78,7 +100,9 @@ export default function RecordPage() {
           </Card>
         )}
 
-        {state.status === 'ready' && <RecordIndex data={state.data} />}
+        {state.status === 'ready' && (
+          <RecordIndex data={state.data} onDocumentsAdded={refreshRecord} />
+        )}
       </div>
     </div>
   );
