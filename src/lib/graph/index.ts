@@ -49,6 +49,8 @@ export type {
 export { NodeAttributesValidationError, EdgeEndpointViolation } from './errors';
 export { EDGE_ENDPOINT_RULES, assertEdgeEndpoints } from './edge-validation';
 export type { EdgeEndpointRule } from './edge-validation';
+export { canonicalKeyFor, slugify, CANONICAL_KEY_RE } from './canonical-keys';
+export type { EncounterKeyInput, SymptomEpisodeKeyInput } from './canonical-keys';
 export {
   ATTRIBUTE_SCHEMAS,
   NodeAttributesSchema,
