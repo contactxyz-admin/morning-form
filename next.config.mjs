@@ -12,6 +12,16 @@ const nextConfig = {
       'pdfjs-dist',
       '@napi-rs/canvas',
     ],
+    // pdfjs-dist dynamically `import()`s its worker file on first parse. Vercel's
+    // lambda tracer can't follow that dynamic path, so the worker .mjs never
+    // ships to /var/task/node_modules, and extraction fails with
+    // `malformed_pdf: Setting up fake worker failed: Cannot find module
+    // '.../pdfjs-dist/legacy/build/pdf.worker.mjs'`. Force-include it.
+    outputFileTracingIncludes: {
+      '/api/intake/documents': [
+        './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
+      ],
+    },
   },
   // Scope `next build` lint to the API surface. `.eslintrc.json` enforces
   // `no-restricted-imports` on api handlers (so route code can't reach for
