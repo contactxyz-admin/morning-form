@@ -12,3 +12,4 @@ xcuserdata/
 *.xcuserstate
 .context/
 uploads/
+.vercel

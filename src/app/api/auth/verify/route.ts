@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { env } from '@/lib/env';
 import { verifyMagicLink } from '@/lib/auth/magic-link';
 import { createSession } from '@/lib/session';
 
@@ -43,8 +42,9 @@ export async function GET(request: Request) {
 
   const onboarded = Boolean(user.assessment && user.stateProfile);
   const redirectTo = onboarded ? '/record' : '/assessment';
-  const base = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
-  return NextResponse.redirect(`${base}${redirectTo}`, { status: 303 });
+  // Redirect relative to the inbound request so the user stays on the same
+  // host they clicked the magic link from (preview subdomain vs prod).
+  return NextResponse.redirect(new URL(redirectTo, request.url), { status: 303 });
 }
 
 function failurePage(reason: 'invalid' | 'expired' | 'consumed'): string {

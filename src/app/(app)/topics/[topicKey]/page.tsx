@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
@@ -13,6 +13,9 @@ import { TopicLogFooter } from '@/components/record/topic-log-footer';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { ShareDialog } from '@/components/share/share-dialog';
 import { Disclaimer } from '@/components/ui/disclaimer';
+import { SelectionPopover } from '@/components/scribe/selection-popover';
+import { InlineExplainCard } from '@/components/scribe/inline-explain-card';
+import { useExplainStream } from '@/components/scribe/use-explain-stream';
 import type { TopicCompiledOutput } from '@/lib/topics/types';
 import type { GraphNodeWire } from '@/types/graph';
 
@@ -40,6 +43,9 @@ export default function TopicPage() {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [citedNode, setCitedNode] = useState<GraphNodeWire | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const proseRef = useRef<HTMLDivElement | null>(null);
+  const { state: explainState, start: startExplain, reset: resetExplain } =
+    useExplainStream();
   // Incrementing this re-fires the effect. `true` on the first bit means
   // "bypass the compile cache" — used by the retry button when the last
   // compile errored and the error is pinned to the current graph revision.
@@ -199,7 +205,26 @@ export default function TopicPage() {
       )}
 
       {state.status === 'ready' && state.data.status === 'full' && state.data.output && (
-        <TopicBody data={state.data} onCitationClick={handleCitationClick} />
+        <div ref={proseRef} className="relative">
+          <TopicBody data={state.data} onCitationClick={handleCitationClick} />
+        </div>
+      )}
+
+      {state.status === 'ready' && state.data.status === 'full' && topicKey && (
+        <SelectionPopover
+          containerRef={proseRef}
+          onExplain={(selection) => {
+            startExplain({ topicKey, selection });
+          }}
+        />
+      )}
+
+      {explainState.status !== 'idle' && (
+        <InlineExplainCard
+          state={explainState}
+          onClose={resetExplain}
+          onCitationClick={handleCitationClick}
+        />
       )}
 
       {state.status === 'ready' && topicKey && <TopicLogFooter topicKey={topicKey} />}

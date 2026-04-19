@@ -14,25 +14,29 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  assessment       AssessmentResponse?
-  stateProfile     StateProfile?
-  protocol         Protocol?
-  checkIns         CheckIn[]
-  chatMessages     ChatMessage[]
+  assessment        AssessmentResponse?
+  stateProfile      StateProfile?
+  protocol          Protocol?
+  checkIns          CheckIn[]
+  chatMessages      ChatMessage[]
   healthConnections HealthConnection[]
   healthDataPoints  HealthDataPoint[]
-  suggestions      Suggestion[]
-  preferences      UserPreferences?
-  sourceDocuments  SourceDocument[]
-  graphNodes       GraphNode[]
-  graphEdges       GraphEdge[]
-  graphNodeLayouts GraphNodeLayout[]
-  topicPages       TopicPage[]
-  sharedViews      SharedView[]
-  graphMigratedAt  DateTime?
+  suggestions       Suggestion[]
+  preferences       UserPreferences?
+  sourceDocuments   SourceDocument[]
+  graphNodes        GraphNode[]
+  graphEdges        GraphEdge[]
+  graphNodeLayouts  GraphNodeLayout[]
+  topicPages        TopicPage[]
+  sharedViews       SharedView[]
+  graphMigratedAt   DateTime?
 
-  magicLinkTokens  MagicLinkToken[]
-  sessions         Session[]
+  magicLinkTokens MagicLinkToken[]
+  sessions        Session[]
+
+  scribes          Scribe[]
+  scribeTopicLinks ScribeTopicLink[]
+  scribeAudits     ScribeAudit[]
 }
 
 // ---------------------------------------------------------------------------
@@ -43,43 +47,43 @@ model User {
 // ---------------------------------------------------------------------------
 
 model MagicLinkToken {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash   String    @unique
-  createdAt   DateTime  @default(now())
-  expiresAt   DateTime
-  consumedAt  DateTime?
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
 
   @@index([userId, createdAt])
   @@index([expiresAt])
 }
 
 model MagicLinkRateLimit {
-  id        String   @id @default(cuid())
+  id          String   @id @default(cuid())
   // `subjectKind` = 'email' | 'ip'; `subject` = lowercased email or ip-hash.
   subjectKind String
-  subject   String
-  window    DateTime
-  count     Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  subject     String
+  window      DateTime
+  count       Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([subjectKind, subject, window])
   @@index([subjectKind, subject])
 }
 
 model Session {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash   String    @unique
-  createdAt   DateTime  @default(now())
-  expiresAt   DateTime
-  revokedAt   DateTime?
-  lastSeenAt  DateTime  @default(now())
-  userAgent   String?
-  ipHash      String?
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime  @default(now())
+  userAgent  String?
+  ipHash     String?
 
   @@index([userId, revokedAt])
   @@index([expiresAt])
@@ -92,9 +96,9 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model SourceDocument {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  user        User          @relation(fields: [userId], references: [id])
   kind        String
   sourceRef   String?
   contentHash String?
@@ -103,7 +107,7 @@ model SourceDocument {
   metadata    String?
   chunks      SourceChunk[]
   edges       GraphEdge[]   @relation("EdgeSourceDocument")
-  createdAt   DateTime @default(now())
+  createdAt   DateTime      @default(now())
 
   @@unique([userId, contentHash])
   @@index([userId, kind])
@@ -111,7 +115,7 @@ model SourceDocument {
 }
 
 model SourceChunk {
-  id               String   @id @default(cuid())
+  id               String         @id @default(cuid())
   sourceDocumentId String
   sourceDocument   SourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
   index            Int
@@ -120,50 +124,50 @@ model SourceChunk {
   offsetEnd        Int
   pageNumber       Int?
   metadata         String?
-  edges            GraphEdge[] @relation("EdgeSourceChunk")
-  createdAt        DateTime @default(now())
+  edges            GraphEdge[]    @relation("EdgeSourceChunk")
+  createdAt        DateTime       @default(now())
 
   @@unique([sourceDocumentId, index])
   @@index([sourceDocumentId])
 }
 
 model GraphNode {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  type          String
-  canonicalKey  String
-  displayName   String
-  attributes    String?
-  confidence    Float    @default(1.0)
-  promoted      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  type         String
+  canonicalKey String
+  displayName  String
+  attributes   String?
+  confidence   Float    @default(1.0)
+  promoted     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  edgesOut      GraphEdge[] @relation("EdgeFromNode")
-  edgesIn       GraphEdge[] @relation("EdgeToNode")
+  edgesOut GraphEdge[] @relation("EdgeFromNode")
+  edgesIn  GraphEdge[] @relation("EdgeToNode")
 
   @@unique([userId, type, canonicalKey])
   @@index([userId, type])
 }
 
 model GraphEdge {
-  id               String   @id @default(cuid())
-  userId           String
-  user             User     @relation(fields: [userId], references: [id])
-  type             String
-  fromNodeId       String
-  fromNode         GraphNode @relation("EdgeFromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
-  toNodeId         String
-  toNode           GraphNode @relation("EdgeToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
-  fromChunkId      String?
-  fromChunk        SourceChunk? @relation("EdgeSourceChunk", fields: [fromChunkId], references: [id], onDelete: SetNull)
-  fromDocumentId   String?
-  fromDocument     SourceDocument? @relation("EdgeSourceDocument", fields: [fromDocumentId], references: [id], onDelete: SetNull)
-  weight           Float    @default(1.0)
-  metadata         String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id             String          @id @default(cuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id])
+  type           String
+  fromNodeId     String
+  fromNode       GraphNode       @relation("EdgeFromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNodeId       String
+  toNode         GraphNode       @relation("EdgeToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
+  fromChunkId    String?
+  fromChunk      SourceChunk?    @relation("EdgeSourceChunk", fields: [fromChunkId], references: [id], onDelete: SetNull)
+  fromDocumentId String?
+  fromDocument   SourceDocument? @relation("EdgeSourceDocument", fields: [fromDocumentId], references: [id], onDelete: SetNull)
+  weight         Float           @default(1.0)
+  metadata       String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@unique([userId, type, fromNodeId, toNodeId, fromChunkId])
   @@index([userId, type])
@@ -172,16 +176,16 @@ model GraphEdge {
 }
 
 model TopicPage {
-  id                  String   @id @default(cuid())
-  userId              String
-  user                User     @relation(fields: [userId], references: [id])
-  topicKey            String
-  status              String   @default("stub")
-  rendered            String?
-  graphRevisionHash   String?
-  compileError        String?
-  updatedAt           DateTime @updatedAt
-  createdAt           DateTime @default(now())
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  topicKey          String
+  status            String   @default("stub")
+  rendered          String?
+  graphRevisionHash String?
+  compileError      String?
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
 
   @@unique([userId, topicKey])
   @@index([userId, status])
@@ -211,74 +215,74 @@ model GraphNodeLayout {
 // the share exposes (e.g., { kind: "topic", topicKey: "iron" }).
 // ---------------------------------------------------------------------------
 model SharedView {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash  String    @unique
-  scope      String
-  redactions String?
-  label      String?
-  expiresAt  DateTime?
-  revokedAt  DateTime?
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  scope        String
+  redactions   String?
+  label        String?
+  expiresAt    DateTime?
+  revokedAt    DateTime?
   lastViewedAt DateTime?
-  viewCount  Int       @default(0)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  viewCount    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([userId, revokedAt])
   @@index([expiresAt])
 }
 
 model AssessmentResponse {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id])
-  responses String
-  completedAt DateTime @default(now())
-  createdAt DateTime @default(now())
-}
-
-model StateProfile {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  user              User     @relation(fields: [userId], references: [id])
-  archetype         String
-  primaryPattern    String
-  patternDescription String
-  observations      String
-  constraints       String
-  sensitivities     String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-
-model Protocol {
   id          String   @id @default(cuid())
   userId      String   @unique
   user        User     @relation(fields: [userId], references: [id])
-  version     Int      @default(1)
-  status      String   @default("active")
+  responses   String
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model StateProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id])
+  archetype          String
+  primaryPattern     String
+  patternDescription String
+  observations       String
+  constraints        String
+  sensitivities      String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Protocol {
+  id          String               @id @default(cuid())
+  userId      String               @unique
+  user        User                 @relation(fields: [userId], references: [id])
+  version     Int                  @default(1)
+  status      String               @default("active")
   rationale   String
-  confidence  String   @default("high")
+  confidence  String               @default("high")
   items       ProtocolItem[]
   adjustments ProtocolAdjustment[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 }
 
 model ProtocolItem {
-  id            String   @id @default(cuid())
-  protocolId    String
-  protocol      Protocol @relation(fields: [protocolId], references: [id])
-  timeSlot      String
-  timeLabel     String
-  compounds     String
-  dosage        String
-  timingCue     String
-  mechanism     String
-  evidenceTier  String   @default("strong")
-  sortOrder     Int      @default(0)
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  protocolId   String
+  protocol     Protocol @relation(fields: [protocolId], references: [id])
+  timeSlot     String
+  timeLabel    String
+  compounds    String
+  dosage       String
+  timingCue    String
+  mechanism    String
+  evidenceTier String   @default("strong")
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
 }
 
 model ProtocolAdjustment {
@@ -317,36 +321,36 @@ model ChatMessage {
 }
 
 model HealthConnection {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   userId       String
-  user         User     @relation(fields: [userId], references: [id])
+  user         User      @relation(fields: [userId], references: [id])
   provider     String
-  status       String   @default("connected")
+  status       String    @default("connected")
   accessToken  String?
   refreshToken String?
   expiresAt    DateTime?
   terraUserId  String?
   metadata     String?
   lastSyncAt   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([userId, provider])
   @@index([userId])
 }
 
 model HealthDataPoint {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  provider   String
-  category   String
-  metric     String
-  value      Float
-  unit       String
-  timestamp  DateTime
-  metadata   String?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  provider  String
+  category  String
+  metric    String
+  value     Float
+  unit      String
+  timestamp DateTime
+  metadata  String?
+  createdAt DateTime @default(now())
 
   @@index([userId, category, timestamp])
   @@index([userId, provider])
@@ -394,4 +398,81 @@ model UserPreferences {
   notifyWeekly   Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Clinical scribes — specialist-GP agents bounded by per-topic scope-of-practice
+// policy (see docs/plans/2026-04-18-001-feat-clinical-scribes-in-content-plan.md).
+// One scribe per (userId, topicKey); enforced by ScribeTopicLink.
+// ScribeAudit is append-only — idempotent upsert keyed by (scribeId, requestId).
+// ---------------------------------------------------------------------------
+
+model Scribe {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicKey     String
+  systemPrompt String?
+  model        String   @default("openrouter/openai/gpt-4.1")
+  modelVersion String
+  temperature  Float    @default(0.3)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tools     ScribeTool[]
+  topicLink ScribeTopicLink?
+  audits    ScribeAudit[]
+
+  @@unique([userId, topicKey])
+  @@index([userId])
+}
+
+model ScribeTool {
+  id        String   @id @default(cuid())
+  scribeId  String
+  scribe    Scribe   @relation(fields: [scribeId], references: [id], onDelete: Cascade)
+  toolName  String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scribeId, toolName])
+  @@index([scribeId])
+}
+
+model ScribeTopicLink {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicKey  String
+  scribeId  String   @unique
+  scribe    Scribe   @relation(fields: [scribeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, topicKey])
+  @@index([userId])
+}
+
+model ScribeAudit {
+  id                   String   @id @default(cuid())
+  scribeId             String
+  scribe               Scribe   @relation(fields: [scribeId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicKey             String
+  requestId            String
+  mode                 String
+  prompt               String
+  toolCalls            String
+  output               String
+  citations            String
+  safetyClassification String
+  modelVersion         String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([scribeId, requestId])
+  @@index([userId, topicKey])
+  @@index([scribeId, createdAt])
 }
