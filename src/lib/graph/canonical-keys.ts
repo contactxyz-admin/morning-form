@@ -108,6 +108,17 @@ export interface EncounterKeyInput {
   date: string | Date;
   /** Free-form label for the encounter service (e.g. "GP Surgery", "A&E"). */
   serviceDisplay: string;
+  /**
+   * Optional disambiguator for multiple encounters on the same day at the
+   * same service (e.g. morning + afternoon GP visit, or two A&E
+   * attendances). When the upstream system (GP Connect, hospital EPR)
+   * exposes a stable encounter identifier, pass it here and it is slugified
+   * into the key. When absent, an ISO datetime in `date` with a non-zero
+   * time component will fold `hhmmss` into the key instead. Callers that
+   * pass only a date (no time, no ref) accept the legacy one-per-day
+   * collapse and are responsible for avoiding duplicate writes themselves.
+   */
+  encounterRef?: string;
 }
 
 export interface SymptomEpisodeKeyInput {
@@ -132,11 +143,22 @@ export function canonicalKeyFor(
 ): string {
   switch (type) {
     case 'encounter': {
-      const { date, serviceDisplay } = input as EncounterKeyInput;
-      const { yyyy, mm, dd } = datePartsFromString(date);
+      const { date, serviceDisplay, encounterRef } = input as EncounterKeyInput;
+      const { yyyy, mm, dd, hh, min, ss } = datePartsFromString(date);
       const slug = slugify(serviceDisplay);
-      const key = slug ? `encounter_${yyyy}_${mm}_${dd}_${slug}` : `encounter_${yyyy}_${mm}_${dd}`;
-      return assertCanonical(key);
+      // Disambiguator selection:
+      //   1. explicit encounterRef (provider id) — strongest, always folds in
+      //   2. non-zero time component in `date` — fold hhmmss
+      //   3. neither — legacy one-per-day collapse
+      const refSlug = encounterRef ? slugify(encounterRef) : '';
+      const hasTime = !(hh === '00' && min === '00' && ss === '00');
+      const disambiguator = refSlug || (hasTime ? `${hh}${min}${ss}` : '');
+      const parts = [
+        `encounter_${yyyy}_${mm}_${dd}`,
+        slug || null,
+        disambiguator || null,
+      ].filter((p): p is string => Boolean(p));
+      return assertCanonical(parts.join('_'));
     }
     case 'allergy': {
       const label = input as string;

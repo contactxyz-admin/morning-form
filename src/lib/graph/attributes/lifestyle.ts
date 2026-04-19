@@ -173,6 +173,17 @@ const OtherBranch = z
   })
   .passthrough();
 
+// Sentinel branch for the redirection guard below. Accepts the shape so the
+// discriminated union can match successfully, then `superRefine` on the top
+// schema produces the redirection error. Without this branch, 'supplement'
+// would fail at discriminator lookup and `superRefine` would never run.
+const SupplementSentinelBranch = z
+  .object({
+    lifestyleSubtype: z.literal('supplement'),
+    ...BaseLifestyleFields,
+  })
+  .passthrough();
+
 // Legacy / untyped branch: rows written before T7 had no lifestyleSubtype.
 // Preserves the pre-T7 passthrough shape so reads stay tolerant.
 const UntypedBranch = z
@@ -185,20 +196,13 @@ const UntypedBranch = z
     path: ['lifestyleSubtype'],
   });
 
-// Deliberate guard: callers tempted to write `lifestyleSubtype: 'supplement'`
-// should instead use a `medication` node with `source: 'supplement'`. We
-// surface that redirection as a schema error at the top level so the caller
-// sees the correct path rather than a generic union mismatch.
-const SupplementGuard = z
-  .object({ lifestyleSubtype: z.literal('supplement') })
-  .passthrough()
-  .refine(() => false, {
-    message:
-      "Supplements belong on a `medication` node with `source: 'supplement'`, not on lifestyle.",
-    path: ['lifestyleSubtype'],
-  });
-
-export const LifestyleAttributesSchema = z.union([
+// When `lifestyleSubtype` is present, route through a discriminated union so
+// Zod gives branch-specific error messages instead of collapsing every
+// branch failure into a single "no union member matched" error. When the
+// field is absent, fall back to `UntypedBranch` for pre-T7 legacy rows.
+// Ordering matters: `DiscriminatedTypedBranches` must be tried first — a
+// passthrough `UntypedBranch` would otherwise swallow any typed row.
+const DiscriminatedTypedBranches = z.discriminatedUnion('lifestyleSubtype', [
   DietBranch,
   CaffeineBranch,
   AlcoholBranch,
@@ -213,9 +217,32 @@ export const LifestyleAttributesSchema = z.union([
   ExposureEnvironmentalBranch,
   ExerciseProgramBranch,
   OtherBranch,
-  SupplementGuard,
-  UntypedBranch,
+  SupplementSentinelBranch,
 ]);
+
+// Deliberate guard: callers tempted to write `lifestyleSubtype: 'supplement'`
+// should instead use a `medication` node with `source: 'supplement'`. We
+// check this before the discriminated union so the caller sees the correct
+// redirection error rather than a generic "unknown discriminator" mismatch.
+// Kept as a top-level superRefine because `refine` on a ZodObject returns
+// ZodEffects, which z.discriminatedUnion does not accept as a member.
+export const LifestyleAttributesSchema = z
+  .union([DiscriminatedTypedBranches, UntypedBranch])
+  .superRefine((value, ctx) => {
+    if (
+      value &&
+      typeof value === 'object' &&
+      'lifestyleSubtype' in value &&
+      (value as { lifestyleSubtype?: unknown }).lifestyleSubtype === 'supplement'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lifestyleSubtype'],
+        message:
+          "Supplements belong on a `medication` node with `source: 'supplement'`, not on lifestyle.",
+      });
+    }
+  });
 
 export type LifestyleAttributes = z.infer<typeof LifestyleAttributesSchema>;
 

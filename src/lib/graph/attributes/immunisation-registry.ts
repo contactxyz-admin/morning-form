@@ -3,6 +3,7 @@
  * vaccines still write successfully as long as `canonicalKey` matches the
  * grammar; the registry is a display/lookup convenience.
  */
+import { buildAliasIndex, resolveViaAliasIndex } from './registry-resolve';
 
 export type VaccineCategory =
   | 'routine_childhood'
@@ -40,39 +41,18 @@ export const IMMUNISATION_VACCINE_REGISTRY: readonly ImmunisationVaccineEntry[] 
   { canonicalKey: 'typhoid', displayName: 'Typhoid', category: 'travel', aliases: ['typhoid', 'typhim'] },
 ] as const;
 
-const ALIAS_INDEX = buildAliasIndex();
-
-function buildAliasIndex(): ReadonlyMap<string, ImmunisationVaccineEntry> {
-  const idx = new Map<string, ImmunisationVaccineEntry>();
-  for (const entry of IMMUNISATION_VACCINE_REGISTRY) {
-    for (const alias of entry.aliases) idx.set(alias.toLowerCase(), entry);
-  }
-  return idx;
-}
+const ALIAS_INDEX = buildAliasIndex(IMMUNISATION_VACCINE_REGISTRY);
 
 /**
  * Minimum alias length for substring matching. Short aliases like "hpv",
- * "flu", "mmr" still resolve exactly via `ALIAS_INDEX.get(needle)`; we
- * only restrict the fuzzy substring pass so short aliases can't steal
- * matches from longer prose labels.
+ * "flu", "mmr" still resolve exactly via the index; we only restrict
+ * the fuzzy substring pass so short aliases can't steal matches from
+ * longer prose labels.
  */
 const MIN_SUBSTRING_ALIAS_LENGTH = 4;
 
 export function resolveVaccine(label: string): ImmunisationVaccineEntry | undefined {
-  const needle = label.toLowerCase();
-  const direct = ALIAS_INDEX.get(needle);
-  if (direct) return direct;
-  let best: { entry: ImmunisationVaccineEntry; aliasLength: number } | undefined;
-  ALIAS_INDEX.forEach((entry, alias) => {
-    if (
-      alias.length >= MIN_SUBSTRING_ALIAS_LENGTH &&
-      needle.includes(alias) &&
-      (!best || alias.length > best.aliasLength)
-    ) {
-      best = { entry, aliasLength: alias.length };
-    }
-  });
-  return best?.entry;
+  return resolveViaAliasIndex(label, ALIAS_INDEX, MIN_SUBSTRING_ALIAS_LENGTH);
 }
 
 export const IMMUNISATION_CANONICAL_KEYS: ReadonlySet<string> = new Set(

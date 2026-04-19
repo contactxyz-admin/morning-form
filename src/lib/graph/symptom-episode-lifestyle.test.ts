@@ -39,6 +39,45 @@ describe('T7 symptom node — rolling-picture fields', () => {
       qualityOfLifeImpact: 'moderate',
     });
   });
+
+  it('overwrites rolling-picture fields on re-upsert but preserves firstObservedAt', async () => {
+    const userId = await makeTestUser(prisma, 't7-symptom-rolling-reupsert');
+    const first = await addNode(prisma, userId, {
+      type: 'symptom',
+      canonicalKey: 'fatigue',
+      displayName: 'Fatigue',
+      attributes: {
+        firstObservedAt: '2026-02-01',
+        currentSeverity: 'mild',
+        lastObservedAt: '2026-02-01',
+        commonTriggers: ['poor_sleep'],
+        qualityOfLifeImpact: 'mild',
+        bodySystem: 'systemic',
+      },
+    });
+    const second = await addNode(prisma, userId, {
+      type: 'symptom',
+      canonicalKey: 'fatigue',
+      displayName: 'Fatigue',
+      attributes: {
+        firstObservedAt: '2026-03-01', // must be ignored (first-write-wins)
+        currentSeverity: 'severe', // must overwrite
+        lastObservedAt: '2026-04-15', // must overwrite
+        commonTriggers: ['poor_sleep', 'stress'], // must overwrite
+        qualityOfLifeImpact: 'severe', // must overwrite
+      },
+    });
+    expect(second.id).toBe(first.id);
+    const hydrated = await getNode(prisma, first.id);
+    expect(hydrated?.attributes).toMatchObject({
+      firstObservedAt: '2026-02-01',
+      currentSeverity: 'severe',
+      lastObservedAt: '2026-04-15',
+      commonTriggers: ['poor_sleep', 'stress'],
+      qualityOfLifeImpact: 'severe',
+      bodySystem: 'systemic',
+    });
+  });
 });
 
 describe('T7 symptom_episode node', () => {

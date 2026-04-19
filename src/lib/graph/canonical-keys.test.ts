@@ -36,10 +36,16 @@ describe("canonicalKeyFor('encounter', …)", () => {
     expect(a).toBe(c);
   });
 
-  it('accepts a Date instance and zero-pads month/day', () => {
+  it('accepts a Date instance and folds hhmmss when a time is provided', () => {
     const d = new Date('2026-01-05T09:15:00Z');
     expect(
       canonicalKeyFor('encounter', { date: d, serviceDisplay: 'Walk-in clinic' }),
+    ).toBe('encounter_2026_01_05_walk_in_clinic_091500');
+  });
+
+  it('zero-pads month/day without folding time when date is midnight UTC', () => {
+    expect(
+      canonicalKeyFor('encounter', { date: '2026-01-05', serviceDisplay: 'Walk-in clinic' }),
     ).toBe('encounter_2026_01_05_walk_in_clinic');
   });
 
@@ -47,6 +53,34 @@ describe("canonicalKeyFor('encounter', …)", () => {
     expect(
       canonicalKeyFor('encounter', { date: '2026-03-12', serviceDisplay: 'the of and' }),
     ).toBe('encounter_2026_03_12');
+  });
+
+  it('disambiguates same-day same-service encounters via a provider encounterRef', () => {
+    const morning = canonicalKeyFor('encounter', {
+      date: '2026-03-12',
+      serviceDisplay: 'GP surgery',
+      encounterRef: 'GPC-9912',
+    });
+    const afternoon = canonicalKeyFor('encounter', {
+      date: '2026-03-12',
+      serviceDisplay: 'GP surgery',
+      encounterRef: 'GPC-9917',
+    });
+    expect(morning).not.toBe(afternoon);
+    expect(morning).toBe('encounter_2026_03_12_gp_surgery_gpc_9912');
+  });
+
+  it('disambiguates same-day same-service encounters via time when no encounterRef', () => {
+    const morning = canonicalKeyFor('encounter', {
+      date: '2026-03-12T09:15:00Z',
+      serviceDisplay: 'GP surgery',
+    });
+    const afternoon = canonicalKeyFor('encounter', {
+      date: '2026-03-12T14:45:00Z',
+      serviceDisplay: 'GP surgery',
+    });
+    expect(morning).not.toBe(afternoon);
+    expect(morning).toBe('encounter_2026_03_12_gp_surgery_091500');
   });
 });
 

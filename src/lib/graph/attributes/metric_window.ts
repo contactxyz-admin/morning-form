@@ -41,13 +41,25 @@ const BaselineRefSchema = z
   })
   .strict();
 
+// ISO-8601 date or datetime: YYYY-MM-DD, optionally followed by
+// THH:mm[:ss[.sss]] and a timezone (Z or ±HH:mm). Required so non-ISO
+// formats like "01/05/2026" (which Date.parse accepts inconsistently
+// across engines) fail the schema with a clear error instead of passing
+// silently or producing NaN downstream.
+const ISO_DATE_OR_DATETIME_RE =
+  /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
+
+const IsoDateString = z.string().regex(ISO_DATE_OR_DATETIME_RE, {
+  message: 'must be an ISO-8601 date or datetime (YYYY-MM-DD or YYYY-MM-DDTHH:mm[:ss[.sss]][Z|±HH:mm])',
+});
+
 export const MetricWindowAttributesSchema = z
   .object({
     metric: z.string().refine((v) => METRIC_NAMES.has(v), {
       message: 'metric must be a canonical or alias name from CANONICAL_METRICS',
     }),
-    windowStartAt: z.string(),
-    windowEndAt: z.string(),
+    windowStartAt: IsoDateString,
+    windowEndAt: IsoDateString,
     aggregation: z.enum(METRIC_WINDOW_AGGREGATIONS),
     n: z.number().int().nonnegative(),
     value: z.number(),

@@ -126,6 +126,37 @@ const REQUIRE_NONEMPTY_ATTRIBUTES: ReadonlySet<NodeType> = new Set<NodeType>([
 ]);
 
 /**
+ * Rolling-picture fields: attribute keys whose incoming writes OVERWRITE the
+ * existing value (last-write-wins) rather than respecting the default
+ * first-write-wins merge contract.
+ *
+ * These are fields that represent the current/rolling state of a long-lived
+ * concept node — the symptom concept's current severity, most recent
+ * observation timestamp, or currently-effective triggers. Per T7, symptom
+ * concept nodes carry this rolling picture so callers don't have to walk
+ * every `symptom_episode` to answer "how is it now?". Same applies to
+ * mood/energy concept nodes.
+ *
+ * Fields NOT in this set retain first-write-wins semantics — good for
+ * classification fields (e.g. `bodySystem`), onset anchors
+ * (`firstObservedAt`), and narrative notes that shouldn't be clobbered by a
+ * later extraction.
+ */
+export const ROLLING_ATTRIBUTE_FIELDS: Partial<Record<NodeType, ReadonlySet<string>>> = {
+  symptom: new Set([
+    'lastObservedAt',
+    'currentSeverity',
+    'commonTriggers',
+    'commonRelievers',
+    'qualityOfLifeImpact',
+    'defaultSeverity',
+    'pattern',
+  ]),
+  mood: new Set(['currentRating', 'pattern']),
+  energy: new Set(['currentRating', 'pattern']),
+};
+
+/**
  * Validate attributes for a node being written. Throws
  * `NodeAttributesValidationError` on mismatch. Empty/undefined attribute
  * objects are treated as valid (they stringify to null in storage) for
