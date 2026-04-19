@@ -76,25 +76,37 @@ function buildVerifyUrl(request: Request, rawToken: string): string {
  *   1. `NEXT_PUBLIC_APP_URL` when explicitly configured (the env.ts default of
  *      `http://localhost:3000` is treated as "not set" — otherwise a missing
  *      Vercel config would silently email localhost links).
- *   2. `VERCEL_URL` — Vercel sets this to the current deployment's real host
- *      on every build, so branch previews and prod automatically resolve to
- *      their own URL without per-deployment env config.
- *   3. The incoming request's URL origin — local dev fallback.
+ *   2. On Vercel production: `VERCEL_PROJECT_PRODUCTION_URL` — the canonical
+ *      aliased domain (e.g. `morning-form.vercel.app`), not the deployment-
+ *      specific hash URL. `VERCEL_URL` on a prod deployment is the hash URL,
+ *      which surfaces to users as an ugly `morning-form-<hash>-<team>.vercel.app`
+ *      and looks like a preview.
+ *   3. On Vercel preview: `VERCEL_BRANCH_URL` when available, else `VERCEL_URL`.
+ *      The branch URL is a stable alias across redeploys of the same branch;
+ *      the deployment hash URL shifts every push, so links emailed before the
+ *      latest deploy would point at an older build.
+ *   4. The incoming request's URL origin — local dev fallback.
  *
  * We intentionally don't trust `x-forwarded-host` even though Vercel's edge
  * proxy sets it: on a misconfigured runtime that forwards the client-supplied
  * header, an attacker could POST a magic-link request for a victim's email
  * with `x-forwarded-host: attacker.com`, the victim clicks the email, and
- * the token lands at attacker.com. `VERCEL_URL` is server-side and can't be
- * spoofed by a client header.
+ * the token lands at attacker.com. The Vercel env vars above are server-side
+ * and can't be spoofed by a client header.
  */
 function resolveAppOrigin(request: Request): string {
   const configured = env.NEXT_PUBLIC_APP_URL;
   if (configured && configured !== 'http://localhost:3000') {
     return configured.replace(/\/$/, '');
   }
-  const vercelUrl = process.env.VERCEL_URL;
-  if (vercelUrl) return `https://${vercelUrl}`;
+  const vercelEnv = process.env.VERCEL_ENV;
+  if (vercelEnv === 'production' && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  if (vercelEnv === 'preview') {
+    const previewHost = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
+    if (previewHost) return `https://${previewHost}`;
+  }
   return new URL(request.url).origin;
 }
 
