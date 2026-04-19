@@ -142,8 +142,11 @@ export async function POST(req: Request) {
     const extracted = await extractPdfText(buffer);
     const chunks = chunkLabReport(extracted.pages);
     if (chunks.length === 0) {
+      console.warn(
+        `[API] intake/documents 422 no_chunks file=${file.name} pages=${extracted.pages.length} textLen=${extracted.text.length}`,
+      );
       return NextResponse.json(
-        { error: 'No extractable content found in PDF' },
+        { error: 'No extractable content found in PDF', kind: 'no_chunks' },
         { status: 422 },
       );
     }
@@ -224,6 +227,9 @@ export async function POST(req: Request) {
     const message = err instanceof Error ? err.message : String(err);
 
     if (err instanceof PdfExtractionError) {
+      console.warn(
+        `[API] intake/documents 422 ${err.kind} detail="${err.message.slice(0, 300)}"`,
+      );
       return NextResponse.json(
         { error: 'PDF extraction failed', kind: err.kind, detail: err.message },
         { status: 422 },

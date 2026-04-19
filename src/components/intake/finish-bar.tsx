@@ -23,20 +23,36 @@ export function FinishBar() {
     setSubmitting(true);
     setError(null);
     try {
-      const failed: string[] = [];
+      const failed: Array<{ name: string; status: number; kind?: string; detail?: string }> = [];
       for (const doc of documents) {
         const fd = new FormData();
         fd.append('file', doc.file);
         try {
           const docRes = await fetch('/api/intake/documents', { method: 'POST', body: fd });
-          if (!docRes.ok) failed.push(doc.name);
-        } catch {
-          failed.push(doc.name);
+          if (!docRes.ok) {
+            let kind: string | undefined;
+            let detail: string | undefined;
+            try {
+              const body = await docRes.json();
+              kind = body?.kind;
+              detail = body?.detail ?? body?.error;
+            } catch {}
+            failed.push({ name: doc.name, status: docRes.status, kind, detail });
+          }
+        } catch (err) {
+          failed.push({
+            name: doc.name,
+            status: 0,
+            detail: err instanceof Error ? err.message : 'network error',
+          });
         }
       }
       if (failed.length > 0) {
+        const lines = failed.map(
+          (f) => `${f.name} — ${f.status || 'net'} ${f.kind ? `(${f.kind})` : ''}${f.detail ? `: ${f.detail}` : ''}`.trim(),
+        );
         throw new Error(
-          `Failed to upload ${failed.length} document${failed.length === 1 ? '' : 's'}: ${failed.join(', ')}`,
+          `Failed to upload ${failed.length} document${failed.length === 1 ? '' : 's'}:\n${lines.join('\n')}`,
         );
       }
 
@@ -67,7 +83,7 @@ export function FinishBar() {
     <div className="fixed bottom-16 left-0 right-0 px-6 sm:px-8 pt-20 pb-5 pointer-events-none bg-gradient-to-t from-bg via-bg/85 via-35% to-transparent">
       <div className="mx-auto max-w-2xl pointer-events-auto">
         {error && (
-          <p className="mb-3 text-caption text-alert text-center bg-surface rounded-card-sm px-4 py-3 border border-alert/30 shadow-card-hover">
+          <p className="mb-3 text-caption text-alert text-left bg-surface rounded-card-sm px-4 py-3 border border-alert/30 shadow-card-hover whitespace-pre-line">
             {error}
           </p>
         )}
