@@ -1,7 +1,7 @@
 ---
 title: "feat: Ingestion & graph taxonomy — full-coverage data-point audit and schema extensions"
 type: feat
-status: active
+status: complete
 created: 2026-04-19
 origin: conversational (ingestion coverage brief, 2026-04-19)
 parent: docs/plans/2026-04-15-004-feat-health-graph-pivot-plan.md
