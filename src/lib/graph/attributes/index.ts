@@ -29,6 +29,8 @@ import { MoodAttributesSchema, type MoodAttributes } from './mood';
 import { EnergyAttributesSchema, type EnergyAttributes } from './energy';
 import { MetricWindowAttributesSchema, type MetricWindowAttributes } from './metric_window';
 import { SourceDocumentAttributesSchema, type SourceDocumentAttributes } from './source_document';
+import { AllergyAttributesSchema, type AllergyAttributes } from './allergy';
+import { ImmunisationAttributesSchema, type ImmunisationAttributes } from './immunisation';
 
 export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   biomarker: BiomarkerAttributesSchema,
@@ -41,6 +43,8 @@ export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   energy: EnergyAttributesSchema,
   metric_window: MetricWindowAttributesSchema,
   source_document: SourceDocumentAttributesSchema,
+  allergy: AllergyAttributesSchema,
+  immunisation: ImmunisationAttributesSchema,
 };
 
 export interface AttributesByNodeType {
@@ -54,6 +58,8 @@ export interface AttributesByNodeType {
   energy: EnergyAttributes;
   metric_window: MetricWindowAttributes;
   source_document: SourceDocumentAttributes;
+  allergy: AllergyAttributes;
+  immunisation: ImmunisationAttributes;
 }
 
 export type AttributesFor<T extends NodeType> = AttributesByNodeType[T];
@@ -74,6 +80,8 @@ export const NodeAttributesSchema = z.discriminatedUnion('nodeType', [
   z.object({ nodeType: z.literal('energy'), attributes: EnergyAttributesSchema }),
   z.object({ nodeType: z.literal('metric_window'), attributes: MetricWindowAttributesSchema }),
   z.object({ nodeType: z.literal('source_document'), attributes: SourceDocumentAttributesSchema }),
+  z.object({ nodeType: z.literal('allergy'), attributes: AllergyAttributesSchema }),
+  z.object({ nodeType: z.literal('immunisation'), attributes: ImmunisationAttributesSchema }),
 ]);
 
 export type NodeAttributesEnvelope = z.infer<typeof NodeAttributesSchema>;
@@ -144,6 +152,8 @@ export {
   EnergyAttributesSchema,
   MetricWindowAttributesSchema,
   SourceDocumentAttributesSchema,
+  AllergyAttributesSchema,
+  ImmunisationAttributesSchema,
 };
 export type {
   BiomarkerAttributes,
@@ -156,4 +166,18 @@ export type {
   EnergyAttributes,
   MetricWindowAttributes,
   SourceDocumentAttributes,
+  AllergyAttributes,
+  ImmunisationAttributes,
 };
+export {
+  ALLERGY_REACTANT_REGISTRY,
+  ALLERGY_REACTANT_CANONICAL_KEYS,
+  resolveAllergyReactant,
+} from './allergy-registry';
+export type { AllergyReactantEntry, ReactantClass } from './allergy-registry';
+export {
+  IMMUNISATION_VACCINE_REGISTRY,
+  IMMUNISATION_CANONICAL_KEYS,
+  resolveVaccine,
+} from './immunisation-registry';
+export type { ImmunisationVaccineEntry, VaccineCategory } from './immunisation-registry';

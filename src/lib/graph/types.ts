@@ -18,6 +18,12 @@ export const NODE_TYPES = [
   'mood',
   'energy',
   'source_document',
+  // T2 — FHIR-adjacent node types carried across from the GP/NHS record
+  // surface. Allergy and immunisation live as first-class node types so
+  // subgraph retrieval can filter them without dragging in unrelated
+  // condition/medication rows.
+  'allergy',
+  'immunisation',
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
