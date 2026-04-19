@@ -2,8 +2,10 @@
  * Write-side helpers for the Health Graph.
  *
  * Dedup contract: GraphNode is upsert-by-(userId, type, canonicalKey).
- * Repeat upserts shallow-merge the `attributes` JSON without overwriting
- * existing non-null fields — first-write-wins for any given key. GraphEdge
+ * Repeat upserts shallow-merge the `attributes` JSON: first-write-wins for
+ * classification/narrative fields, last-write-wins for rolling-picture
+ * fields listed in `ROLLING_ATTRIBUTE_FIELDS` (T7 — symptom/mood/energy
+ * concept nodes track current state without walking every episode). GraphEdge
  * is dedup-by-(userId, type, fromNodeId, toNodeId, fromChunkId), enforced
  * by the unique index on the table.
  *
@@ -23,7 +25,7 @@ import {
   type IngestExtractionInput,
   type IngestExtractionResult,
 } from './types';
-import { validateAttributesForWrite } from './attributes';
+import { ROLLING_ATTRIBUTE_FIELDS, validateAttributesForWrite } from './attributes';
 import { assertEdgeEndpoints } from './edge-validation';
 import type { NodeType } from './types';
 
@@ -34,7 +36,11 @@ function jsonOrNull(value: Record<string, unknown> | undefined): string | null {
   return JSON.stringify(value);
 }
 
-function mergeAttributes(existing: string | null, incoming: Record<string, unknown> | undefined): string | null {
+function mergeAttributes(
+  nodeType: NodeType,
+  existing: string | null,
+  incoming: Record<string, unknown> | undefined,
+): string | null {
   if (!incoming || Object.keys(incoming).length === 0) return existing;
   let base: Record<string, unknown> = {};
   if (existing) {
@@ -47,9 +53,23 @@ function mergeAttributes(existing: string | null, incoming: Record<string, unkno
       // existing was malformed; treat as empty so we don't lose the new write.
     }
   }
-  // First-write-wins: keep existing keys if already set.
+  // Default: first-write-wins so classification/narrative fields aren't
+  // clobbered by a later re-extraction. Rolling-picture fields listed for
+  // this node type (T7 symptom/mood/energy) overwrite so the concept node
+  // can reflect the current state without walking every episode row —
+  // but only when the incoming value carries real information. A re-
+  // extraction that couldn't find a value (emits null / '' / []) must
+  // not wipe a previously-captured rolling field.
+  const rollingFields = ROLLING_ATTRIBUTE_FIELDS[nodeType];
   for (const [k, v] of Object.entries(incoming)) {
-    if (base[k] === undefined || base[k] === null) base[k] = v;
+    if (rollingFields?.has(k)) {
+      if (v === undefined || v === null) continue;
+      if (typeof v === 'string' && v === '') continue;
+      if (Array.isArray(v) && v.length === 0) continue;
+      base[k] = v;
+    } else if (base[k] === undefined || base[k] === null) {
+      base[k] = v;
+    }
   }
   return JSON.stringify(base);
 }
@@ -173,7 +193,7 @@ export async function addNode(
       where: { userId_type_canonicalKey: { userId, type: input.type, canonicalKey: input.canonicalKey } },
     });
     if (existing) {
-      const merged = mergeAttributes(existing.attributes, input.attributes);
+      const merged = mergeAttributes(input.type, existing.attributes, input.attributes);
       await db.graphNode.update({
         where: { id: existing.id },
         data: {

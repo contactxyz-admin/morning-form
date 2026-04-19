@@ -4,6 +4,7 @@
  * long as `canonicalKey` matches the grammar; callers pass an explicit
  * `reactantClass` when there's no registry match.
  */
+import { buildAliasIndex, resolveViaAliasIndex } from './registry-resolve';
 
 export type ReactantClass = 'drug' | 'food' | 'environmental' | 'venom' | 'other';
 
@@ -54,23 +55,15 @@ export const ALLERGY_REACTANT_REGISTRY: readonly AllergyReactantEntry[] = [
   { canonicalKey: 'wasp_venom', displayName: 'Wasp venom', reactantClass: 'venom', aliases: ['wasp sting', 'wasp venom', 'hornet'] },
 ] as const;
 
-const ALIAS_INDEX = buildAliasIndex();
-
-function buildAliasIndex(): ReadonlyMap<string, AllergyReactantEntry> {
-  const idx = new Map<string, AllergyReactantEntry>();
-  for (const entry of ALLERGY_REACTANT_REGISTRY) {
-    for (const alias of entry.aliases) idx.set(alias.toLowerCase(), entry);
-  }
-  return idx;
-}
+const ALIAS_INDEX = buildAliasIndex(ALLERGY_REACTANT_REGISTRY);
 
 /**
  * Minimum alias length for substring matching. Short aliases like "asa",
  * "cat", "dog", "egg", "fish" are common English words that produce false
  * positives when treated as substrings of free-form prose ("he ate salmon
  * and was fine" should not resolve to fish allergy). Exact matches via
- * `ALIAS_INDEX.get(needle)` still resolve those short aliases — we only
- * restrict the fuzzy substring pass.
+ * the index still resolve those short aliases — we only restrict the
+ * fuzzy substring pass.
  */
 const MIN_SUBSTRING_ALIAS_LENGTH = 4;
 
@@ -79,20 +72,7 @@ const MIN_SUBSTRING_ALIAS_LENGTH = 4;
  * alias-first substring match — same contract as `resolveBiomarker`.
  */
 export function resolveAllergyReactant(label: string): AllergyReactantEntry | undefined {
-  const needle = label.toLowerCase();
-  const direct = ALIAS_INDEX.get(needle);
-  if (direct) return direct;
-  let best: { entry: AllergyReactantEntry; aliasLength: number } | undefined;
-  ALIAS_INDEX.forEach((entry, alias) => {
-    if (
-      alias.length >= MIN_SUBSTRING_ALIAS_LENGTH &&
-      needle.includes(alias) &&
-      (!best || alias.length > best.aliasLength)
-    ) {
-      best = { entry, aliasLength: alias.length };
-    }
-  });
-  return best?.entry;
+  return resolveViaAliasIndex(label, ALIAS_INDEX, MIN_SUBSTRING_ALIAS_LENGTH);
 }
 
 export const ALLERGY_REACTANT_CANONICAL_KEYS: ReadonlySet<string> = new Set(
