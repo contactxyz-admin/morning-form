@@ -1,7 +1,17 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['@prisma/client'],
+    // pdf-parse → pdfjs-dist → @napi-rs/canvas ships native `.node` binaries
+    // and uses dynamic requires for DOM polyfills (DOMMatrix/ImageData/Path2D).
+    // Webpack can't trace them into the serverless bundle, so Vercel 500s with
+    // "Cannot find module '@napi-rs/canvas'" → "DOMMatrix is not defined".
+    // Externalizing makes Next require them at runtime from node_modules.
+    serverComponentsExternalPackages: [
+      '@prisma/client',
+      'pdf-parse',
+      'pdfjs-dist',
+      '@napi-rs/canvas',
+    ],
   },
   // Scope `next build` lint to the API surface. `.eslintrc.json` enforces
   // `no-restricted-imports` on api handlers (so route code can't reach for
