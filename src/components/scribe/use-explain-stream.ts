@@ -15,6 +15,25 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
 
+function generateRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for older runtimes — still shape-compatible with the server's
+  // uuid() validator (z.string().uuid()). Not cryptographically strong;
+  // never used in modern browsers or Node >= 19.
+  const hex = Array.from({ length: 16 }, () =>
+    Math.floor(Math.random() * 256).toString(16).padStart(2, '0'),
+  ).join('');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    '4' + hex.slice(13, 16),
+    ((parseInt(hex.slice(16, 17), 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 20),
+    hex.slice(20, 32),
+  ].join('-');
+}
+
 export type ExplainStatus =
   | 'idle'
   | 'opening'
@@ -73,6 +92,12 @@ export function useExplainStream() {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Client-generated requestId makes idempotency a real user-facing
+    // contract, not just a test seam: if the user fires two Explain calls
+    // with identical intent (double-click the popover, lose connection and
+    // retry), the server's upsert folds them into one audit row.
+    const requestId = generateRequestId();
+
     setState({
       status: 'opening',
       content: '',
@@ -85,7 +110,7 @@ export function useExplainStream() {
       const res = await fetch('/api/scribe/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topicKey, selection }),
+        body: JSON.stringify({ topicKey, selection, requestId }),
         signal: controller.signal,
       });
 
@@ -108,8 +133,7 @@ export function useExplainStream() {
 
       // Streaming state is held locally — each event updates React state in
       // one pass so React can batch as many updates as it wants.
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
+      for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -191,13 +215,28 @@ function takeCompleteFrames(
   while (idx !== -1) {
     const frame = rest.slice(0, idx);
     rest = rest.slice(idx + 2);
-    const eventMatch = frame.match(/^event:\s*(.+)$/m);
-    const dataMatch = frame.match(/^data:\s*(.+)$/m);
-    if (eventMatch && dataMatch) {
+    // SSE spec allows multiple `data:` lines per frame — the decoded
+    // payload is their newline-joined concatenation. The route currently
+    // emits one line but we tolerate the full spec so a future wire change
+    // doesn't silently drop tokens.
+    let eventName: string | null = null;
+    const dataLines: string[] = [];
+    for (const line of frame.split('\n')) {
+      const eMatch = line.match(/^event:\s*(.+)$/);
+      if (eMatch) {
+        eventName = eMatch[1].trim();
+        continue;
+      }
+      const dMatch = line.match(/^data:\s*(.*)$/);
+      if (dMatch) {
+        dataLines.push(dMatch[1]);
+      }
+    }
+    if (eventName !== null && dataLines.length > 0) {
       try {
         events.push({
-          event: eventMatch[1].trim(),
-          data: JSON.parse(dataMatch[1]),
+          event: eventName,
+          data: JSON.parse(dataLines.join('\n')),
         });
       } catch {
         // Malformed frame — skip; upstream sends valid JSON, so this is a

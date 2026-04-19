@@ -105,8 +105,7 @@ async function readSseEvents(
   const decoder = new TextDecoder();
   let buffer = '';
   const events: Array<{ event: string; data: unknown }> = [];
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
@@ -213,11 +212,21 @@ describe('POST /api/scribe/explain', () => {
       output: string;
       citations: unknown[];
     };
-    // No forbidden phrases, no sections → citation-density check is vacuous,
-    // but declaredJudgmentKind is null → enforce() routes out-of-scope.
-    // That's the correct behavior for this runtime surface: the scribe's
-    // output goes through the same gate as compile-time.
-    expect(['clinical-safe', 'out-of-scope-routed']).toContain(done.classification);
+    // The route declares `pattern-vs-own-history` (valid for all three v1
+    // policies, no sections gate) so a clean scribe output must classify
+    // as clinical-safe. If this ever regresses to `out-of-scope-routed` the
+    // runtime surface would unconditionally render the GP-prep fallback.
+    expect(done.classification).toBe('clinical-safe');
+    expect(done.output).toBe(safeOutput);
+
+    // Token frames carry the same safe output — a regression that streamed
+    // the raw output via tokens while defaulting `done.output` to fallback
+    // would be caught here.
+    const tokenText = events
+      .filter((e) => e.event === 'token')
+      .map((e) => (e.data as { text: string }).text)
+      .join('');
+    expect(tokenText).toBe(safeOutput);
 
     const auditRows = await prisma.scribeAudit.findMany({
       where: { userId, mode: 'runtime' },
@@ -247,6 +256,17 @@ describe('POST /api/scribe/explain', () => {
     expect(done.classification).toBe('rejected');
     expect(done.output).not.toContain('ferrous sulfate');
     expect(done.output).not.toMatch(/325\s*mg/i);
+
+    // The token stream is the wire the client actually renders — assert that
+    // the raw drug mention does not leak there either. Without this, a
+    // regression that streamed `result.output` via tokens while defaulting
+    // `done.output` to fallback would silently leak to the UI.
+    const tokenText = events
+      .filter((e) => e.event === 'token')
+      .map((e) => (e.data as { text: string }).text)
+      .join('');
+    expect(tokenText).not.toContain('ferrous sulfate');
+    expect(tokenText).not.toMatch(/325\s*mg/i);
 
     // Audit row still landed (D11).
     const auditRows = await prisma.scribeAudit.findMany({

@@ -32,7 +32,7 @@ import { getPolicy } from '@/lib/scribe/policy/registry';
 import { ScribeAuditWriteError } from '@/lib/scribe/repo';
 import { parseScribeAnnotations } from '@/lib/scribe/annotations';
 import type { Citation } from '@/lib/topics/types';
-import type { SafetyClassification } from '@/lib/scribe/policy/types';
+import type { JudgmentKind, SafetyClassification } from '@/lib/scribe/policy/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +44,17 @@ const BodySchema = z.object({
 
 const FALLBACK_OUTPUT =
   "I can't answer that here — I've suggested a prompt for your GP instead.";
+
+// Runtime Explain operates on prose the user has already selected on their
+// topic page — the scribe's job is to contextualize that span against the
+// user's own health record. `pattern-vs-own-history` is the one judgment
+// kind allowed by every v1 policy (iron, sleep-recovery, energy-fatigue)
+// that doesn't require a non-empty `sections` list (unlike
+// `citation-surfacing`, which enforce() vacuously rejects when sections is
+// empty — U5 streams a single paragraph, not a three-tier compile). Drugs
+// and dose strings still hit the forbidden-phrase gate, which dominates
+// the judgment-kind check in enforce().
+const RUNTIME_JUDGMENT_KIND: JudgmentKind = 'pattern-vs-own-history';
 
 export async function POST(req: NextRequest): Promise<Response> {
   const user = await getCurrentUser();
@@ -96,7 +107,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       topicKey: parsed.topicKey,
       mode: 'runtime',
       userMessage: buildRuntimePrompt(parsed.topicKey, parsed.selection, policy.allowedJudgmentKinds),
-      declaredJudgmentKind: null, // let enforce() route — the scribe self-declares in output
+      declaredJudgmentKind: RUNTIME_JUDGMENT_KIND,
       llm,
       requestId: parsed.requestId,
     });

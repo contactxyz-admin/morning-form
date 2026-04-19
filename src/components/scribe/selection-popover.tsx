@@ -12,7 +12,7 @@
  * `<button>` — Tab reaches it, Enter triggers it, and Escape dismisses the
  * popover before focus leaks back to the surrounding text.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface Rect {
   top: number;
@@ -41,7 +41,6 @@ export function SelectionPopover({
   onExplain,
 }: SelectionPopoverProps) {
   const [info, setInfo] = useState<SelectionInfo | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
 
   const clear = useCallback(() => setInfo(null), []);
 
@@ -74,8 +73,8 @@ export function SelectionPopover({
       setInfo({
         text,
         rect: {
-          top: rect.top + window.scrollY - 8,
-          left: rect.left + window.scrollX + rect.width / 2,
+          top: rect.top - 8,
+          left: rect.left + rect.width / 2,
         },
       });
     };
@@ -100,10 +99,14 @@ export function SelectionPopover({
 
   return (
     <div
-      ref={popoverRef}
       role="dialog"
       aria-label="Explain selection"
-      className="absolute z-40 -translate-x-1/2 -translate-y-full rounded-card border border-border-strong bg-surface shadow-modal"
+      // `fixed` uses viewport coordinates directly (same frame as the
+      // selection rect). An `absolute` popover would anchor to the nearest
+      // positioned ancestor, which may not be the prose container the user
+      // selected in. Scrolling dismisses the popover (see scroll listener
+      // below) so stale positions are not a concern.
+      className="fixed z-40 -translate-x-1/2 -translate-y-full rounded-card border border-border-strong bg-surface shadow-modal"
       style={{ top: info.rect.top, left: info.rect.left }}
       onMouseDown={(e) => {
         // Prevent the browser from collapsing the selection when the user

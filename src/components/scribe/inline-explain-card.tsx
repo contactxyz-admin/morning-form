@@ -7,8 +7,8 @@
  *
  * Rejection-safe surface: when the final classification is `rejected` or
  * `out-of-scope-routed`, the card shows the fallback copy (already
- * substituted on the server, per D2), rendered with an `alert` kicker and
- * no citations. The user never sees the suppressed raw output.
+ * substituted on the server, per D2) with an "Out of scope" kicker and no
+ * citations. The user never sees the suppressed raw output.
  *
  * There is no "Continue in Scribe" affordance (D8) — the card ends at the
  * disclaimer and the close button. The scribe is bounded in scope, not a
@@ -39,7 +39,6 @@ export function InlineExplainCard({
 }: InlineExplainCardProps) {
   const [offset, setOffset] = useState<Position>({ x: 0, y: 0 });
   const dragOriginRef = useRef<Position | null>(null);
-  const cardRef = useRef<HTMLDivElement | null>(null);
 
   // Escape closes the card — keyboard parity required by U5 test scenarios.
   useEffect(() => {
@@ -50,9 +49,13 @@ export function InlineExplainCard({
     return () => document.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
+  // Pointer capture must bind to the element that owns the handler (the
+  // drag-handle div) — `e.target` could be a nested <span> or <button>
+  // whose capture won't receive the subsequent move events if the pointer
+  // slides off it.
   const onDragStart = useCallback((e: React.PointerEvent) => {
     dragOriginRef.current = { x: e.clientX - offset.x, y: e.clientY - offset.y };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
   }, [offset]);
 
   const onDragMove = useCallback((e: React.PointerEvent) => {
@@ -65,7 +68,7 @@ export function InlineExplainCard({
 
   const onDragEnd = useCallback((e: React.PointerEvent) => {
     dragOriginRef.current = null;
-    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
   }, []);
 
   const rejected =
@@ -80,7 +83,6 @@ export function InlineExplainCard({
 
   return (
     <div
-      ref={cardRef}
       role="dialog"
       aria-label="Inline explanation"
       className={cn(
