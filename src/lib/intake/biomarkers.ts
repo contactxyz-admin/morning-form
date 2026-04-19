@@ -24,12 +24,15 @@ export type BiomarkerCategory =
   | 'thyroid'
   | 'metabolic'
   | 'lipid'
+  | 'cardiac_risk'
   | 'liver'
   | 'kidney'
   | 'inflammation'
   | 'hormone'
+  | 'fertility'
   | 'vitamin_mineral'
-  | 'electrolyte';
+  | 'electrolyte'
+  | 'microbiome';
 
 export interface BiomarkerEntry {
   readonly canonicalKey: string;
@@ -109,6 +112,32 @@ export const BIOMARKER_REGISTRY = [
   { canonicalKey: 'sodium',              displayName: 'Sodium',              unit: 'mmol/L',  category: 'electrolyte', aliases: ['sodium', 'na', 'na+'],                                   referenceRange: { low: 133, high: 146 } },
   { canonicalKey: 'potassium',           displayName: 'Potassium',           unit: 'mmol/L',  category: 'electrolyte', aliases: ['potassium', 'k', 'k+'],                                  referenceRange: { low: 3.5, high: 5.3 } },
   { canonicalKey: 'calcium_adjusted',    displayName: 'Adjusted calcium',    unit: 'mmol/L',  category: 'electrolyte', aliases: ['adjusted calcium', 'calcium adjusted', 'corrected calcium', 'calcium'], referenceRange: { low: 2.2, high: 2.6 } },
+
+  // T6 — private-panel cardiac-risk additions (apoB, Lp(a), homocysteine, hs-CRP, omega-3 index)
+  { canonicalKey: 'apolipoprotein_b',    displayName: 'Apolipoprotein B',    unit: 'g/L',     category: 'cardiac_risk', aliases: ['apolipoprotein b', 'apo b', 'apob', 'apolipoprotein-b'], referenceRange: { low: 0.5, high: 1.0 } },
+  { canonicalKey: 'lipoprotein_a',       displayName: 'Lipoprotein(a)',      unit: 'nmol/L',  category: 'cardiac_risk', aliases: ['lipoprotein(a)', 'lipoprotein a', 'lp(a)', 'lpa'] },
+  { canonicalKey: 'homocysteine',        displayName: 'Homocysteine',        unit: 'umol/L',  category: 'cardiac_risk', aliases: ['homocysteine', 'plasma homocysteine', 'total homocysteine'], referenceRange: { low: 5, high: 15 } },
+  { canonicalKey: 'hscrp',               displayName: 'hs-CRP',              unit: 'mg/L',    category: 'cardiac_risk', aliases: ['hs-crp', 'hscrp', 'high sensitivity crp', 'high-sensitivity c-reactive protein'], referenceRange: { low: 0, high: 2 } },
+  { canonicalKey: 'omega_3_index',       displayName: 'Omega-3 index',       unit: '%',       category: 'cardiac_risk', aliases: ['omega-3 index', 'omega 3 index', 'o3i'], referenceRange: { low: 8, high: 12 } },
+
+  // T6 — private-panel hormone additions (active B12, sex-hormone detail, longevity markers)
+  { canonicalKey: 'vitamin_b12_active',  displayName: 'Active vitamin B12 (holoTC)', unit: 'pmol/L', category: 'vitamin_mineral', aliases: ['active b12', 'holotc', 'holotranscobalamin', 'active vitamin b12'], referenceRange: { low: 35, high: 200 } },
+  { canonicalKey: 'free_testosterone',   displayName: 'Free testosterone',   unit: 'pmol/L',  category: 'hormone',    aliases: ['free testosterone', 'testosterone free', 'ft'] },
+  { canonicalKey: 'dhea_sulfate',        displayName: 'DHEA sulfate',        unit: 'umol/L',  category: 'hormone',    aliases: ['dhea-s', 'dhea sulfate', 'dhea sulphate', 'dheas'] },
+  { canonicalKey: 'igf_1',               displayName: 'IGF-1',               unit: 'nmol/L',  category: 'hormone',    aliases: ['igf-1', 'igf 1', 'insulin-like growth factor 1', 'insulin like growth factor 1', 'somatomedin c'] },
+  { canonicalKey: 'reverse_t3',          displayName: 'Reverse T3',          unit: 'ng/dL',   category: 'thyroid',    aliases: ['reverse t3', 'rt3', 'reverse triiodothyronine'] },
+
+  // T6 — fertility additions
+  { canonicalKey: 'amh',                 displayName: 'AMH',                 unit: 'pmol/L',  category: 'fertility',  aliases: ['amh', 'anti-mullerian hormone', 'anti mullerian hormone'] },
+  { canonicalKey: 'fsh',                 displayName: 'FSH',                 unit: 'IU/L',    category: 'fertility',  aliases: ['fsh', 'follicle stimulating hormone', 'follicle-stimulating hormone'] },
+  { canonicalKey: 'lh',                  displayName: 'LH',                  unit: 'IU/L',    category: 'fertility',  aliases: ['lh', 'luteinising hormone', 'luteinizing hormone'] },
+  { canonicalKey: 'sperm_concentration', displayName: 'Sperm concentration', unit: 'million/mL', category: 'fertility', aliases: ['sperm concentration', 'sperm count', 'sperm density'] },
+  { canonicalKey: 'sperm_motility_progressive', displayName: 'Sperm progressive motility', unit: '%', category: 'fertility', aliases: ['progressive motility', 'sperm progressive motility', 'motility (progressive)'] },
+  { canonicalKey: 'sperm_morphology_normal', displayName: 'Sperm normal morphology', unit: '%', category: 'fertility', aliases: ['normal morphology', 'sperm morphology', 'morphology (normal forms)'] },
+
+  // T6 — microbiome diversity indices (taxa-level deferred)
+  { canonicalKey: 'microbiome_shannon_diversity', displayName: 'Microbiome Shannon diversity', unit: 'index', category: 'microbiome', aliases: ['shannon diversity', 'shannon index', 'microbiome shannon'] },
+  { canonicalKey: 'microbiome_simpson_diversity', displayName: 'Microbiome Simpson diversity', unit: 'index', category: 'microbiome', aliases: ['simpson diversity', 'simpson index', 'microbiome simpson'] },
 ] as const satisfies readonly BiomarkerEntry[];
 
 export type BiomarkerCanonicalKey = (typeof BIOMARKER_REGISTRY)[number]['canonicalKey'];

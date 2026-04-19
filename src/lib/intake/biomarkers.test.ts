@@ -94,3 +94,47 @@ describe('resolveBiomarker (alias matching)', () => {
     expect(resolveBiomarker('Galectin-3')).toBeUndefined();
   });
 });
+
+describe('T6 registry additions', () => {
+  it('resolves cardiac-risk markers by common lab labels', () => {
+    expect(resolveBiomarker('Apolipoprotein B')?.canonicalKey).toBe('apolipoprotein_b');
+    expect(resolveBiomarker('apoB')?.canonicalKey).toBe('apolipoprotein_b');
+    expect(resolveBiomarker('Lp(a)')?.canonicalKey).toBe('lipoprotein_a');
+    expect(resolveBiomarker('Homocysteine')?.canonicalKey).toBe('homocysteine');
+    expect(resolveBiomarker('Omega-3 index')?.canonicalKey).toBe('omega_3_index');
+  });
+
+  it('hs-CRP resolves to hscrp (not the shorter crp alias)', () => {
+    expect(resolveBiomarker('hs-CRP')?.canonicalKey).toBe('hscrp');
+    expect(resolveBiomarker('High sensitivity CRP')?.canonicalKey).toBe('hscrp');
+    expect(resolveBiomarker('CRP')?.canonicalKey).toBe('crp');
+  });
+
+  it('resolves hormone additions', () => {
+    expect(resolveBiomarker('Free testosterone')?.canonicalKey).toBe('free_testosterone');
+    expect(resolveBiomarker('DHEA-S')?.canonicalKey).toBe('dhea_sulfate');
+    expect(resolveBiomarker('IGF-1')?.canonicalKey).toBe('igf_1');
+    expect(resolveBiomarker('Reverse T3')?.canonicalKey).toBe('reverse_t3');
+    expect(resolveBiomarker('Active B12')?.canonicalKey).toBe('vitamin_b12_active');
+  });
+
+  it('resolves fertility markers', () => {
+    expect(resolveBiomarker('AMH')?.canonicalKey).toBe('amh');
+    expect(resolveBiomarker('Anti-Mullerian hormone')?.canonicalKey).toBe('amh');
+    expect(resolveBiomarker('Sperm concentration')?.canonicalKey).toBe('sperm_concentration');
+    expect(resolveBiomarker('Progressive motility')?.canonicalKey).toBe('sperm_motility_progressive');
+    expect(resolveBiomarker('Normal morphology')?.canonicalKey).toBe('sperm_morphology_normal');
+  });
+
+  it('resolves microbiome diversity indices', () => {
+    expect(resolveBiomarker('Shannon diversity')?.canonicalKey).toBe('microbiome_shannon_diversity');
+    expect(resolveBiomarker('Simpson index')?.canonicalKey).toBe('microbiome_simpson_diversity');
+  });
+
+  it('existing resolve behaviour preserved (no alias collisions)', () => {
+    expect(resolveBiomarker('Ferritin')?.canonicalKey).toBe('ferritin');
+    expect(resolveBiomarker('CRP')?.canonicalKey).toBe('crp');
+    expect(resolveBiomarker('Free T3')?.canonicalKey).toBe('free_t3');
+    expect(resolveBiomarker('Vitamin B12 (cobalamin)')?.canonicalKey).toBe('vitamin_b12');
+  });
+});
