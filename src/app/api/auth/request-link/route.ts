@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const verifyUrl = buildVerifyUrl(result.rawToken);
+  const verifyUrl = buildVerifyUrl(request, result.rawToken);
 
   try {
     await sendMagicLinkEmail({ to: email, verifyUrl });
@@ -64,9 +64,38 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
-function buildVerifyUrl(rawToken: string): string {
-  const base = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+function buildVerifyUrl(request: Request, rawToken: string): string {
+  const base = resolveAppOrigin(request);
   return `${base}/api/auth/verify?token=${encodeURIComponent(rawToken)}`;
+}
+
+/**
+ * Resolve the origin to embed in the magic-link URL.
+ *
+ * Priority:
+ *   1. `NEXT_PUBLIC_APP_URL` when explicitly configured (the env.ts default of
+ *      `http://localhost:3000` is treated as "not set" — otherwise a missing
+ *      Vercel config would silently email localhost links).
+ *   2. `VERCEL_URL` — Vercel sets this to the current deployment's real host
+ *      on every build, so branch previews and prod automatically resolve to
+ *      their own URL without per-deployment env config.
+ *   3. The incoming request's URL origin — local dev fallback.
+ *
+ * We intentionally don't trust `x-forwarded-host` even though Vercel's edge
+ * proxy sets it: on a misconfigured runtime that forwards the client-supplied
+ * header, an attacker could POST a magic-link request for a victim's email
+ * with `x-forwarded-host: attacker.com`, the victim clicks the email, and
+ * the token lands at attacker.com. `VERCEL_URL` is server-side and can't be
+ * spoofed by a client header.
+ */
+function resolveAppOrigin(request: Request): string {
+  const configured = env.NEXT_PUBLIC_APP_URL;
+  if (configured && configured !== 'http://localhost:3000') {
+    return configured.replace(/\/$/, '');
+  }
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) return `https://${vercelUrl}`;
+  return new URL(request.url).origin;
 }
 
 function hashIp(request: Request): string {
