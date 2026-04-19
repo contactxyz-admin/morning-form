@@ -161,7 +161,42 @@ describe('GET /api/scribe/audit', () => {
     const body = (await res.json()) as {
       rows: Array<{ output: string }>;
     };
+    // Assert length explicitly — a zero-row regression would give a cryptic
+    // "expected [] to equal ['A-only']" rather than a clear length mismatch.
+    expect(body.rows).toHaveLength(1);
     expect(body.rows.map((r) => r.output)).toEqual(['A-only']);
+  });
+
+  it('rejects a cursor pointing to another user\'s audit — existence oracle closed', async () => {
+    const userA = await makeTestUser(prisma, 'audit-cursor-scope-a');
+    const userB = await makeTestUser(prisma, 'audit-cursor-scope-b');
+    const foreignId = await seedAudit(userB, 'iron', 'req-foreign', 'B-only');
+    await seedAudit(userA, 'iron', 'req-a', 'A-only');
+
+    currentUserMock.mockResolvedValue({ id: userA });
+    const res = await callGet(
+      makeRequest(
+        `https://app.test/api/scribe/audit?cursor=${foreignId}`,
+      ),
+    );
+    // 400 (not 200 with an anchored page, not 500 via P2025, not 404 which
+    // would distinguish "exists but not yours" from "doesn't exist").
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('Invalid cursor.');
+  });
+
+  it('rejects a cursor pointing to a non-existent id with the same 400 — no distinguishability from cross-user case', async () => {
+    const userId = await makeTestUser(prisma, 'audit-cursor-missing');
+    currentUserMock.mockResolvedValue({ id: userId });
+    const res = await callGet(
+      makeRequest(
+        'https://app.test/api/scribe/audit?cursor=clxxxxxxxxxxxxxxxxxxxxxx',
+      ),
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('Invalid cursor.');
   });
 
   it('paginates via cursor — limit + nextCursor walks the full set without duplicates or gaps', async () => {

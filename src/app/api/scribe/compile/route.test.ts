@@ -29,6 +29,7 @@ import {
   LLMValidationError,
 } from '@/lib/llm/errors';
 import { TopicCompileLintError } from '@/lib/topics/types';
+import { ScribeAuditWriteError } from '@/lib/scribe/repo';
 
 const currentUserMock = vi.fn<() => Promise<{ id: string } | null>>();
 const compileTopicMock = vi.fn();
@@ -106,6 +107,21 @@ describe('POST /api/scribe/compile', () => {
     expect(res.status).toBe(400);
   });
 
+  // Regression guard for the `safeJson` falsy-check trap. A body of literal
+  // JSON `null` parses successfully but is falsy — a naive `if (!json)` guard
+  // would misdiagnose it as a parse failure. The correct outcome is to reach
+  // zod and fail on shape (body must be an object with `topicKey`), i.e. 400
+  // "Invalid body." with `issues`, not 400 "Invalid JSON body."
+  it('returns 400 "Invalid body." (not "Invalid JSON body.") when body is literal JSON null', async () => {
+    const userId = await makeTestUser(prisma, 'compile-400-null-body');
+    currentUserMock.mockResolvedValue({ id: userId });
+    const res = await callPost(makeRequest({}, { rawBody: 'null' }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe('Invalid body.');
+    expect(body.issues).toBeDefined();
+  });
+
   it('returns 400 when topicKey is missing', async () => {
     const userId = await makeTestUser(prisma, 'compile-400-topic');
     currentUserMock.mockResolvedValue({ id: userId });
@@ -141,7 +157,10 @@ describe('POST /api/scribe/compile', () => {
       topicKey: 'iron',
       status: 'stub',
       cached: false,
-      displayName: expect.any(String),
+      // Pin to the exact registry value so a regression that silently drops
+      // the displayName field (or returns the topicKey by mistake) would
+      // fail here, rather than matching `expect.any(String)`.
+      displayName: 'Iron status',
     });
 
     // Force=true is the whole point of the agent-facing compile route —
@@ -172,7 +191,12 @@ describe('POST /api/scribe/compile', () => {
     const res = await callPost(makeRequest({ topicKey: 'iron' }));
     expect(res.status).toBe(422);
     const body = await res.json();
-    expect(body.violations).toBeDefined();
+    // Assert exact shape. `toBeDefined()` would pass for `violations: null`
+    // or `violations: []` — both of which would be regressions that silently
+    // ship an empty violations array to agents.
+    expect(body.violations).toEqual([
+      { rule: 'missing_citation', message: 'test' },
+    ]);
   });
 
   it.each([
@@ -187,6 +211,23 @@ describe('POST /api/scribe/compile', () => {
 
     const res = await callPost(makeRequest({ topicKey: 'iron' }));
     expect(res.status).toBe(status);
+  });
+
+  it('maps ScribeAuditWriteError to 500 with a distinct error body', async () => {
+    const userId = await makeTestUser(prisma, 'compile-audit-write-error');
+    currentUserMock.mockResolvedValue({ id: userId });
+    compileTopicMock.mockRejectedValue(
+      new ScribeAuditWriteError('db connection refused', new Error('boom')),
+    );
+
+    const res = await callPost(makeRequest({ topicKey: 'iron' }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    // D11 audit-before-gate regressions must be distinguishable from generic
+    // compile failures — a silent fallthrough to "Failed to compile topic."
+    // would hide a regulatory-trail gap inside ordinary error noise.
+    expect(body.error).toBe('Audit write failed.');
+    expect(body.details).toBe('db connection refused');
   });
 
   it('maps an unknown error to 500', async () => {

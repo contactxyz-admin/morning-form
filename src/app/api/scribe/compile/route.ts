@@ -9,11 +9,13 @@
  * Contract:
  *   Body: `{ topicKey: string }`
  *   Auth: session cookie, `getCurrentUser()`
- *   Returns: `TopicCompileResult` (same shape as the GET route) — UI consumers
- *     also resolve `chunkToSource`; agents typically don't need that so this
- *     route omits the extra query.
+ *   Returns: `TopicCompileResult` + `displayName`. This is a subset of the
+ *     GET route's response — the GET route additionally resolves
+ *     `chunkToSource` for UI citation linkage. Agents don't need that so
+ *     this route omits it to keep the response narrow.
  *
- * Errors: auth, unknown topic, LLM failures — same mappings as the GET route.
+ * Errors: auth, unknown topic, LLM failures, audit-write failures — same
+ * mappings as the GET route and `/api/scribe/explain`.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -23,6 +25,7 @@ import { LLMClient } from '@/lib/llm/client';
 import { compileTopic } from '@/lib/topics/compile';
 import { getTopicConfig } from '@/lib/topics/registry';
 import { TopicCompileLintError } from '@/lib/topics/types';
+import { ScribeAuditWriteError } from '@/lib/scribe/repo';
 import {
   LLMAuthError,
   LLMRateLimitError,
@@ -50,14 +53,14 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const json = await safeJson(request);
-    if (!json) {
+    if (!json.ok) {
       return NextResponse.json(
         { error: 'Invalid JSON body.' },
         { status: 400 },
       );
     }
 
-    const parsed = bodySchema.safeParse(json);
+    const parsed = bodySchema.safeParse(json.value);
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Invalid body.', issues: parsed.error.issues },
@@ -94,6 +97,16 @@ export async function POST(request: Request): Promise<Response> {
         { status: 422 },
       );
     }
+    // ScribeAuditWriteError is load-bearing for D11 (audit-before-gate). If
+    // the audit row write fails the route must surface it distinctly so the
+    // caller can distinguish a regulatory-trail gap from a compile error.
+    if (err instanceof ScribeAuditWriteError) {
+      console.error('[API] scribe compile audit write error:', err);
+      return NextResponse.json(
+        { error: 'Audit write failed.', details: err.message },
+        { status: 500 },
+      );
+    }
     if (err instanceof LLMAuthError) {
       console.error('[API] scribe compile LLM auth error:', err);
       return NextResponse.json(
@@ -121,10 +134,15 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
-async function safeJson(request: Request): Promise<unknown | null> {
+// Tagged result so that valid-but-falsy JSON bodies (`null`, `false`, `0`, `""`)
+// are not misdiagnosed as parse failures. A JSON parse error is a distinct
+// outcome from a parsed body that happens to be falsy.
+async function safeJson(
+  request: Request,
+): Promise<{ ok: true; value: unknown } | { ok: false }> {
   try {
-    return await request.json();
+    return { ok: true, value: await request.json() };
   } catch {
-    return null;
+    return { ok: false };
   }
 }

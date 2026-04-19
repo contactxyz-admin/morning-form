@@ -198,6 +198,20 @@ function isUniqueViolation(err: unknown): boolean {
 
 export const LIST_AUDITS_MAX_LIMIT = 50;
 
+/**
+ * Thrown when a `listAudits` cursor does not resolve to a row the caller
+ * owns. Two cases collapse into this one error — the row does not exist,
+ * or it exists but belongs to another user. Collapsing them is intentional:
+ * distinguishing the two would turn the cursor into an existence oracle
+ * for other users' audit ids.
+ */
+export class InvalidAuditCursorError extends Error {
+  constructor() {
+    super('Invalid cursor.');
+    this.name = 'InvalidAuditCursorError';
+  }
+}
+
 export interface ListAuditsArgs {
   limit?: number;
   cursor?: string | null;
@@ -231,6 +245,22 @@ export async function listAudits(
     Math.max(1, Math.floor(requestedLimit)),
     LIST_AUDITS_MAX_LIMIT,
   );
+
+  // Validate cursor ownership *before* passing to Prisma. Without this,
+  // `cursor: { id }` resolves by primary key without the userId predicate,
+  // so a cross-user cursor would anchor pagination silently while a
+  // non-existent one throws P2025 → generic 500. Both shapes collapse
+  // into a uniform `InvalidAuditCursorError` here, which also closes the
+  // existence-oracle surface on other users' audit ids.
+  if (args.cursor) {
+    const owned = await db.scribeAudit.findUnique({
+      where: { id: args.cursor },
+      select: { id: true, userId: true },
+    });
+    if (!owned || owned.userId !== userId) {
+      throw new InvalidAuditCursorError();
+    }
+  }
 
   const where: Prisma.ScribeAuditWhereInput = { userId };
   if (args.topicKey) where.topicKey = args.topicKey;
