@@ -35,6 +35,7 @@ import { EncounterAttributesSchema, type EncounterAttributes } from './encounter
 import { ReferralAttributesSchema, type ReferralAttributes } from './referral';
 import { ProcedureAttributesSchema, type ProcedureAttributes } from './procedure';
 import { ObservationAttributesSchema, type ObservationAttributes } from './observation';
+import { InterventionEventAttributesSchema, type InterventionEventAttributes } from './intervention_event';
 
 export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   biomarker: BiomarkerAttributesSchema,
@@ -53,6 +54,7 @@ export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   referral: ReferralAttributesSchema,
   procedure: ProcedureAttributesSchema,
   observation: ObservationAttributesSchema,
+  intervention_event: InterventionEventAttributesSchema,
 };
 
 export interface AttributesByNodeType {
@@ -72,6 +74,7 @@ export interface AttributesByNodeType {
   referral: ReferralAttributes;
   procedure: ProcedureAttributes;
   observation: ObservationAttributes;
+  intervention_event: InterventionEventAttributes;
 }
 
 export type AttributesFor<T extends NodeType> = AttributesByNodeType[T];
@@ -98,6 +101,7 @@ export const NodeAttributesSchema = z.discriminatedUnion('nodeType', [
   z.object({ nodeType: z.literal('referral'), attributes: ReferralAttributesSchema }),
   z.object({ nodeType: z.literal('procedure'), attributes: ProcedureAttributesSchema }),
   z.object({ nodeType: z.literal('observation'), attributes: ObservationAttributesSchema }),
+  z.object({ nodeType: z.literal('intervention_event'), attributes: InterventionEventAttributesSchema }),
 ]);
 
 export type NodeAttributesEnvelope = z.infer<typeof NodeAttributesSchema>;
@@ -174,6 +178,7 @@ export {
   ReferralAttributesSchema,
   ProcedureAttributesSchema,
   ObservationAttributesSchema,
+  InterventionEventAttributesSchema,
 };
 export type {
   BiomarkerAttributes,
@@ -192,6 +197,7 @@ export type {
   ReferralAttributes,
   ProcedureAttributes,
   ObservationAttributes,
+  InterventionEventAttributes,
 };
 export {
   ALLERGY_REACTANT_REGISTRY,
@@ -215,3 +221,5 @@ export { METRIC_WINDOW_AGGREGATIONS, METRIC_WINDOW_GRANULARITIES } from './metri
 export type { MetricWindowAggregation, MetricWindowGranularity } from './metric_window';
 export { OBSERVATION_CONTEXTS } from './observation';
 export type { ObservationContext } from './observation';
+export { INTERVENTION_EVENT_KINDS } from './intervention_event';
+export type { InterventionEventKind } from './intervention_event';

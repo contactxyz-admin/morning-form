@@ -46,7 +46,9 @@ export type {
   GraphNodeRecord,
   GraphEdgeRecord,
 } from './types';
-export { NodeAttributesValidationError } from './errors';
+export { NodeAttributesValidationError, EdgeEndpointViolation } from './errors';
+export { EDGE_ENDPOINT_RULES, assertEdgeEndpoints } from './edge-validation';
+export type { EdgeEndpointRule } from './edge-validation';
 export {
   ATTRIBUTE_SCHEMAS,
   NodeAttributesSchema,
@@ -74,6 +76,8 @@ export {
   METRIC_WINDOW_AGGREGATIONS,
   METRIC_WINDOW_GRANULARITIES,
   OBSERVATION_CONTEXTS,
+  INTERVENTION_EVENT_KINDS,
+  InterventionEventAttributesSchema,
   ALLERGY_REACTANT_REGISTRY,
   ALLERGY_REACTANT_CANONICAL_KEYS,
   resolveAllergyReactant,
@@ -111,4 +115,6 @@ export type {
   MetricWindowAggregation,
   MetricWindowGranularity,
   ObservationContext,
+  InterventionEventAttributes,
+  InterventionEventKind,
 } from './attributes';

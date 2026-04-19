@@ -37,6 +37,11 @@ export const NODE_TYPES = [
   // (wearable aggregations). Canonical-key convention: one of
   // `VITAL_SIGNS_CANONICAL_KEYS` (bp_systolic, bp_diastolic, bmi, ...).
   'observation',
+  // T8 — one administration / adherence event of an intervention or
+  // medication. Parent links via `INSTANCE_OF`; outcome measurement
+  // links via `OUTCOME_CHANGED`. Canonical-key convention:
+  // `intervention_event_<parent_slug>_<yyyy_mm_dd>` or similar.
+  'intervention_event',
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
@@ -46,6 +51,10 @@ export const EDGE_TYPES = [
   'CAUSES',
   'CONTRADICTS',
   'TEMPORAL_SUCCEEDS',
+  // T8 — parent/instance relation, intervention_event → intervention|medication|lifestyle
+  'INSTANCE_OF',
+  // T8 — effect relation, intervention_event → biomarker|symptom|observation|metric_window
+  'OUTCOME_CHANGED',
 ] as const;
 export type EdgeType = (typeof EDGE_TYPES)[number];
 

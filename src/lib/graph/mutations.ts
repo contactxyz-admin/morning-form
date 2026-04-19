@@ -24,6 +24,8 @@ import {
   type IngestExtractionResult,
 } from './types';
 import { validateAttributesForWrite } from './attributes';
+import { assertEdgeEndpoints } from './edge-validation';
+import type { NodeType } from './types';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -205,6 +207,16 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 export async function addEdge(db: Db, userId: string, input: AddEdgeInput): Promise<string> {
+  // T8 endpoint validation. Load both endpoints before the dedup lookup so
+  // we fail fast on mismatched node types without touching the edge table.
+  const [fromNode, toNode] = await Promise.all([
+    db.graphNode.findUnique({ where: { id: input.fromNodeId }, select: { type: true } }),
+    db.graphNode.findUnique({ where: { id: input.toNodeId }, select: { type: true } }),
+  ]);
+  if (fromNode && toNode) {
+    assertEdgeEndpoints(input.type, fromNode.type as NodeType, toNode.type as NodeType);
+  }
+
   // The unique constraint includes fromChunkId; if absent we use a composite
   // findFirst fallback so we don't double-insert structural edges.
   const existing = input.fromChunkId
