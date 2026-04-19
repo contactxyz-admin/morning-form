@@ -24,6 +24,14 @@ export const NODE_TYPES = [
   // condition/medication rows.
   'allergy',
   'immunisation',
+  // T3 — operational clinical events. `encounter` is one visit/consult;
+  // `referral` is a GP→specialist handoff; `procedure` is an executed
+  // intervention (ECG, biopsy). Canonical-key convention (documented only,
+  // not regex-enforced): `encounter_<yyyy_mm_dd>_<slug>`,
+  // `referral_<target>_<yyyy_mm_dd>`, `procedure_<slug>_<yyyy_mm_dd>`.
+  'encounter',
+  'referral',
+  'procedure',
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 

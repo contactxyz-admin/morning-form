@@ -31,6 +31,9 @@ import { MetricWindowAttributesSchema, type MetricWindowAttributes } from './met
 import { SourceDocumentAttributesSchema, type SourceDocumentAttributes } from './source_document';
 import { AllergyAttributesSchema, type AllergyAttributes } from './allergy';
 import { ImmunisationAttributesSchema, type ImmunisationAttributes } from './immunisation';
+import { EncounterAttributesSchema, type EncounterAttributes } from './encounter';
+import { ReferralAttributesSchema, type ReferralAttributes } from './referral';
+import { ProcedureAttributesSchema, type ProcedureAttributes } from './procedure';
 
 export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   biomarker: BiomarkerAttributesSchema,
@@ -45,6 +48,9 @@ export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   source_document: SourceDocumentAttributesSchema,
   allergy: AllergyAttributesSchema,
   immunisation: ImmunisationAttributesSchema,
+  encounter: EncounterAttributesSchema,
+  referral: ReferralAttributesSchema,
+  procedure: ProcedureAttributesSchema,
 };
 
 export interface AttributesByNodeType {
@@ -60,6 +66,9 @@ export interface AttributesByNodeType {
   source_document: SourceDocumentAttributes;
   allergy: AllergyAttributes;
   immunisation: ImmunisationAttributes;
+  encounter: EncounterAttributes;
+  referral: ReferralAttributes;
+  procedure: ProcedureAttributes;
 }
 
 export type AttributesFor<T extends NodeType> = AttributesByNodeType[T];
@@ -82,6 +91,9 @@ export const NodeAttributesSchema = z.discriminatedUnion('nodeType', [
   z.object({ nodeType: z.literal('source_document'), attributes: SourceDocumentAttributesSchema }),
   z.object({ nodeType: z.literal('allergy'), attributes: AllergyAttributesSchema }),
   z.object({ nodeType: z.literal('immunisation'), attributes: ImmunisationAttributesSchema }),
+  z.object({ nodeType: z.literal('encounter'), attributes: EncounterAttributesSchema }),
+  z.object({ nodeType: z.literal('referral'), attributes: ReferralAttributesSchema }),
+  z.object({ nodeType: z.literal('procedure'), attributes: ProcedureAttributesSchema }),
 ]);
 
 export type NodeAttributesEnvelope = z.infer<typeof NodeAttributesSchema>;
@@ -154,6 +166,9 @@ export {
   SourceDocumentAttributesSchema,
   AllergyAttributesSchema,
   ImmunisationAttributesSchema,
+  EncounterAttributesSchema,
+  ReferralAttributesSchema,
+  ProcedureAttributesSchema,
 };
 export type {
   BiomarkerAttributes,
@@ -168,6 +183,9 @@ export type {
   SourceDocumentAttributes,
   AllergyAttributes,
   ImmunisationAttributes,
+  EncounterAttributes,
+  ReferralAttributes,
+  ProcedureAttributes,
 };
 export {
   ALLERGY_REACTANT_REGISTRY,
