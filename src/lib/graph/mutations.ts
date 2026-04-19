@@ -102,10 +102,17 @@ async function upsertAliases(
 ): Promise<void> {
   if (!aliases || aliases.length === 0) return;
   for (const alias of aliases) {
-    // The @@unique([sourceDocumentId, system, recordId]) index treats
-    // (A, 'nhs_app', null) as a different tuple from (A, 'nhs_app', 'r-42')
-    // so repeated imports with distinct recordIds accumulate, but a pure
-    // (system, null) duplicate stays idempotent.
+    // The @@unique([sourceDocumentId, system, recordId]) index dedups when
+    // recordId is a real string, but Postgres treats two NULL recordIds as
+    // distinct — so the DB-level unique constraint will not fire for a
+    // repeated (doc, system, null) tuple. Dedup those at the app layer
+    // before attempting the insert so re-imports stay idempotent.
+    if (alias.recordId == null) {
+      const existing = await db.sourceDocumentAlias.findFirst({
+        where: { sourceDocumentId, system: alias.system, recordId: null },
+      });
+      if (existing) continue;
+    }
     try {
       await db.sourceDocumentAlias.create({
         data: {
@@ -207,15 +214,22 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 export async function addEdge(db: Db, userId: string, input: AddEdgeInput): Promise<string> {
-  // T8 endpoint validation. Load both endpoints before the dedup lookup so
-  // we fail fast on mismatched node types without touching the edge table.
+  // T8 endpoint validation. Scope both endpoint lookups to the caller's
+  // userId — `findUnique({ id })` would happily return a node owned by a
+  // different user and let the edge silently cross the tenant boundary.
+  // We also fail loudly when either side is missing: silently skipping
+  // validation masks the upstream bug where a caller passed a stale/wrong
+  // node id.
   const [fromNode, toNode] = await Promise.all([
-    db.graphNode.findUnique({ where: { id: input.fromNodeId }, select: { type: true } }),
-    db.graphNode.findUnique({ where: { id: input.toNodeId }, select: { type: true } }),
+    db.graphNode.findFirst({ where: { id: input.fromNodeId, userId }, select: { type: true } }),
+    db.graphNode.findFirst({ where: { id: input.toNodeId, userId }, select: { type: true } }),
   ]);
-  if (fromNode && toNode) {
-    assertEdgeEndpoints(input.type, fromNode.type as NodeType, toNode.type as NodeType);
+  if (!fromNode || !toNode) {
+    throw new Error(
+      `addEdge: endpoint not found for user (from=${input.fromNodeId} exists=${!!fromNode}, to=${input.toNodeId} exists=${!!toNode})`,
+    );
   }
+  assertEdgeEndpoints(input.type, fromNode.type as NodeType, toNode.type as NodeType);
 
   // The unique constraint includes fromChunkId; if absent we use a composite
   // findFirst fallback so we don't double-insert structural edges.

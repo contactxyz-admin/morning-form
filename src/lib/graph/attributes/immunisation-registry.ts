@@ -50,13 +50,25 @@ function buildAliasIndex(): ReadonlyMap<string, ImmunisationVaccineEntry> {
   return idx;
 }
 
+/**
+ * Minimum alias length for substring matching. Short aliases like "hpv",
+ * "flu", "mmr" still resolve exactly via `ALIAS_INDEX.get(needle)`; we
+ * only restrict the fuzzy substring pass so short aliases can't steal
+ * matches from longer prose labels.
+ */
+const MIN_SUBSTRING_ALIAS_LENGTH = 4;
+
 export function resolveVaccine(label: string): ImmunisationVaccineEntry | undefined {
   const needle = label.toLowerCase();
   const direct = ALIAS_INDEX.get(needle);
   if (direct) return direct;
   let best: { entry: ImmunisationVaccineEntry; aliasLength: number } | undefined;
   ALIAS_INDEX.forEach((entry, alias) => {
-    if (needle.includes(alias) && (!best || alias.length > best.aliasLength)) {
+    if (
+      alias.length >= MIN_SUBSTRING_ALIAS_LENGTH &&
+      needle.includes(alias) &&
+      (!best || alias.length > best.aliasLength)
+    ) {
       best = { entry, aliasLength: alias.length };
     }
   });

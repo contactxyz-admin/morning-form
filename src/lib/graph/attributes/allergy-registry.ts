@@ -65,6 +65,16 @@ function buildAliasIndex(): ReadonlyMap<string, AllergyReactantEntry> {
 }
 
 /**
+ * Minimum alias length for substring matching. Short aliases like "asa",
+ * "cat", "dog", "egg", "fish" are common English words that produce false
+ * positives when treated as substrings of free-form prose ("he ate salmon
+ * and was fine" should not resolve to fish allergy). Exact matches via
+ * `ALIAS_INDEX.get(needle)` still resolve those short aliases — we only
+ * restrict the fuzzy substring pass.
+ */
+const MIN_SUBSTRING_ALIAS_LENGTH = 4;
+
+/**
  * Resolve a free-form label to a registry entry. Case-insensitive longest-
  * alias-first substring match — same contract as `resolveBiomarker`.
  */
@@ -74,7 +84,11 @@ export function resolveAllergyReactant(label: string): AllergyReactantEntry | un
   if (direct) return direct;
   let best: { entry: AllergyReactantEntry; aliasLength: number } | undefined;
   ALIAS_INDEX.forEach((entry, alias) => {
-    if (needle.includes(alias) && (!best || alias.length > best.aliasLength)) {
+    if (
+      alias.length >= MIN_SUBSTRING_ALIAS_LENGTH &&
+      needle.includes(alias) &&
+      (!best || alias.length > best.aliasLength)
+    ) {
       best = { entry, aliasLength: alias.length };
     }
   });

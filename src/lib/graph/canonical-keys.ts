@@ -81,7 +81,14 @@ function tokenisedRegistryMatch<T extends { aliases: readonly string[] }>(
   return best?.entry;
 }
 
-function datePartsFromString(value: string | Date): { yyyy: string; mm: string; dd: string; hh: string; min: string } {
+function datePartsFromString(value: string | Date): {
+  yyyy: string;
+  mm: string;
+  dd: string;
+  hh: string;
+  min: string;
+  ss: string;
+} {
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) {
     throw new Error(`canonicalKeyFor: invalid date input "${String(value)}"`);
@@ -93,6 +100,7 @@ function datePartsFromString(value: string | Date): { yyyy: string; mm: string; 
     dd: iso.slice(8, 10),
     hh: iso.slice(11, 13),
     min: iso.slice(14, 16),
+    ss: iso.slice(17, 19),
   };
 }
 
@@ -104,6 +112,14 @@ export interface EncounterKeyInput {
 
 export interface SymptomEpisodeKeyInput {
   onsetAt: string | Date;
+  /**
+   * Optional canonical key of the parent symptom. When provided it is
+   * folded into the episode key so two concurrent episodes of different
+   * symptoms don't collapse onto the same canonical id. Callers writing
+   * through `ingestExtraction` should pass this whenever a parent symptom
+   * is known.
+   */
+  parentSymptomKey?: string;
 }
 
 export function canonicalKeyFor(type: 'encounter', input: EncounterKeyInput): string;
@@ -141,9 +157,19 @@ export function canonicalKeyFor(
       return assertCanonical(slug);
     }
     case 'symptom_episode': {
-      const { onsetAt } = input as SymptomEpisodeKeyInput;
-      const { yyyy, mm, dd, hh, min } = datePartsFromString(onsetAt);
-      return assertCanonical(`episode_${yyyy}_${mm}_${dd}_${hh}${min}`);
+      const { onsetAt, parentSymptomKey } = input as SymptomEpisodeKeyInput;
+      const { yyyy, mm, dd, hh, min, ss } = datePartsFromString(onsetAt);
+      const stamp = `${yyyy}_${mm}_${dd}_${hh}${min}${ss}`;
+      // Parent key must already match the canonical-key grammar — embed as-is.
+      if (parentSymptomKey && !CANONICAL_KEY_RE.test(parentSymptomKey)) {
+        throw new Error(
+          `canonicalKeyFor('symptom_episode'): parentSymptomKey "${parentSymptomKey}" does not match canonical-key grammar`,
+        );
+      }
+      const key = parentSymptomKey
+        ? `episode_${parentSymptomKey}_${stamp}`
+        : `episode_${stamp}`;
+      return assertCanonical(key);
     }
     default: {
       const exhaustive: never = type;

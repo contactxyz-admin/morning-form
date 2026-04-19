@@ -88,20 +88,38 @@ describe("canonicalKeyFor('immunisation', …)", () => {
 });
 
 describe("canonicalKeyFor('symptom_episode', …)", () => {
-  it('builds episode_<yyyy>_<mm>_<dd>_<hhmm> from an ISO onset timestamp', () => {
+  it('builds episode_<yyyy>_<mm>_<dd>_<hhmmss> from an ISO onset timestamp', () => {
     expect(
       canonicalKeyFor('symptom_episode', { onsetAt: '2026-03-12T14:45:00Z' }),
-    ).toBe('episode_2026_03_12_1445');
+    ).toBe('episode_2026_03_12_144500');
   });
 
-  it('zero-pads hour and minute', () => {
+  it('zero-pads hour, minute, and second', () => {
     expect(
-      canonicalKeyFor('symptom_episode', { onsetAt: '2026-03-12T04:05:00Z' }),
-    ).toBe('episode_2026_03_12_0405');
+      canonicalKeyFor('symptom_episode', { onsetAt: '2026-03-12T04:05:07Z' }),
+    ).toBe('episode_2026_03_12_040507');
+  });
+
+  it('folds parentSymptomKey into the key so concurrent episodes do not collide', () => {
+    expect(
+      canonicalKeyFor('symptom_episode', {
+        onsetAt: '2026-03-12T14:45:00Z',
+        parentSymptomKey: 'migraine',
+      }),
+    ).toBe('episode_migraine_2026_03_12_144500');
   });
 
   it('throws on an invalid onset timestamp', () => {
     expect(() => canonicalKeyFor('symptom_episode', { onsetAt: 'not-a-date' })).toThrow();
+  });
+
+  it('throws when parentSymptomKey violates the canonical-key grammar', () => {
+    expect(() =>
+      canonicalKeyFor('symptom_episode', {
+        onsetAt: '2026-03-12T14:45:00Z',
+        parentSymptomKey: 'Bad Key',
+      }),
+    ).toThrow();
   });
 });
 

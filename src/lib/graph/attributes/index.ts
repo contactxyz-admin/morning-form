@@ -111,18 +111,39 @@ export const NodeAttributesSchema = z.discriminatedUnion('nodeType', [
 export type NodeAttributesEnvelope = z.infer<typeof NodeAttributesSchema>;
 
 /**
+ * Node types whose schemas carry genuinely required fields (T4/T7/T8 added
+ * these). Writing an empty attributes object for any of these would produce
+ * a row that can never satisfy the contract, so we enforce non-empty at
+ * write time for this set. Other types (biomarker, medication, etc.) keep
+ * the legacy-tolerant "empty is a no-op" behaviour so partial ingests from
+ * older pipelines still succeed.
+ */
+const REQUIRE_NONEMPTY_ATTRIBUTES: ReadonlySet<NodeType> = new Set<NodeType>([
+  'observation',
+  'metric_window',
+  'symptom_episode',
+  'intervention_event',
+]);
+
+/**
  * Validate attributes for a node being written. Throws
  * `NodeAttributesValidationError` on mismatch. Empty/undefined attribute
- * objects are treated as valid (they stringify to null in storage).
+ * objects are treated as valid (they stringify to null in storage) for
+ * types outside `REQUIRE_NONEMPTY_ATTRIBUTES`.
  */
 export function validateAttributesForWrite(
   nodeType: NodeType,
   canonicalKey: string,
   attributes: Record<string, unknown> | undefined,
 ): void {
-  if (!attributes || Object.keys(attributes).length === 0) return;
+  const isEmpty = !attributes || Object.keys(attributes).length === 0;
+  if (isEmpty) {
+    if (!REQUIRE_NONEMPTY_ATTRIBUTES.has(nodeType)) return;
+    // Fall through to schema.safeParse({}) so the caller gets the exact
+    // list of missing fields via NodeAttributesValidationError.
+  }
   const schema = ATTRIBUTE_SCHEMAS[nodeType];
-  const result = schema.safeParse(attributes);
+  const result = schema.safeParse(attributes ?? {});
   if (!result.success) {
     throw new NodeAttributesValidationError(nodeType, canonicalKey, result.error.issues);
   }

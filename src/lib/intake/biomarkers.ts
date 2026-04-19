@@ -158,20 +158,49 @@ const ALIAS_INDEX: Array<{ alias: string; entry: BiomarkerEntry }> = BIOMARKER_R
   return a.entry.canonicalKey.localeCompare(b.entry.canonicalKey);
 });
 
+/** Exact alias map so short aliases ("hb", "alt", "mcv") still resolve
+ *  when the whole label equals the alias — they just can't participate
+ *  in substring matching against prose. First writer wins on collision,
+ *  matching the pre-existing order of `BIOMARKER_REGISTRY`. */
+const EXACT_ALIAS_BY_LOWER: Map<string, BiomarkerEntry> = (() => {
+  const m = new Map<string, BiomarkerEntry>();
+  for (const entry of BIOMARKER_REGISTRY) {
+    for (const alias of entry.aliases) {
+      const lower = alias.toLowerCase();
+      if (!m.has(lower)) m.set(lower, entry);
+    }
+  }
+  return m;
+})();
+
+/**
+ * Minimum alias length for substring matching. Short aliases like "hb",
+ * "mg", "k", "na" are common tokens inside unrelated lab prose and
+ * produced false positives ("magnesium" / "mg" matching "2 mg tablet")
+ * before this restriction. Exact matches still resolve via the
+ * `EXACT_ALIAS_BY_LOWER` map.
+ */
+const MIN_SUBSTRING_ALIAS_LENGTH = 4;
+
 export function getBiomarker(canonicalKey: string): BiomarkerEntry | undefined {
   return BY_CANONICAL.get(canonicalKey);
 }
 
 /**
- * Resolve a free-form lab-report label to a biomarker entry. Matches the
- * longest alias that appears as a case-insensitive substring. Returns
- * `undefined` when no alias matches — callers should then store the value
- * as an unknown/other biomarker node with the raw label, not silently drop.
+ * Resolve a free-form lab-report label to a biomarker entry. First tries
+ * an exact alias match (case-insensitive) so short aliases like "Hb" still
+ * resolve. Falls back to a longest-alias substring match restricted to
+ * aliases of at least `MIN_SUBSTRING_ALIAS_LENGTH` characters so short
+ * aliases don't produce false positives in prose. Returns `undefined`
+ * when nothing matches — callers should store the value as an
+ * unknown/other biomarker node with the raw label, not silently drop.
  */
 export function resolveBiomarker(label: string): BiomarkerEntry | undefined {
   const needle = label.toLowerCase();
+  const exact = EXACT_ALIAS_BY_LOWER.get(needle);
+  if (exact) return exact;
   for (const { alias, entry } of ALIAS_INDEX) {
-    if (needle.includes(alias)) return entry;
+    if (alias.length >= MIN_SUBSTRING_ALIAS_LENGTH && needle.includes(alias)) return entry;
   }
   return undefined;
 }
