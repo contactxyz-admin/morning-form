@@ -18,6 +18,34 @@ export const NODE_TYPES = [
   'mood',
   'energy',
   'source_document',
+  // T2 — FHIR-adjacent node types carried across from the GP/NHS record
+  // surface. Allergy and immunisation live as first-class node types so
+  // subgraph retrieval can filter them without dragging in unrelated
+  // condition/medication rows.
+  'allergy',
+  'immunisation',
+  // T3 — operational clinical events. `encounter` is one visit/consult;
+  // `referral` is a GP→specialist handoff; `procedure` is an executed
+  // intervention (ECG, biopsy). Canonical-key convention (documented only,
+  // not regex-enforced): `encounter_<yyyy_mm_dd>_<slug>`,
+  // `referral_<target>_<yyyy_mm_dd>`, `procedure_<slug>_<yyyy_mm_dd>`.
+  'encounter',
+  'referral',
+  'procedure',
+  // T4 — a single measured vital sign or body-composition reading.
+  // Distinct from `biomarker` (lab analytes) and `metric_window`
+  // (wearable aggregations). Canonical-key convention: one of
+  // `VITAL_SIGNS_CANONICAL_KEYS` (bp_systolic, bp_diastolic, bmi, ...).
+  'observation',
+  // T8 — one administration / adherence event of an intervention or
+  // medication. Parent links via `INSTANCE_OF`; outcome measurement
+  // links via `OUTCOME_CHANGED`. Canonical-key convention:
+  // `intervention_event_<parent_slug>_<yyyy_mm_dd>` or similar.
+  'intervention_event',
+  // T7 — one time-bounded instance of a parent `symptom` (or mood/energy)
+  // node. Linked upward via `INSTANCE_OF`. Canonical-key convention:
+  // `episode_<yyyy_mm_dd>_<hhmm>`.
+  'symptom_episode',
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
@@ -27,6 +55,10 @@ export const EDGE_TYPES = [
   'CAUSES',
   'CONTRADICTS',
   'TEMPORAL_SUCCEEDS',
+  // T8 — parent/instance relation, intervention_event → intervention|medication|lifestyle
+  'INSTANCE_OF',
+  // T8 — effect relation, intervention_event → biomarker|symptom|observation|metric_window
+  'OUTCOME_CHANGED',
 ] as const;
 export type EdgeType = (typeof EDGE_TYPES)[number];
 
@@ -37,8 +69,45 @@ export const SOURCE_DOCUMENT_KINDS = [
   'wearable_window',
   'checkin',
   'protocol',
+  // T5 additions — GP/hospital correspondence, imaging, pathology, and
+  // consumer/private-care data sources the Graph pivot will accept.
+  'gp_letter',
+  'discharge_summary',
+  'referral_letter',
+  'specialist_letter',
+  'imaging_report',
+  'pathology_report',
+  'at_home_test_result',
+  'microbiome_panel',
+  'stool_panel',
+  'genetics_report',
+  'body_composition_scan',
+  'dexa_scan',
+  'longevity_panel',
+  'private_lab_panel',
 ] as const;
 export type SourceDocumentKind = (typeof SOURCE_DOCUMENT_KINDS)[number];
+
+/**
+ * Reads a persisted `kind` string, returning the typed enum value when known
+ * and `'unknown'` otherwise. Kept alongside the tuple so downstream readers
+ * (queries, UI, analytics) decode safely without exhaustive switches breaking
+ * when the enum grows again.
+ */
+export type SourceDocumentKindOrUnknown = SourceDocumentKind | 'unknown';
+export function decodeSourceDocumentKind(value: string | null | undefined): SourceDocumentKindOrUnknown {
+  if (!value) return 'unknown';
+  return (SOURCE_DOCUMENT_KINDS as readonly string[]).includes(value)
+    ? (value as SourceDocumentKind)
+    : 'unknown';
+}
+
+export interface SourceDocumentAliasInput {
+  /** `SourceSystem` string; see src/lib/graph/source-ref.ts for the grammar. */
+  system: string;
+  recordId?: string | null;
+  pulledAt: Date;
+}
 
 export interface AddSourceDocumentInput {
   kind: SourceDocumentKind;
@@ -47,6 +116,13 @@ export interface AddSourceDocumentInput {
   capturedAt: Date;
   storagePath?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Cross-institution aliases (T5). When the same document arrives from a
+   * different system on re-ingest, dedup by `contentHash` collapses the row
+   * but we still emit a SourceDocumentAlias so the audit trail of
+   * (system, recordId, pulledAt) is preserved.
+   */
+  aliases?: SourceDocumentAliasInput[];
 }
 
 export interface AddSourceChunkInput {

@@ -23,6 +23,9 @@ import {
   type IngestExtractionInput,
   type IngestExtractionResult,
 } from './types';
+import { validateAttributesForWrite } from './attributes';
+import { assertEdgeEndpoints } from './edge-validation';
+import type { NodeType } from './types';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -65,7 +68,10 @@ export async function addSourceDocument(
       const existing = await db.sourceDocument.findUnique({
         where: { userId_contentHash: { userId, contentHash: input.contentHash } },
       });
-      if (existing) return { id: existing.id, deduped: true };
+      if (existing) {
+        await upsertAliases(db, existing.id, input.aliases);
+        return { id: existing.id, deduped: true };
+      }
     }
     try {
       const created = await db.sourceDocument.create({
@@ -79,6 +85,7 @@ export async function addSourceDocument(
           metadata: jsonOrNull(input.metadata),
         },
       });
+      await upsertAliases(db, created.id, input.aliases);
       return { id: created.id, deduped: false };
     } catch (err) {
       if (isUniqueViolation(err) && input.contentHash && attempt === 0) continue;
@@ -86,6 +93,40 @@ export async function addSourceDocument(
     }
   }
   throw new Error('addSourceDocument: unreachable');
+}
+
+async function upsertAliases(
+  db: Db,
+  sourceDocumentId: string,
+  aliases: AddSourceDocumentInput['aliases'],
+): Promise<void> {
+  if (!aliases || aliases.length === 0) return;
+  for (const alias of aliases) {
+    // The @@unique([sourceDocumentId, system, recordId]) index dedups when
+    // recordId is a real string, but Postgres treats two NULL recordIds as
+    // distinct — so the DB-level unique constraint will not fire for a
+    // repeated (doc, system, null) tuple. Dedup those at the app layer
+    // before attempting the insert so re-imports stay idempotent.
+    if (alias.recordId == null) {
+      const existing = await db.sourceDocumentAlias.findFirst({
+        where: { sourceDocumentId, system: alias.system, recordId: null },
+      });
+      if (existing) continue;
+    }
+    try {
+      await db.sourceDocumentAlias.create({
+        data: {
+          sourceDocumentId,
+          system: alias.system,
+          recordId: alias.recordId ?? null,
+          pulledAt: alias.pulledAt,
+        },
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) continue; // already recorded for this (doc, system, recordId)
+      throw err;
+    }
+  }
 }
 
 export async function addSourceChunks(
@@ -118,6 +159,11 @@ export async function addNode(
   userId: string,
   input: AddNodeInput,
 ): Promise<{ id: string; created: boolean }> {
+  // Validate the incoming attribute shape before any DB work. Throwing here
+  // (rather than after a create/update round-trip) keeps partial writes off
+  // the table and gives callers a single error to catch.
+  validateAttributesForWrite(input.type, input.canonicalKey, input.attributes);
+
   // Try create first. If the (userId,type,canonicalKey) unique constraint
   // fires (P2002), a concurrent ingest already inserted the node — retry
   // once on the merge path. This collapses the read-modify-write race window
@@ -168,6 +214,23 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 export async function addEdge(db: Db, userId: string, input: AddEdgeInput): Promise<string> {
+  // T8 endpoint validation. Scope both endpoint lookups to the caller's
+  // userId — `findUnique({ id })` would happily return a node owned by a
+  // different user and let the edge silently cross the tenant boundary.
+  // We also fail loudly when either side is missing: silently skipping
+  // validation masks the upstream bug where a caller passed a stale/wrong
+  // node id.
+  const [fromNode, toNode] = await Promise.all([
+    db.graphNode.findFirst({ where: { id: input.fromNodeId, userId }, select: { type: true } }),
+    db.graphNode.findFirst({ where: { id: input.toNodeId, userId }, select: { type: true } }),
+  ]);
+  if (!fromNode || !toNode) {
+    throw new Error(
+      `addEdge: endpoint not found for user (from=${input.fromNodeId} exists=${!!fromNode}, to=${input.toNodeId} exists=${!!toNode})`,
+    );
+  }
+  assertEdgeEndpoints(input.type, fromNode.type as NodeType, toNode.type as NodeType);
+
   // The unique constraint includes fromChunkId; if absent we use a composite
   // findFirst fallback so we don't double-insert structural edges.
   const existing = input.fromChunkId

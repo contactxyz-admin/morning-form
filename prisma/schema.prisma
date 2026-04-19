@@ -96,9 +96,9 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model SourceDocument {
-  id          String        @id @default(cuid())
+  id          String                @id @default(cuid())
   userId      String
-  user        User          @relation(fields: [userId], references: [id])
+  user        User                  @relation(fields: [userId], references: [id])
   kind        String
   sourceRef   String?
   contentHash String?
@@ -106,12 +106,31 @@ model SourceDocument {
   storagePath String?
   metadata    String?
   chunks      SourceChunk[]
-  edges       GraphEdge[]   @relation("EdgeSourceDocument")
-  createdAt   DateTime      @default(now())
+  edges       GraphEdge[]           @relation("EdgeSourceDocument")
+  aliases     SourceDocumentAlias[]
+  createdAt   DateTime              @default(now())
 
   @@unique([userId, contentHash])
   @@index([userId, kind])
   @@index([userId, capturedAt])
+}
+
+// T5 — cross-institution continuity. When the same clinical document arrives
+// from two systems (e.g. a GP letter surfaced both via NHS App export and via
+// Patients Know Best), `contentHash` dedup collapses them to one
+// SourceDocument; the second import emits a SourceDocumentAlias so the audit
+// trail of "which system showed us this, and when" survives.
+model SourceDocumentAlias {
+  id               String         @id @default(cuid())
+  sourceDocumentId String
+  sourceDocument   SourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  system           String
+  recordId         String?
+  pulledAt         DateTime
+  createdAt        DateTime       @default(now())
+
+  @@unique([sourceDocumentId, system, recordId])
+  @@index([sourceDocumentId])
 }
 
 model SourceChunk {
