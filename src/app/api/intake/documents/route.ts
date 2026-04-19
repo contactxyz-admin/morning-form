@@ -4,8 +4,9 @@
  * Flow:
  *   1. Parse multipart/form-data (`file` field). PDF only for v1.
  *   2. Hash content for dedup. Re-upload of the same bytes short-circuits.
- *   3. Store under ./uploads/<userId>/<cuid>.pdf (dev). Prod S3 is deferred
- *      to ops; the `storagePath` column abstracts it.
+ *   3. Persist bytes via `storePdf` — Vercel Blob (access='private') in
+ *      prod/preview, local FS in dev. Returns an opaque storagePath for
+ *      the audit-trail column.
  *   4. pdf-parse → page-aware text → chunk by layout heuristics.
  *   5. Claude Opus extracts biomarkers (structured-output, Zod-validated).
  *   6. Single transaction writes SourceDocument + chunks + biomarker nodes
@@ -27,10 +28,9 @@
 
 import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { storePdf } from '@/lib/intake/storage';
 import { LLMClient } from '@/lib/llm/client';
 import {
   LLMAuthError,
@@ -244,17 +244,6 @@ export async function POST(req: Request) {
     console.error(`[API] intake/documents unexpected error: ${name}: ${message}`);
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
-}
-
-async function storePdf(userId: string, contentHash: string, buffer: Buffer): Promise<string> {
-  // Dev path. Prod uses an S3-compatible adapter behind the same interface
-  // — deferred to ops. Content-hash filename keeps duplicate uploads a no-op
-  // at the filesystem layer too.
-  const dir = path.join(process.cwd(), 'uploads', userId);
-  await mkdir(dir, { recursive: true });
-  const filename = `${contentHash}.pdf`;
-  await writeFile(path.join(dir, filename), buffer);
-  return path.join('uploads', userId, filename);
 }
 
 async function promoteTopics(userId: string, biomarkerKeys: string[]): Promise<string[]> {
