@@ -15,6 +15,9 @@
  * which is not worth shipping until we see image-only labs in the wild.
  */
 
+// MUST precede the pdf-parse import -- installs DOM globals that pdfjs-dist
+// (transitively imported by pdf-parse) references at module-load time.
+import './pdfjs-polyfill';
 import { PDFParse } from 'pdf-parse';
 import type { AddSourceChunkInput } from '../graph/types';
 
