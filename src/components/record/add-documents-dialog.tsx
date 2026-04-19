@@ -78,10 +78,10 @@ export function AddDocumentsDialog({ open, onClose, onCompleted }: Props) {
   }, [open]);
 
   const requestClose = useCallback(() => {
-    // Allow dismiss even mid-upload — in-flight fetches continue on the server,
-    // and firing onCompleted ensures the record refetches to surface them once
-    // they land. Trapping the user behind a modal during a slow extraction is
-    // worse than a brief state-update warning on an unmounted component.
+    // Dismissing mid-upload is safe: in-flight fetches continue server-side,
+    // and their late setFiles callbacks become no-ops once the !open effect
+    // clears the files list. Firing onCompleted here means the parent will
+    // refetch and surface any uploads that land after the dialog closes.
     if (anyAdded || isUploading) onCompleted();
     onClose();
   }, [isUploading, anyAdded, onCompleted, onClose]);
