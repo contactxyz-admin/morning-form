@@ -49,15 +49,13 @@ vi.mock('@/lib/env', () => ({
   },
 }));
 
-// Stub filesystem writes from storePdf — we don't care about real files on disk.
-vi.mock('node:fs/promises', async () => {
-  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
-  return {
-    ...actual,
-    mkdir: vi.fn().mockResolvedValue(undefined),
-    writeFile: vi.fn().mockResolvedValue(undefined),
-  };
-});
+// Stub the storage module — we don't care about real blob/filesystem writes
+// in route tests, and the @vercel/blob `put` would otherwise require network.
+vi.mock('@/lib/intake/storage', () => ({
+  storePdf: vi.fn((userId: string, contentHash: string) =>
+    Promise.resolve(`uploads/${userId}/${contentHash}.pdf`),
+  ),
+}));
 
 import { POST } from './route';
 
