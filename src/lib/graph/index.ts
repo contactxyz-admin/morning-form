@@ -35,3 +35,36 @@ export type {
   GraphNodeRecord,
   GraphEdgeRecord,
 } from './types';
+export { NodeAttributesValidationError } from './errors';
+export {
+  ATTRIBUTE_SCHEMAS,
+  NodeAttributesSchema,
+  parseNodeAttributes,
+  validateAttributesForWrite,
+  BiomarkerAttributesSchema,
+  MedicationAttributesSchema,
+  ConditionAttributesSchema,
+  SymptomAttributesSchema,
+  LifestyleAttributesSchema,
+  InterventionAttributesSchema,
+  MoodAttributesSchema,
+  EnergyAttributesSchema,
+  MetricWindowAttributesSchema,
+  SourceDocumentAttributesSchema,
+} from './attributes';
+export type {
+  AttributesByNodeType,
+  AttributesFor,
+  NodeAttributesEnvelope,
+  UnvalidatedAttributes,
+  BiomarkerAttributes,
+  MedicationAttributes,
+  ConditionAttributes,
+  SymptomAttributes,
+  LifestyleAttributes,
+  InterventionAttributes,
+  MoodAttributes,
+  EnergyAttributes,
+  MetricWindowAttributes,
+  SourceDocumentAttributes,
+} from './attributes';

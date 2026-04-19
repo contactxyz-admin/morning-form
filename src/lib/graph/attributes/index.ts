@@ -1,0 +1,159 @@
+/**
+ * Per-node-type attribute contracts for the Health Graph (T1).
+ *
+ * Migration semantics:
+ * - Writes: `validateAttributesForWrite` is called inside `addNode` and
+ *   `ingestExtraction`. Shape mismatches throw `NodeAttributesValidationError`
+ *   and abort the write (in `ingestExtraction`, the whole transaction rolls
+ *   back).
+ * - Reads: `parseNodeAttributes` is tolerant. Legacy rows whose JSON does
+ *   not match the current schema are returned as
+ *   `{ _unvalidated: true, raw: <object> }` with a console warning, instead
+ *   of throwing. This lets the read path keep working across the one-release
+ *   migration window while the write path enforces the new shape going
+ *   forward.
+ *
+ * Typed narrowing is available via the discriminated `NodeAttributesSchema`
+ * for callers that want `{ nodeType, attributes }` round-trips.
+ */
+import { z, type ZodTypeAny } from 'zod';
+import type { NodeType } from '../types';
+import { NodeAttributesValidationError } from '../errors';
+import { BiomarkerAttributesSchema, type BiomarkerAttributes } from './biomarker';
+import { MedicationAttributesSchema, type MedicationAttributes } from './medication';
+import { ConditionAttributesSchema, type ConditionAttributes } from './condition';
+import { SymptomAttributesSchema, type SymptomAttributes } from './symptom';
+import { LifestyleAttributesSchema, type LifestyleAttributes } from './lifestyle';
+import { InterventionAttributesSchema, type InterventionAttributes } from './intervention';
+import { MoodAttributesSchema, type MoodAttributes } from './mood';
+import { EnergyAttributesSchema, type EnergyAttributes } from './energy';
+import { MetricWindowAttributesSchema, type MetricWindowAttributes } from './metric_window';
+import { SourceDocumentAttributesSchema, type SourceDocumentAttributes } from './source_document';
+
+export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
+  biomarker: BiomarkerAttributesSchema,
+  medication: MedicationAttributesSchema,
+  condition: ConditionAttributesSchema,
+  symptom: SymptomAttributesSchema,
+  lifestyle: LifestyleAttributesSchema,
+  intervention: InterventionAttributesSchema,
+  mood: MoodAttributesSchema,
+  energy: EnergyAttributesSchema,
+  metric_window: MetricWindowAttributesSchema,
+  source_document: SourceDocumentAttributesSchema,
+};
+
+export interface AttributesByNodeType {
+  biomarker: BiomarkerAttributes;
+  medication: MedicationAttributes;
+  condition: ConditionAttributes;
+  symptom: SymptomAttributes;
+  lifestyle: LifestyleAttributes;
+  intervention: InterventionAttributes;
+  mood: MoodAttributes;
+  energy: EnergyAttributes;
+  metric_window: MetricWindowAttributes;
+  source_document: SourceDocumentAttributes;
+}
+
+export type AttributesFor<T extends NodeType> = AttributesByNodeType[T];
+
+export interface UnvalidatedAttributes {
+  readonly _unvalidated: true;
+  readonly raw: Record<string, unknown>;
+}
+
+export const NodeAttributesSchema = z.discriminatedUnion('nodeType', [
+  z.object({ nodeType: z.literal('biomarker'), attributes: BiomarkerAttributesSchema }),
+  z.object({ nodeType: z.literal('medication'), attributes: MedicationAttributesSchema }),
+  z.object({ nodeType: z.literal('condition'), attributes: ConditionAttributesSchema }),
+  z.object({ nodeType: z.literal('symptom'), attributes: SymptomAttributesSchema }),
+  z.object({ nodeType: z.literal('lifestyle'), attributes: LifestyleAttributesSchema }),
+  z.object({ nodeType: z.literal('intervention'), attributes: InterventionAttributesSchema }),
+  z.object({ nodeType: z.literal('mood'), attributes: MoodAttributesSchema }),
+  z.object({ nodeType: z.literal('energy'), attributes: EnergyAttributesSchema }),
+  z.object({ nodeType: z.literal('metric_window'), attributes: MetricWindowAttributesSchema }),
+  z.object({ nodeType: z.literal('source_document'), attributes: SourceDocumentAttributesSchema }),
+]);
+
+export type NodeAttributesEnvelope = z.infer<typeof NodeAttributesSchema>;
+
+/**
+ * Validate attributes for a node being written. Throws
+ * `NodeAttributesValidationError` on mismatch. Empty/undefined attribute
+ * objects are treated as valid (they stringify to null in storage).
+ */
+export function validateAttributesForWrite(
+  nodeType: NodeType,
+  canonicalKey: string,
+  attributes: Record<string, unknown> | undefined,
+): void {
+  if (!attributes || Object.keys(attributes).length === 0) return;
+  const schema = ATTRIBUTE_SCHEMAS[nodeType];
+  const result = schema.safeParse(attributes);
+  if (!result.success) {
+    throw new NodeAttributesValidationError(nodeType, canonicalKey, result.error.issues);
+  }
+}
+
+/**
+ * Read-tolerant accessor. Parses the JSON stored in GraphNode.attributes
+ * (`string | null`) against the node-type contract. Returns an empty
+ * object for null/missing attributes, the typed shape on match, and an
+ * `UnvalidatedAttributes` envelope on legacy/malformed rows so readers can
+ * decide how to render without crashing.
+ */
+export function parseNodeAttributes<T extends NodeType>(
+  nodeType: T,
+  raw: string | null,
+): AttributesFor<T> | UnvalidatedAttributes | Record<string, never> {
+  if (raw === null || raw === undefined || raw === '') return {} as Record<string, never>;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    console.warn(`[parseNodeAttributes] malformed JSON for ${nodeType} — returning unvalidated envelope`);
+    return { _unvalidated: true, raw: {} };
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    console.warn(`[parseNodeAttributes] non-object attributes for ${nodeType} — returning unvalidated envelope`);
+    return { _unvalidated: true, raw: {} };
+  }
+  const schema = ATTRIBUTE_SCHEMAS[nodeType];
+  const result = schema.safeParse(parsed);
+  if (result.success) {
+    return result.data as AttributesFor<T>;
+  }
+  console.warn(
+    `[parseNodeAttributes] legacy attributes for ${nodeType} failed current contract: ${result.error.issues
+      .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+      .join('; ')}`,
+  );
+  return { _unvalidated: true, raw: parsed as Record<string, unknown> };
+}
+
+export { NodeAttributesValidationError } from '../errors';
+export {
+  BiomarkerAttributesSchema,
+  MedicationAttributesSchema,
+  ConditionAttributesSchema,
+  SymptomAttributesSchema,
+  LifestyleAttributesSchema,
+  InterventionAttributesSchema,
+  MoodAttributesSchema,
+  EnergyAttributesSchema,
+  MetricWindowAttributesSchema,
+  SourceDocumentAttributesSchema,
+};
+export type {
+  BiomarkerAttributes,
+  MedicationAttributes,
+  ConditionAttributes,
+  SymptomAttributes,
+  LifestyleAttributes,
+  InterventionAttributes,
+  MoodAttributes,
+  EnergyAttributes,
+  MetricWindowAttributes,
+  SourceDocumentAttributes,
+};

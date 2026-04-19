@@ -23,6 +23,7 @@ import {
   type IngestExtractionInput,
   type IngestExtractionResult,
 } from './types';
+import { validateAttributesForWrite } from './attributes';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -118,6 +119,11 @@ export async function addNode(
   userId: string,
   input: AddNodeInput,
 ): Promise<{ id: string; created: boolean }> {
+  // Validate the incoming attribute shape before any DB work. Throwing here
+  // (rather than after a create/update round-trip) keeps partial writes off
+  // the table and gives callers a single error to catch.
+  validateAttributesForWrite(input.type, input.canonicalKey, input.attributes);
+
   // Try create first. If the (userId,type,canonicalKey) unique constraint
   // fires (P2002), a concurrent ingest already inserted the node — retry
   // once on the merge path. This collapses the read-modify-write race window
