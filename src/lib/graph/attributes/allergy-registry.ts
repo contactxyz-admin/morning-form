@@ -73,11 +73,11 @@ export function resolveAllergyReactant(label: string): AllergyReactantEntry | un
   const direct = ALIAS_INDEX.get(needle);
   if (direct) return direct;
   let best: { entry: AllergyReactantEntry; aliasLength: number } | undefined;
-  for (const [alias, entry] of ALIAS_INDEX) {
+  ALIAS_INDEX.forEach((entry, alias) => {
     if (needle.includes(alias) && (!best || alias.length > best.aliasLength)) {
       best = { entry, aliasLength: alias.length };
     }
-  }
+  });
   return best?.entry;
 }
 

@@ -35,13 +35,21 @@ type LoadState =
 const NODE_TYPE_LABELS: Record<NodeType, string> = {
   biomarker: 'Biomarker',
   symptom: 'Symptom',
+  symptom_episode: 'Symptom episode',
   condition: 'Condition',
   medication: 'Medication',
   intervention: 'Intervention',
+  intervention_event: 'Intervention event',
   lifestyle: 'Lifestyle',
   metric_window: 'Metric',
+  observation: 'Observation',
   mood: 'Mood',
   energy: 'Energy',
+  allergy: 'Allergy',
+  immunisation: 'Immunisation',
+  encounter: 'Encounter',
+  referral: 'Referral',
+  procedure: 'Procedure',
   source_document: 'Source',
 };
 
@@ -52,6 +60,20 @@ const DOC_KIND_LABELS: Record<SourceDocumentKind, string> = {
   wearable_window: 'Wearable',
   checkin: 'Check-in',
   protocol: 'Protocol',
+  gp_letter: 'GP letter',
+  discharge_summary: 'Discharge summary',
+  referral_letter: 'Referral letter',
+  specialist_letter: 'Specialist letter',
+  imaging_report: 'Imaging report',
+  pathology_report: 'Pathology report',
+  at_home_test_result: 'At-home test',
+  microbiome_panel: 'Microbiome panel',
+  stool_panel: 'Stool panel',
+  genetics_report: 'Genetics report',
+  body_composition_scan: 'Body composition scan',
+  dexa_scan: 'DEXA scan',
+  longevity_panel: 'Longevity panel',
+  private_lab_panel: 'Private lab panel',
 };
 
 interface Props {
