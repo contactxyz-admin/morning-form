@@ -34,6 +34,7 @@ import { ImmunisationAttributesSchema, type ImmunisationAttributes } from './imm
 import { EncounterAttributesSchema, type EncounterAttributes } from './encounter';
 import { ReferralAttributesSchema, type ReferralAttributes } from './referral';
 import { ProcedureAttributesSchema, type ProcedureAttributes } from './procedure';
+import { ObservationAttributesSchema, type ObservationAttributes } from './observation';
 
 export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   biomarker: BiomarkerAttributesSchema,
@@ -51,6 +52,7 @@ export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   encounter: EncounterAttributesSchema,
   referral: ReferralAttributesSchema,
   procedure: ProcedureAttributesSchema,
+  observation: ObservationAttributesSchema,
 };
 
 export interface AttributesByNodeType {
@@ -69,6 +71,7 @@ export interface AttributesByNodeType {
   encounter: EncounterAttributes;
   referral: ReferralAttributes;
   procedure: ProcedureAttributes;
+  observation: ObservationAttributes;
 }
 
 export type AttributesFor<T extends NodeType> = AttributesByNodeType[T];
@@ -94,6 +97,7 @@ export const NodeAttributesSchema = z.discriminatedUnion('nodeType', [
   z.object({ nodeType: z.literal('encounter'), attributes: EncounterAttributesSchema }),
   z.object({ nodeType: z.literal('referral'), attributes: ReferralAttributesSchema }),
   z.object({ nodeType: z.literal('procedure'), attributes: ProcedureAttributesSchema }),
+  z.object({ nodeType: z.literal('observation'), attributes: ObservationAttributesSchema }),
 ]);
 
 export type NodeAttributesEnvelope = z.infer<typeof NodeAttributesSchema>;
@@ -169,6 +173,7 @@ export {
   EncounterAttributesSchema,
   ReferralAttributesSchema,
   ProcedureAttributesSchema,
+  ObservationAttributesSchema,
 };
 export type {
   BiomarkerAttributes,
@@ -186,6 +191,7 @@ export type {
   EncounterAttributes,
   ReferralAttributes,
   ProcedureAttributes,
+  ObservationAttributes,
 };
 export {
   ALLERGY_REACTANT_REGISTRY,
@@ -199,3 +205,13 @@ export {
   resolveVaccine,
 } from './immunisation-registry';
 export type { ImmunisationVaccineEntry, VaccineCategory } from './immunisation-registry';
+export {
+  VITAL_SIGNS_REGISTRY,
+  VITAL_SIGNS_CANONICAL_KEYS,
+  resolveVitalSign,
+} from './vital-signs-registry';
+export type { VitalSignEntry, VitalSignContext } from './vital-signs-registry';
+export { METRIC_WINDOW_AGGREGATIONS, METRIC_WINDOW_GRANULARITIES } from './metric_window';
+export type { MetricWindowAggregation, MetricWindowGranularity } from './metric_window';
+export { OBSERVATION_CONTEXTS } from './observation';
+export type { ObservationContext } from './observation';

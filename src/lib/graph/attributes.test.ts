@@ -88,8 +88,12 @@ describe('validateAttributesForWrite', () => {
     expect(() =>
       validateAttributesForWrite('metric_window', 'hrv-7d', {
         metric: 'hrv',
-        windowStart: '2026-04-01',
-        windowEnd: '2026-04-08',
+        windowStartAt: '2026-04-01',
+        windowEndAt: '2026-04-08',
+        aggregation: 'mean',
+        n: 7,
+        value: 48,
+        unit: 'ms',
         bogus: true,
       }),
     ).toThrow(NodeAttributesValidationError);

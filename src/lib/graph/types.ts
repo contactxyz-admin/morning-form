@@ -32,6 +32,11 @@ export const NODE_TYPES = [
   'encounter',
   'referral',
   'procedure',
+  // T4 — a single measured vital sign or body-composition reading.
+  // Distinct from `biomarker` (lab analytes) and `metric_window`
+  // (wearable aggregations). Canonical-key convention: one of
+  // `VITAL_SIGNS_CANONICAL_KEYS` (bp_systolic, bp_diastolic, bmi, ...).
+  'observation',
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
