@@ -221,13 +221,32 @@ const DiscriminatedTypedBranches = z.discriminatedUnion('lifestyleSubtype', [
 ]);
 
 // Deliberate guard: callers tempted to write `lifestyleSubtype: 'supplement'`
-// should instead use a `medication` node with `source: 'supplement'`. We
-// check this before the discriminated union so the caller sees the correct
-// redirection error rather than a generic "unknown discriminator" mismatch.
-// Kept as a top-level superRefine because `refine` on a ZodObject returns
-// ZodEffects, which z.discriminatedUnion does not accept as a member.
+// should instead use a `medication` node with `source: 'supplement'`.
+//
+// Two mechanisms cooperate:
+//   1. A preprocess step normalises `lifestyleSubtype` to lowercase so any
+//      casing variant the extraction LLM emits ("SUPPLEMENT", "Supplement")
+//      still routes through the sentinel branch and hits the redirection
+//      refine below — without it, uppercase values fail the discriminated
+//      union with a generic mismatch and never reach the refine.
+//   2. A top-level superRefine produces the redirection error. Kept at the
+//      top level because `.refine` on a ZodObject returns ZodEffects, which
+//      z.discriminatedUnion does not accept as a member.
 export const LifestyleAttributesSchema = z
-  .union([DiscriminatedTypedBranches, UntypedBranch])
+  .preprocess((value) => {
+    if (
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      'lifestyleSubtype' in (value as Record<string, unknown>)
+    ) {
+      const subtype = (value as { lifestyleSubtype?: unknown }).lifestyleSubtype;
+      if (typeof subtype === 'string') {
+        return { ...(value as Record<string, unknown>), lifestyleSubtype: subtype.toLowerCase() };
+      }
+    }
+    return value;
+  }, z.union([DiscriminatedTypedBranches, UntypedBranch]))
   .superRefine((value, ctx) => {
     if (
       value &&
@@ -244,6 +263,13 @@ export const LifestyleAttributesSchema = z
     }
   });
 
-export type LifestyleAttributes = z.infer<typeof LifestyleAttributesSchema>;
+// Exclude the supplement sentinel from the exported static type. The sentinel
+// branch exists only so the discriminated union can match a 'supplement' value
+// long enough for the superRefine to emit the redirection error at runtime —
+// it must never be a legal TypeScript-visible shape.
+export type LifestyleAttributes = Exclude<
+  z.infer<typeof LifestyleAttributesSchema>,
+  { lifestyleSubtype: 'supplement' }
+>;
 
 export { LIFESTYLE_SUBTYPES };

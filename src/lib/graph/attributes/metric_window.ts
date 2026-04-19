@@ -49,9 +49,33 @@ const BaselineRefSchema = z
 const ISO_DATE_OR_DATETIME_RE =
   /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 
-const IsoDateString = z.string().regex(ISO_DATE_OR_DATETIME_RE, {
-  message: 'must be an ISO-8601 date or datetime (YYYY-MM-DD or YYYY-MM-DDTHH:mm[:ss[.sss]][Z|±HH:mm])',
-});
+// Regex validates shape only; Date.parse silently coerces impossible calendar
+// dates (2026-02-30 rolls to 2026-03-02, so `Number.isNaN` below never fires).
+// This refine parses the literal YYYY-MM-DD portion through `Date.UTC(...)` and
+// round-trips the component values so coerced dates are rejected regardless of
+// the time / offset tail of the string.
+const IsoDateString = z
+  .string()
+  .regex(ISO_DATE_OR_DATETIME_RE, {
+    message:
+      'must be an ISO-8601 date or datetime (YYYY-MM-DD or YYYY-MM-DDTHH:mm[:ss[.sss]][Z|±HH:mm])',
+  })
+  .refine(
+    (v) => {
+      const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+      if (!match) return false;
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      const d = new Date(Date.UTC(year, month - 1, day));
+      return (
+        d.getUTCFullYear() === year &&
+        d.getUTCMonth() === month - 1 &&
+        d.getUTCDate() === day
+      );
+    },
+    { message: 'date is not a valid calendar date (e.g. 2026-02-30 is rejected)' },
+  );
 
 export const MetricWindowAttributesSchema = z
   .object({

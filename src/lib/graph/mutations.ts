@@ -56,11 +56,17 @@ function mergeAttributes(
   // Default: first-write-wins so classification/narrative fields aren't
   // clobbered by a later re-extraction. Rolling-picture fields listed for
   // this node type (T7 symptom/mood/energy) overwrite so the concept node
-  // can reflect the current state without walking every episode row.
+  // can reflect the current state without walking every episode row —
+  // but only when the incoming value carries real information. A re-
+  // extraction that couldn't find a value (emits null / '' / []) must
+  // not wipe a previously-captured rolling field.
   const rollingFields = ROLLING_ATTRIBUTE_FIELDS[nodeType];
   for (const [k, v] of Object.entries(incoming)) {
     if (rollingFields?.has(k)) {
-      if (v !== undefined) base[k] = v;
+      if (v === undefined || v === null) continue;
+      if (typeof v === 'string' && v === '') continue;
+      if (Array.isArray(v) && v.length === 0) continue;
+      base[k] = v;
     } else if (base[k] === undefined || base[k] === null) {
       base[k] = v;
     }

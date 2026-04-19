@@ -17,14 +17,18 @@ export interface RegistryEntryWithAliases {
   readonly aliases: readonly string[];
 }
 
+// Last-write-wins on alias collisions. Preserves the pre-refactor semantics
+// of the per-registry implementations this helper replaced (allergy-registry,
+// immunisation-registry). Seed registries today have no cross-entry alias
+// collisions, but future additions with an overlapping alias should resolve
+// to the later-declared entry, not silently route to the earlier one.
 export function buildAliasIndex<T extends RegistryEntryWithAliases>(
   registry: readonly T[],
 ): ReadonlyMap<string, T> {
   const idx = new Map<string, T>();
   for (const entry of registry) {
     for (const alias of entry.aliases) {
-      const lower = alias.toLowerCase();
-      if (!idx.has(lower)) idx.set(lower, entry);
+      idx.set(alias.toLowerCase(), entry);
     }
   }
   return idx;

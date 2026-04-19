@@ -148,10 +148,17 @@ export function canonicalKeyFor(
       const slug = slugify(serviceDisplay);
       // Disambiguator selection:
       //   1. explicit encounterRef (provider id) — strongest, always folds in
-      //   2. non-zero time component in `date` — fold hhmmss
-      //   3. neither — legacy one-per-day collapse
+      //   2. caller provided time info (Date instance, or ISO string with a
+      //      time component) — fold hhmmss
+      //   3. bare-date string ('YYYY-MM-DD') — legacy one-per-day collapse
+      //
+      // `hasTime` reflects the input's provenance, not the UTC-converted
+      // parts. Inspecting `hh/min/ss` against '000000' would fold the key
+      // for any Date constructed in a non-UTC timezone (server-TZ-dependent
+      // keys) and would silently skip folding for an offset-suffixed ISO
+      // that happens to normalise to midnight UTC.
       const refSlug = encounterRef ? slugify(encounterRef) : '';
-      const hasTime = !(hh === '00' && min === '00' && ss === '00');
+      const hasTime = date instanceof Date ? true : /[T ]\d{2}:\d{2}/.test(date);
       const disambiguator = refSlug || (hasTime ? `${hh}${min}${ss}` : '');
       const parts = [
         `encounter_${yyyy}_${mm}_${dd}`,

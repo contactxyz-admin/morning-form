@@ -144,6 +144,42 @@ describe('T4 metric_window contract', () => {
     ).toThrow(NodeAttributesValidationError);
   });
 
+  it('rejects DD/MM/YYYY even though Date.parse may accept it', () => {
+    expect(() =>
+      validateAttributesForWrite('metric_window', 'hrv-7d', {
+        ...validBase,
+        windowStartAt: '01/05/2026',
+      }),
+    ).toThrow(NodeAttributesValidationError);
+  });
+
+  it('rejects a calendar-invalid date whose shape matches the regex (e.g. Feb 30)', () => {
+    expect(() =>
+      validateAttributesForWrite('metric_window', 'hrv-7d', {
+        ...validBase,
+        windowStartAt: '2026-02-30T00:00:00Z',
+      }),
+    ).toThrow(NodeAttributesValidationError);
+  });
+
+  it('rejects a month-13 date (shape-valid, not a real calendar month)', () => {
+    expect(() =>
+      validateAttributesForWrite('metric_window', 'hrv-7d', {
+        ...validBase,
+        windowStartAt: '2026-13-01T00:00:00Z',
+      }),
+    ).toThrow(NodeAttributesValidationError);
+  });
+
+  it('accepts an ISO datetime with a sub-second and timezone offset', () => {
+    expect(() =>
+      validateAttributesForWrite('metric_window', 'hrv-7d', {
+        ...validBase,
+        windowStartAt: '2026-04-01T00:00:00.123+01:00',
+      }),
+    ).not.toThrow();
+  });
+
   it('rejects unknown fields (strict)', () => {
     expect(() =>
       validateAttributesForWrite('metric_window', 'hrv-7d', { ...validBase, bogus: true }),
