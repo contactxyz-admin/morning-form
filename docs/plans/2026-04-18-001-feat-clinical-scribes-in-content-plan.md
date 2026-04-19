@@ -292,8 +292,8 @@ Each unit carries an Execution note where test-first discipline is appropriate. 
 
 ### U6 — Agent-native parity
 
-- [ ] `POST /api/scribe/compile`, `GET /api/scribe/audit` routes land
-- [ ] auth + scope tests green
+- [x] `POST /api/scribe/compile`, `GET /api/scribe/audit` routes land
+- [x] auth + scope tests green
 
 **Goal:** Every scribe capability a user has via UI is reachable programmatically — no UI-only affordances.
 

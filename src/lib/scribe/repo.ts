@@ -195,3 +195,59 @@ function isUniqueViolation(err: unknown): boolean {
     (err as { code?: string }).code === 'P2002'
   );
 }
+
+export const LIST_AUDITS_MAX_LIMIT = 50;
+
+export interface ListAuditsArgs {
+  limit?: number;
+  cursor?: string | null;
+  topicKey?: string | null;
+}
+
+export interface ListAuditsResult {
+  rows: ScribeAudit[];
+  nextCursor: string | null;
+}
+
+/**
+ * Lists audit rows for `userId`, newest first, with keyset pagination.
+ *
+ * Scope is enforced by the WHERE clause — cross-user rows are structurally
+ * invisible, not 403'd after the fact (plan D6/D10). `cursor` is the `id` of
+ * the last row returned on the previous page; pass `null` for the first
+ * page. `nextCursor` is `null` when the page is the final one.
+ *
+ * The ordering pairs `createdAt desc` with `id desc` as a tiebreaker — two
+ * audits written in the same millisecond would otherwise hop across pages
+ * under pure-`createdAt` sort.
+ */
+export async function listAudits(
+  db: Db,
+  userId: string,
+  args: ListAuditsArgs = {},
+): Promise<ListAuditsResult> {
+  const requestedLimit = args.limit ?? LIST_AUDITS_MAX_LIMIT;
+  const limit = Math.min(
+    Math.max(1, Math.floor(requestedLimit)),
+    LIST_AUDITS_MAX_LIMIT,
+  );
+
+  const where: Prisma.ScribeAuditWhereInput = { userId };
+  if (args.topicKey) where.topicKey = args.topicKey;
+
+  const rows = await db.scribeAudit.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: limit + 1,
+    ...(args.cursor
+      ? { cursor: { id: args.cursor }, skip: 1 }
+      : {}),
+  });
+
+  const nextCursor =
+    rows.length > limit ? rows[limit - 1].id : null;
+  return {
+    rows: rows.slice(0, limit),
+    nextCursor,
+  };
+}
