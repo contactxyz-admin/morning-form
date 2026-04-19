@@ -30,11 +30,17 @@ describe('T8 edge-endpoint rule table', () => {
     }
   });
 
-  it('INSTANCE_OF only accepts intervention_event → intervention/medication/lifestyle', () => {
+  it('INSTANCE_OF accepts intervention_event → intervention/medication/lifestyle and symptom_episode → symptom/mood/energy', () => {
     expect(() => assertEdgeEndpoints('INSTANCE_OF', 'intervention_event', 'medication')).not.toThrow();
     expect(() => assertEdgeEndpoints('INSTANCE_OF', 'intervention_event', 'intervention')).not.toThrow();
     expect(() => assertEdgeEndpoints('INSTANCE_OF', 'intervention_event', 'lifestyle')).not.toThrow();
+    expect(() => assertEdgeEndpoints('INSTANCE_OF', 'symptom_episode', 'symptom')).not.toThrow();
+    expect(() => assertEdgeEndpoints('INSTANCE_OF', 'symptom_episode', 'mood')).not.toThrow();
+    expect(() => assertEdgeEndpoints('INSTANCE_OF', 'symptom_episode', 'energy')).not.toThrow();
     expect(() => assertEdgeEndpoints('INSTANCE_OF', 'intervention_event', 'biomarker')).toThrow(
+      EdgeEndpointViolation,
+    );
+    expect(() => assertEdgeEndpoints('INSTANCE_OF', 'symptom_episode', 'biomarker')).toThrow(
       EdgeEndpointViolation,
     );
     expect(() => assertEdgeEndpoints('INSTANCE_OF', 'medication', 'medication')).toThrow(

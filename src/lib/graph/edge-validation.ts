@@ -38,8 +38,8 @@ export const EDGE_ENDPOINT_RULES: Record<EdgeType, EdgeEndpointRule> = {
   CONTRADICTS: { validFromTypes: null, validToTypes: null },
   TEMPORAL_SUCCEEDS: { validFromTypes: null, validToTypes: null },
   INSTANCE_OF: {
-    validFromTypes: ['intervention_event'],
-    validToTypes: ['intervention', 'medication', 'lifestyle'],
+    validFromTypes: ['intervention_event', 'symptom_episode'],
+    validToTypes: ['intervention', 'medication', 'lifestyle', 'symptom', 'mood', 'energy'],
   },
   OUTCOME_CHANGED: {
     validFromTypes: ['intervention_event'],

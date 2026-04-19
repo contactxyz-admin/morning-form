@@ -42,6 +42,10 @@ export const NODE_TYPES = [
   // links via `OUTCOME_CHANGED`. Canonical-key convention:
   // `intervention_event_<parent_slug>_<yyyy_mm_dd>` or similar.
   'intervention_event',
+  // T7 — one time-bounded instance of a parent `symptom` (or mood/energy)
+  // node. Linked upward via `INSTANCE_OF`. Canonical-key convention:
+  // `episode_<yyyy_mm_dd>_<hhmm>`.
+  'symptom_episode',
 ] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 

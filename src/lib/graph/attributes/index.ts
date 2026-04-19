@@ -36,6 +36,7 @@ import { ReferralAttributesSchema, type ReferralAttributes } from './referral';
 import { ProcedureAttributesSchema, type ProcedureAttributes } from './procedure';
 import { ObservationAttributesSchema, type ObservationAttributes } from './observation';
 import { InterventionEventAttributesSchema, type InterventionEventAttributes } from './intervention_event';
+import { SymptomEpisodeAttributesSchema, type SymptomEpisodeAttributes } from './symptom_episode';
 
 export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   biomarker: BiomarkerAttributesSchema,
@@ -55,6 +56,7 @@ export const ATTRIBUTE_SCHEMAS: Record<NodeType, ZodTypeAny> = {
   procedure: ProcedureAttributesSchema,
   observation: ObservationAttributesSchema,
   intervention_event: InterventionEventAttributesSchema,
+  symptom_episode: SymptomEpisodeAttributesSchema,
 };
 
 export interface AttributesByNodeType {
@@ -75,6 +77,7 @@ export interface AttributesByNodeType {
   procedure: ProcedureAttributes;
   observation: ObservationAttributes;
   intervention_event: InterventionEventAttributes;
+  symptom_episode: SymptomEpisodeAttributes;
 }
 
 export type AttributesFor<T extends NodeType> = AttributesByNodeType[T];
@@ -102,6 +105,7 @@ export const NodeAttributesSchema = z.discriminatedUnion('nodeType', [
   z.object({ nodeType: z.literal('procedure'), attributes: ProcedureAttributesSchema }),
   z.object({ nodeType: z.literal('observation'), attributes: ObservationAttributesSchema }),
   z.object({ nodeType: z.literal('intervention_event'), attributes: InterventionEventAttributesSchema }),
+  z.object({ nodeType: z.literal('symptom_episode'), attributes: SymptomEpisodeAttributesSchema }),
 ]);
 
 export type NodeAttributesEnvelope = z.infer<typeof NodeAttributesSchema>;
@@ -179,6 +183,7 @@ export {
   ProcedureAttributesSchema,
   ObservationAttributesSchema,
   InterventionEventAttributesSchema,
+  SymptomEpisodeAttributesSchema,
 };
 export type {
   BiomarkerAttributes,
@@ -198,6 +203,7 @@ export type {
   ProcedureAttributes,
   ObservationAttributes,
   InterventionEventAttributes,
+  SymptomEpisodeAttributes,
 };
 export {
   ALLERGY_REACTANT_REGISTRY,
@@ -223,3 +229,10 @@ export { OBSERVATION_CONTEXTS } from './observation';
 export type { ObservationContext } from './observation';
 export { INTERVENTION_EVENT_KINDS } from './intervention_event';
 export type { InterventionEventKind } from './intervention_event';
+export {
+  SYMPTOM_SEVERITY_SCALES,
+  QUALITY_OF_LIFE_IMPACTS,
+} from './symptom';
+export type { SymptomSeverityScale, QualityOfLifeImpact } from './symptom';
+export { LIFESTYLE_SUBTYPES } from './lifestyle';
+export type { LifestyleSubtype } from './lifestyle';
