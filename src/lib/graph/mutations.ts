@@ -66,7 +66,10 @@ export async function addSourceDocument(
       const existing = await db.sourceDocument.findUnique({
         where: { userId_contentHash: { userId, contentHash: input.contentHash } },
       });
-      if (existing) return { id: existing.id, deduped: true };
+      if (existing) {
+        await upsertAliases(db, existing.id, input.aliases);
+        return { id: existing.id, deduped: true };
+      }
     }
     try {
       const created = await db.sourceDocument.create({
@@ -80,6 +83,7 @@ export async function addSourceDocument(
           metadata: jsonOrNull(input.metadata),
         },
       });
+      await upsertAliases(db, created.id, input.aliases);
       return { id: created.id, deduped: false };
     } catch (err) {
       if (isUniqueViolation(err) && input.contentHash && attempt === 0) continue;
@@ -87,6 +91,33 @@ export async function addSourceDocument(
     }
   }
   throw new Error('addSourceDocument: unreachable');
+}
+
+async function upsertAliases(
+  db: Db,
+  sourceDocumentId: string,
+  aliases: AddSourceDocumentInput['aliases'],
+): Promise<void> {
+  if (!aliases || aliases.length === 0) return;
+  for (const alias of aliases) {
+    // The @@unique([sourceDocumentId, system, recordId]) index treats
+    // (A, 'nhs_app', null) as a different tuple from (A, 'nhs_app', 'r-42')
+    // so repeated imports with distinct recordIds accumulate, but a pure
+    // (system, null) duplicate stays idempotent.
+    try {
+      await db.sourceDocumentAlias.create({
+        data: {
+          sourceDocumentId,
+          system: alias.system,
+          recordId: alias.recordId ?? null,
+          pulledAt: alias.pulledAt,
+        },
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) continue; // already recorded for this (doc, system, recordId)
+      throw err;
+    }
+  }
 }
 
 export async function addSourceChunks(

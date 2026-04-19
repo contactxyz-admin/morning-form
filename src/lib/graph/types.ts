@@ -37,8 +37,45 @@ export const SOURCE_DOCUMENT_KINDS = [
   'wearable_window',
   'checkin',
   'protocol',
+  // T5 additions — GP/hospital correspondence, imaging, pathology, and
+  // consumer/private-care data sources the Graph pivot will accept.
+  'gp_letter',
+  'discharge_summary',
+  'referral_letter',
+  'specialist_letter',
+  'imaging_report',
+  'pathology_report',
+  'at_home_test_result',
+  'microbiome_panel',
+  'stool_panel',
+  'genetics_report',
+  'body_composition_scan',
+  'dexa_scan',
+  'longevity_panel',
+  'private_lab_panel',
 ] as const;
 export type SourceDocumentKind = (typeof SOURCE_DOCUMENT_KINDS)[number];
+
+/**
+ * Reads a persisted `kind` string, returning the typed enum value when known
+ * and `'unknown'` otherwise. Kept alongside the tuple so downstream readers
+ * (queries, UI, analytics) decode safely without exhaustive switches breaking
+ * when the enum grows again.
+ */
+export type SourceDocumentKindOrUnknown = SourceDocumentKind | 'unknown';
+export function decodeSourceDocumentKind(value: string | null | undefined): SourceDocumentKindOrUnknown {
+  if (!value) return 'unknown';
+  return (SOURCE_DOCUMENT_KINDS as readonly string[]).includes(value)
+    ? (value as SourceDocumentKind)
+    : 'unknown';
+}
+
+export interface SourceDocumentAliasInput {
+  /** `SourceSystem` string; see src/lib/graph/source-ref.ts for the grammar. */
+  system: string;
+  recordId?: string | null;
+  pulledAt: Date;
+}
 
 export interface AddSourceDocumentInput {
   kind: SourceDocumentKind;
@@ -47,6 +84,13 @@ export interface AddSourceDocumentInput {
   capturedAt: Date;
   storagePath?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Cross-institution aliases (T5). When the same document arrives from a
+   * different system on re-ingest, dedup by `contentHash` collapses the row
+   * but we still emit a SourceDocumentAlias so the audit trail of
+   * (system, recordId, pulledAt) is preserved.
+   */
+  aliases?: SourceDocumentAliasInput[];
 }
 
 export interface AddSourceChunkInput {

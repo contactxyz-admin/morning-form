@@ -18,15 +18,26 @@ export {
   NODE_TYPES,
   EDGE_TYPES,
   SOURCE_DOCUMENT_KINDS,
+  decodeSourceDocumentKind,
 } from './types';
+export {
+  FIXED_SOURCE_SYSTEMS,
+  SourceRefSchema,
+  encodeSourceRef,
+  parseSourceRef,
+  isKnownSourceSystem,
+} from './source-ref';
+export type { SourceSystem, SourceRef, ParsedSourceRef, FixedSourceSystem } from './source-ref';
 export type {
   NodeType,
   EdgeType,
   SourceDocumentKind,
+  SourceDocumentKindOrUnknown,
   AddNodeInput,
   AddEdgeInput,
   AddSourceDocumentInput,
   AddSourceChunkInput,
+  SourceDocumentAliasInput,
   IngestExtractionInput,
   IngestExtractionResult,
   TopicSubgraphSpec,
