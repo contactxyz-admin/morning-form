@@ -138,3 +138,62 @@ describe('T6 registry additions', () => {
     expect(resolveBiomarker('Vitamin B12 (cobalamin)')?.canonicalKey).toBe('vitamin_b12');
   });
 });
+
+describe('G3 — sex hormone + PSA + micronutrient additions', () => {
+  it('resolves progesterone and estradiol', () => {
+    expect(resolveBiomarker('Progesterone')?.canonicalKey).toBe('progesterone');
+    expect(resolveBiomarker('Serum progesterone')?.canonicalKey).toBe('progesterone');
+    expect(resolveBiomarker('Estradiol')?.canonicalKey).toBe('estradiol');
+    expect(resolveBiomarker('Oestradiol')?.canonicalKey).toBe('estradiol');
+    expect(resolveBiomarker('E2')?.canonicalKey).toBe('estradiol');
+  });
+
+  it('resolves PSA via short and long forms', () => {
+    expect(resolveBiomarker('PSA')?.canonicalKey).toBe('psa');
+    expect(resolveBiomarker('psa')?.canonicalKey).toBe('psa');
+    expect(resolveBiomarker('Prostate specific antigen')?.canonicalKey).toBe('psa');
+    expect(resolveBiomarker('Prostate-specific antigen')?.canonicalKey).toBe('psa');
+  });
+
+  it('resolves zinc / selenium / copper via short element symbols (exact-only, < MIN_SUBSTRING_ALIAS_LENGTH)', () => {
+    expect(resolveBiomarker('Zinc')?.canonicalKey).toBe('zinc');
+    expect(resolveBiomarker('Zn')?.canonicalKey).toBe('zinc');
+    expect(resolveBiomarker('Selenium')?.canonicalKey).toBe('selenium');
+    expect(resolveBiomarker('Se')?.canonicalKey).toBe('selenium');
+    expect(resolveBiomarker('Copper')?.canonicalKey).toBe('copper');
+    expect(resolveBiomarker('Cu')?.canonicalKey).toBe('copper');
+  });
+
+  it('does NOT false-positive short element symbols inside unrelated prose (MIN_SUBSTRING_ALIAS_LENGTH guard)', () => {
+    // "in the zone" contains "zn"? No — but it contains no alias ≥ 4 chars,
+    // so nothing should match. Verifies the substring guard prevents the
+    // 2-char element symbols from participating in prose-style matching.
+    expect(resolveBiomarker('in the zone')).toBeUndefined();
+    expect(resolveBiomarker('see you later')).toBeUndefined();
+  });
+
+  it('ships reference ranges only where UK consensus is unambiguous', () => {
+    expect(resolveBiomarker('zinc')?.referenceRange).toBeDefined();
+    expect(resolveBiomarker('selenium')?.referenceRange).toBeDefined();
+    expect(resolveBiomarker('copper')?.referenceRange).toBeDefined();
+    // Estradiol / progesterone vary dramatically by cycle phase and sex;
+    // PSA is age-banded. These intentionally ship without refs.
+    expect(resolveBiomarker('estradiol')?.referenceRange).toBeUndefined();
+    expect(resolveBiomarker('progesterone')?.referenceRange).toBeUndefined();
+    expect(resolveBiomarker('psa')?.referenceRange).toBeUndefined();
+  });
+
+  it('grew BIOMARKER_CANONICAL_KEYS by exactly 6', () => {
+    for (const key of ['progesterone', 'estradiol', 'psa', 'zinc', 'selenium', 'copper']) {
+      expect(BIOMARKER_CANONICAL_KEYS).toContain(key);
+    }
+  });
+
+  it('pre-existing alias resolution still works (no collisions introduced)', () => {
+    // Short-alias spot-check: must not steal from iron/magnesium/etc.
+    expect(resolveBiomarker('Serum iron')?.canonicalKey).toBe('iron');
+    expect(resolveBiomarker('Magnesium')?.canonicalKey).toBe('magnesium');
+    expect(resolveBiomarker('Ferritin')?.canonicalKey).toBe('ferritin');
+    expect(resolveBiomarker('Vitamin B12')?.canonicalKey).toBe('vitamin_b12');
+  });
+});
