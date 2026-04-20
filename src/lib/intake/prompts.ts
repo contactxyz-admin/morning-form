@@ -17,6 +17,24 @@
  */
 import type { EssentialsForm } from './types';
 import type { NodeType } from '../graph/types';
+import { LIFESTYLE_SUBTYPES } from '../graph/attributes/lifestyle';
+import { VITAL_SIGNS_REGISTRY } from '../graph/attributes/vital-signs-registry';
+import { BIOMARKER_CANONICAL_KEYS } from './biomarkers';
+import { CANONICAL_METRICS } from '../health/canonical';
+
+/**
+ * Registry-backed hint lines for the ATTRIBUTE HINTS prompt section.
+ * Generated at module load so a new entry added to any source registry
+ * automatically flows into the extraction prompt — no second place to edit.
+ *
+ * We surface canonical keys only, not alias lists: the LLM is good at
+ * inferring aliases, and giving it the canonical key is what makes
+ * downstream dedup and compile-time lookups work.
+ */
+const LIFESTYLE_SUBTYPE_HINTS = LIFESTYLE_SUBTYPES.join(', ');
+const BIOMARKER_CANONICAL_HINTS = BIOMARKER_CANONICAL_KEYS.join(', ');
+const VITAL_SIGN_CANONICAL_HINTS = VITAL_SIGNS_REGISTRY.map((v) => v.canonicalKey).join(', ');
+const CANONICAL_METRIC_HINTS = CANONICAL_METRICS.map((m) => m.canonical).join(', ');
 
 export const EXTRACTION_SYSTEM_PROMPT = `You are a careful clinical-data extractor for a personal health-graph product.
 
@@ -96,6 +114,12 @@ ${documentsBlock}
 
 KNOWN NODES (reuse these canonical keys when relevant):
 ${knownBlock}
+
+ATTRIBUTE HINTS (reuse canonical identifiers from these registries when the user mentions something that matches — do not invent snake_case keys if one of these fits):
+- lifestyle.lifestyleSubtype (discriminator values): ${LIFESTYLE_SUBTYPE_HINTS}
+- biomarker.canonicalKey (lab analytes): ${BIOMARKER_CANONICAL_HINTS}
+- observation.canonicalKey (vital signs / body composition): ${VITAL_SIGN_CANONICAL_HINTS}
+- metric_window.canonicalMetric (wearable-derived streams): ${CANONICAL_METRIC_HINTS}
 
 Emit a structured_graph with:
 - nodes: array of health-graph nodes. Each node needs type, canonicalKey, displayName, optional attributes, and supportingChunkIndices (integers pointing at the chunks above).

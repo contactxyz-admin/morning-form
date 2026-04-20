@@ -182,7 +182,13 @@ const SocialIsolationBranch = z
   .object({
     lifestyleSubtype: z.literal('social_isolation'),
     selfRated: z.number().min(0).max(10).optional(),
-    pattern: z.enum(['rare', 'occasional', 'frequent', 'daily']).optional(),
+    // MNT-04 carry-over from PR #80 review: parity with alcohol/shift_work
+    // pattern enums that include `'none'` for "doesn't apply to me" and
+    // `'unknown'` for "user didn't say". Extraction prompts can now emit
+    // either without the write rejecting.
+    pattern: z
+      .enum(['none', 'rare', 'occasional', 'frequent', 'daily', 'unknown'])
+      .optional(),
     ...BaseLifestyleFields,
   })
   .strict();
