@@ -1,7 +1,7 @@
 ---
 title: "feat: Close data-point gaps in taxonomy against the moat brief"
 type: feat
-status: active
+status: completed
 date: 2026-04-20
 origin: conversational (moat-thesis data-point audit brief, 2026-04-20)
 parent: docs/plans/2026-04-19-002-feat-ingestion-taxonomy-coverage-plan.md
@@ -141,7 +141,7 @@ Matches existing encounter/symptom_episode precedent — date folding uses `date
 
 ## Implementation Units
 
-- [ ] **G1 — Wearable canonical metric additions**
+- [x] **G1 — Wearable canonical metric additions**
 
 **Goal:** Extend `CANONICAL_METRICS` so the brief's continuous-stream vocabulary resolves without invented names.
 
@@ -192,7 +192,7 @@ Matches existing encounter/symptom_episode precedent — date folding uses `date
 
 ---
 
-- [ ] **G2 — Vital-signs registry additions**
+- [x] **G2 — Vital-signs registry additions**
 
 **Goal:** Extend `VITAL_SIGNS_REGISTRY` with basal body temperature, cycle day, DEXA derivatives, and Bristol stool scale.
 
@@ -236,7 +236,7 @@ Matches existing encounter/symptom_episode precedent — date folding uses `date
 
 ---
 
-- [ ] **G3 — Biomarker registry additions**
+- [x] **G3 — Biomarker registry additions**
 
 **Goal:** Close the private-panel coverage gap for sex hormones, PSA, and micronutrients.
 
@@ -284,7 +284,7 @@ Matches existing encounter/symptom_episode precedent — date folding uses `date
 
 ---
 
-- [ ] **G4 — Lifestyle subtype additions**
+- [x] **G4 — Lifestyle subtype additions**
 
 **Goal:** Promote sun exposure and social isolation from free-text notes to typed branches.
 
@@ -325,7 +325,7 @@ Matches existing encounter/symptom_episode precedent — date folding uses `date
 
 ---
 
-- [ ] **G5 — `canonicalKeyFor` helper extensions**
+- [x] **G5 — `canonicalKeyFor` helper extensions**
 
 **Goal:** Add deterministic key generators for `referral`, `procedure`, and `intervention_event` so structured imports (FHIR adapters, future NHS App exports, CSV backfills) produce collision-free keys across re-imports.
 
