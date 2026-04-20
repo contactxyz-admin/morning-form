@@ -199,6 +199,12 @@ describe("G5 — canonicalKeyFor('referral', …)", () => {
       canonicalKeyFor('referral', { referredAt: '2026-03-04', serviceDisplay: 'the of and' }),
     ).toThrow();
   });
+
+  it('throws on an invalid referredAt timestamp', () => {
+    expect(() =>
+      canonicalKeyFor('referral', { referredAt: 'not-a-date', serviceDisplay: 'Cardiology' }),
+    ).toThrow();
+  });
 });
 
 describe("G5 — canonicalKeyFor('procedure', …)", () => {
@@ -236,9 +242,35 @@ describe("G5 — canonicalKeyFor('procedure', …)", () => {
     ).toBe('procedure_blood_draw_2026_02_10_epr_44112');
   });
 
+  it('lets encounterRef supersede hhmmss so a timestamped re-import of the same ref collapses', () => {
+    // Mirrors encounter semantics. Without this behaviour a system that
+    // sometimes sends `performedAt: '2026-02-10'` and sometimes
+    // `performedAt: '2026-02-10T14:30:00Z'` for the same logical procedure
+    // (same encounterRef) would produce two distinct canonical keys and a
+    // duplicate node on re-import.
+    const bareDate = canonicalKeyFor('procedure', {
+      performedAt: '2026-02-10',
+      procedureDisplay: 'Blood draw',
+      encounterRef: 'EPR-44112',
+    });
+    const timestamped = canonicalKeyFor('procedure', {
+      performedAt: '2026-02-10T14:30:00Z',
+      procedureDisplay: 'Blood draw',
+      encounterRef: 'EPR-44112',
+    });
+    expect(bareDate).toBe(timestamped);
+    expect(bareDate).toBe('procedure_blood_draw_2026_02_10_epr_44112');
+  });
+
   it('throws when procedureDisplay slugifies to empty', () => {
     expect(() =>
       canonicalKeyFor('procedure', { performedAt: '2026-02-10', procedureDisplay: 'the of and' }),
+    ).toThrow();
+  });
+
+  it('throws on an invalid performedAt timestamp', () => {
+    expect(() =>
+      canonicalKeyFor('procedure', { performedAt: 'not-a-date', procedureDisplay: 'ECG' }),
     ).toThrow();
   });
 });
@@ -264,12 +296,23 @@ describe("G5 — canonicalKeyFor('intervention_event', …)", () => {
     ).toBe('intervention_event_ferrous_sulfate_200mg_2026_03_15_080000_taken_as_prescribed');
   });
 
-  it('slugifies eventKind so free-form kinds still produce canonical keys', () => {
+  it('folds hhmmss when occurredAt is a Date instance (not just ISO string)', () => {
+    // Exercises the `instanceof Date` branch of detectHasTime for this overload.
+    expect(
+      canonicalKeyFor('intervention_event', {
+        parentKey: 'ferrous_sulfate_200mg',
+        occurredAt: new Date('2026-03-15T08:00:00Z'),
+        eventKind: 'taken_as_prescribed',
+      }),
+    ).toBe('intervention_event_ferrous_sulfate_200mg_2026_03_15_080000_taken_as_prescribed');
+  });
+
+  it('accepts the full closed eventKind enum verbatim (already snake_case)', () => {
     expect(
       canonicalKeyFor('intervention_event', {
         parentKey: 'sertraline_50mg',
         occurredAt: '2026-03-15',
-        eventKind: 'Side Effect',
+        eventKind: 'side_effect',
       }),
     ).toBe('intervention_event_sertraline_50mg_2026_03_15_side_effect');
   });
@@ -284,14 +327,27 @@ describe("G5 — canonicalKeyFor('intervention_event', …)", () => {
     ).toThrow();
   });
 
-  it('throws when eventKind slugifies to empty', () => {
+  it('throws on an invalid occurredAt timestamp', () => {
     expect(() =>
       canonicalKeyFor('intervention_event', {
         parentKey: 'ferrous_sulfate_200mg',
-        occurredAt: '2026-03-15',
-        eventKind: 'the of and',
+        occurredAt: 'not-a-date',
+        eventKind: 'taken_as_prescribed',
       }),
     ).toThrow();
+  });
+
+  it('rejects parentKey with a trailing underscore (would produce double-underscore in output)', () => {
+    // Grammar alone can't catch this: CANONICAL_KEY_RE permits `foo_` and the
+    // assembled `intervention_event_foo__2026_...` also passes the regex,
+    // leaving a silent double-underscore boundary. Guard at the embed site.
+    expect(() =>
+      canonicalKeyFor('intervention_event', {
+        parentKey: 'ferrous_sulfate_200mg_',
+        occurredAt: '2026-03-15',
+        eventKind: 'taken_as_prescribed',
+      }),
+    ).toThrow(/trailing|underscore|grammar/i);
   });
 });
 

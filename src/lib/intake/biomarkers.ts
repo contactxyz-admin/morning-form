@@ -32,7 +32,13 @@ export type BiomarkerCategory =
   | 'fertility'
   | 'vitamin_mineral'
   | 'electrolyte'
-  | 'microbiome';
+  | 'microbiome'
+  // Enzymes secreted into blood that are clinically used as cancer screening
+  // or disease-monitoring markers. Kept distinct from 'hormone' so downstream
+  // hormone-group queries don't accidentally aggregate cancer markers (PSA is
+  // a serine protease, not a hormone). Currently PSA-only; future additions
+  // like CA-125, CA-19-9, AFP, CEA would belong here.
+  | 'tumor_marker';
 
 export interface BiomarkerEntry {
   readonly canonicalKey: string;
@@ -146,7 +152,7 @@ export const BIOMARKER_REGISTRY = [
   // so they resolve via exact match only and cannot false-positive in prose.
   { canonicalKey: 'progesterone',        displayName: 'Progesterone',        unit: 'nmol/L',  category: 'hormone',         aliases: ['progesterone', 'serum progesterone'] },
   { canonicalKey: 'estradiol',           displayName: 'Estradiol',           unit: 'pmol/L',  category: 'hormone',         aliases: ['estradiol', 'oestradiol', 'e2'] },
-  { canonicalKey: 'psa',                 displayName: 'PSA',                 unit: 'ug/L',    category: 'hormone',         aliases: ['psa', 'prostate specific antigen', 'prostate-specific antigen'] },
+  { canonicalKey: 'psa',                 displayName: 'PSA',                 unit: 'ug/L',    category: 'tumor_marker',    aliases: ['psa', 'prostate specific antigen', 'prostate-specific antigen'] },
   { canonicalKey: 'zinc',                displayName: 'Zinc',                unit: 'umol/L',  category: 'vitamin_mineral', aliases: ['zinc', 'zn', 'serum zinc'],           referenceRange: { low: 11, high: 24 } },
   { canonicalKey: 'selenium',            displayName: 'Selenium',            unit: 'umol/L',  category: 'vitamin_mineral', aliases: ['selenium', 'se', 'serum selenium'],   referenceRange: { low: 0.9, high: 1.4 } },
   { canonicalKey: 'copper',              displayName: 'Copper',              unit: 'umol/L',  category: 'vitamin_mineral', aliases: ['copper', 'cu', 'serum copper'],       referenceRange: { low: 11, high: 22 } },

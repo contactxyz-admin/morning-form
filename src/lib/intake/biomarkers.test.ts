@@ -187,6 +187,19 @@ describe('G3 — sex hormone + PSA + micronutrient additions', () => {
     for (const key of ['progesterone', 'estradiol', 'psa', 'zinc', 'selenium', 'copper']) {
       expect(BIOMARKER_CANONICAL_KEYS).toContain(key);
     }
+    // Pin the total so an accidental duplicate entry or silent extra
+    // addition is caught. Mirrors the G2 vital-signs registry pattern.
+    expect(BIOMARKER_CANONICAL_KEYS.length).toBe(BIOMARKER_REGISTRY.length);
+    expect(new Set(BIOMARKER_CANONICAL_KEYS).size).toBe(BIOMARKER_CANONICAL_KEYS.length);
+  });
+
+  it('categorises PSA as tumor_marker (not hormone) so hormone-group queries stay clean', () => {
+    // PSA is a serine protease used as a prostate-cancer screening/monitoring
+    // marker. It is not a hormone. Keeping it under `tumor_marker` prevents
+    // downstream `category === 'hormone'` aggregations from including it
+    // alongside testosterone, cortisol, etc.
+    expect(resolveBiomarker('PSA')?.category).toBe('tumor_marker');
+    expect(getBiomarker('psa')?.category).toBe('tumor_marker');
   });
 
   it('pre-existing alias resolution still works (no collisions introduced)', () => {
