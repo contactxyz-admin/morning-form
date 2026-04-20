@@ -330,7 +330,7 @@ The registered topic policies (`listTopicPolicyKeys()`) are the closed set of va
 
 ---
 
-- [ ] **U5: Chat UI at `/ask`**
+- [x] **U5: Chat UI at `/ask`**
 
 **Goal:** Consumer-friendly chat surface: message list, composer, streaming assistant bubbles with "Asked <specialist>" chip, clickable citations, GP-prep handoff.
 

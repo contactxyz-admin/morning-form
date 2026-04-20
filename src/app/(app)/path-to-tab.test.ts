@@ -7,6 +7,8 @@ describe('resolveActiveTab', () => {
     ['/check-in', 'home'],
     ['/intake', 'home'],
     ['/intake/upload', 'home'],
+    ['/ask', 'home'],
+    ['/ask?seed=ferritin', 'home'],
     ['/record', 'record'],
     ['/record/source/abc123', 'record'],
     ['/topics/iron', 'record'],
