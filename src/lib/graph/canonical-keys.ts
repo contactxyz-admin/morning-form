@@ -133,13 +133,67 @@ export interface SymptomEpisodeKeyInput {
   parentSymptomKey?: string;
 }
 
+export interface ReferralKeyInput {
+  referredAt: string | Date;
+  /** Free-form service the patient is being referred to (e.g. "Cardiology"). */
+  serviceDisplay: string;
+}
+
+export interface ProcedureKeyInput {
+  performedAt: string | Date;
+  /** Free-form procedure label (e.g. "ECG", "Blood draw"). */
+  procedureDisplay: string;
+  /**
+   * Optional provider-assigned encounter identifier. When present, it is
+   * slugified and folded into the key to disambiguate repeat procedures
+   * on the same day at the same service. Mirrors `encounter.encounterRef`.
+   */
+  encounterRef?: string;
+}
+
+export interface InterventionEventKeyInput {
+  /**
+   * Canonical key of the intervention this event relates to (typically the
+   * medication / lifestyle / behaviour node). Must already match
+   * `CANONICAL_KEY_RE` — embedded as-is, same contract as
+   * `symptom_episode.parentSymptomKey`.
+   */
+  parentKey: string;
+  occurredAt: string | Date;
+  /**
+   * Free-form event kind (extractor emits values like 'started',
+   * 'taken_as_prescribed', 'missed_dose', 'dose_changed', 'stopped',
+   * 'side_effect'). Slugified so new kinds don't need schema changes.
+   */
+  eventKind: string;
+}
+
 export function canonicalKeyFor(type: 'encounter', input: EncounterKeyInput): string;
 export function canonicalKeyFor(type: 'allergy', input: string): string;
 export function canonicalKeyFor(type: 'immunisation', input: string): string;
 export function canonicalKeyFor(type: 'symptom_episode', input: SymptomEpisodeKeyInput): string;
+export function canonicalKeyFor(type: 'referral', input: ReferralKeyInput): string;
+export function canonicalKeyFor(type: 'procedure', input: ProcedureKeyInput): string;
 export function canonicalKeyFor(
-  type: 'encounter' | 'allergy' | 'immunisation' | 'symptom_episode',
-  input: EncounterKeyInput | SymptomEpisodeKeyInput | string,
+  type: 'intervention_event',
+  input: InterventionEventKeyInput,
+): string;
+export function canonicalKeyFor(
+  type:
+    | 'encounter'
+    | 'allergy'
+    | 'immunisation'
+    | 'symptom_episode'
+    | 'referral'
+    | 'procedure'
+    | 'intervention_event',
+  input:
+    | EncounterKeyInput
+    | SymptomEpisodeKeyInput
+    | ReferralKeyInput
+    | ProcedureKeyInput
+    | InterventionEventKeyInput
+    | string,
 ): string {
   switch (type) {
     case 'encounter': {
@@ -199,6 +253,68 @@ export function canonicalKeyFor(
         ? `episode_${parentSymptomKey}_${stamp}`
         : `episode_${stamp}`;
       return assertCanonical(key);
+    }
+    case 'referral': {
+      const { referredAt, serviceDisplay } = input as ReferralKeyInput;
+      const { yyyy, mm, dd, hh, min, ss } = datePartsFromString(referredAt);
+      const slug = slugify(serviceDisplay);
+      if (!slug) {
+        throw new Error(
+          `canonicalKeyFor('referral'): empty slug for serviceDisplay "${serviceDisplay}"`,
+        );
+      }
+      // Same `hasTime` input-shape check as encounter — fold hhmmss when the
+      // caller supplied a Date or a timestamped ISO string, skip it for bare
+      // 'YYYY-MM-DD' so server-TZ midnight conversions don't mutate the key.
+      const hasTime =
+        referredAt instanceof Date ? true : /[T ]\d{2}:\d{2}/.test(referredAt);
+      const parts = [
+        `referral_${slug}_${yyyy}_${mm}_${dd}`,
+        hasTime ? `${hh}${min}${ss}` : null,
+      ].filter((p): p is string => Boolean(p));
+      return assertCanonical(parts.join('_'));
+    }
+    case 'procedure': {
+      const { performedAt, procedureDisplay, encounterRef } = input as ProcedureKeyInput;
+      const { yyyy, mm, dd, hh, min, ss } = datePartsFromString(performedAt);
+      const slug = slugify(procedureDisplay);
+      if (!slug) {
+        throw new Error(
+          `canonicalKeyFor('procedure'): empty slug for procedureDisplay "${procedureDisplay}"`,
+        );
+      }
+      const hasTime =
+        performedAt instanceof Date ? true : /[T ]\d{2}:\d{2}/.test(performedAt);
+      const refSlug = encounterRef ? slugify(encounterRef) : '';
+      const parts = [
+        `procedure_${slug}_${yyyy}_${mm}_${dd}`,
+        hasTime ? `${hh}${min}${ss}` : null,
+        refSlug || null,
+      ].filter((p): p is string => Boolean(p));
+      return assertCanonical(parts.join('_'));
+    }
+    case 'intervention_event': {
+      const { parentKey, occurredAt, eventKind } = input as InterventionEventKeyInput;
+      if (!CANONICAL_KEY_RE.test(parentKey)) {
+        throw new Error(
+          `canonicalKeyFor('intervention_event'): parentKey "${parentKey}" does not match canonical-key grammar`,
+        );
+      }
+      const kindSlug = slugify(eventKind);
+      if (!kindSlug) {
+        throw new Error(
+          `canonicalKeyFor('intervention_event'): empty slug for eventKind "${eventKind}"`,
+        );
+      }
+      const { yyyy, mm, dd, hh, min, ss } = datePartsFromString(occurredAt);
+      const hasTime =
+        occurredAt instanceof Date ? true : /[T ]\d{2}:\d{2}/.test(occurredAt);
+      const parts = [
+        `intervention_event_${parentKey}_${yyyy}_${mm}_${dd}`,
+        hasTime ? `${hh}${min}${ss}` : null,
+        kindSlug,
+      ].filter((p): p is string => Boolean(p));
+      return assertCanonical(parts.join('_'));
     }
     default: {
       const exhaustive: never = type;
