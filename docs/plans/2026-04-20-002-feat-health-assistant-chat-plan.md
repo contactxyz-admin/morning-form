@@ -213,7 +213,7 @@ The registered topic policies (`listTopicPolicyKeys()`) are the closed set of va
 
 ---
 
-- [ ] **U2: Intent router (free-text → topicKey)**
+- [x] **U2: Intent router (free-text → topicKey)**
 
 **Goal:** A deterministic, structured-output LLM call that maps a user utterance (+ short recent history) to one of the registered topic policies or an explicit out-of-scope outcome.
 
@@ -253,7 +253,7 @@ The registered topic policies (`listTopicPolicyKeys()`) are the closed set of va
 
 ---
 
-- [ ] **U3: Chat turn runtime (persistence + scribe wrapper)**
+- [x] **U3: Chat turn runtime (persistence + scribe wrapper)**
 
 **Goal:** A server-side helper that persists the user message, calls the router, invokes `execute()` with the routed topicKey and recent history, persists the assistant message, and returns a stream. One function, one invariant set.
 
@@ -295,7 +295,7 @@ The registered topic policies (`listTopicPolicyKeys()`) are the closed set of va
 
 ---
 
-- [ ] **U4: Chat API route (SSE streaming)**
+- [x] **U4: Chat API route (SSE streaming)**
 
 **Goal:** `POST /api/chat/send` — a thin HTTP wrapper around `runChatTurn` that handles auth, input validation, and SSE serialization.
 
