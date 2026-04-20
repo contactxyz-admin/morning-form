@@ -11,6 +11,7 @@
  */
 import { ALLERGY_REACTANT_REGISTRY, resolveAllergyReactant } from './attributes/allergy-registry';
 import { IMMUNISATION_VACCINE_REGISTRY, resolveVaccine } from './attributes/immunisation-registry';
+import type { InterventionEventKind } from './attributes/intervention_event';
 
 /** Mirrors `CANONICAL_KEY_RE` in src/lib/intake/extract.ts. Duplicated to
  *  avoid a deps cycle; the intake import still owns write-time validation. */
@@ -81,6 +82,19 @@ function tokenisedRegistryMatch<T extends { aliases: readonly string[] }>(
   return best?.entry;
 }
 
+/**
+ * Was the caller's date input actually time-bearing? A Date instance always
+ * carries time; an ISO string is time-bearing only when it contains an
+ * `HH:MM` component (either `T`- or space-separated). Checked at input
+ * provenance, not against the UTC-converted hour/min/sec parts — inspecting
+ * those would fold the key for any Date constructed in a non-UTC timezone
+ * (server-TZ-dependent keys) and would silently skip folding for an
+ * offset-suffixed ISO that happens to normalise to midnight UTC.
+ */
+function detectHasTime(value: string | Date): boolean {
+  return value instanceof Date ? true : /[T ]\d{2}:\d{2}/.test(value);
+}
+
 function datePartsFromString(value: string | Date): {
   yyyy: string;
   mm: string;
@@ -133,13 +147,71 @@ export interface SymptomEpisodeKeyInput {
   parentSymptomKey?: string;
 }
 
+export interface ReferralKeyInput {
+  referredAt: string | Date;
+  /** Free-form service the patient is being referred to (e.g. "Cardiology"). */
+  serviceDisplay: string;
+}
+
+export interface ProcedureKeyInput {
+  performedAt: string | Date;
+  /** Free-form procedure label (e.g. "ECG", "Blood draw"). */
+  procedureDisplay: string;
+  /**
+   * Optional provider-assigned encounter identifier. Disambiguator priority
+   * mirrors `encounter.encounterRef`: when present, it supersedes time-based
+   * folding (refSlug wins over hhmmss). This avoids a re-import divergence
+   * where the same logical procedure, sent once with a bare date and again
+   * with a timestamp, would otherwise produce two different canonical keys
+   * and a duplicate node.
+   */
+  encounterRef?: string;
+}
+
+export interface InterventionEventKeyInput {
+  /**
+   * Canonical key of the intervention this event relates to (typically the
+   * medication / lifestyle / behaviour node). Must already match
+   * `CANONICAL_KEY_RE` — embedded as-is, same contract as
+   * `symptom_episode.parentSymptomKey`.
+   */
+  parentKey: string;
+  occurredAt: string | Date;
+  /**
+   * Closed enum of event kinds. Kept aligned with
+   * `InterventionEventAttributesSchema.eventKind` so a key generated here
+   * is guaranteed to validate at attribute-write time. New kinds require
+   * adding them to `INTERVENTION_EVENT_KINDS` in attributes/intervention_event.ts.
+   */
+  eventKind: InterventionEventKind;
+}
+
 export function canonicalKeyFor(type: 'encounter', input: EncounterKeyInput): string;
 export function canonicalKeyFor(type: 'allergy', input: string): string;
 export function canonicalKeyFor(type: 'immunisation', input: string): string;
 export function canonicalKeyFor(type: 'symptom_episode', input: SymptomEpisodeKeyInput): string;
+export function canonicalKeyFor(type: 'referral', input: ReferralKeyInput): string;
+export function canonicalKeyFor(type: 'procedure', input: ProcedureKeyInput): string;
 export function canonicalKeyFor(
-  type: 'encounter' | 'allergy' | 'immunisation' | 'symptom_episode',
-  input: EncounterKeyInput | SymptomEpisodeKeyInput | string,
+  type: 'intervention_event',
+  input: InterventionEventKeyInput,
+): string;
+export function canonicalKeyFor(
+  type:
+    | 'encounter'
+    | 'allergy'
+    | 'immunisation'
+    | 'symptom_episode'
+    | 'referral'
+    | 'procedure'
+    | 'intervention_event',
+  input:
+    | EncounterKeyInput
+    | SymptomEpisodeKeyInput
+    | ReferralKeyInput
+    | ProcedureKeyInput
+    | InterventionEventKeyInput
+    | string,
 ): string {
   switch (type) {
     case 'encounter': {
@@ -158,7 +230,7 @@ export function canonicalKeyFor(
       // keys) and would silently skip folding for an offset-suffixed ISO
       // that happens to normalise to midnight UTC.
       const refSlug = encounterRef ? slugify(encounterRef) : '';
-      const hasTime = date instanceof Date ? true : /[T ]\d{2}:\d{2}/.test(date);
+      const hasTime = detectHasTime(date);
       const disambiguator = refSlug || (hasTime ? `${hh}${min}${ss}` : '');
       const parts = [
         `encounter_${yyyy}_${mm}_${dd}`,
@@ -189,16 +261,66 @@ export function canonicalKeyFor(
       const { onsetAt, parentSymptomKey } = input as SymptomEpisodeKeyInput;
       const { yyyy, mm, dd, hh, min, ss } = datePartsFromString(onsetAt);
       const stamp = `${yyyy}_${mm}_${dd}_${hh}${min}${ss}`;
-      // Parent key must already match the canonical-key grammar — embed as-is.
-      if (parentSymptomKey && !CANONICAL_KEY_RE.test(parentSymptomKey)) {
-        throw new Error(
-          `canonicalKeyFor('symptom_episode'): parentSymptomKey "${parentSymptomKey}" does not match canonical-key grammar`,
-        );
+      if (parentSymptomKey) {
+        assertEmbeddableKey('symptom_episode', 'parentSymptomKey', parentSymptomKey);
       }
       const key = parentSymptomKey
         ? `episode_${parentSymptomKey}_${stamp}`
         : `episode_${stamp}`;
       return assertCanonical(key);
+    }
+    case 'referral': {
+      const { referredAt, serviceDisplay } = input as ReferralKeyInput;
+      const { yyyy, mm, dd, hh, min, ss } = datePartsFromString(referredAt);
+      const slug = slugify(serviceDisplay);
+      if (!slug) {
+        throw new Error(
+          `canonicalKeyFor('referral'): empty slug for serviceDisplay "${serviceDisplay}"`,
+        );
+      }
+      const parts = [
+        `referral_${slug}_${yyyy}_${mm}_${dd}`,
+        detectHasTime(referredAt) ? `${hh}${min}${ss}` : null,
+      ].filter((p): p is string => Boolean(p));
+      return assertCanonical(parts.join('_'));
+    }
+    case 'procedure': {
+      const { performedAt, procedureDisplay, encounterRef } = input as ProcedureKeyInput;
+      const { yyyy, mm, dd, hh, min, ss } = datePartsFromString(performedAt);
+      const slug = slugify(procedureDisplay);
+      if (!slug) {
+        throw new Error(
+          `canonicalKeyFor('procedure'): empty slug for procedureDisplay "${procedureDisplay}"`,
+        );
+      }
+      // Disambiguator selection mirrors encounter: explicit encounterRef
+      // supersedes time-based folding. A re-import of the same procedure
+      // sent once with a bare date and once with a timestamp collapses onto
+      // a single key whenever encounterRef is present.
+      const refSlug = encounterRef ? slugify(encounterRef) : '';
+      const disambiguator = refSlug || (detectHasTime(performedAt) ? `${hh}${min}${ss}` : '');
+      const parts = [
+        `procedure_${slug}_${yyyy}_${mm}_${dd}`,
+        disambiguator || null,
+      ].filter((p): p is string => Boolean(p));
+      return assertCanonical(parts.join('_'));
+    }
+    case 'intervention_event': {
+      const { parentKey, occurredAt, eventKind } = input as InterventionEventKeyInput;
+      assertEmbeddableKey('intervention_event', 'parentKey', parentKey);
+      const kindSlug = slugify(eventKind);
+      if (!kindSlug) {
+        throw new Error(
+          `canonicalKeyFor('intervention_event'): empty slug for eventKind "${eventKind}"`,
+        );
+      }
+      const { yyyy, mm, dd, hh, min, ss } = datePartsFromString(occurredAt);
+      const parts = [
+        `intervention_event_${parentKey}_${yyyy}_${mm}_${dd}`,
+        detectHasTime(occurredAt) ? `${hh}${min}${ss}` : null,
+        kindSlug,
+      ].filter((p): p is string => Boolean(p));
+      return assertCanonical(parts.join('_'));
     }
     default: {
       const exhaustive: never = type;
@@ -212,4 +334,22 @@ function assertCanonical(key: string): string {
     throw new Error(`canonicalKeyFor produced invalid key "${key}" (expected /${CANONICAL_KEY_RE.source}/)`);
   }
   return key;
+}
+
+/**
+ * Stricter gate for caller-supplied keys that are embedded verbatim into a
+ * larger canonical key (parentSymptomKey, parentKey). `CANONICAL_KEY_RE`
+ * allows a trailing underscore (e.g. `foo_`) by grammar; concatenating such
+ * a value into `episode_foo__2026_...` would still pass `assertCanonical`
+ * because the overall string remains in the grammar, leaving a silent
+ * double-underscore boundary that any split-on-`_` reader would misparse.
+ * This guard rejects the boundary case at the point of embed so the
+ * produced key is cleanly split-reversible.
+ */
+function assertEmbeddableKey(type: string, field: string, value: string): void {
+  if (!CANONICAL_KEY_RE.test(value) || value.endsWith('_')) {
+    throw new Error(
+      `canonicalKeyFor('${type}'): ${field} "${value}" does not match canonical-key grammar`,
+    );
+  }
 }

@@ -28,6 +28,8 @@ const LIFESTYLE_SUBTYPES = [
   'exposure_mold',
   'exposure_environmental',
   'exercise_program',
+  'sun_exposure',
+  'social_isolation',
   'other',
 ] as const;
 export type LifestyleSubtype = (typeof LIFESTYLE_SUBTYPES)[number];
@@ -165,6 +167,26 @@ const ExerciseProgramBranch = z
   })
   .strict();
 
+const SunExposureBranch = z
+  .object({
+    lifestyleSubtype: z.literal('sun_exposure'),
+    sessionsPerWeek: z.number().optional(),
+    avgDurationMinutes: z.number().optional(),
+    uvIndex: z.number().optional(),
+    usedSunscreen: z.boolean().optional(),
+    ...BaseLifestyleFields,
+  })
+  .strict();
+
+const SocialIsolationBranch = z
+  .object({
+    lifestyleSubtype: z.literal('social_isolation'),
+    selfRated: z.number().min(0).max(10).optional(),
+    pattern: z.enum(['rare', 'occasional', 'frequent', 'daily']).optional(),
+    ...BaseLifestyleFields,
+  })
+  .strict();
+
 const OtherBranch = z
   .object({
     lifestyleSubtype: z.literal('other'),
@@ -216,6 +238,8 @@ const DiscriminatedTypedBranches = z.discriminatedUnion('lifestyleSubtype', [
   ExposureMoldBranch,
   ExposureEnvironmentalBranch,
   ExerciseProgramBranch,
+  SunExposureBranch,
+  SocialIsolationBranch,
   OtherBranch,
   SupplementSentinelBranch,
 ]);

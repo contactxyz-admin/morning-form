@@ -157,6 +157,200 @@ describe("canonicalKeyFor('symptom_episode', …)", () => {
   });
 });
 
+describe("G5 — canonicalKeyFor('referral', …)", () => {
+  it('builds referral_<slug>_<yyyy_mm_dd> from bare date + serviceDisplay', () => {
+    expect(
+      canonicalKeyFor('referral', { referredAt: '2026-03-04', serviceDisplay: 'Cardiology' }),
+    ).toBe('referral_cardiology_2026_03_04');
+  });
+
+  it('collapses stopword/case variants to the same key', () => {
+    const a = canonicalKeyFor('referral', {
+      referredAt: '2026-03-04',
+      serviceDisplay: 'Cardiology',
+    });
+    const b = canonicalKeyFor('referral', {
+      referredAt: '2026-03-04',
+      serviceDisplay: 'The Cardiology Department',
+    });
+    expect(a).toBe('referral_cardiology_2026_03_04');
+    // "Department" is not a stopword, so b keeps it; this is deliberate —
+    // stopword stripping must not obliterate disambiguators like "dept".
+    expect(b).toBe('referral_cardiology_department_2026_03_04');
+  });
+
+  it('folds hhmmss when a Date instance or timestamped ISO is provided', () => {
+    expect(
+      canonicalKeyFor('referral', {
+        referredAt: '2026-03-04T09:15:00Z',
+        serviceDisplay: 'Cardiology',
+      }),
+    ).toBe('referral_cardiology_2026_03_04_091500');
+    expect(
+      canonicalKeyFor('referral', {
+        referredAt: new Date('2026-03-04T09:15:00Z'),
+        serviceDisplay: 'Cardiology',
+      }),
+    ).toBe('referral_cardiology_2026_03_04_091500');
+  });
+
+  it('throws when serviceDisplay slugifies to empty', () => {
+    expect(() =>
+      canonicalKeyFor('referral', { referredAt: '2026-03-04', serviceDisplay: 'the of and' }),
+    ).toThrow();
+  });
+
+  it('throws on an invalid referredAt timestamp', () => {
+    expect(() =>
+      canonicalKeyFor('referral', { referredAt: 'not-a-date', serviceDisplay: 'Cardiology' }),
+    ).toThrow();
+  });
+});
+
+describe("G5 — canonicalKeyFor('procedure', …)", () => {
+  it('builds procedure_<slug>_<yyyy_mm_dd>_<hhmmss> from ISO with time', () => {
+    expect(
+      canonicalKeyFor('procedure', {
+        performedAt: '2026-02-10T14:30:00Z',
+        procedureDisplay: 'ECG',
+      }),
+    ).toBe('procedure_ecg_2026_02_10_143000');
+  });
+
+  it('omits hhmmss when performedAt is a bare date string (mirrors encounter)', () => {
+    expect(
+      canonicalKeyFor('procedure', { performedAt: '2026-02-10', procedureDisplay: 'ECG' }),
+    ).toBe('procedure_ecg_2026_02_10');
+  });
+
+  it('always folds hhmmss when performedAt is a Date instance', () => {
+    expect(
+      canonicalKeyFor('procedure', {
+        performedAt: new Date('2026-02-10T14:30:00Z'),
+        procedureDisplay: 'ECG',
+      }),
+    ).toBe('procedure_ecg_2026_02_10_143000');
+  });
+
+  it('folds encounterRef when present (same-day same-procedure disambiguation)', () => {
+    expect(
+      canonicalKeyFor('procedure', {
+        performedAt: '2026-02-10',
+        procedureDisplay: 'Blood draw',
+        encounterRef: 'EPR-44112',
+      }),
+    ).toBe('procedure_blood_draw_2026_02_10_epr_44112');
+  });
+
+  it('lets encounterRef supersede hhmmss so a timestamped re-import of the same ref collapses', () => {
+    // Mirrors encounter semantics. Without this behaviour a system that
+    // sometimes sends `performedAt: '2026-02-10'` and sometimes
+    // `performedAt: '2026-02-10T14:30:00Z'` for the same logical procedure
+    // (same encounterRef) would produce two distinct canonical keys and a
+    // duplicate node on re-import.
+    const bareDate = canonicalKeyFor('procedure', {
+      performedAt: '2026-02-10',
+      procedureDisplay: 'Blood draw',
+      encounterRef: 'EPR-44112',
+    });
+    const timestamped = canonicalKeyFor('procedure', {
+      performedAt: '2026-02-10T14:30:00Z',
+      procedureDisplay: 'Blood draw',
+      encounterRef: 'EPR-44112',
+    });
+    expect(bareDate).toBe(timestamped);
+    expect(bareDate).toBe('procedure_blood_draw_2026_02_10_epr_44112');
+  });
+
+  it('throws when procedureDisplay slugifies to empty', () => {
+    expect(() =>
+      canonicalKeyFor('procedure', { performedAt: '2026-02-10', procedureDisplay: 'the of and' }),
+    ).toThrow();
+  });
+
+  it('throws on an invalid performedAt timestamp', () => {
+    expect(() =>
+      canonicalKeyFor('procedure', { performedAt: 'not-a-date', procedureDisplay: 'ECG' }),
+    ).toThrow();
+  });
+});
+
+describe("G5 — canonicalKeyFor('intervention_event', …)", () => {
+  it('embeds parentKey and eventKind in intervention_event_<parent>_<date>_<kind>', () => {
+    expect(
+      canonicalKeyFor('intervention_event', {
+        parentKey: 'ferrous_sulfate_200mg',
+        occurredAt: '2026-03-15',
+        eventKind: 'taken_as_prescribed',
+      }),
+    ).toBe('intervention_event_ferrous_sulfate_200mg_2026_03_15_taken_as_prescribed');
+  });
+
+  it('folds hhmmss between date and eventKind when occurredAt has a time', () => {
+    expect(
+      canonicalKeyFor('intervention_event', {
+        parentKey: 'ferrous_sulfate_200mg',
+        occurredAt: '2026-03-15T08:00:00Z',
+        eventKind: 'taken_as_prescribed',
+      }),
+    ).toBe('intervention_event_ferrous_sulfate_200mg_2026_03_15_080000_taken_as_prescribed');
+  });
+
+  it('folds hhmmss when occurredAt is a Date instance (not just ISO string)', () => {
+    // Exercises the `instanceof Date` branch of detectHasTime for this overload.
+    expect(
+      canonicalKeyFor('intervention_event', {
+        parentKey: 'ferrous_sulfate_200mg',
+        occurredAt: new Date('2026-03-15T08:00:00Z'),
+        eventKind: 'taken_as_prescribed',
+      }),
+    ).toBe('intervention_event_ferrous_sulfate_200mg_2026_03_15_080000_taken_as_prescribed');
+  });
+
+  it('accepts the full closed eventKind enum verbatim (already snake_case)', () => {
+    expect(
+      canonicalKeyFor('intervention_event', {
+        parentKey: 'sertraline_50mg',
+        occurredAt: '2026-03-15',
+        eventKind: 'side_effect',
+      }),
+    ).toBe('intervention_event_sertraline_50mg_2026_03_15_side_effect');
+  });
+
+  it('throws when parentKey violates the canonical-key grammar', () => {
+    expect(() =>
+      canonicalKeyFor('intervention_event', {
+        parentKey: 'Not A Canonical Key',
+        occurredAt: '2026-03-15',
+        eventKind: 'taken_as_prescribed',
+      }),
+    ).toThrow();
+  });
+
+  it('throws on an invalid occurredAt timestamp', () => {
+    expect(() =>
+      canonicalKeyFor('intervention_event', {
+        parentKey: 'ferrous_sulfate_200mg',
+        occurredAt: 'not-a-date',
+        eventKind: 'taken_as_prescribed',
+      }),
+    ).toThrow();
+  });
+
+  it('rejects parentKey with a trailing underscore (would produce double-underscore in output)', () => {
+    // Grammar alone can't catch this: CANONICAL_KEY_RE permits `foo_` and the
+    // assembled `intervention_event_foo__2026_...` also passes the regex,
+    // leaving a silent double-underscore boundary. Guard at the embed site.
+    expect(() =>
+      canonicalKeyFor('intervention_event', {
+        parentKey: 'ferrous_sulfate_200mg_',
+        occurredAt: '2026-03-15',
+        eventKind: 'taken_as_prescribed',
+      }),
+    ).toThrow(/trailing|underscore|grammar/i);
+  });
+});
+
 describe('every generated key matches CANONICAL_KEY_RE', () => {
   const samples: string[] = [
     canonicalKeyFor('encounter', { date: '2026-03-12', serviceDisplay: 'GP surgery' }),
@@ -166,6 +360,16 @@ describe('every generated key matches CANONICAL_KEY_RE', () => {
     canonicalKeyFor('immunisation', 'Pfizer COVID-19 (3rd dose)'),
     canonicalKeyFor('immunisation', 'Bespoke Travel Vaccine'),
     canonicalKeyFor('symptom_episode', { onsetAt: '2026-03-12T14:45:00Z' }),
+    canonicalKeyFor('referral', { referredAt: '2026-03-04', serviceDisplay: 'Cardiology' }),
+    canonicalKeyFor('procedure', {
+      performedAt: '2026-02-10T14:30:00Z',
+      procedureDisplay: 'ECG',
+    }),
+    canonicalKeyFor('intervention_event', {
+      parentKey: 'ferrous_sulfate_200mg',
+      occurredAt: '2026-03-15',
+      eventKind: 'taken_as_prescribed',
+    }),
   ];
 
   it.each(samples)('matches regex: %s', (key) => {

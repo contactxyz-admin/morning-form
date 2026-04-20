@@ -41,16 +41,37 @@ export const CANONICAL_METRICS = [
   { canonical: 'sleep_efficiency',             alias: 'efficiency',       unit: '%',           category: 'sleep'    },
   { canonical: 'sleep_duration_deep',          alias: 'deep_sleep',       unit: 'hours',       category: 'sleep'    },
   { canonical: 'sleep_duration_rem',           alias: 'rem_sleep',        unit: 'hours',       category: 'sleep'    },
+  { canonical: 'sleep_duration_light',         alias: 'light_sleep',      unit: 'hours',       category: 'sleep'    },
+  { canonical: 'sleep_latency_minutes',        alias: 'sleep_latency',    unit: 'minutes',     category: 'sleep'    },
 
   // Activity
   { canonical: 'steps_total',                  alias: 'steps',            unit: 'steps',       category: 'activity' },
   { canonical: 'calories_burned',              alias: 'calories',         unit: 'kcal',        category: 'activity' },
   { canonical: 'active_minutes',               alias: 'active_minutes',   unit: 'minutes',     category: 'activity' },
   { canonical: 'strain_score',                 alias: 'strain',           unit: 'score',       category: 'activity' },
+  { canonical: 'activity_zone_minutes_moderate', alias: 'zone_mod',       unit: 'minutes',     category: 'activity' },
+  { canonical: 'activity_zone_minutes_vigorous', alias: 'zone_vig',       unit: 'minutes',     category: 'activity' },
+  { canonical: 'vo2_max',                      alias: 'vo2_max',          unit: 'mL/kg/min',   category: 'activity' },
 
   // Body
+  // D1 (per plan 2026-04-20-001): re-using existing HealthCategory values rather than
+  // extending the union. `hydration_intake_daily` and `menstrual_cycle_day` fit `body`;
+  // `vo2_max` fits `activity`. `aggregateToSummary` is keyed on alias, not category, so
+  // this carries no averaging risk.
   { canonical: 'body_temperature_delta',       alias: 'temperature_delta', unit: '°C',         category: 'body'     },
+  { canonical: 'hydration_intake_daily',       alias: 'hydration',         unit: 'mL',         category: 'body'     },
+  { canonical: 'menstrual_cycle_day',          alias: 'cycle_day',         unit: 'day',        category: 'body'     },
+
+  // Metabolic (glucose family)
+  // `blood_glucose` is a raw reading; the three additions below are derived windows
+  // (time-in-range, mean, coefficient of variation) used by CGM-stream ingestion.
   { canonical: 'blood_glucose',                alias: 'glucose',           unit: 'mg/dL',      category: 'metabolic' },
+  { canonical: 'glucose_time_in_range',        alias: 'glucose_tir',       unit: '%',          category: 'metabolic' },
+  { canonical: 'glucose_mean',                 alias: 'glucose_mean',      unit: 'mg/dL',      category: 'metabolic' },
+  { canonical: 'glucose_coefficient_of_variation', alias: 'glucose_cv',    unit: '%',          category: 'metabolic' },
+
+  // Recovery (wearable SpO₂ stream; vital-sign SpO₂ spot-reading lives on vital-signs-registry)
+  { canonical: 'blood_oxygen_saturation',      alias: 'spo2_stream',       unit: '%',          category: 'recovery' },
 ] as const satisfies readonly CanonicalMetric[];
 
 export type RuleAlias = (typeof CANONICAL_METRICS)[number]['alias'];
