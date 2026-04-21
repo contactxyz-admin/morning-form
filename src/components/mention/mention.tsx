@@ -56,7 +56,7 @@ export function Mention({ nodeId, chunkId, excerpt, index, className }: Props) {
         type="button"
         onClick={onClick}
         aria-haspopup="dialog"
-        aria-expanded={open || undefined}
+        aria-expanded={open}
         aria-busy={open && entry?.status === 'loading' ? true : undefined}
         title={title}
         className={cn(

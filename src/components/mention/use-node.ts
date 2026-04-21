@@ -21,15 +21,15 @@ export function useNode(
 
   const subscribe = useCallback(
     (onChange: () => void) => {
-      if (!nodeId) return () => {};
+      if (!enabled || !nodeId) return () => {};
       return defaultNodeCache.subscribe(nodeId, onChange);
     },
-    [nodeId],
+    [nodeId, enabled],
   );
 
   const getSnapshot = useCallback(
-    () => (nodeId ? defaultNodeCache.get(nodeId) : undefined),
-    [nodeId],
+    () => (enabled && nodeId ? defaultNodeCache.get(nodeId) : undefined),
+    [nodeId, enabled],
   );
 
   return useSyncExternalStore(subscribe, getSnapshot, () => undefined);

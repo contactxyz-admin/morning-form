@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Module-level registry of graph nodes keyed by id.
  *
@@ -86,15 +88,15 @@ export function createNodeCache(fetcher: Fetcher): NodeCache {
       return entries.get(nodeId)!;
     },
     subscribe(nodeId, listener) {
-      let set = listeners.get(nodeId);
-      if (!set) {
-        set = new Set();
-        listeners.set(nodeId, set);
+      let subs = listeners.get(nodeId);
+      if (!subs) {
+        subs = new Set();
+        listeners.set(nodeId, subs);
       }
-      set.add(listener);
+      subs.add(listener);
       return () => {
-        set!.delete(listener);
-        if (set!.size === 0) listeners.delete(nodeId);
+        subs!.delete(listener);
+        if (subs!.size === 0) listeners.delete(nodeId);
       };
     },
     reset() {
@@ -116,7 +118,10 @@ export async function fetchNodeViaProvenance(nodeId: string): Promise<GraphNodeW
     { cache: 'no-store' },
   );
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = (await res.json()) as { node: GraphNodeWire };
+  const json = (await res.json()) as { node?: GraphNodeWire };
+  if (!json.node || typeof json.node.id !== 'string') {
+    throw new Error('Malformed provenance response: missing node');
+  }
   return json.node;
 }
 

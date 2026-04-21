@@ -161,7 +161,7 @@ function CitationList({ citations }: { citations: readonly Citation[] }) {
   return (
     <ul className="mt-1 flex flex-wrap gap-1.5 pl-1" aria-label="Sources">
       {citations.map((c, i) => (
-        <li key={`${c.nodeId}-${c.chunkId ?? i}`}>
+        <li key={`${i}-${c.nodeId}-${c.chunkId ?? ''}`}>
           <Mention
             nodeId={c.nodeId}
             chunkId={c.chunkId ?? null}
