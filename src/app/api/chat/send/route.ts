@@ -11,9 +11,14 @@
  * Contract:
  *   Body: { text: string }   (1..2000 chars, trimmed)
  *   Success: text/event-stream with four event kinds:
- *     - `routed`: { topicKey, confidence, reasoning }
+ *     - `routed`: { topicKey: string | null, confidence: number }
+ *                 (null topicKey means out-of-scope)
  *     - `token`:  { text }
- *     - `done`:   { classification, output, citations, topicKey, assistantMessageId }
+ *     - `done`:   { classification, output, citations, topicKey: string | null,
+ *                   assistantMessageId, requestId, auditId: string | null }
+ *                 (requestId/auditId absent on the out-of-scope path because
+ *                 it doesn't hit the scribe; the topic-key fallback path still
+ *                 returns `assistantMessageId` so history replay joins work)
  *     - `error`:  { message }  (mid-stream or pre-routing)
  *   Failure before stream starts: JSON 4xx/5xx.
  *
@@ -35,6 +40,15 @@ import { runChatTurn } from '@/lib/chat/turn';
 import type { TurnEvent } from '@/lib/chat/types';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Wall-clock budget for a single chat turn. A scribe run can retry the LLM
+ * adapter up to 3× per Anthropic turn and iterate up to 7 tool-use turns —
+ * an unbounded turn could occupy a server for many minutes per user. This
+ * cap is combined with `req.signal` (client disconnect) so either source
+ * cuts the generator cleanly and records a `rejected` audit row.
+ */
+const TURN_BUDGET_MS = 90_000;
 
 const BodySchema = z.object({
   text: z.string().trim().min(1).max(2000),
@@ -72,14 +86,26 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
+  // Combine client-disconnect and wall-clock budget. Either abort source
+  // lands in the generator's cancellation checks; `buildSseStream`'s
+  // `cancel()` also fires the local controller if the client disconnects
+  // before any abort upstream has fired.
+  const turnController = new AbortController();
+  const signal = AbortSignal.any([
+    req.signal,
+    AbortSignal.timeout(TURN_BUDGET_MS),
+    turnController.signal,
+  ]);
+
   const turn = runChatTurn({
     db: prisma,
     userId: user.id,
     text: parsed.text,
     scribeLlm,
+    signal,
   });
 
-  const stream = buildSseStream(turn);
+  const stream = buildSseStream(turn, turnController);
 
   return new Response(stream, {
     headers: {
@@ -93,24 +119,34 @@ export async function POST(req: NextRequest): Promise<Response> {
 
 function buildSseStream(
   turn: AsyncGenerator<TurnEvent, void, void>,
+  turnController: AbortController,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
+  let closed = false;
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       const write = (event: string, payload: unknown) => {
-        controller.enqueue(
-          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`),
-        );
+        if (closed) return;
+        try {
+          controller.enqueue(
+            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`),
+          );
+        } catch {
+          // Controller already closed (client disconnect); swallow.
+          closed = true;
+        }
       };
 
       try {
         for await (const ev of turn) {
           switch (ev.type) {
             case 'routed':
+              // `routed.reasoning` is deliberately audit-only and not
+              // shipped to the client (M4). The server persists it on
+              // the user message metadata in runChatTurn.
               write('routed', {
                 topicKey: ev.topicKey,
                 confidence: ev.confidence,
-                reasoning: ev.reasoning,
               });
               break;
             case 'token':
@@ -123,12 +159,15 @@ function buildSseStream(
                 citations: ev.citations,
                 topicKey: ev.topicKey,
                 assistantMessageId: ev.assistantMessageId,
+                requestId: ev.requestId,
+                auditId: ev.auditId,
               });
               break;
             case 'error':
               write('error', { message: ev.message });
               break;
           }
+          if (closed) break;
         }
       } catch (err) {
         // `runChatTurn` catches its own errors and yields an `error` event,
@@ -138,8 +177,20 @@ function buildSseStream(
           message: err instanceof Error ? err.message : 'chat turn failed',
         });
       } finally {
-        controller.close();
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // Already closed; ignore.
+        }
       }
+    },
+    cancel() {
+      // Client disconnected before the generator terminated. Fire our
+      // local controller so `runChatTurn`'s signal-check short-circuits
+      // the next yield and the downstream scribe loop stops.
+      closed = true;
+      turnController.abort();
     },
   });
 }

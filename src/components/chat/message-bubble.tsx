@@ -91,9 +91,17 @@ function AssistantBubble({ message }: { message: AssistantBubbleModel }) {
     return <OutOfScopeBubble content={message.content} pending={message.pending} />;
   }
 
+  // `rejected` outputs are scribe-generated but unsafe — `runChatTurn`
+  // already substitutes the OOS fallback string for the visible content,
+  // so the scribe's `topicKey` would misattribute the fallback to a
+  // specialist that didn't actually answer. Hide the chip in that case
+  // to keep the attribution honest.
+  const showChip =
+    message.topicKey !== null && message.classification !== 'rejected';
+
   return (
     <div className="flex flex-col items-start gap-2">
-      {message.topicKey && <SpecialistChip topicKey={message.topicKey} />}
+      {showChip && <SpecialistChip topicKey={message.topicKey!} />}
 
       <div
         className={cn(

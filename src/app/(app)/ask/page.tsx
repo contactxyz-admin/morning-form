@@ -14,7 +14,7 @@
  * turns.
  */
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
 import { MessageList } from '@/components/chat/message-list';
@@ -59,10 +59,18 @@ export default function AskPage() {
 }
 
 function AskPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const seed = searchParams?.get('seed') ?? undefined;
   const [history, setHistory] = useState<HistoryState>({ kind: 'loading' });
   const [pendingUser, setPendingUser] = useState<UserBubbleModel | null>(null);
+
+  // Clear `?seed=` from the URL after the composer auto-fires so a
+  // remount (back-nav, tab refocus) doesn't re-fire the same turn and
+  // create a duplicate ChatMessage row.
+  const handleSeedSubmitted = useCallback(() => {
+    router.replace('/ask');
+  }, [router]);
 
   const onDone = useCallback(
     (args: {
@@ -208,6 +216,7 @@ function AskPageInner() {
           disabled={composerDisabled}
           onSubmit={handleSubmit}
           initialValue={seed && seed.trim().length > 0 ? seed : undefined}
+          onInitialSubmitted={handleSeedSubmitted}
         />
       </div>
     </div>

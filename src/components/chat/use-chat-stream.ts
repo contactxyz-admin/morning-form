@@ -176,7 +176,18 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
           }
         }
       } catch (err) {
-        if ((err as { name?: string }).name === 'AbortError') return;
+        if ((err as { name?: string }).name === 'AbortError') {
+          // Two abort sources: (1) a superseding `start()` call —
+          // `abortRef.current` now points at the new controller and
+          // the new turn has already set state to `'opening'`; we
+          // must not stomp it. (2) unmount or `reset()` — recover
+          // to idle so the composer re-enables instead of sticking
+          // in `'opening'`.
+          if (abortRef.current === controller) {
+            setState(INITIAL);
+          }
+          return;
+        }
         setState({
           ...INITIAL,
           status: 'error',

@@ -26,6 +26,7 @@
 
 import type { Citation } from '@/lib/topics/types';
 import type { Db } from '@/lib/scribe/tools/types';
+import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import { LLMClient } from '@/lib/llm/client';
 import { execute, type ScribeLLMClient } from '@/lib/scribe/execute';
 import { ScribeAuditWriteError } from '@/lib/scribe/repo';
@@ -59,17 +60,30 @@ export interface RunChatTurnInput {
   readonly historyLimit?: number;
   /** Injection seam for deterministic audit ids in tests. */
   readonly requestId?: string;
+  /**
+   * Cancellation signal. When aborted (client disconnect or wall-clock
+   * budget), the generator stops yielding and the scribe loop short-
+   * circuits at its next turn boundary. The user message is still
+   * persisted if it was written before the abort; assistant persistence
+   * is skipped to avoid orphaned rows for a conversation the user left.
+   */
+  readonly signal?: AbortSignal;
 }
 
 export async function* runChatTurn(
   input: RunChatTurnInput,
 ): AsyncGenerator<TurnEvent, void, void> {
-  const { db, userId, scribeLlm } = input;
+  const { db, userId, scribeLlm, signal } = input;
   const text = input.text.trim();
   const historyLimit = input.historyLimit ?? DEFAULT_HISTORY_LIMIT;
 
   // 1. Persist the user message first so a later failure can't erase it.
   const userMessage = await createChatMessage(db, userId, 'user', text);
+
+  if (signal?.aborted) {
+    yield { type: 'error', message: abortMessage(signal) };
+    return;
+  }
 
   let decision: RouteDecision;
   try {
@@ -108,22 +122,34 @@ export async function* runChatTurn(
     reasoning: decision.reasoning,
   };
 
+  if (signal?.aborted) {
+    yield { type: 'error', message: abortMessage(signal) };
+    return;
+  }
+
   // 5a. Out-of-scope path — no scribe, no ScribeAudit; chat message is the record.
   if (decision.topicKey === null) {
     for (const chunk of chunkForStream(OUT_OF_SCOPE_FALLBACK)) {
       yield { type: 'token', text: chunk };
     }
-    const assistantMessage = await createChatMessage(
-      db,
-      userId,
-      'assistant',
-      OUT_OF_SCOPE_FALLBACK,
-      {
-        topicKey: null,
-        classification: 'out-of-scope-routed',
-        citations: [],
-      },
-    );
+    let assistantMessage;
+    try {
+      assistantMessage = await createChatMessage(
+        db,
+        userId,
+        'assistant',
+        OUT_OF_SCOPE_FALLBACK,
+        {
+          topicKey: null,
+          classification: 'out-of-scope-routed',
+          citations: [],
+        },
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'assistant persistence failed';
+      yield { type: 'error', message };
+      return;
+    }
     yield {
       type: 'done',
       classification: 'out-of-scope-routed',
@@ -131,6 +157,8 @@ export async function* runChatTurn(
       citations: [],
       topicKey: null,
       assistantMessageId: assistantMessage.id,
+      requestId: null,
+      auditId: null,
     };
     return;
   }
@@ -147,6 +175,7 @@ export async function* runChatTurn(
       declaredJudgmentKind: 'pattern-vs-own-history',
       llm: scribeLlm,
       requestId: input.requestId,
+      signal,
     });
   } catch (err) {
     // ScribeAuditWriteError is the structurally-load-bearing D11 breach;
@@ -181,12 +210,14 @@ export async function* runChatTurn(
     yield { type: 'token', text: chunk };
   }
 
-  // 7. Persist the assistant message. If this DB write fails the audit
-  //    row still exists (D11) — the chat history is the only surface
-  //    that's out of sync, and the error event tells the UI to retry.
+  // 7. Persist the assistant message. The audit row has already landed
+  //    (D11) so a persistence failure is a history-only gap, not a safety
+  //    gap. Retry once with a short backoff to paper over transient
+  //    Postgres flakes before surfacing an error; on a persistent
+  //    failure the error event tells the UI to retry.
   let assistantMessage;
   try {
-    assistantMessage = await createChatMessage(db, userId, 'assistant', visibleOutput, {
+    assistantMessage = await persistAssistantMessage(db, userId, visibleOutput, {
       topicKey: decision.topicKey,
       classification: result.classification,
       citations: visibleCitations,
@@ -206,7 +237,44 @@ export async function* runChatTurn(
     citations: visibleCitations,
     topicKey: decision.topicKey,
     assistantMessageId: assistantMessage.id,
+    requestId: result.requestId,
+    auditId: result.auditId,
   };
+}
+
+/**
+ * Persist the assistant message with a single retry on transient failures.
+ * The scribe audit row is already written before this runs (D11), so any
+ * failure here is purely a chat-history drift — we want to retry cheap
+ * before giving up rather than ship a ghost assistant turn.
+ */
+async function persistAssistantMessage(
+  db: Db,
+  userId: string,
+  output: string,
+  metadata: {
+    topicKey: string;
+    classification: SafetyClassification;
+    citations: readonly Citation[];
+    requestId: string;
+    auditId: string;
+  },
+) {
+  try {
+    return await createChatMessage(db, userId, 'assistant', output, metadata);
+  } catch (err) {
+    // One short backoff then a final attempt. The error rethrown on a
+    // second failure surfaces to the caller for the error event path.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    return await createChatMessage(db, userId, 'assistant', output, metadata);
+  }
+}
+
+function abortMessage(signal: AbortSignal): string {
+  const reason = signal.reason;
+  if (reason instanceof Error) return reason.message;
+  if (typeof reason === 'string') return reason;
+  return 'chat turn cancelled';
 }
 
 function extractCitations(output: string): Citation[] {

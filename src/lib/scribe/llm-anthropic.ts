@@ -94,8 +94,9 @@ export class AnthropicScribeLLMClient implements ScribeLLMClient {
       messages: req.messages.map(toAnthropicMessage),
     };
 
-    const response = await this.callWithRetry(() =>
-      this.sdk.messages.create(params),
+    const response = await this.callWithRetry(
+      () => this.sdk.messages.create(params, { signal: req.signal }),
+      req.signal,
     );
 
     const text = response.content
@@ -114,11 +115,18 @@ export class AnthropicScribeLLMClient implements ScribeLLMClient {
     };
   }
 
-  private async callWithRetry<R>(call: () => Promise<R>): Promise<R> {
+  private async callWithRetry<R>(
+    call: () => Promise<R>,
+    signal: AbortSignal | undefined,
+  ): Promise<R> {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      if (signal?.aborted) throw abortErrorFor(signal);
       try {
         return await call();
       } catch (err) {
+        if (isAbortError(err) || signal?.aborted) {
+          throw signal ? abortErrorFor(signal) : err instanceof Error ? err : new Error(String(err));
+        }
         const mapped = mapError(err);
         // Auth is not retryable — wrong key now is still wrong later.
         if (mapped instanceof LLMAuthError) throw mapped;
@@ -232,6 +240,23 @@ function mapError(err: unknown): Error {
   }
   if (err instanceof Error) return new LLMTransientError(0, err.message);
   return new LLMTransientError(0, 'unknown error');
+}
+
+function isAbortError(err: unknown): boolean {
+  if (err instanceof Error) {
+    if (err.name === 'AbortError') return true;
+    if ((err as { code?: string }).code === 'ABORT_ERR') return true;
+  }
+  return false;
+}
+
+function abortErrorFor(signal: AbortSignal): Error {
+  const reason = signal.reason;
+  if (reason instanceof Error) return reason;
+  const message = typeof reason === 'string' ? reason : 'aborted';
+  const err = new Error(message);
+  err.name = 'AbortError';
+  return err;
 }
 
 function backoff(attempt: number): Promise<void> {

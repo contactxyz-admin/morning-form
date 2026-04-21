@@ -36,6 +36,10 @@ export interface DoneEvent {
   readonly citations: readonly Citation[];
   readonly topicKey: string | null;
   readonly assistantMessageId: string;
+  /** Scribe request id (null on the out-of-scope path — no scribe ran). */
+  readonly requestId: string | null;
+  /** ScribeAudit row id (null on the out-of-scope path — no audit). */
+  readonly auditId: string | null;
 }
 
 export interface ErrorEvent {
