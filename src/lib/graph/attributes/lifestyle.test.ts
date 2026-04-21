@@ -69,6 +69,19 @@ describe('G4 — sun_exposure + social_isolation lifestyle subtypes', () => {
     ).toThrow(NodeAttributesValidationError);
   });
 
+  it('accepts social_isolation pattern `none` and `unknown` (MNT-04 parity)', () => {
+    // Parity with alcohol / shift_work pattern enums. `none` = explicit
+    // "doesn't apply to me"; `unknown` = "user didn't say". Both must be
+    // writable without tripping the strict-branch enum check.
+    for (const pattern of ['none', 'unknown'] as const) {
+      const parsed = LifestyleAttributesSchema.parse({
+        lifestyleSubtype: 'social_isolation',
+        pattern,
+      });
+      expect(parsed).toMatchObject({ lifestyleSubtype: 'social_isolation', pattern });
+    }
+  });
+
   it('routes uppercase SUN_EXPOSURE through the preprocess lowercase step', () => {
     // The existing preprocess (added in the CE-review fix) lowercases any
     // lifestyleSubtype string before discriminator lookup. New branches

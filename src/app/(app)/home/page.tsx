@@ -9,6 +9,7 @@ import {
   type RecordAnchorState,
 } from '@/components/home/record-anchor-card';
 import { deriveStatus } from '@/components/home/record-anchor-helpers';
+import { AskAnywhereCard } from '@/components/home/ask-anywhere-card';
 import { getGreeting, formatDate, getTimeOfDay, getDateKey } from '@/lib/utils';
 import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
 import type { HealthSummary, ProtocolItem } from '@/types';
@@ -196,6 +197,9 @@ export default function HomePage() {
             </p>
           </Card>
         )}
+
+        {/* Ask anything — chat entry point, sits alongside the daily brief */}
+        <AskAnywhereCard />
 
         {/* Your record — anchor card, position 3 */}
         <RecordAnchorCard state={recordState} />

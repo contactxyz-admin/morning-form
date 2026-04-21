@@ -81,6 +81,8 @@ export interface ScribeLLMTurnRequest {
   tools: readonly ScribeLLMToolDefinition[];
   model: string;
   temperature: number;
+  /** Cancellation signal; adapters forward to the SDK request options. */
+  signal?: AbortSignal;
 }
 
 export type ScribeLLMStopReason = 'tool_use' | 'end_turn';
@@ -117,6 +119,13 @@ export interface ScribeExecuteRequest {
   requestId?: string;
   /** System prompt; if omitted, a default scope-of-practice prompt is built. */
   systemPrompt?: string;
+  /**
+   * Cancellation signal. Checked at each tool-use loop iteration so an
+   * aborted turn stops calling the LLM without tearing up a half-
+   * finished audit row. The audit upsert at D11 still runs so the
+   * rejected outcome lands — aborted turns are semantically rejections.
+   */
+  signal?: AbortSignal;
 }
 
 export interface ScribeExecuteResult {
@@ -180,12 +189,16 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
   // clinically-safe output), record the audit, then rethrow.
   try {
     for (let step = 0; step < maxCalls + 1; step++) {
+      if (req.signal?.aborted) {
+        throw abortErrorFor(req.signal);
+      }
       const turn = await req.llm.turn({
         system,
         messages,
         tools,
         model: scribe.model ?? DEFAULT_SCRIBE_MODEL,
         temperature: scribe.temperature ?? DEFAULT_SCRIBE_TEMPERATURE,
+        signal: req.signal,
       });
       lastTurn = turn;
       modelVersion = turn.modelVersion;
@@ -303,6 +316,13 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     modelVersion,
     auditId: audit.id,
   };
+}
+
+function abortErrorFor(signal: AbortSignal): Error {
+  const reason = signal.reason;
+  if (reason instanceof Error) return reason;
+  const message = typeof reason === 'string' ? reason : 'scribe.execute: aborted';
+  return new Error(message);
 }
 
 /**
