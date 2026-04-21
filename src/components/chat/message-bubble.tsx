@@ -16,6 +16,7 @@
 import { cn } from '@/lib/utils';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
+import { Mention } from '@/components/mention/mention';
 import { SpecialistChip } from './specialist-chip';
 
 export interface UserBubbleModel {
@@ -151,21 +152,24 @@ function OutOfScopeBubble({ content, pending }: { content: string; pending?: boo
   );
 }
 
+/**
+ * Render each citation as a `<Mention>` chip. Clicking opens the same
+ * `NodeDetailSheet` that topic pages use, turning previously-dead citation
+ * text into a navigable entry point into the health record.
+ */
 function CitationList({ citations }: { citations: readonly Citation[] }) {
   return (
-    <ol className="mt-1 space-y-1 pl-1">
+    <ul className="mt-1 flex flex-wrap gap-1.5 pl-1" aria-label="Sources">
       {citations.map((c, i) => (
-        <li
-          key={`${c.nodeId}-${c.chunkId ?? i}`}
-          className="flex gap-2 font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary"
-        >
-          <span>[{i + 1}]</span>
-          <span className="font-sans text-caption normal-case tracking-normal text-text-secondary">
-            {c.nodeId}
-            {c.chunkId ? ` · ${c.chunkId}` : ''}
-          </span>
+        <li key={`${c.nodeId}-${c.chunkId ?? i}`}>
+          <Mention
+            nodeId={c.nodeId}
+            chunkId={c.chunkId ?? null}
+            excerpt={c.excerpt}
+            index={i + 1}
+          />
         </li>
       ))}
-    </ol>
+    </ul>
   );
 }
