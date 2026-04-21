@@ -382,7 +382,7 @@ The registered topic policies (`listTopicPolicyKeys()`) are the closed set of va
 
 ---
 
-- [ ] **U6: Home entry point + out-of-scope surface polish**
+- [x] **U6: Home entry point + out-of-scope surface polish**
 
 **Goal:** An "Ask anything about your health" card on the home surface that deep-links to `/ask` with the first message pre-filled. Polish the out-of-scope surface so it reads as a helpful redirect to GP prep, not a failure.
 

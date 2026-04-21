@@ -87,23 +87,19 @@ function AssistantBubble({ message }: { message: AssistantBubbleModel }) {
 
   const isOutOfScope = message.classification === 'out-of-scope-routed';
 
+  if (isOutOfScope) {
+    return <OutOfScopeBubble content={message.content} pending={message.pending} />;
+  }
+
   return (
     <div className="flex flex-col items-start gap-2">
-      {message.topicKey && !isOutOfScope && (
-        <SpecialistChip topicKey={message.topicKey} />
-      )}
-      {isOutOfScope && (
-        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
-          · Outside my scope — bring to your GP
-        </p>
-      )}
+      {message.topicKey && <SpecialistChip topicKey={message.topicKey} />}
 
       <div
         className={cn(
           'max-w-[85%] rounded-card border border-border bg-surface px-4 py-3',
           'text-body text-text-primary leading-relaxed',
           message.pending && 'animate-pulse-subtle',
-          isOutOfScope && 'bg-surface-warm',
         )}
       >
         {message.content || <span className="text-text-tertiary">…</span>}
@@ -112,6 +108,37 @@ function AssistantBubble({ message }: { message: AssistantBubbleModel }) {
       {message.citations.length > 0 && (
         <CitationList citations={message.citations} />
       )}
+    </div>
+  );
+}
+
+/**
+ * Out-of-scope → GP-prep handoff. We don't yet have structured
+ * `GPPrep` data on the chat path (that comes from topic-page
+ * compile, not the router), so this is a polished fallback that
+ * still reads as a helpful redirect rather than a failure.
+ */
+function OutOfScopeBubble({ content, pending }: { content: string; pending?: boolean }) {
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
+        · Bring to your GP
+      </p>
+      <div
+        className={cn(
+          'max-w-[85%] rounded-card border border-border bg-surface-warm px-4 py-3',
+          'text-body text-text-primary leading-relaxed',
+          pending && 'animate-pulse-subtle',
+        )}
+      >
+        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary mb-2">
+          Not my specialty — yet
+        </p>
+        <p>
+          {content ||
+            "I'm not the right specialist for that yet — here's how to raise it with your GP."}
+        </p>
+      </div>
     </div>
   );
 }
