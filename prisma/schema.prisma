@@ -489,10 +489,17 @@ model ScribeAudit {
   citations            String
   safetyClassification String
   modelVersion         String
+  // Set when this audit row was produced by a specialist invocation
+  // chained from a parent scribe's `refer_to_specialist` tool call. The
+  // value is the parent's `requestId`; null on top-level (general or
+  // direct-routed) turns. Plan 2026-04-25-001 Unit 5 — see
+  // `src/lib/scribe/tools/refer-to-specialist.ts`.
+  parentRequestId      String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   @@unique([scribeId, requestId])
   @@index([userId, topicKey])
   @@index([scribeId, createdAt])
+  @@index([parentRequestId])
 }

@@ -32,21 +32,42 @@ import { execute, type ScribeLLMClient } from '@/lib/scribe/execute';
 import { ScribeAuditWriteError } from '@/lib/scribe/repo';
 import { parseScribeAnnotations } from '@/lib/scribe/annotations';
 import { routeTurn, type RouteDecision } from '@/lib/scribe/router';
+import { getSpecialty } from '@/lib/scribe/specialties/registry';
+import { loadSpecialtySystemPrompt } from '@/lib/scribe/specialties/load-prompt';
 import {
   DEFAULT_HISTORY_LIMIT,
   createChatMessage,
   loadRecentMessages,
   updateChatMessageMetadata,
 } from './repo';
-import type { TurnEvent } from './types';
+import type { Referral, TurnEvent } from './types';
 
 /**
  * The same safe-fallback string the Explain SSE route uses, for a
  * consistent user-facing out-of-scope surface across chat and
- * topic-page explanations.
+ * topic-page explanations. Now used only when a scribe's own enforce()
+ * verdict is non-clinical-safe; the router-null path resolves to the
+ * general scribe instead of falling back to a static string.
  */
 export const OUT_OF_SCOPE_FALLBACK =
   "I can't answer that here — I've suggested a prompt for your GP instead.";
+
+/**
+ * Topic key the chat layer routes to when the router returns null.
+ * Centralised so future plan-level changes (e.g., a different fallback
+ * specialty) only need updating in one place.
+ */
+export const FALLBACK_TOPIC_KEY = 'general';
+
+/**
+ * Map a router decision onto the topic the scribe should run under. The
+ * router returns null when no specialist topic fits; the chat layer
+ * resolves that to the general-care scribe so every conversation produces
+ * a real, audited answer rather than a static dead-end string.
+ */
+export function resolveTopicKey(decision: RouteDecision): string {
+  return decision.topicKey ?? FALLBACK_TOPIC_KEY;
+}
 
 export interface RunChatTurnInput {
   readonly db: Db;
@@ -127,54 +148,24 @@ export async function* runChatTurn(
     return;
   }
 
-  // 5a. Out-of-scope path — no scribe, no ScribeAudit; chat message is the record.
-  if (decision.topicKey === null) {
-    for (const chunk of chunkForStream(OUT_OF_SCOPE_FALLBACK)) {
-      yield { type: 'token', text: chunk };
-    }
-    let assistantMessage;
-    try {
-      assistantMessage = await createChatMessage(
-        db,
-        userId,
-        'assistant',
-        OUT_OF_SCOPE_FALLBACK,
-        {
-          topicKey: null,
-          classification: 'out-of-scope-routed',
-          citations: [],
-        },
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'assistant persistence failed';
-      yield { type: 'error', message };
-      return;
-    }
-    yield {
-      type: 'done',
-      classification: 'out-of-scope-routed',
-      output: OUT_OF_SCOPE_FALLBACK,
-      citations: [],
-      topicKey: null,
-      assistantMessageId: assistantMessage.id,
-      requestId: null,
-      auditId: null,
-    };
-    return;
-  }
+  // 5. Scribe path — every conversation runs against a real specialty (the
+  //    router's null is resolved to the general scribe). execute() owns
+  //    the D11 audit write so every turn writes a ScribeAudit row.
+  const topicKey = resolveTopicKey(decision);
+  const systemPrompt = loadSpecialtySystemPrompt(topicKey);
 
-  // 5b. Scribe path — execute() owns the D11 audit write.
   let result;
   try {
     result = await execute({
       db,
       userId,
-      topicKey: decision.topicKey,
+      topicKey,
       mode: 'runtime',
       userMessage: text,
       declaredJudgmentKind: 'pattern-vs-own-history',
       llm: scribeLlm,
       requestId: input.requestId,
+      systemPrompt,
       signal,
     });
   } catch (err) {
@@ -206,6 +197,13 @@ export async function* runChatTurn(
   const visibleCitations: readonly Citation[] =
     result.classification === 'clinical-safe' ? extractCitations(result.output) : [];
 
+  // Referrals — derived from the orchestrating scribe's tool calls.
+  // Only surface them when the parent turn was clinical-safe; if the
+  // parent rejected, the referral context is part of a hidden output
+  // and the chat UX shows the OOS fallback string instead.
+  const referrals: readonly Referral[] =
+    result.classification === 'clinical-safe' ? collectReferrals(result.toolCalls) : [];
+
   for (const chunk of chunkForStream(visibleOutput)) {
     yield { type: 'token', text: chunk };
   }
@@ -218,11 +216,12 @@ export async function* runChatTurn(
   let assistantMessage;
   try {
     assistantMessage = await persistAssistantMessage(db, userId, visibleOutput, {
-      topicKey: decision.topicKey,
+      topicKey,
       classification: result.classification,
       citations: visibleCitations,
       requestId: result.requestId,
       auditId: result.auditId,
+      referrals,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'assistant persistence failed';
@@ -235,11 +234,53 @@ export async function* runChatTurn(
     classification: result.classification,
     output: visibleOutput,
     citations: visibleCitations,
-    topicKey: decision.topicKey,
+    topicKey,
     assistantMessageId: assistantMessage.id,
     requestId: result.requestId,
     auditId: result.auditId,
+    referrals,
   };
+}
+
+/**
+ * Walk the orchestrator's recorded tool calls and pull out successful
+ * `refer_to_specialist` outputs. We surface only `core` and `stub` —
+ * `unknown` and `refused` outcomes are tool misuse, not specialist
+ * consultations the user should see attributed.
+ */
+function collectReferrals(
+  toolCalls: ReadonlyArray<{ name: string; output: unknown; isError: boolean }>,
+): Referral[] {
+  const out: Referral[] = [];
+  for (const call of toolCalls) {
+    if (call.name !== 'refer_to_specialist' || call.isError) continue;
+    const payload = call.output as
+      | {
+          status?: 'core' | 'stub' | 'unknown' | 'refused';
+          specialtyKey?: string;
+          response?: string;
+          requestId?: string;
+          classification?: 'clinical-safe' | 'out-of-scope-routed' | 'rejected';
+        }
+      | null
+      | undefined;
+    if (!payload) continue;
+    if (payload.status !== 'core' && payload.status !== 'stub') continue;
+    if (!payload.specialtyKey || !payload.response) continue;
+
+    const specialty = getSpecialty(payload.specialtyKey);
+    if (!specialty) continue; // dropped from registry between call and surfacing
+
+    out.push({
+      status: payload.status,
+      specialtyKey: payload.specialtyKey,
+      displayName: specialty.displayName,
+      response: payload.response,
+      requestId: payload.requestId,
+      classification: payload.classification,
+    });
+  }
+  return out;
 }
 
 /**
@@ -258,6 +299,7 @@ async function persistAssistantMessage(
     citations: readonly Citation[];
     requestId: string;
     auditId: string;
+    referrals: readonly Referral[];
   },
 ) {
   try {

@@ -282,12 +282,23 @@ describe('registry', () => {
   });
 
   it('returns undefined for an unknown topic', () => {
-    expect(getPolicy('cardiology' as string)).toBeUndefined();
+    expect(getPolicy('not-a-real-topic' as string)).toBeUndefined();
   });
 
-  it('lists exactly the three v1 topic keys', () => {
+  it('lists exactly the policy keys backing every registered scribe persona', () => {
+    // Plan 2026-04-25-001 expanded the set: 3 v1 topics + the 4 specialty
+    // safety policies (general, cardiometabolic, sleep-recovery is shared
+    // with v1, hormonal-endocrine). `iron` and `energy-fatigue` stay so
+    // existing scribe rows keep routing to a real policy (R9 back-compat).
     expect(new Set(listTopicPolicyKeys())).toEqual(
-      new Set(['iron', 'sleep-recovery', 'energy-fatigue']),
+      new Set([
+        'general',
+        'cardiometabolic',
+        'sleep-recovery',
+        'hormonal-endocrine',
+        'iron',
+        'energy-fatigue',
+      ]),
     );
   });
 });

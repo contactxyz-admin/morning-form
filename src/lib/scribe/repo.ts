@@ -32,13 +32,19 @@ export const DEFAULT_SCRIBE_TEMPERATURE = 0.3;
 export const SCRIBE_MODEL_VERSION_PENDING = 'pending';
 
 /**
- * The six tool names every new scribe is seeded with. Names match the U3
- * tool catalog 1:1 — changing either requires changing both. A regression
+ * The tool names every new scribe is seeded with. Names match the tool
+ * catalog 1:1 — changing either requires changing both. A regression
  * test in `repo.test.ts` pins the pairing so drift breaks loud.
  *
  * The DB rows in `ScribeTool` exist so operators can per-scribe disable a
  * tool without a code change (future work); the runtime tool dispatcher in
  * `execute.ts` still reads from the static catalog, not from this table.
+ *
+ * `refer_to_specialist` is seeded for every scribe but only callable from
+ * the general scribe — the handler refuses with a structural error when
+ * `ctx.topicKey !== 'general'` (Plan 2026-04-25-001 Unit 5). Seeding for
+ * all scribes keeps the catalog uniform and lets operators flip the
+ * runtime gate per-scribe later without a schema change.
  */
 export const DEFAULT_SCRIBE_TOOLS = [
   'search_graph_nodes',
@@ -47,6 +53,7 @@ export const DEFAULT_SCRIBE_TOOLS = [
   'compare_to_reference_range',
   'recognize_pattern_in_history',
   'route_to_gp_prep',
+  'refer_to_specialist',
 ] as const;
 
 export type DefaultScribeToolName = (typeof DEFAULT_SCRIBE_TOOLS)[number];
@@ -70,6 +77,13 @@ export interface RecordAuditInput {
   citations: unknown;
   safetyClassification: SafetyClassification;
   modelVersion: string;
+  /**
+   * Set when this audit row was produced by a specialist invocation chained
+   * from a parent scribe's `refer_to_specialist` tool call (Plan
+   * 2026-04-25-001 Unit 5). The value is the parent's `requestId`. Null on
+   * top-level (general-scribe or direct-routed) turns.
+   */
+  parentRequestId?: string | null;
 }
 
 /**
@@ -182,6 +196,7 @@ export async function recordAudit(
       citations: JSON.stringify(input.citations ?? []),
       safetyClassification: input.safetyClassification,
       modelVersion: input.modelVersion,
+      parentRequestId: input.parentRequestId ?? null,
     },
     update: {},
   });

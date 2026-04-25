@@ -26,7 +26,8 @@ import type {
   ScribeLLMClient,
   ScribeLLMTurn,
 } from '@/lib/scribe/execute';
-import { OUT_OF_SCOPE_FALLBACK, runChatTurn } from './turn';
+import { __setReferralScribeLLMForTest } from '@/lib/scribe/tools/refer-to-specialist';
+import { runChatTurn } from './turn';
 import type { TurnEvent } from './types';
 
 let prisma: PrismaClient;
@@ -41,6 +42,7 @@ afterAll(async () => {
 
 afterEach(() => {
   clearMockHandlers();
+  __setReferralScribeLLMForTest(null);
 });
 
 function scriptedScribe(turns: ScribeLLMTurn[]): ScribeLLMClient {
@@ -182,10 +184,22 @@ describe('runChatTurn — happy path (routed → scribe)', () => {
   });
 });
 
-describe('runChatTurn — out-of-scope path (no scribe, no audit row)', () => {
-  it('yields the safe fallback stream and a done event with classification out-of-scope-routed', async () => {
-    const userId = await makeTestUser(prisma, 'turn-oos');
-    mockRouter(null, 0.8, 'hormonal domain — not registered');
+describe('runChatTurn — router-null fallback (general scribe owns it)', () => {
+  it('routes a null router decision through the general scribe and writes a ScribeAudit row', async () => {
+    const userId = await makeTestUser(prisma, 'turn-fallback');
+    const scribe = await getOrCreateScribeForTopic(prisma, userId, 'general', {
+      modelVersion: 'v1',
+    });
+    mockRouter(null, 0.8, 'no registered specialist — general scribe takes it');
+
+    const scribeLlm = scriptedScribe([
+      {
+        stopReason: 'end_turn',
+        text: 'I can see this is outside my specialists\' specific remits, but here is what your record shows.',
+        modelVersion: 'v1',
+        toolCalls: [],
+      },
+    ]);
 
     const events = await collect(
       runChatTurn({
@@ -193,34 +207,40 @@ describe('runChatTurn — out-of-scope path (no scribe, no audit row)', () => {
         userId,
         text: 'my period pains are worsening',
         routerLlm: routerClient(),
-        // Should never be called on the out-of-scope path.
-        scribeLlm: throwingScribe(new Error('scribe should not be invoked')),
+        scribeLlm,
       }),
     );
 
+    // The router returns null but the scribe path still runs.
+    const routed = events[0] as Extract<TurnEvent, { type: 'routed' }>;
+    expect(routed.topicKey).toBeNull();
+
     const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
     expect(done.type).toBe('done');
-    expect(done.classification).toBe('out-of-scope-routed');
-    expect(done.topicKey).toBeNull();
-    expect(done.output).toBe(OUT_OF_SCOPE_FALLBACK);
+    // The general scribe's output is what reaches the user — no static fallback.
+    expect(done.topicKey).toBe('general');
+    expect(done.output).toMatch(/here is what your record shows/);
 
-    // The user message carries the router's decision for the audit.
+    // User message carries the original router decision (null) for the audit.
     const userMsg = await prisma.chatMessage.findFirstOrThrow({
       where: { userId, role: 'user' },
     });
     const meta = JSON.parse(userMsg.metadata!);
     expect(meta.routed.topicKey).toBeNull();
 
-    // Assistant message persisted with the out-of-scope classification.
+    // Assistant message persisted under the resolved topic.
     const asstMsg = await prisma.chatMessage.findFirstOrThrow({
       where: { userId, role: 'assistant' },
     });
     const asstMeta = JSON.parse(asstMsg.metadata!);
-    expect(asstMeta.classification).toBe('out-of-scope-routed');
+    expect(asstMeta.topicKey).toBe('general');
 
-    // No ScribeAudit row — no scribe was invoked.
-    const audits = await prisma.scribeAudit.findMany({ where: { userId } });
-    expect(audits).toHaveLength(0);
+    // Exactly one ScribeAudit row — the general scribe ran.
+    const audits = await prisma.scribeAudit.findMany({
+      where: { userId, scribeId: scribe.id },
+    });
+    expect(audits).toHaveLength(1);
+    expect(audits[0].topicKey).toBe('general');
   });
 });
 
@@ -398,5 +418,156 @@ describe('runChatTurn — multi-turn integration', () => {
       'anything I should watch for?',
       'Iron response B.',
     ]);
+  });
+});
+
+describe('runChatTurn — referral surfacing (Unit 6)', () => {
+  it('attaches a populated referrals[] to the done event when the general scribe consults a core specialist', async () => {
+    const userId = await makeTestUser(prisma, 'turn-referral-core');
+    // Both scribes need pre-seeded rows for the recursive execute() to land.
+    await getOrCreateScribeForTopic(prisma, userId, 'general', { modelVersion: 'v1' });
+    await getOrCreateScribeForTopic(prisma, userId, 'cardiometabolic', {
+      modelVersion: 'v1',
+    });
+    mockRouter('general', 0.7, 'general triage');
+
+    // Specialist scripted to give one end_turn answer.
+    __setReferralScribeLLMForTest(
+      scriptedScribe([
+        {
+          stopReason: 'end_turn',
+          text: 'Cardiometabolic view: ferritin trending down — iron-deficiency pattern.',
+          modelVersion: 'v1',
+          toolCalls: [],
+        },
+      ]),
+    );
+
+    // Parent scribe: first turn → call refer_to_specialist; second turn → end_turn.
+    const parentScribe = scriptedScribe([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          {
+            id: 'tu-1',
+            name: 'refer_to_specialist',
+            input: {
+              specialtyKey: 'cardiometabolic',
+              question: 'What does the ferritin trend tell us?',
+            },
+          },
+        ],
+      },
+      {
+        stopReason: 'end_turn',
+        text: 'Looking at the bigger picture, your cardiometabolic specialist confirms the iron pattern.',
+        modelVersion: 'v1',
+        toolCalls: [],
+      },
+    ]);
+
+    const events = await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'how is my ferritin pattern?',
+        routerLlm: routerClient(),
+        scribeLlm: parentScribe,
+      }),
+    );
+
+    const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
+    expect(done.type).toBe('done');
+    expect(done.referrals).toHaveLength(1);
+    const r = done.referrals[0];
+    expect(r.status).toBe('core');
+    expect(r.specialtyKey).toBe('cardiometabolic');
+    // Display name comes from the registry, not the raw key.
+    expect(r.displayName).toBe('Cardiometabolic medicine');
+    expect(r.response).toMatch(/Cardiometabolic view/);
+
+    // Persisted assistant metadata also carries the referral.
+    const asstMsg = await prisma.chatMessage.findFirstOrThrow({
+      where: { userId, role: 'assistant' },
+    });
+    const meta = JSON.parse(asstMsg.metadata!);
+    expect(meta.referrals).toHaveLength(1);
+    expect(meta.referrals[0].displayName).toBe('Cardiometabolic medicine');
+  });
+
+  it('emits an empty referrals[] when no refer_to_specialist tool call ran', async () => {
+    const userId = await makeTestUser(prisma, 'turn-referral-none');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    mockRouter('iron', 0.95);
+
+    const events = await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'iron question',
+        routerLlm: routerClient(),
+        scribeLlm: scriptedScribe([
+          {
+            stopReason: 'end_turn',
+            text: 'Your stored ferritin reading is within range.',
+            modelVersion: 'v1',
+            toolCalls: [],
+          },
+        ]),
+      }),
+    );
+
+    const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
+    expect(done.referrals).toEqual([]);
+  });
+
+  it('surfaces a stub-status referral with its registry fallback message and no requestId', async () => {
+    const userId = await makeTestUser(prisma, 'turn-referral-stub');
+    await getOrCreateScribeForTopic(prisma, userId, 'general', { modelVersion: 'v1' });
+    mockRouter('general', 0.7);
+
+    const parentScribe = scriptedScribe([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          {
+            id: 'tu-stub',
+            name: 'refer_to_specialist',
+            input: {
+              specialtyKey: 'mental-health',
+              question: 'mood pattern question',
+            },
+          },
+        ],
+      },
+      {
+        stopReason: 'end_turn',
+        text: 'Answering with general-scribe knowledge since the mental-health specialist is not yet available.',
+        modelVersion: 'v1',
+        toolCalls: [],
+      },
+    ]);
+
+    const events = await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'why am I anxious lately?',
+        routerLlm: routerClient(),
+        scribeLlm: parentScribe,
+      }),
+    );
+
+    const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
+    expect(done.referrals).toHaveLength(1);
+    expect(done.referrals[0].status).toBe('stub');
+    expect(done.referrals[0].specialtyKey).toBe('mental-health');
+    expect(done.referrals[0].displayName).toBe('Mental health');
+    expect(done.referrals[0].response).toMatch(/not yet built/i);
+    expect(done.referrals[0].requestId).toBeUndefined();
   });
 });

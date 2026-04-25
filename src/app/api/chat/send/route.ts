@@ -161,6 +161,7 @@ function buildSseStream(
                 assistantMessageId: ev.assistantMessageId,
                 requestId: ev.requestId,
                 auditId: ev.auditId,
+                referrals: ev.referrals,
               });
               break;
             case 'error':

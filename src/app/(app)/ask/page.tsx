@@ -17,6 +17,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
+import type { Referral } from '@/lib/chat/types';
 import { MessageList } from '@/components/chat/message-list';
 import { Composer } from '@/components/chat/composer';
 import { useChatStream } from '@/components/chat/use-chat-stream';
@@ -80,6 +81,7 @@ function AskPageInner() {
       citations: Citation[];
       output: string;
       assistantMessageId: string;
+      referrals: readonly Referral[];
     }) => {
       setHistory((prev) => {
         if (prev.kind !== 'ready') return prev;
@@ -90,6 +92,7 @@ function AskPageInner() {
           topicKey: args.topicKey,
           classification: args.classification,
           citations: args.citations,
+          referrals: args.referrals,
         };
         return { kind: 'ready', messages: [...prev.messages, assistant] };
       });
@@ -172,6 +175,7 @@ function AskPageInner() {
       topicKey: turnState.topicKey,
       classification: turnState.classification,
       citations: turnState.citations,
+      referrals: turnState.referrals,
       pending: turnState.status !== 'error',
       error:
         turnState.status === 'error' ? turnState.error ?? 'Stream ended.' : undefined,
@@ -276,6 +280,7 @@ function toBubble(m: HistoryResponse['messages'][number]): BubbleModel | null {
       classification:
         isSafetyClassification(meta.classification) ? meta.classification : null,
       citations: Array.isArray(meta.citations) ? (meta.citations as Citation[]) : [],
+      referrals: Array.isArray(meta.referrals) ? (meta.referrals as Referral[]) : [],
     };
   }
   return null;

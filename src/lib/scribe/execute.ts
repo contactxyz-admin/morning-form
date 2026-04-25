@@ -120,6 +120,13 @@ export interface ScribeExecuteRequest {
   /** System prompt; if omitted, a default scope-of-practice prompt is built. */
   systemPrompt?: string;
   /**
+   * Set when this invocation is a referral child (Plan 2026-04-25-001 Unit
+   * 5). The value lands on the child's audit row so the chain
+   * (`parentRequestId → requestId`) is queryable. Omitted on top-level
+   * invocations.
+   */
+  parentRequestId?: string | null;
+  /**
    * Cancellation signal. Checked at each tool-use loop iteration so an
    * aborted turn stops calling the LLM without tearing up a half-
    * finished audit row. The audit upsert at D11 still runs so the
@@ -157,9 +164,6 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     throw new Error(`scribe.execute: no safety policy registered for topicKey '${req.topicKey}'`);
   }
 
-  // D10: fix the context once; every handler call below uses exactly this ctx.
-  const ctx: ToolContext = { db: req.db, userId: req.userId, topicKey: req.topicKey };
-
   const scribe = await getOrCreateScribeForTopic(req.db, req.userId, req.topicKey, {
     modelVersion: SCRIBE_MODEL_VERSION_PENDING, // executors calling without a pinned version would
                                                 // reach this; tests always pre-seed a scribe so
@@ -167,6 +171,14 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
   });
 
   const requestId = req.requestId ?? randomUUID();
+
+  // D10: fix the context once; every handler call below uses exactly this ctx.
+  const ctx: ToolContext = {
+    db: req.db,
+    userId: req.userId,
+    topicKey: req.topicKey,
+    requestId,
+  };
   const system = buildSystemPrompt(policy, req.systemPrompt);
   const tools: ScribeLLMToolDefinition[] = listToolDefinitions();
 
@@ -292,6 +304,7 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
       citations,
       safetyClassification: classification,
       modelVersion,
+      parentRequestId: req.parentRequestId ?? null,
     });
   } catch (auditErr) {
     // D11 breach: audit-before-gate failed to persist. Surface distinctly so
