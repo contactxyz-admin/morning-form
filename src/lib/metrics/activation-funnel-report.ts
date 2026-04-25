@@ -7,16 +7,14 @@
  * Structured output only — the CLI formats; this module does not.
  */
 
-import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma as defaultPrisma } from '@/lib/db';
 import {
   ACTIVATION_STAGES,
   DEFAULT_RETENTION_WINDOW_DAYS,
+  type Db,
   type StageKey,
   type StageReachMap,
 } from './activation-funnel';
-
-type Db = PrismaClient | Prisma.TransactionClient;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -41,13 +39,17 @@ export interface StageReport {
   count: number;
   /** Percent of signups (0–100). */
   pctOfSignups: number;
-  /** Percent of previous stage's count (0–100). Equal to pctOfSignups at signup. */
+  /**
+   * Percent of previous stage's count (0–100). Equal to pctOfSignups at signup.
+   * Can exceed 100 when users reach a later stage without being recorded at the
+   * intervening stage (e.g., grounded-answer before first-chat in the registry's
+   * sequence). Reader should treat >100 as a stage-skip signal, not a bug.
+   */
   pctOfPrevious: number;
   /**
-   * Median days from signup to reaching this stage, for users who reached it.
-   * `null` when count === 0 or the stage-at-signup case where every delta is 0
-   * — in which case it is reported as 0, not null. `null` strictly means
-   * "not enough data to compute".
+   * Median days from signup to reaching this stage, computed only over users
+   * who reached it. `null` strictly means "no users reached this stage". For
+   * the signup stage every delta is 0, so this is `0`, not `null`.
    */
   medianDaysFromSignup: number | null;
   p75DaysFromSignup: number | null;

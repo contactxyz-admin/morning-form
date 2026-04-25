@@ -11,7 +11,7 @@
 
 import type { Prisma, PrismaClient } from '@prisma/client';
 
-type Db = PrismaClient | Prisma.TransactionClient;
+export type Db = PrismaClient | Prisma.TransactionClient;
 
 export type StageKey =
   | 'signup'
@@ -49,8 +49,8 @@ export interface StageContext {
 }
 
 export interface StageDefinition {
-  key: StageKey;
-  label: string;
+  readonly key: StageKey;
+  readonly label: string;
   resolve(ctx: StageContext): Promise<StageReachMap>;
 }
 

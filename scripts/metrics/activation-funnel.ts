@@ -18,7 +18,9 @@ import { computeActivationFunnel } from '../../src/lib/metrics/activation-funnel
 import {
   formatCsv,
   formatSummary,
+  HELP_TEXT,
   InvalidCliArgsError,
+  isHelpRequested,
   parseArgs,
   toComputeArgs,
 } from '../../src/lib/metrics/activation-funnel-format';
@@ -27,6 +29,10 @@ async function main(): Promise<void> {
   let prisma: PrismaClient | null = null;
   try {
     const parsed = parseArgs(process.argv.slice(2));
+    if (isHelpRequested(parsed)) {
+      process.stdout.write(HELP_TEXT);
+      return;
+    }
     prisma = new PrismaClient();
     const report = await computeActivationFunnel({
       ...toComputeArgs(parsed),

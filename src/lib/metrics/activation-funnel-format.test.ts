@@ -4,9 +4,20 @@ import {
   formatCsv,
   formatSummary,
   InvalidCliArgsError,
-  parseArgs,
+  isHelpRequested,
+  parseArgs as parseArgsRaw,
   toComputeArgs,
+  type ParsedCliArgs,
 } from './activation-funnel-format';
+
+// Test wrapper: narrow ParseResult to ParsedCliArgs for tests that don't use --help.
+function parseArgs(argv: string[], now?: Date): ParsedCliArgs {
+  const result = parseArgsRaw(argv, now);
+  if (isHelpRequested(result)) {
+    throw new Error('parseArgs returned help; this test was not expecting --help');
+  }
+  return result;
+}
 
 describe('parseArgs', () => {
   const now = new Date('2026-04-21T00:00:00Z');
@@ -256,5 +267,61 @@ describe('formatSummary', () => {
     const summary = formatSummary(report);
     expect(summary).toContain('Essentials complete: 0 (0% of signups, 0% of previous)');
     expect(summary).not.toContain('median');
+  });
+});
+
+describe('parseArgs --help', () => {
+  it('returns help sentinel for --help', () => {
+    expect(isHelpRequested(parseArgsRaw(['--help']))).toBe(true);
+  });
+
+  it('returns help sentinel for -h', () => {
+    expect(isHelpRequested(parseArgsRaw(['-h']))).toBe(true);
+  });
+
+  it('returns help even when other flags are also present', () => {
+    expect(
+      isHelpRequested(parseArgsRaw(['--signup-since', '2026-04-01', '--help'])),
+    ).toBe(true);
+  });
+
+  it('returns parsed args when --help is absent', () => {
+    expect(isHelpRequested(parseArgsRaw([], new Date('2026-04-21T00:00:00Z')))).toBe(false);
+  });
+});
+
+describe('formatCsv escape edge cases', () => {
+  function reportWithLabel(label: string): ActivationFunnelReport {
+    return {
+      ...sampleReport(),
+      stages: [
+        {
+          key: 'signup',
+          label,
+          count: 1,
+          pctOfSignups: 100,
+          pctOfPrevious: 100,
+          medianDaysFromSignup: 0,
+          p75DaysFromSignup: 0,
+        },
+      ],
+    };
+  }
+
+  it('escapes embedded double quotes by doubling them and wraps the field', () => {
+    const out = formatCsv(reportWithLabel('Has "quoted" text'));
+    expect(out.split('\n')[1]).toBe('signup,"Has ""quoted"" text",1,100,100,0,0');
+  });
+
+  it('wraps fields containing newlines', () => {
+    const out = formatCsv(reportWithLabel('line1\nline2'));
+    // Don't split on '\n' — the embedded newline is part of the quoted field.
+    expect(out).toContain('"line1\nline2"');
+    expect(out.endsWith('signup,"line1\nline2",1,100,100,0,0')).toBe(true);
+  });
+
+  it('wraps fields containing both quote and comma', () => {
+    const out = formatCsv(reportWithLabel('a,"b"'));
+    expect(out.split('\n')[1]).toBe('signup,"a,""b""",1,100,100,0,0');
   });
 });

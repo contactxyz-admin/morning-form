@@ -22,7 +22,41 @@ export interface ParsedCliArgs {
   retentionWindowDays: number;
 }
 
+export interface HelpRequested {
+  help: true;
+}
+
+export type ParseResult = ParsedCliArgs | HelpRequested;
+
+export function isHelpRequested(result: ParseResult): result is HelpRequested {
+  return (result as HelpRequested).help === true;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const HELP_TEXT = `activation-funnel — compute the signup → retained funnel for a cohort.
+
+Usage:
+  npx tsx scripts/metrics/activation-funnel.ts [flags]
+
+Flags:
+  --signup-since <ISO8601>          Cohort signup window start (default: 30 days ago).
+  --signup-until <ISO8601>          Cohort signup window end (default: now).
+  --user-ids <id1,id2,...>          Explicit cohort. Filtered by signup window.
+  --retention-window-days <int>     Retention window in days (default: 7).
+  -h, --help                        Show this message and exit.
+
+Output:
+  CSV (stdout) with header:
+    stage,label,count,pct_of_signups,pct_of_previous,median_days,p75_days
+  Followed by a human-readable summary.
+
+Examples:
+  npx tsx scripts/metrics/activation-funnel.ts \\
+    --signup-since 2026-03-22 --signup-until 2026-04-21
+  npx tsx scripts/metrics/activation-funnel.ts \\
+    --user-ids user_abc,user_def --retention-window-days 14
+`;
 
 /**
  * Parse argv tokens (excluding node + script path). `now` is injectable so
@@ -34,7 +68,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *   --user-ids <comma-separated ids> (optional)
  *   --retention-window-days <int>    (default: 7)
  */
-export function parseArgs(argv: string[], now: Date = new Date()): ParsedCliArgs {
+export function parseArgs(argv: string[], now: Date = new Date()): ParseResult {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    return { help: true };
+  }
+
   const raw = new Map<string, string>();
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i];
