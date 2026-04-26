@@ -17,6 +17,7 @@ import { compareToReferenceRangeHandler } from './tools/compare-to-reference-ran
 import { getNodeDetailHandler } from './tools/get-node-detail';
 import { getNodeProvenanceHandler } from './tools/get-node-provenance';
 import { recognizePatternInHistoryHandler } from './tools/recognize-pattern-in-history';
+import { referToSpecialistHandler } from './tools/refer-to-specialist';
 import { routeToGpPrepHandler } from './tools/route-to-gp-prep';
 import { searchGraphNodesHandler } from './tools/search-graph-nodes';
 import type { AnyToolHandler } from './tools/types';
@@ -28,6 +29,7 @@ export const SCRIBE_TOOL_HANDLERS = [
   compareToReferenceRangeHandler,
   recognizePatternInHistoryHandler,
   routeToGpPrepHandler,
+  referToSpecialistHandler,
 ] as const satisfies ReadonlyArray<AnyToolHandler>;
 
 export type ScribeToolName = (typeof SCRIBE_TOOL_HANDLERS)[number]['name'];

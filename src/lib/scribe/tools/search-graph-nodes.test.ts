@@ -40,7 +40,7 @@ describe('search_graph_nodes handler', () => {
     const userId = await makeTestUser(prisma, 'search-happy');
     await seedIronSubgraph(userId);
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await searchGraphNodesHandler.execute(ctx, { query: 'ferritin' });
 
     expect(result.topicKey).toBe('iron');
@@ -65,7 +65,7 @@ describe('search_graph_nodes handler', () => {
       displayName: 'LDL cholesterol',
     });
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     // Broad query that could match either name — topic scope must exclude the
     // non-iron biomarker.
     const result = await searchGraphNodesHandler.execute(ctx, { query: 'cholesterol' });
@@ -77,7 +77,7 @@ describe('search_graph_nodes handler', () => {
     const userB = await makeTestUser(prisma, 'search-userB');
     await seedIronSubgraph(userA);
 
-    const ctx: ToolContext = { db: prisma, userId: userB, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId: userB, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await searchGraphNodesHandler.execute(ctx, { query: 'ferritin' });
     expect(result.matches).toHaveLength(0);
   });
@@ -96,7 +96,7 @@ describe('search_graph_nodes handler', () => {
       type: 'biomarker', canonicalKey: 'haemoglobin', displayName: 'Haemoglobin',
     });
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     // Query matches all three on canonicalKey via substring 'r' — keep it
     // narrow enough to land >1 but controllable.
     const result = await searchGraphNodesHandler.execute(ctx, { query: 'r', limit: 1 });
@@ -107,7 +107,7 @@ describe('search_graph_nodes handler', () => {
   it('returns empty matches for an unknown topicKey', async () => {
     const userId = await makeTestUser(prisma, 'search-unknown-topic');
     await seedIronSubgraph(userId);
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'nonsense' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'nonsense', requestId: 'test-req-id' };
     const result = await searchGraphNodesHandler.execute(ctx, { query: 'ferritin' });
     expect(result.matches).toHaveLength(0);
   });

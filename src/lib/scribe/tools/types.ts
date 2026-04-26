@@ -26,6 +26,13 @@ export interface ToolContext {
   readonly db: Db;
   readonly userId: string;
   readonly topicKey: string;
+  /**
+   * Request id of the scribe invocation this tool call belongs to. Tools
+   * that fan out into a child scribe invocation (Plan 2026-04-25-001
+   * Unit 5: `refer_to_specialist`) read this so the child's audit row
+   * can record `parentRequestId`. Most handlers ignore it.
+   */
+  readonly requestId: string;
 }
 
 export interface ToolHandler<Args, Result> {

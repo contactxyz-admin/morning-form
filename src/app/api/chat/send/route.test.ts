@@ -235,31 +235,45 @@ describe('POST /api/chat/send', () => {
     expect(audits).toHaveLength(1);
   });
 
-  it('out-of-scope path — streams fallback, persists assistant message, no audit row', async () => {
-    const userId = await makeTestUser(prisma, 'send-oos');
-    currentUserMock.mockResolvedValue({ id: userId });
-    mockRouter(null, 0.8, 'out of scope domain');
-    setScribeLLMForTest({
-      async turn() {
-        throw new Error('scribe should not be invoked');
-      },
+  it('router-null path — falls through to the general scribe and writes an audit row', async () => {
+    // Unit 2: router `null` no longer short-circuits to a static fallback; it
+    // routes to the general scribe so every conversation produces a real,
+    // audited turn. The OOS-routed surface is now driven by the scribe (and
+    // its policy engine), not by router nulls.
+    const userId = await makeTestUser(prisma, 'send-router-null');
+    const scribe = await getOrCreateScribeForTopic(prisma, userId, 'general', {
+      modelVersion: 'v1',
     });
+    currentUserMock.mockResolvedValue({ id: userId });
+    mockRouter(null, 0.8, 'no specialist topic fits');
 
-    const res = await callPost(makeRequest({ text: 'my period pains are worsening' }));
+    const safe = "I can talk through that — here's what I'd think about first.";
+    setScribeLLMForTest(scriptedScribe([endTurn(safe)]));
+
+    const res = await callPost(makeRequest({ text: 'general life advice please' }));
     expect(res.status).toBe(200);
     const events = await readSseEvents(res);
+
+    const routed = events[0].data as { topicKey: string | null };
+    expect(routed.topicKey).toBeNull();
+
     const done = events[events.length - 1].data as {
       classification: string;
       output: string;
       topicKey: string | null;
+      assistantMessageId: string;
     };
-    expect(done.classification).toBe('out-of-scope-routed');
-    expect(done.topicKey).toBeNull();
-    expect(done.output).toMatch(/GP/);
+    expect(done.classification).toBe('clinical-safe');
+    expect(done.output).toBe(safe);
+    // The done event surfaces the resolved scribe topic, so the user-facing
+    // attribution is `general` rather than the router's null.
+    expect(done.topicKey).toBe('general');
+    expect(done.assistantMessageId).toBeTruthy();
 
-    // No audit row.
-    const audits = await prisma.scribeAudit.findMany({ where: { userId } });
-    expect(audits).toHaveLength(0);
+    const audits = await prisma.scribeAudit.findMany({
+      where: { userId, scribeId: scribe.id },
+    });
+    expect(audits).toHaveLength(1);
   });
 
   it('rejected output — token stream carries the fallback, not the raw drug mention', async () => {

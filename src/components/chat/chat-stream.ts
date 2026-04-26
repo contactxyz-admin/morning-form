@@ -16,6 +16,7 @@
 
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
+import type { Referral } from '@/lib/chat/types';
 
 export interface RoutedSseEvent {
   readonly event: 'routed';
@@ -39,6 +40,7 @@ export interface DoneSseEvent {
     readonly citations: readonly Citation[];
     readonly topicKey: string | null;
     readonly assistantMessageId: string;
+    readonly referrals?: readonly Referral[];
   };
 }
 

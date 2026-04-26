@@ -29,6 +29,28 @@ export interface TokenEvent {
   readonly text: string;
 }
 
+/**
+ * One referral the orchestrating scribe made via `refer_to_specialist`
+ * during this turn (Plan 2026-04-25-001 Unit 6). Surfaces visibly in the
+ * chat as a chip — "team of specialists" mental model, not a black box.
+ *
+ * `core` = a real specialist scribe answered. `stub` = a registered-but-
+ * not-built specialty fell back to its `referralFallbackMessage`. We omit
+ * `unknown`/`refused` outcomes because those are the orchestrator
+ * misusing the tool, not user-visible specialist consultation.
+ */
+export interface Referral {
+  readonly status: 'core' | 'stub';
+  readonly specialtyKey: string;
+  /** Pre-resolved display name from the specialty registry. */
+  readonly displayName: string;
+  /** The specialist's response (or the stub's fallback message). */
+  readonly response: string;
+  /** Child-scribe audit ids — undefined for stubs (no scribe ran). */
+  readonly requestId?: string;
+  readonly classification?: SafetyClassification;
+}
+
 export interface DoneEvent {
   readonly type: 'done';
   readonly classification: SafetyClassification;
@@ -40,6 +62,8 @@ export interface DoneEvent {
   readonly requestId: string | null;
   /** ScribeAudit row id (null on the out-of-scope path — no audit). */
   readonly auditId: string | null;
+  /** Specialist consultations made during this turn. Empty when none. */
+  readonly referrals: readonly Referral[];
 }
 
 export interface ErrorEvent {
@@ -68,4 +92,6 @@ export interface AssistantMessageMetadata {
   readonly citations: readonly Citation[];
   readonly requestId?: string;
   readonly auditId?: string;
+  /** Specialist consultations made during this turn (Plan 2026-04-25-001 Unit 6). */
+  readonly referrals?: readonly Referral[];
 }

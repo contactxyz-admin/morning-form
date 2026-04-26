@@ -30,7 +30,7 @@ describe('compare_to_reference_range handler', () => {
       },
     });
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await compareToReferenceRangeHandler.execute(ctx, {
       canonicalKey: 'ferritin',
     });
@@ -56,7 +56,7 @@ describe('compare_to_reference_range handler', () => {
         unit: 'g/L',
       },
     });
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await compareToReferenceRangeHandler.execute(ctx, {
       canonicalKey: 'haemoglobin',
     });
@@ -75,7 +75,7 @@ describe('compare_to_reference_range handler', () => {
         referenceRangeHigh: 150,
       },
     });
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await compareToReferenceRangeHandler.execute(ctx, {
       canonicalKey: 'ferritin',
     });
@@ -90,7 +90,7 @@ describe('compare_to_reference_range handler', () => {
       displayName: 'Ferritin',
       attributes: { latestValue: 12 },
     });
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await compareToReferenceRangeHandler.execute(ctx, {
       canonicalKey: 'ferritin',
     });
@@ -101,7 +101,7 @@ describe('compare_to_reference_range handler', () => {
 
   it('returns not-found when the biomarker does not exist for the user', async () => {
     const userId = await makeTestUser(prisma, 'range-missing');
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await compareToReferenceRangeHandler.execute(ctx, {
       canonicalKey: 'ferritin',
     });
@@ -124,7 +124,7 @@ describe('compare_to_reference_range handler', () => {
       attributes: { latestValue: 15, referenceRangeLow: 10, referenceRangeHigh: 30, unit: 'nmol/L' },
     });
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await compareToReferenceRangeHandler.execute(ctx, {
       canonicalKey: 'testosterone',
     });
@@ -142,7 +142,7 @@ describe('compare_to_reference_range handler', () => {
       displayName: 'Ferritin',
       attributes: { latestValue: 12, referenceRangeLow: 15, referenceRangeHigh: 150 },
     });
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'nonsense-topic' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'nonsense-topic', requestId: 'test-req-id' };
     const result = await compareToReferenceRangeHandler.execute(ctx, {
       canonicalKey: 'ferritin',
     });
@@ -159,7 +159,7 @@ describe('compare_to_reference_range handler', () => {
       displayName: 'Ferritin',
       attributes: { latestValue: 12, referenceRangeLow: 15, referenceRangeHigh: 150 },
     });
-    const ctx: ToolContext = { db: prisma, userId: userB, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId: userB, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await compareToReferenceRangeHandler.execute(ctx, {
       canonicalKey: 'ferritin',
     });

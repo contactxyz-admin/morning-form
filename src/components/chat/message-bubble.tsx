@@ -16,7 +16,9 @@
 import { cn } from '@/lib/utils';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
+import type { Referral } from '@/lib/chat/types';
 import { Mention } from '@/components/mention/mention';
+import { ReferralChips } from './referral-chip';
 import { SpecialistChip } from './specialist-chip';
 
 export interface UserBubbleModel {
@@ -32,6 +34,8 @@ export interface AssistantBubbleModel {
   readonly topicKey: string | null;
   readonly classification: SafetyClassification | null;
   readonly citations: readonly Citation[];
+  /** Specialist consultations attributed alongside this assistant turn. */
+  readonly referrals?: readonly Referral[];
   /** True while the stream is still open; the bubble renders a subtle pulse. */
   readonly pending?: boolean;
   /** If set, renders an inline error surface instead of content. */
@@ -99,10 +103,15 @@ function AssistantBubble({ message }: { message: AssistantBubbleModel }) {
   // to keep the attribution honest.
   const showChip =
     message.topicKey !== null && message.classification !== 'rejected';
+  const referrals = message.referrals ?? [];
 
   return (
     <div className="flex flex-col items-start gap-2">
       {showChip && <SpecialistChip topicKey={message.topicKey!} />}
+
+      {referrals.length > 0 && (
+        <ReferralChips referrals={referrals} className="max-w-[85%] w-full" />
+      )}
 
       <div
         className={cn(

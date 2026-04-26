@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
+import type { Referral } from '@/lib/chat/types';
 import { readChatStream } from './chat-stream';
 
 export type ChatTurnStatus =
@@ -41,6 +42,7 @@ export interface ChatTurnState {
   citations: Citation[];
   assistantMessageId: string | null;
   error: string | null;
+  referrals: readonly Referral[];
 }
 
 export interface DoneCallbackArgs {
@@ -50,6 +52,7 @@ export interface DoneCallbackArgs {
   citations: Citation[];
   output: string;
   assistantMessageId: string;
+  referrals: readonly Referral[];
 }
 
 const INITIAL: ChatTurnState = {
@@ -61,6 +64,7 @@ const INITIAL: ChatTurnState = {
   citations: [],
   assistantMessageId: null,
   error: null,
+  referrals: [],
 };
 
 export interface UseChatStreamArgs {
@@ -147,7 +151,9 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
               citations: Citation[];
               topicKey: string | null;
               assistantMessageId: string;
+              referrals?: readonly Referral[];
             };
+            const referrals = d.referrals ?? [];
             setState({
               status: 'done',
               content: d.output,
@@ -157,6 +163,7 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
               citations: d.citations ?? [],
               assistantMessageId: d.assistantMessageId,
               error: null,
+              referrals,
             });
             onDoneRef.current?.({
               text: trimmed,
@@ -165,6 +172,7 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
               citations: d.citations ?? [],
               output: d.output,
               assistantMessageId: d.assistantMessageId,
+              referrals,
             });
           } else if (evt.event === 'error') {
             const d = evt.data as { message?: string };

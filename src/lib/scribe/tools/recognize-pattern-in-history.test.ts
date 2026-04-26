@@ -39,7 +39,7 @@ describe('recognize_pattern_in_history handler', () => {
     const userId = await makeTestUser(prisma, 'pattern-happy');
     await seedHrv(userId, [40, 42, 38, 44, 36, 39], [29, 25, 20, 15, 7, 1]);
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery', requestId: 'test-req-id' };
     const result = await recognizePatternInHistoryHandler.execute(ctx, {
       metrics: ['hrv'],
       windowDays: 30,
@@ -58,7 +58,7 @@ describe('recognize_pattern_in_history handler', () => {
     const userId = await makeTestUser(prisma, 'pattern-too-little');
     await seedHrv(userId, [40, 42], [10, 5]);
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery', requestId: 'test-req-id' };
     const result = await recognizePatternInHistoryHandler.execute(ctx, {
       metrics: ['hrv'],
       windowDays: 30,
@@ -84,7 +84,7 @@ describe('recognize_pattern_in_history handler', () => {
     }));
     await prisma.healthDataPoint.createMany({ data: rows });
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery', requestId: 'test-req-id' };
     const result = await recognizePatternInHistoryHandler.execute(ctx, {
       metrics: ['hrv'],
       windowDays: 90,
@@ -112,7 +112,7 @@ describe('recognize_pattern_in_history handler', () => {
       })),
     });
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery', requestId: 'test-req-id' };
     const result = await recognizePatternInHistoryHandler.execute(ctx, {
       metrics: ['ferritin'],
       windowDays: 30,
@@ -153,7 +153,7 @@ describe('recognize_pattern_in_history handler', () => {
       });
     }
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery', requestId: 'test-req-id' };
     const result = await recognizePatternInHistoryHandler.execute(ctx, {
       metrics: ['hrv', 'ferritin'],
       windowDays: 30,
@@ -165,7 +165,7 @@ describe('recognize_pattern_in_history handler', () => {
 
   it('topic-scope gate: returns too-little-data when topicKey is unknown', async () => {
     const userId = await makeTestUser(prisma, 'pattern-unknown-topic');
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'nonsense-topic' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'nonsense-topic', requestId: 'test-req-id' };
     const result = await recognizePatternInHistoryHandler.execute(ctx, {
       metrics: ['hrv'],
       windowDays: 30,
@@ -178,7 +178,7 @@ describe('recognize_pattern_in_history handler', () => {
     const userB = await makeTestUser(prisma, 'pattern-userB');
     await seedHrv(userA, [40, 42, 38, 44], [10, 7, 5, 1]);
 
-    const ctx: ToolContext = { db: prisma, userId: userB, topicKey: 'sleep-recovery' };
+    const ctx: ToolContext = { db: prisma, userId: userB, topicKey: 'sleep-recovery', requestId: 'test-req-id' };
     const result = await recognizePatternInHistoryHandler.execute(ctx, {
       metrics: ['hrv'],
       windowDays: 30,

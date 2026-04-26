@@ -34,7 +34,7 @@ describe('get_node_provenance handler', () => {
       edges: [],
     });
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await getNodeProvenanceHandler.execute(ctx, { nodeId: out.nodeIds[0] });
 
     expect(result.found).toBe(true);
@@ -63,7 +63,7 @@ describe('get_node_provenance handler', () => {
       edges: [],
     });
 
-    const ctx: ToolContext = { db: prisma, userId: attacker, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId: attacker, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await getNodeProvenanceHandler.execute(ctx, { nodeId: out.nodeIds[0] });
     expect(result.found).toBe(false);
     expect(result.citations).toEqual([]);
@@ -76,7 +76,7 @@ describe('get_node_provenance handler', () => {
       canonicalKey: 'fatigue',
       displayName: 'Fatigue',
     });
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await getNodeProvenanceHandler.execute(ctx, { nodeId: node.id });
     expect(result.found).toBe(true);
     expect(result.citations).toEqual([]);
@@ -102,7 +102,7 @@ describe('get_node_provenance handler', () => {
       edges: [],
     });
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await getNodeProvenanceHandler.execute(ctx, {
       nodeId: out.nodeIds[0],
       limit: 2,

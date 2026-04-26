@@ -25,7 +25,7 @@ describe('get_node_detail handler', () => {
       attributes: { latestValue: 18, referenceRangeLow: 15, referenceRangeHigh: 150 },
     });
 
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await getNodeDetailHandler.execute(ctx, { nodeId });
 
     expect(result.found).toBe(true);
@@ -44,7 +44,7 @@ describe('get_node_detail handler', () => {
       displayName: 'Ferritin',
     });
 
-    const ctx: ToolContext = { db: prisma, userId: userB, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId: userB, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await getNodeDetailHandler.execute(ctx, { nodeId });
 
     expect(result.found).toBe(false);
@@ -53,7 +53,7 @@ describe('get_node_detail handler', () => {
 
   it('returns found=false for a nonexistent nodeId', async () => {
     const userId = await makeTestUser(prisma, 'node-detail-missing');
-    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron' };
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
     const result = await getNodeDetailHandler.execute(ctx, { nodeId: 'nope-not-a-real-id' });
     expect(result.found).toBe(false);
     expect(result.node).toBeNull();
