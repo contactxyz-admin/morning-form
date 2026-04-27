@@ -24,15 +24,21 @@ import type {
 } from '@/components/chat/message-bubble';
 import type { Referral } from '@/lib/chat/types';
 
+type DemoTopicKey =
+  | 'general'
+  | 'cardiometabolic'
+  | 'sleep-recovery'
+  | 'hormonal-endocrine';
+
 interface CannedTurn {
   readonly id: string;
   readonly question: string;
   readonly answer: string;
-  readonly topicKey: string;
+  readonly topicKey: DemoTopicKey;
   readonly referrals: readonly Referral[];
 }
 
-const TURNS: readonly CannedTurn[] = [
+const TURNS: readonly [CannedTurn, ...CannedTurn[]] = [
   {
     id: 'fatigue',
     question: 'Why am I tired in the afternoons?',

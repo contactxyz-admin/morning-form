@@ -18,7 +18,7 @@ import {
   type GeneratedDataPoint,
 } from '../../../prisma/fixtures/synthetic/metabolic-persona';
 
-export interface MetricSummary {
+export interface PersonaMetricSummary {
   readonly metric: string;
   readonly displayName: string;
   readonly unit: string;
@@ -93,20 +93,22 @@ const DECIMALS: Record<string, number> = {
   energy_score_1_10: 1,
 };
 
-const CADENCE_INFLECTION: Record<MetricSummary['cadence'], number> = {
+const CADENCE_INFLECTION: Record<PersonaMetricSummary['cadence'], number> = {
   daily: INFLECTION_DAY,
   weekly: INFLECTION_WEEK,
   quarterly: Math.floor(INFLECTION_QUARTER),
 };
 
-let _cached: GeneratedDataPoint[] | null = null;
+// Populated once per Node.js process lifetime; safe across concurrent
+// requests because generatePersonaData is deterministic and stateless.
+let cachedPersonaData: readonly GeneratedDataPoint[] | null = null;
 
-function loadPersonaData(): GeneratedDataPoint[] {
-  if (_cached === null) _cached = generatePersonaData(PERSONA_SEED);
-  return _cached;
+function loadPersonaData(): readonly GeneratedDataPoint[] {
+  if (cachedPersonaData === null) cachedPersonaData = generatePersonaData(PERSONA_SEED);
+  return cachedPersonaData;
 }
 
-export function getMetricSummary(metric: string): MetricSummary | null {
+export function getMetricSummary(metric: string): PersonaMetricSummary | null {
   const all = loadPersonaData();
   const points = all
     .filter((p) => p.metric === metric)
@@ -142,7 +144,7 @@ export function getMetricSummary(metric: string): MetricSummary | null {
   };
 }
 
-function inferCadence(n: number): MetricSummary['cadence'] {
+function inferCadence(n: number): PersonaMetricSummary['cadence'] {
   if (n === 8) return 'quarterly';
   if (n >= 700) return 'daily';
   return 'weekly';

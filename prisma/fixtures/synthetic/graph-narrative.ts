@@ -16,7 +16,7 @@
  * has a chance to chain general → cardiometabolic → iron.
  */
 
-import { DemoEdge, DemoNode, DemoRecordFixture, DemoSource } from '../demo-navigable-record';
+import type { DemoEdge, DemoNode, DemoRecordFixture, DemoSource } from '../demo-navigable-record';
 
 const SOURCES: DemoSource[] = [
   // ── Source 1: baseline labs (start of window) ───────────────────────────

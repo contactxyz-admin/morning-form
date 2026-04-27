@@ -4,7 +4,7 @@ import {
   formatValue,
   getMetricSummary,
   PERSONA_INFLECTION_MONTH,
-  type MetricSummary,
+  type PersonaMetricSummary,
 } from '@/lib/demo/persona-summary';
 
 /**
@@ -49,7 +49,7 @@ export default function DemoOverviewPage() {
   const summaries = HEADLINE_METRICS.map(({ metric, blurb }) => {
     const summary = getMetricSummary(metric);
     return summary ? { summary, blurb } : null;
-  }).filter((x): x is { summary: MetricSummary; blurb: string } => x !== null);
+  }).filter((x): x is { summary: PersonaMetricSummary; blurb: string } => x !== null);
 
   return (
     <div className="pt-8 pb-12">
@@ -105,8 +105,16 @@ export default function DemoOverviewPage() {
   );
 }
 
-function MetricCard({ summary, blurb }: { summary: MetricSummary; blurb: string }) {
-  const arrow = summary.direction === 'improved' ? '↘' : '↗';
+function MetricCard({ summary, blurb }: { summary: PersonaMetricSummary; blurb: string }) {
+  // Arrow follows the *physical* direction of the line. `improvement`
+  // encodes which way is good for this metric; `direction` encodes
+  // whether the persona moved that way. So the arrow comes from
+  // `improvement` for "improved" cards, and the inverse for "worsened".
+  const movedUp =
+    summary.direction === 'improved'
+      ? summary.improvement === 'up'
+      : summary.improvement === 'down';
+  const arrow = movedUp ? '↗' : '↘';
   const directionLabel = summary.direction === 'improved' ? 'Improved' : 'Worsened';
   return (
     <article className="flex flex-col">

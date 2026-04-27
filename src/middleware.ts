@@ -40,6 +40,7 @@ export function middleware(request: NextRequest): NextResponse {
     res.headers.set('X-Frame-Options', 'DENY');
     res.headers.set('Content-Security-Policy', "frame-ancestors 'none'");
     res.headers.set('Referrer-Policy', 'no-referrer');
+    res.headers.set('X-Content-Type-Options', 'nosniff');
     res.headers.set('Cache-Control', 'private, no-store');
     return res;
   }

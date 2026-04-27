@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 /**
@@ -9,7 +10,7 @@ import Link from 'next/link';
  * the matching `X-Robots-Tag` headers.
  */
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Morning Form — synthetic demo',
   description:
     'A walkthrough of Morning Form on a synthetic 38-year-old metabolic-syndrome persona. Synthetic data, no real patient.',
