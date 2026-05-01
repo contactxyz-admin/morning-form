@@ -79,14 +79,31 @@ const DOC_KIND_LABELS: Record<SourceDocumentKind, string> = {
 interface Props {
   node: GraphNodeWire | null;
   onClose: () => void;
+  /**
+   * Optional pre-hydrated provenance. When provided, the sheet renders
+   * the chunks directly and skips the authed `/api/graph/nodes/:id/provenance`
+   * fetch — required by surfaces that have no session cookie (e.g. the
+   * public /demo/record canvas, where the fixture is the source of truth).
+   */
+  hydratedProvenance?: ProvenanceResponse;
+  /**
+   * Optional pre-hydrated topic list. When provided, skips the authed
+   * `/api/graph/nodes/:id/topics` fetch. Pass an empty array to suppress
+   * the section without firing the request.
+   */
+  hydratedTopics?: TopicReference[];
 }
 
-export function NodeDetailSheet({ node, onClose }: Props) {
+export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTopics }: Props) {
   const [state, setState] = useState<LoadState>({ status: 'idle' });
 
   useEffect(() => {
     if (!node) {
       setState({ status: 'idle' });
+      return;
+    }
+    if (hydratedProvenance) {
+      setState({ status: 'ready', data: hydratedProvenance });
       return;
     }
     let cancelled = false;
@@ -116,7 +133,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [node]);
+  }, [node, hydratedProvenance]);
 
   useEffect(() => {
     if (!node) return;
@@ -195,7 +212,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
               <Attributes node={node} />
               <Provenance state={state} />
-              {node && <AppearsIn nodeId={node.id} />}
+              {node && <AppearsIn nodeId={node.id} hydratedTopics={hydratedTopics} />}
             </div>
           </motion.div>
         </>
@@ -286,10 +303,22 @@ type TopicsState =
   | { status: 'ready'; topics: TopicReference[] }
   | { status: 'error' };
 
-function AppearsIn({ nodeId }: { nodeId: string }) {
-  const [state, setState] = useState<TopicsState>({ status: 'loading' });
+function AppearsIn({
+  nodeId,
+  hydratedTopics,
+}: {
+  nodeId: string;
+  hydratedTopics?: TopicReference[];
+}) {
+  const [state, setState] = useState<TopicsState>(() =>
+    hydratedTopics ? { status: 'ready', topics: hydratedTopics } : { status: 'loading' },
+  );
 
   useEffect(() => {
+    if (hydratedTopics) {
+      setState({ status: 'ready', topics: hydratedTopics });
+      return;
+    }
     let cancelled = false;
     setState({ status: 'loading' });
     (async () => {
@@ -310,7 +339,7 @@ function AppearsIn({ nodeId }: { nodeId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [nodeId]);
+  }, [nodeId, hydratedTopics]);
 
   if (state.status === 'loading') return null;
   if (state.status === 'error') return null;
