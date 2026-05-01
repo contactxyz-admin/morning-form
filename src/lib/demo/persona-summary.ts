@@ -105,8 +105,14 @@ export function getMetricSummary(metric: string): PersonaMetricSummary | null {
  * Reduce a series to at most `maxPoints` evenly-spaced samples. Daily
  * series of 720 points become 90 — plenty of resolution for an editorial
  * sparkline at ~320px wide and faster to render.
+ *
+ * Exported for testing. Edge-case contract:
+ *   - empty input → empty output (regardless of maxPoints)
+ *   - maxPoints < 2 → at most one sample (the first), to avoid the
+ *     divide-by-zero on (maxPoints - 1)
+ *   - values.length <= maxPoints → returns a copy unchanged
  */
-function downsample(values: readonly number[], maxPoints: number): number[] {
+export function downsample(values: readonly number[], maxPoints: number): number[] {
   if (maxPoints < 2) return values.length === 0 ? [] : [values[0]];
   if (values.length <= maxPoints) return [...values];
   const out: number[] = [];
@@ -119,6 +125,24 @@ function downsample(values: readonly number[], maxPoints: number): number[] {
 
 export function formatValue(value: number, decimals: number): string {
   return value.toFixed(decimals);
+}
+
+/**
+ * Arrow glyph for the demo overview's MetricCard, derived from the full
+ * (direction, improvement) truth table. `improvement` encodes which way
+ * is good for this metric; `direction` encodes whether the persona
+ * moved that way. The arrow follows the *physical* direction of the
+ * line, so it is `improvement` for "improved" cards and the inverse
+ * for "worsened" cards.
+ */
+export function arrowFor(
+  summary: Pick<PersonaMetricSummary, 'direction' | 'improvement'>,
+): '↗' | '↘' {
+  const movedUp =
+    summary.direction === 'improved'
+      ? summary.improvement === 'up'
+      : summary.improvement === 'down';
+  return movedUp ? '↗' : '↘';
 }
 
 export const PERSONA_INFLECTION_MONTH = INFLECTION_MONTH;

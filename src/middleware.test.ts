@@ -39,6 +39,7 @@ describe('middleware', () => {
       ['Content-Security-Policy', "frame-ancestors 'none'"],
       ['Referrer-Policy', 'no-referrer'],
       ['X-Content-Type-Options', 'nosniff'],
+      ['Strict-Transport-Security', 'max-age=63072000; includeSubDomains'],
       ['Cache-Control', 'private, no-store'],
     ];
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatValue, getMetricSummary } from './persona-summary';
+import { arrowFor, downsample, formatValue, getMetricSummary } from './persona-summary';
 
 describe('getMetricSummary', () => {
   it('returns null for unknown metric keys', () => {
@@ -85,5 +85,69 @@ describe('formatValue', () => {
   it('rounds to the requested decimals', () => {
     expect(formatValue(5.876, 2)).toBe('5.88');
     expect(formatValue(120.4, 0)).toBe('120');
+  });
+});
+
+describe('downsample', () => {
+  it('returns empty for empty input regardless of maxPoints', () => {
+    expect(downsample([], 90)).toEqual([]);
+    expect(downsample([], 1)).toEqual([]);
+    expect(downsample([], 0)).toEqual([]);
+  });
+
+  it('returns at most one sample when maxPoints < 2', () => {
+    // The interior loop divides by (maxPoints - 1), so any value below
+    // 2 must short-circuit before that math runs.
+    expect(downsample([10, 20, 30], 1)).toEqual([10]);
+    expect(downsample([10, 20, 30], 0)).toEqual([10]);
+  });
+
+  it('returns a copy unchanged when values.length <= maxPoints', () => {
+    const input = [1, 2, 3];
+    const out = downsample(input, 5);
+    expect(out).toEqual([1, 2, 3]);
+    // It must be a copy, not the same reference — callers that mutate
+    // their slice should not corrupt the source.
+    expect(out).not.toBe(input);
+  });
+
+  it('picks the first and last sample on the exact-equal boundary', () => {
+    // When values.length === maxPoints exactly, the implementation
+    // returns a copy. The two endpoints are preserved.
+    const input = [10, 20, 30, 40];
+    const out = downsample(input, 4);
+    expect(out[0]).toBe(10);
+    expect(out[out.length - 1]).toBe(40);
+  });
+
+  it('downsamples evenly and preserves first + last endpoints', () => {
+    const input = Array.from({ length: 720 }, (_, i) => i);
+    const out = downsample(input, 90);
+    expect(out.length).toBe(90);
+    expect(out[0]).toBe(0);
+    expect(out[out.length - 1]).toBe(719);
+  });
+});
+
+describe('arrowFor', () => {
+  // Four-quadrant truth table for (direction, improvement). The arrow
+  // tracks the *physical* direction of the line. This guards the
+  // COR-001 inversion class — both reachable quadrants today (improved
+  // x up/down) AND the worsened quadrants that will become reachable
+  // when a worsened-direction metric appears in HEADLINE_METRICS.
+  it('improved + up → up arrow (e.g. sleep efficiency rising)', () => {
+    expect(arrowFor({ direction: 'improved', improvement: 'up' })).toBe('↗');
+  });
+
+  it('improved + down → down arrow (e.g. HbA1c falling)', () => {
+    expect(arrowFor({ direction: 'improved', improvement: 'down' })).toBe('↘');
+  });
+
+  it('worsened + up → down arrow (higher-is-better metric falling)', () => {
+    expect(arrowFor({ direction: 'worsened', improvement: 'up' })).toBe('↘');
+  });
+
+  it('worsened + down → up arrow (lower-is-better metric rising)', () => {
+    expect(arrowFor({ direction: 'worsened', improvement: 'down' })).toBe('↗');
   });
 });

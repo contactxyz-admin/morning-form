@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Sparkline } from '@/components/demo/sparkline';
 import {
+  arrowFor,
   formatValue,
   getMetricSummary,
   PERSONA_INFLECTION_MONTH,
@@ -106,15 +107,7 @@ export default function DemoOverviewPage() {
 }
 
 function MetricCard({ summary, blurb }: { summary: PersonaMetricSummary; blurb: string }) {
-  // Arrow follows the *physical* direction of the line. `improvement`
-  // encodes which way is good for this metric; `direction` encodes
-  // whether the persona moved that way. So the arrow comes from
-  // `improvement` for "improved" cards, and the inverse for "worsened".
-  const movedUp =
-    summary.direction === 'improved'
-      ? summary.improvement === 'up'
-      : summary.improvement === 'down';
-  const arrow = movedUp ? '↗' : '↘';
+  const arrow = arrowFor(summary);
   const directionLabel = summary.direction === 'improved' ? 'Improved' : 'Worsened';
   return (
     <article className="flex flex-col">
