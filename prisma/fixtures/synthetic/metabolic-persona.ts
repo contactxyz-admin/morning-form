@@ -65,6 +65,12 @@ export interface MetricSpec {
   readonly series: SeriesSpec;
   /** Sampling cadence — how often to write a point. */
   readonly cadence: 'daily' | 'weekly' | 'quarterly';
+  /**
+   * Polarity of the metric. `lower` = lower-is-better (HbA1c, BP,
+   * triglycerides); `higher` = higher-is-better (sleep efficiency, HRV,
+   * mood). Drives the demo overview's `improvement` arrow direction.
+   */
+  readonly improvementDirection: 'lower' | 'higher';
 }
 
 /**
@@ -82,6 +88,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: '%',
     decimals: 2,
     cadence: 'quarterly',
+    improvementDirection: 'lower',
     series: {
       baseline: 5.85,
       trendPre: 0.04, // +0.04% per quarter pre-intervention
@@ -101,6 +108,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'mmol/L',
     decimals: 2,
     cadence: 'quarterly',
+    improvementDirection: 'lower',
     series: {
       baseline: 5.7,
       trendPre: 0.05,
@@ -120,6 +128,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'mmol/L',
     decimals: 2,
     cadence: 'quarterly',
+    improvementDirection: 'lower',
     series: {
       baseline: 5.6,
       trendPre: 0.05,
@@ -139,6 +148,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'mmol/L',
     decimals: 2,
     cadence: 'quarterly',
+    improvementDirection: 'lower',
     series: {
       baseline: 3.6,
       trendPre: 0.04,
@@ -158,6 +168,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'mmol/L',
     decimals: 2,
     cadence: 'quarterly',
+    improvementDirection: 'higher',
     series: {
       baseline: 1.05,
       trendPre: -0.01,
@@ -177,6 +188,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'mmol/L',
     decimals: 2,
     cadence: 'quarterly',
+    improvementDirection: 'lower',
     series: {
       baseline: 2.1,
       trendPre: 0.06,
@@ -196,6 +208,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'ng/mL',
     decimals: 0,
     cadence: 'quarterly',
+    improvementDirection: 'higher',
     series: {
       baseline: 42,
       trendPre: -1.5,
@@ -215,6 +228,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'mIU/L',
     decimals: 2,
     cadence: 'quarterly',
+    improvementDirection: 'lower',
     series: {
       baseline: 2.4,
       trendPre: 0.0,
@@ -234,6 +248,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'pg/mL',
     decimals: 1,
     cadence: 'quarterly',
+    improvementDirection: 'higher',
     series: {
       baseline: 9.5,
       trendPre: -0.1,
@@ -253,6 +268,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'mg/L',
     decimals: 2,
     cadence: 'quarterly',
+    improvementDirection: 'lower',
     series: {
       baseline: 2.5,
       trendPre: 0.05,
@@ -274,6 +290,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'kg',
     decimals: 1,
     cadence: 'weekly',
+    improvementDirection: 'lower',
     series: {
       baseline: 88,
       trendPre: 0.05, // ~+5kg over 14 months unchecked
@@ -295,6 +312,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'mmHg',
     decimals: 0,
     cadence: 'daily',
+    improvementDirection: 'lower',
     series: {
       baseline: 134,
       trendPre: 0.005, // +1.5mmHg/year unchecked
@@ -314,6 +332,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'mmHg',
     decimals: 0,
     cadence: 'daily',
+    improvementDirection: 'lower',
     series: {
       baseline: 86,
       trendPre: 0.003,
@@ -335,6 +354,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: '%',
     decimals: 1,
     cadence: 'daily',
+    improvementDirection: 'higher',
     series: {
       baseline: 81,
       trendPre: -0.005,
@@ -354,6 +374,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'hours',
     decimals: 2,
     cadence: 'daily',
+    improvementDirection: 'higher',
     series: {
       baseline: 6.7,
       trendPre: -0.0008,
@@ -373,6 +394,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'ms',
     decimals: 0,
     cadence: 'daily',
+    improvementDirection: 'higher',
     series: {
       baseline: 38,
       trendPre: -0.01,
@@ -394,6 +416,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'score',
     decimals: 0,
     cadence: 'weekly',
+    improvementDirection: 'higher',
     series: {
       baseline: 6,
       trendPre: -0.01,
@@ -413,6 +436,7 @@ export const METRICS: readonly MetricSpec[] = [
     unit: 'score',
     decimals: 0,
     cadence: 'weekly',
+    improvementDirection: 'higher',
     series: {
       baseline: 5,
       trendPre: -0.01,

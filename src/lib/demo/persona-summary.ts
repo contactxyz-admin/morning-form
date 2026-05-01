@@ -40,25 +40,6 @@ const SPEC_BY_METRIC: ReadonlyMap<string, MetricSpec> = new Map(
   METRICS.map((m) => [m.metric, m]),
 );
 
-/**
- * Lower-is-better metrics. Used to label the "improvement direction"
- * post-inflection without re-deriving it from the data. Not on
- * MetricSpec because the fixture is also consumed by the seed script
- * and graph narrative, neither of which need this notion.
- */
-const LOWER_IS_BETTER = new Set([
-  'hba1c_percent',
-  'fasting_glucose_mmol_l',
-  'total_cholesterol_mmol_l',
-  'ldl_mmol_l',
-  'triglycerides_mmol_l',
-  'tsh_miu_l',
-  'hscrp_mg_l',
-  'weight_kg',
-  'systolic_bp_mmhg_morning',
-  'diastolic_bp_mmhg_morning',
-]);
-
 const CADENCE_INFLECTION: Record<MetricSpec['cadence'], number> = {
   daily: INFLECTION_DAY,
   weekly: INFLECTION_WEEK,
@@ -93,7 +74,7 @@ export function getMetricSummary(metric: string): PersonaMetricSummary | null {
   const last = values[values.length - 1];
   const preInflection = values[inflectionIndex];
 
-  const lowerIsBetter = LOWER_IS_BETTER.has(metric);
+  const lowerIsBetter = spec.improvementDirection === 'lower';
   // Compare last vs preInflection rather than last vs first: the persona
   // arc is "drift up to a peak at inflection, then recover", and on
   // noisy daily series the first sample is just noise around baseline,

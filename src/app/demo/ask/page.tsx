@@ -36,6 +36,14 @@ interface CannedTurn {
   readonly answer: string;
   readonly topicKey: DemoTopicKey;
   readonly referrals: readonly Referral[];
+  /**
+   * Citations on /demo/ask must stay empty: the <Mention> chip rendered
+   * by CitationList calls /api/graph/nodes/.../provenance, an authed
+   * surface that would 401 for public demo visitors. Typed `never[]` so
+   * a future contributor adding a real Citation fails typecheck rather
+   * than silently shipping a broken chip.
+   */
+  readonly citations?: readonly never[];
 }
 
 const TURNS: readonly [CannedTurn, ...CannedTurn[]] = [
@@ -108,18 +116,6 @@ export default function DemoAskPage() {
   const [activeTurnId, setActiveTurnId] = useState<string>(TURNS[0].id);
   const turn = TURNS.find((t) => t.id === activeTurnId) ?? TURNS[0];
 
-  // Citations on /demo/ask must stay empty: the <Mention> chip rendered by
-  // CitationList calls `/api/graph/nodes/.../provenance`, which is an
-  // authed surface and would 401 for a public demo visitor. If a future
-  // edit adds citations to a canned turn, fail loudly here rather than
-  // silently shipping a broken chip.
-  const citations: AssistantBubbleModel['citations'] = [];
-  if (citations.length > 0) {
-    throw new Error(
-      '/demo/ask must not render citations — Mention chips call authed /api/graph endpoints',
-    );
-  }
-
   const messages: BubbleModel[] = [
     {
       role: 'user',
@@ -132,7 +128,8 @@ export default function DemoAskPage() {
       content: turn.answer,
       topicKey: turn.topicKey,
       classification: 'clinical-safe',
-      citations,
+      // Empty by contract — see CannedTurn.citations docstring.
+      citations: turn.citations ?? [],
       referrals: turn.referrals,
     } satisfies AssistantBubbleModel,
   ];
