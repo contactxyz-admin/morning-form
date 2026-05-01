@@ -156,6 +156,7 @@ function inferCadence(n: number): PersonaMetricSummary['cadence'] {
  * sparkline at ~320px wide and faster to render.
  */
 function downsample(values: readonly number[], maxPoints: number): number[] {
+  if (maxPoints < 2) return values.length === 0 ? [] : [values[0]];
   if (values.length <= maxPoints) return [...values];
   const out: number[] = [];
   for (let i = 0; i < maxPoints; i++) {

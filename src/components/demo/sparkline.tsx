@@ -54,8 +54,12 @@ export function Sparkline({
   const points = values.map((v, i) => project(v, i));
   const linePath = toPath(points);
 
-  // Improvement direction picks the post-inflection colour.
-  // We don't recolour the pre-inflection segment — it stays ink.
+  // Post-inflection segment redraws in `positive` whenever an
+  // `improvement` direction is supplied. Today every demo caller renders
+  // an *improved* metric, so both 'up' and 'down' map to positive — the
+  // colour reflects "the persona moved the right way", not the physical
+  // direction of the line. When a worsened-direction caller appears, add
+  // a `direction` prop and route 'worsened' to `stroke-alert`.
   const postValues =
     inflectionIndex !== undefined && inflectionIndex < values.length - 1
       ? values.slice(inflectionIndex)
@@ -64,12 +68,7 @@ export function Sparkline({
     postValues && inflectionIndex !== undefined
       ? toPath(postValues.map((v, i) => project(v, inflectionIndex + i)))
       : null;
-  const postClass =
-    improvement === 'up'
-      ? 'stroke-positive'
-      : improvement === 'down'
-        ? 'stroke-positive'
-        : 'stroke-text-primary';
+  const postClass = improvement ? 'stroke-positive' : 'stroke-text-primary';
 
   const inflectionX =
     inflectionIndex !== undefined ? inflectionIndex * stepX : null;

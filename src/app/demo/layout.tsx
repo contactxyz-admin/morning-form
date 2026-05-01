@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { DemoTab } from '@/components/demo/demo-tab';
 
 /**
  * Public `/demo` layout — no auth, no session, no app chrome.
@@ -64,16 +65,5 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
         </div>
       </footer>
     </div>
-  );
-}
-
-function DemoTab({ label, href }: { label: string; href: string }) {
-  return (
-    <Link
-      href={href}
-      className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
-    >
-      {label}
-    </Link>
   );
 }
