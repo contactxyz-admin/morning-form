@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 import type { PrismaClient } from '@prisma/client';
 import {
   getTestPrisma,
@@ -51,14 +52,17 @@ afterEach(() => {
   currentUserMock.mockReset();
 });
 
-function makeRequest(body: unknown, init: { host?: string } = {}): Request {
+function makeRequest(body: unknown, init: { host?: string } = {}): NextRequest {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (init.host) headers['x-forwarded-host'] = init.host;
-  return new Request(`https://${init.host ?? 'app.test'}/api/share/create`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  return new NextRequest(
+    `https://${init.host ?? 'app.test'}/api/share/create`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    },
+  );
 }
 
 describe('POST /api/share/create', () => {
