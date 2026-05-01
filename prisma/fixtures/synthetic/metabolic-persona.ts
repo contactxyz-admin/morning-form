@@ -249,13 +249,20 @@ export const METRICS: readonly MetricSpec[] = [
     decimals: 1,
     cadence: 'quarterly',
     improvementDirection: 'higher',
+    // Quarterly cadence gives only 8 samples across the 24-month window.
+    // The original sigma=0.6 routinely swallowed the +0.4/quarter trend
+    // and made the post-inflection summary read as "worsened" on the
+    // production demo overview, even though the persona narrative
+    // (and the /demo/ask blurb: "9.5 pg/mL → 11.8 pg/mL") tells a
+    // recovery story. Tightened to: a clearer drift down pre-protocol,
+    // a stronger climb post-protocol, and lower per-quarter noise.
     series: {
       baseline: 9.5,
-      trendPre: -0.1,
-      trendPost: 0.4,
+      trendPre: -0.2,
+      trendPost: 1.0,
       inflection: INFLECTION_QUARTER,
       phi: 0.4,
-      sigma: 0.6,
+      sigma: 0.35,
       min: 4.0,
       max: 25.0,
     },
