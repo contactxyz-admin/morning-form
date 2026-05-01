@@ -57,15 +57,23 @@ describe('getMetricSummary', () => {
     // a quarterly metric (8 points, low-N) into a "worsened" arrow on
     // production. If a future fixture tweak breaks one of these, this
     // test fails loudly rather than letting the demo overview mislead.
+    //
+    // Determinism note: this relies on PERSONA_SEED being stable. The
+    // generator's seed-determinism invariant is pinned separately by
+    // prisma/fixtures/synthetic/metabolic-persona.test.ts; if the seed
+    // ever changes, re-verify these direction reads against the new draw.
     it.each([
-      ['hba1c_percent'],
-      ['systolic_bp_mmhg_morning'],
-      ['sleep_efficiency_pct'],
-      ['free_testosterone_pg_ml'],
+      'hba1c_percent',
+      'systolic_bp_mmhg_morning',
+      'sleep_efficiency_pct',
+      'free_testosterone_pg_ml',
     ])('headline metric %s reads as improved', (metric) => {
       const summary = getMetricSummary(metric);
       expect(summary).not.toBeNull();
-      expect(summary!.direction).toBe('improved');
+      // toMatchObject so a failure dump shows the full summary (first,
+      // last, preInflection, delta) — direction-only assertions are
+      // thin: a future regression should surface "where" not just "what".
+      expect(summary!).toMatchObject({ direction: 'improved' });
     });
   });
 
