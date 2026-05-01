@@ -17,9 +17,12 @@ export interface SparklineProps {
   /** Index along `values` where the persona's intervention happened. */
   readonly inflectionIndex?: number;
   /**
-   * Direction of improvement after the inflection. `down` means lower is
-   * better (HbA1c, BP); `up` means higher is better (HRV, sleep). Drives
-   * the post-inflection stroke colour.
+   * Whether an improvement direction is defined for this metric. When
+   * supplied (regardless of `up` vs `down`), the post-inflection segment
+   * is drawn in `stroke-positive` to signal that the persona moved the
+   * right way. When undefined, the post segment stays ink. The 'up' /
+   * 'down' distinction is preserved in the prop for future callers that
+   * need to wire a `worsened` direction to `stroke-alert`.
    */
   readonly improvement?: 'up' | 'down';
   /** Domain min/max override; default = derived from values with 4% pad. */

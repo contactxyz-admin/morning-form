@@ -8,7 +8,6 @@
  */
 
 import {
-  END_DATE,
   generatePersonaData,
   INFLECTION_DAY,
   INFLECTION_MONTH,
@@ -83,7 +82,9 @@ export function getMetricSummary(metric: string): PersonaMetricSummary | null {
   const points = all
     .filter((p) => p.metric === metric)
     .sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
-  if (points.length === 0) return null;
+  // Need at least 2 points: inflectionIndex math divides by (length - 1),
+  // and Sparkline itself early-returns on values.length < 2.
+  if (points.length < 2) return null;
 
   const values = points.map((p) => p.value);
   const inflectionIndex = Math.min(CADENCE_INFLECTION[spec.cadence], values.length - 1);
@@ -139,5 +140,4 @@ export function formatValue(value: number, decimals: number): string {
   return value.toFixed(decimals);
 }
 
-export const PERSONA_END_DATE = END_DATE;
 export const PERSONA_INFLECTION_MONTH = INFLECTION_MONTH;

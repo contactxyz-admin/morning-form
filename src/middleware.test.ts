@@ -76,5 +76,22 @@ describe('middleware', () => {
       expect(res.headers.get('WWW-Authenticate')).toBeNull();
       expect(res.status).toBe(200);
     });
+
+    // Boundary tests — guard against accidental scope widening if the
+    // matcher is ever refactored to a naive `startsWith('/demo')`.
+    it('does not treat /demos (no trailing slash) as part of the /demo public branch', () => {
+      // Hits the function directly, bypassing the route-matcher; this
+      // verifies the in-function check distinguishes `/demo` (public)
+      // from `/demos` (would fall through to auth).
+      const res = middleware(makeRequest('/demos'));
+      expect(res.status).toBe(401);
+      expect(res.headers.get('X-Robots-Tag')).toBeNull();
+    });
+
+    it('does not treat /share (no trailing slash) as part of the /share/ public branch', () => {
+      const res = middleware(makeRequest('/share'));
+      expect(res.status).toBe(401);
+      expect(res.headers.get('X-Robots-Tag')).toBeNull();
+    });
   });
 });

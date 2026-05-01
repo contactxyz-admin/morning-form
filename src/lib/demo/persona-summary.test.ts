@@ -53,11 +53,11 @@ describe('getMetricSummary', () => {
   });
 
   describe('series shape', () => {
-    it('downsamples daily series to at most 90 points', () => {
+    it('downsamples a daily 720-point series to exactly 90 samples', () => {
       const sleep = getMetricSummary('sleep_efficiency_pct');
       // Daily cadence over 24 months = 720 points pre-downsample.
-      expect(sleep!.values.length).toBeLessThanOrEqual(90);
-      expect(sleep!.values.length).toBeGreaterThan(50);
+      // The exact 90 contract guards against off-by-one drift in downsample.
+      expect(sleep!.values.length).toBe(90);
     });
 
     it('keeps quarterly series intact (8 points fits under maxPoints)', () => {
