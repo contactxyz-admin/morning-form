@@ -93,7 +93,13 @@ export function getMetricSummary(metric: string): PersonaMetricSummary | null {
   const preInflection = values[inflectionIndex];
 
   const lowerIsBetter = LOWER_IS_BETTER.has(metric);
-  const delta = last - first;
+  // Compare last vs preInflection rather than last vs first: the persona
+  // arc is "drift up to a peak at inflection, then recover", and on
+  // noisy daily series the first sample is just noise around baseline,
+  // so first-vs-last can sit either side of zero on randomness alone.
+  // preInflection is the value at the moment the protocol started — the
+  // honest reference point for "did the protocol work".
+  const delta = last - preInflection;
   const improvedDirection = lowerIsBetter ? delta < 0 : delta > 0;
 
   return {

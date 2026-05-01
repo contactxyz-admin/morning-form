@@ -26,4 +26,55 @@ describe('middleware', () => {
     );
     expect(res.status).toBe(401);
   });
+
+  describe('public-surface security headers', () => {
+    // The /share, /r, and /demo branches don't require auth — they pass
+    // through with a fixed set of headers that prevent indexing, framing,
+    // CDN caching, and MIME-sniffing. Lock the full set so a future edit
+    // can't silently drop one (e.g. nosniff was added late by COR-equivalent
+    // SEC-002).
+    const expected: ReadonlyArray<readonly [string, string | RegExp]> = [
+      ['X-Robots-Tag', 'noindex, nofollow, noarchive'],
+      ['X-Frame-Options', 'DENY'],
+      ['Content-Security-Policy', "frame-ancestors 'none'"],
+      ['Referrer-Policy', 'no-referrer'],
+      ['X-Content-Type-Options', 'nosniff'],
+      ['Cache-Control', 'private, no-store'],
+    ];
+
+    function assertPublicHeaders(path: string) {
+      const res = middleware(makeRequest(path));
+      expect(res.status).toBe(200);
+      for (const [name, value] of expected) {
+        const got = res.headers.get(name);
+        if (value instanceof RegExp) {
+          expect(got).toMatch(value);
+        } else {
+          expect(got).toBe(value);
+        }
+      }
+    }
+
+    it('applies the full header set on /demo (overview)', () => {
+      assertPublicHeaders('/demo');
+    });
+
+    it('applies the full header set on /demo/ask', () => {
+      assertPublicHeaders('/demo/ask');
+    });
+
+    it('applies the full header set on /share/<token>', () => {
+      assertPublicHeaders('/share/abc123');
+    });
+
+    it('applies the full header set on /r/<slug>', () => {
+      assertPublicHeaders('/r/iron-protocol');
+    });
+
+    it('does not 401 the /demo branch when mf_session cookie is absent', () => {
+      const res = middleware(makeRequest('/demo'));
+      expect(res.headers.get('WWW-Authenticate')).toBeNull();
+      expect(res.status).toBe(200);
+    });
+  });
 });
