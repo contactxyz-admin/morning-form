@@ -13,6 +13,7 @@ export default function LandingPage() {
         <nav className="flex items-center gap-8 text-[0.8125rem] text-text-secondary">
           <Link href="#how" className="hover:text-text-primary transition-colors">How it works</Link>
           <Link href="#proof" className="hover:text-text-primary transition-colors">Members</Link>
+          <Link href="/demo" className="hover:text-text-primary transition-colors">See a demo</Link>
           <Link href="/sign-in" className="hover:text-text-primary transition-colors">Sign in</Link>
         </nav>
       </header>
@@ -197,6 +198,12 @@ export default function LandingPage() {
         <div className="mt-14 flex items-center gap-6 flex-wrap">
           <Link href="/onboarding">
             <Button size="lg">See your record</Button>
+          </Link>
+          <Link
+            href="/demo"
+            className="text-[0.9375rem] text-text-secondary hover:text-text-primary transition-colors duration-300"
+          >
+            See a sample record →
           </Link>
           <Link
             href="/sign-in"
