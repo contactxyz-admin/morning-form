@@ -50,6 +50,23 @@ describe('getMetricSummary', () => {
       expect(sleep!.last).toBeGreaterThan(sleep!.preInflection);
       expect(sleep!.direction).toBe('improved');
     });
+
+    // Every metric promoted to HEADLINE_METRICS in src/app/demo/page.tsx
+    // is editorially load-bearing — its blurb claims a recovery story.
+    // Lock the data to match the copy, so noise can't accidentally swing
+    // a quarterly metric (8 points, low-N) into a "worsened" arrow on
+    // production. If a future fixture tweak breaks one of these, this
+    // test fails loudly rather than letting the demo overview mislead.
+    it.each([
+      ['hba1c_percent'],
+      ['systolic_bp_mmhg_morning'],
+      ['sleep_efficiency_pct'],
+      ['free_testosterone_pg_ml'],
+    ])('headline metric %s reads as improved', (metric) => {
+      const summary = getMetricSummary(metric);
+      expect(summary).not.toBeNull();
+      expect(summary!.direction).toBe('improved');
+    });
   });
 
   describe('series shape', () => {
