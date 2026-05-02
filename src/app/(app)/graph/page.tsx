@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
+import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-view';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { useMediaQuery } from '@/hooks/use-media-query';
@@ -14,6 +15,16 @@ const FEATURED_TOPICS = [
   { key: 'sleep-recovery', label: 'Sleep & recovery', accent: 'sage' as const },
   { key: 'energy-fatigue', label: 'Energy & fatigue', accent: 'amber' as const },
 ];
+
+/**
+ * Minimum non-SUPPORTS-edges-per-node ratio before the desktop canvas
+ * shows. SUPPORTS edges are provenance-bearing — every node has at
+ * least one to its source — so counting them inflates the density
+ * floor and lets sparse-but-well-sourced graphs render as a particle
+ * cloud. The importance scorer at src/lib/graph/importance.ts excludes
+ * SUPPORTS for the same reason.
+ */
+const MIN_EDGE_DENSITY = 0.4;
 
 type LoadState =
   | { status: 'loading' }
@@ -165,16 +176,28 @@ export default function GraphPage() {
 
         {state.status === 'ready' && state.data.nodes.length > 0 && (
           <>
-            {/* Desktop canvas (U13c) will render here behind this flag. */}
-            {isDesktop && (
-              <Card variant="sunken" className="mb-10 py-8 text-center">
-                <p className="font-mono text-label uppercase text-text-tertiary">
-                  Desktop canvas · shipping next
+            {/* Desktop canvas. Sparse graphs keep the list view as the
+                primary read — a force-directed layout with too few edges
+                is just a particle cloud and reads worse than the grouped
+                list. See MIN_EDGE_DENSITY at the top of the file. */}
+            {isDesktop &&
+              state.data.edges.filter((e) => e.type !== 'SUPPORTS').length /
+                state.data.nodes.length >=
+                MIN_EDGE_DENSITY && (
+              <div className="mb-10 rounded-card border border-border bg-surface-warm/40 p-4">
+                <GraphCanvas
+                  nodes={state.data.nodes}
+                  edges={state.data.edges}
+                  width={720}
+                  height={480}
+                  onNodeClick={handleNodeClick}
+                  className="w-full h-auto"
+                  ariaLabel={`Your health graph — ${state.data.nodes.length} nodes, ${state.data.edges.length} edges. Tap any node to see its sources.`}
+                />
+                <p className="mt-3 text-caption text-text-tertiary">
+                  Tap a node to see what grounds it. The structured list below shows the same data, grouped.
                 </p>
-                <p className="mt-2 text-caption text-text-tertiary">
-                  For now, the structured list below reads the same data.
-                </p>
-              </Card>
+              </div>
             )}
             <GraphListView nodes={state.data.nodes} onNodeClick={handleNodeClick} />
           </>
