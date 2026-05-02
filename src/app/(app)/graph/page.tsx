@@ -16,6 +16,13 @@ const FEATURED_TOPICS = [
   { key: 'energy-fatigue', label: 'Energy & fatigue', accent: 'amber' as const },
 ];
 
+/**
+ * Minimum edges-per-node ratio before the desktop canvas shows.
+ * Below this floor the layout reads as a particle cloud — the list
+ * view is the better primary read for sparse graphs.
+ */
+const MIN_EDGE_DENSITY = 0.4;
+
 type LoadState =
   | { status: 'loading' }
   | { status: 'unauth' }
@@ -166,11 +173,11 @@ export default function GraphPage() {
 
         {state.status === 'ready' && state.data.nodes.length > 0 && (
           <>
-            {/* Desktop canvas. Sparse graphs (fewer than 0.4 edges per
-                node) keep the list view as the primary read — a force-
-                directed layout with too few edges is just a particle
-                cloud and reads worse than the grouped list. */}
-            {isDesktop && state.data.edges.length / state.data.nodes.length >= 0.4 && (
+            {/* Desktop canvas. Sparse graphs keep the list view as the
+                primary read — a force-directed layout with too few edges
+                is just a particle cloud and reads worse than the grouped
+                list. See MIN_EDGE_DENSITY at the top of the file. */}
+            {isDesktop && state.data.edges.length / state.data.nodes.length >= MIN_EDGE_DENSITY && (
               <div className="mb-10 rounded-card border border-border bg-surface-warm/40 p-4">
                 <GraphCanvas
                   nodes={state.data.nodes}
