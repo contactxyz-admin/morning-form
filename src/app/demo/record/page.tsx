@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DemoGraphSection } from '@/components/demo/demo-graph-section';
 import { METABOLIC_PERSONA_GRAPH } from '../../../../prisma/fixtures/synthetic/graph-narrative';
 import type {
   DemoEdge,
@@ -75,6 +76,8 @@ export default function DemoRecordPage() {
           source chunk you could cite in conversation.
         </p>
       </div>
+
+      <DemoGraphSection fixture={fixture} />
 
       <section className="mt-12 space-y-12">
         {SURFACES.map((surface) => (
