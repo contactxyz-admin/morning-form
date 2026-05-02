@@ -1,31 +1,44 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Wordmark } from '@/components/brand/wordmark';
+
+const NAV_LINKS: ReadonlyArray<{ label: string; href: string }> = [
+  { label: 'How it works', href: '#how' },
+  { label: 'Members', href: '#proof' },
+  { label: 'See a demo', href: '/demo' },
+  { label: 'Sign in', href: '/sign-in' },
+];
+
+const NAV_LINK_CLASS =
+  'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring';
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-bg">
-      {/* Header — fixed visual rhythm; nav sits in optical alignment with the wordmark. */}
+      {/* Header — text-only wordmark + mono-uppercase tabs, matching the
+          /demo branding voice. */}
       <header className="px-6 sm:px-10 lg:px-16 pt-7 pb-4 flex items-center justify-between max-w-[1400px] mx-auto">
-        <Link href="/" aria-label="Morning Form — home" className="-m-1 p-1">
-          <Wordmark variant="inline" size="md" />
+        <Link
+          href="/"
+          aria-label="Morning Form — home"
+          className="font-display font-light text-subheading -tracking-[0.02em] text-text-primary"
+        >
+          Morning Form
         </Link>
-        <nav className="flex items-center gap-8 text-[0.8125rem] text-text-secondary">
-          <Link href="#how" className="hover:text-text-primary transition-colors">How it works</Link>
-          <Link href="#proof" className="hover:text-text-primary transition-colors">Members</Link>
-          <Link href="/demo" className="hover:text-text-primary transition-colors">See a demo</Link>
-          <Link href="/sign-in" className="hover:text-text-primary transition-colors">Sign in</Link>
+        <nav className="flex items-center gap-6">
+          {NAV_LINKS.map((t) => (
+            <Link key={t.href} href={t.href} className={NAV_LINK_CLASS}>
+              {t.label}
+            </Link>
+          ))}
         </nav>
       </header>
 
-      {/* Hero — single status chip, ink headline (no gradient), generous breathing room. */}
+      {/* Hero — mono-uppercase eyebrow (was a chip-soft pill), ink headline,
+          generous breathing room. */}
       <section className="px-6 sm:px-10 lg:px-16 pt-20 sm:pt-32 pb-24 sm:pb-40 max-w-[1400px] mx-auto">
-        <div className="mb-10">
-          <span className="chip-soft">
-            <span className="chip-soft-dot" />
-            <span>Now in private beta · UK</span>
-          </span>
-        </div>
+        <p className="mb-10 font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+          Now in private beta · UK
+        </p>
 
         <h1 className="text-[2.75rem] sm:text-[4.5rem] lg:text-[5.5rem] font-semibold text-text-primary leading-[1.02] tracking-[-0.04em] max-w-5xl">
           One health record from every wearable, app, and blood test.
@@ -214,17 +227,24 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Footer — text-only wordmark, mono-uppercase nav. */}
       <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
-          <Wordmark variant="lockup" size="lg" />
+          <Link
+            href="/"
+            className="font-display font-light text-heading -tracking-[0.02em] text-text-primary"
+          >
+            Morning Form
+          </Link>
           <div className="flex flex-col gap-3 sm:items-end">
-            <div className="flex flex-wrap gap-7 text-[0.8125rem] text-text-tertiary">
-              <Link href="/privacy" className="hover:text-text-secondary transition-colors">Privacy</Link>
-              <Link href="/safety" className="hover:text-text-secondary transition-colors">Safety &amp; clinical</Link>
-              <Link href="/contact" className="hover:text-text-secondary transition-colors">Contact</Link>
+            <div className="flex flex-wrap gap-7">
+              <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
+              <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
+              <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
             </div>
-            <p className="text-[0.8125rem] text-text-tertiary">© 2026 Morning Form</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+              © 2026 Morning Form
+            </p>
           </div>
         </div>
       </footer>
