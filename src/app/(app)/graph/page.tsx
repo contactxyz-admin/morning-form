@@ -17,9 +17,12 @@ const FEATURED_TOPICS = [
 ];
 
 /**
- * Minimum edges-per-node ratio before the desktop canvas shows.
- * Below this floor the layout reads as a particle cloud — the list
- * view is the better primary read for sparse graphs.
+ * Minimum non-SUPPORTS-edges-per-node ratio before the desktop canvas
+ * shows. SUPPORTS edges are provenance-bearing — every node has at
+ * least one to its source — so counting them inflates the density
+ * floor and lets sparse-but-well-sourced graphs render as a particle
+ * cloud. The importance scorer at src/lib/graph/importance.ts excludes
+ * SUPPORTS for the same reason.
  */
 const MIN_EDGE_DENSITY = 0.4;
 
@@ -177,7 +180,10 @@ export default function GraphPage() {
                 primary read — a force-directed layout with too few edges
                 is just a particle cloud and reads worse than the grouped
                 list. See MIN_EDGE_DENSITY at the top of the file. */}
-            {isDesktop && state.data.edges.length / state.data.nodes.length >= MIN_EDGE_DENSITY && (
+            {isDesktop &&
+              state.data.edges.filter((e) => e.type !== 'SUPPORTS').length /
+                state.data.nodes.length >=
+                MIN_EDGE_DENSITY && (
               <div className="mb-10 rounded-card border border-border bg-surface-warm/40 p-4">
                 <GraphCanvas
                   nodes={state.data.nodes}
