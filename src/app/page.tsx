@@ -40,11 +40,11 @@ export default function LandingPage() {
           Now in private beta · UK
         </p>
 
-        <h1 className="text-[2.75rem] sm:text-[4.5rem] lg:text-[5.5rem] font-semibold text-text-primary leading-[1.02] tracking-[-0.04em] max-w-5xl">
+        <h1 className="font-display font-light text-display sm:text-display-xl lg:text-display-2xl text-text-primary -tracking-[0.04em] leading-[0.98] max-w-5xl">
           One health record from every wearable, app, and blood test.
         </h1>
 
-        <p className="mt-10 text-[1.125rem] sm:text-[1.25rem] text-text-secondary max-w-2xl leading-[1.5] tracking-[-0.005em]">
+        <p className="mt-10 text-body-lg text-text-secondary max-w-xl leading-relaxed">
           The longitudinal view your GP doesn&rsquo;t have — written in plain English.
           Morning Form reads your Whoop, Oura, Apple Health, and blood panels and tells
           you what&rsquo;s changed, what it means, and what to do today.
@@ -54,7 +54,7 @@ export default function LandingPage() {
           <Link href="/onboarding">
             <Button size="lg">See your record</Button>
           </Link>
-          <p className="text-[0.8125rem] text-text-tertiary">
+          <p className="text-caption text-text-tertiary">
             8 minutes · free · no signup
           </p>
         </div>
@@ -69,10 +69,10 @@ export default function LandingPage() {
             { label: 'Action', caption: 'What to change today, ranked by impact on your data.' },
           ].map((p) => (
             <figure key={p.label}>
-              <div className="panel-arch aspect-[4/5] flex items-end p-5 text-[0.75rem] uppercase tracking-[0.08em] text-text-whisper">
+              <div className="panel-arch aspect-[4/5] flex items-end p-5 font-mono text-[10px] uppercase tracking-[0.14em] text-text-whisper">
                 {p.label}
               </div>
-              <figcaption className="mt-5 text-[0.875rem] leading-[1.5]">
+              <figcaption className="mt-5 text-caption leading-relaxed">
                 <span className="text-text-primary font-medium">{p.label}.</span>{' '}
                 <span className="text-text-tertiary">{p.caption}</span>
               </figcaption>
@@ -83,8 +83,8 @@ export default function LandingPage() {
 
       {/* Why it pays — three benefits, each tied to a real ROI lever. */}
       <section id="how" className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
-        <p className="text-[0.75rem] uppercase tracking-[0.1em] text-text-tertiary mb-5">Why it pays</p>
-        <h2 className="text-[2rem] sm:text-[3rem] font-semibold text-text-primary max-w-3xl leading-[1.05] tracking-[-0.035em]">
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary mb-5">Why it pays</p>
+        <h2 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-3xl -tracking-[0.04em] leading-[1.02]">
           The clearest return on the time and money you&rsquo;re already spending on your health.
         </h2>
 
@@ -107,11 +107,11 @@ export default function LandingPage() {
             },
           ].map((b) => (
             <div key={b.n}>
-              <span className="font-mono text-[0.75rem] text-text-tertiary tracking-wider">{b.n}</span>
-              <h3 className="mt-4 text-[1.375rem] font-semibold text-text-primary tracking-[-0.02em] leading-[1.25]">
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">{b.n}</span>
+              <h3 className="mt-4 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
                 {b.title}
               </h3>
-              <p className="mt-3 text-[0.9375rem] text-text-secondary leading-[1.6]">{b.body}</p>
+              <p className="mt-3 text-body text-text-secondary leading-relaxed">{b.body}</p>
             </div>
           ))}
         </div>
@@ -119,7 +119,7 @@ export default function LandingPage() {
 
       {/* How it works — three steps, monospaced numerals for rhythm. */}
       <section className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
-        <p className="text-[0.75rem] uppercase tracking-[0.1em] text-text-tertiary mb-12">How it works</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary mb-12">How it works</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-14 sm:gap-12 max-w-5xl">
           {[
             {
@@ -139,13 +139,13 @@ export default function LandingPage() {
             },
           ].map((step) => (
             <div key={step.n}>
-              <span className="font-mono text-[0.75rem] uppercase tracking-[0.12em] text-text-tertiary">
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
                 {step.n}
               </span>
-              <h3 className="mt-4 text-[1.375rem] font-semibold text-text-primary tracking-[-0.02em] leading-[1.25]">
+              <h3 className="mt-4 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
                 {step.title}
               </h3>
-              <p className="mt-3 text-[0.9375rem] text-text-secondary leading-[1.6]">{step.body}</p>
+              <p className="mt-3 text-body text-text-secondary leading-relaxed">{step.body}</p>
             </div>
           ))}
         </div>
@@ -153,8 +153,8 @@ export default function LandingPage() {
 
       {/* Social proof — placeholder testimonials in the early-adopter voice. */}
       <section id="proof" className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
-        <p className="text-[0.75rem] uppercase tracking-[0.1em] text-text-tertiary mb-5">Members</p>
-        <h2 className="text-[1.875rem] sm:text-[2.5rem] font-semibold text-text-primary max-w-2xl leading-[1.1] tracking-[-0.03em]">
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary mb-5">Members</p>
+        <h2 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-3xl -tracking-[0.04em] leading-[1.02]">
           From people who were already tracking everything.
         </h2>
 
@@ -183,28 +183,28 @@ export default function LandingPage() {
               key={i}
               className="rounded-card border border-border bg-surface p-7 sm:p-8 flex flex-col gap-6"
             >
-              <blockquote className="text-[0.9375rem] text-text-primary leading-[1.55]">
+              <blockquote className="text-body text-text-primary leading-relaxed">
                 {'\u201c'}{t.quote}{'\u201d'}
               </blockquote>
               <figcaption className="mt-auto">
-                <p className="text-[0.8125rem] font-medium text-text-primary">{t.name}</p>
-                <p className="text-[0.8125rem] text-text-tertiary">{t.meta}</p>
+                <p className="text-caption font-medium text-text-primary">{t.name}</p>
+                <p className="text-caption text-text-tertiary">{t.meta}</p>
               </figcaption>
             </figure>
           ))}
         </div>
 
-        <p className="mt-12 text-[0.8125rem] text-text-tertiary max-w-md">
+        <p className="mt-12 text-caption text-text-tertiary max-w-md">
           Quotes shown are placeholders pending consented testimonials from private beta members.
         </p>
       </section>
 
       {/* Final CTA — restate the value, ink only, low-commitment ask. */}
       <section className="px-6 sm:px-10 lg:px-16 py-32 sm:py-44 border-t border-border max-w-[1400px] mx-auto">
-        <h2 className="text-[2.25rem] sm:text-[3.5rem] font-semibold text-text-primary max-w-3xl leading-[1.02] tracking-[-0.035em]">
+        <h2 className="font-display font-light text-display sm:text-display-xl lg:text-display-2xl text-text-primary max-w-4xl -tracking-[0.04em] leading-[0.98]">
           See what your numbers have been trying to tell you. In eight minutes, free.
         </h2>
-        <p className="mt-8 text-[1.125rem] text-text-secondary max-w-xl leading-[1.55]">
+        <p className="mt-8 text-body-lg text-text-secondary max-w-xl leading-relaxed">
           Take the assessment, link one wearable, see your record. No card, no signup until
           you decide to keep going.
         </p>
@@ -214,13 +214,13 @@ export default function LandingPage() {
           </Link>
           <Link
             href="/demo"
-            className="text-[0.9375rem] text-text-secondary hover:text-text-primary transition-colors duration-300"
+            className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
           >
             See a sample record →
           </Link>
           <Link
             href="/sign-in"
-            className="text-[0.9375rem] text-text-secondary hover:text-text-primary transition-colors duration-300"
+            className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
           >
             Already a member? Sign in →
           </Link>

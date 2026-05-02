@@ -1,5 +1,38 @@
 import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { extendTailwindMerge } from 'tailwind-merge';
+
+/**
+ * tailwind-merge config — teach the merger that our custom typography
+ * tokens (text-display, text-heading, text-body-lg, etc., defined in
+ * tailwind.config.ts:fontSize) are font-size classes, not text-color
+ * classes. Without this extension, default twMerge treats `text-body-lg`
+ * as a color and strips any preceding `text-[#hex]` color from the
+ * className — which silently broke every primary Button on the app
+ * (text invisible against bg-button) until this fix.
+ */
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      'font-size': [
+        {
+          text: [
+            'display-2xl',
+            'display-xl',
+            'display',
+            'display-sm',
+            'heading',
+            'subheading',
+            'body-lg',
+            'body',
+            'caption',
+            'label',
+            'data',
+          ],
+        },
+      ],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
