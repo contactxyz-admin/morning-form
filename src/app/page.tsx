@@ -8,7 +8,14 @@ const NAV_LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: 'Sign in', href: '/sign-in' },
 ];
 
-const NAV_LINK_CLASS =
+/**
+ * Mono-uppercase eyebrow / nav-link treatment used across the home page
+ * chrome — header nav, footer nav, footer copyright. The same baseline
+ * also appears inline on `/demo/*` surfaces (the editorial register the
+ * brand voice converged on). Add `hover:text-text-primary` for
+ * interactive instances.
+ */
+const EYEBROW_CLASS =
   'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring';
 
 export default function LandingPage() {
@@ -26,7 +33,7 @@ export default function LandingPage() {
         </Link>
         <nav className="flex items-center gap-6">
           {NAV_LINKS.map((t) => (
-            <Link key={t.href} href={t.href} className={NAV_LINK_CLASS}>
+            <Link key={t.href} href={t.href} className={EYEBROW_CLASS}>
               {t.label}
             </Link>
           ))}
@@ -238,9 +245,9 @@ export default function LandingPage() {
           </Link>
           <div className="flex flex-col gap-3 sm:items-end">
             <div className="flex flex-wrap gap-7">
-              <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
-              <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
-              <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
+              <Link href="/privacy" className={EYEBROW_CLASS}>Privacy</Link>
+              <Link href="/safety" className={EYEBROW_CLASS}>Safety &amp; clinical</Link>
+              <Link href="/contact" className={EYEBROW_CLASS}>Contact</Link>
             </div>
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
               © 2026 Morning Form

@@ -7,6 +7,7 @@ import { SectionLabel } from '@/components/ui/section-label';
 import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-view';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
+import { shouldShowCanvas } from '@/lib/graph/canvas-gate';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import type { GraphNodeWire, GraphResponse } from '@/types/graph';
 
@@ -15,16 +16,6 @@ const FEATURED_TOPICS = [
   { key: 'sleep-recovery', label: 'Sleep & recovery', accent: 'sage' as const },
   { key: 'energy-fatigue', label: 'Energy & fatigue', accent: 'amber' as const },
 ];
-
-/**
- * Minimum non-SUPPORTS-edges-per-node ratio before the desktop canvas
- * shows. SUPPORTS edges are provenance-bearing — every node has at
- * least one to its source — so counting them inflates the density
- * floor and lets sparse-but-well-sourced graphs render as a particle
- * cloud. The importance scorer at src/lib/graph/importance.ts excludes
- * SUPPORTS for the same reason.
- */
-const MIN_EDGE_DENSITY = 0.4;
 
 type LoadState =
   | { status: 'loading' }
@@ -176,14 +167,10 @@ export default function GraphPage() {
 
         {state.status === 'ready' && state.data.nodes.length > 0 && (
           <>
-            {/* Desktop canvas. Sparse graphs keep the list view as the
-                primary read — a force-directed layout with too few edges
-                is just a particle cloud and reads worse than the grouped
-                list. See MIN_EDGE_DENSITY at the top of the file. */}
-            {isDesktop &&
-              state.data.edges.filter((e) => e.type !== 'SUPPORTS').length /
-                state.data.nodes.length >=
-                MIN_EDGE_DENSITY && (
+            {/* Desktop canvas — sparse graphs keep the list view as the
+                primary read. See `shouldShowCanvas` for the density
+                contract; tested in src/lib/graph/canvas-gate.test.ts. */}
+            {shouldShowCanvas(state.data.nodes, state.data.edges, isDesktop) && (
               <div className="mb-10 rounded-card border border-border bg-surface-warm/40 p-4">
                 <GraphCanvas
                   nodes={state.data.nodes}
