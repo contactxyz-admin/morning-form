@@ -1,5 +1,17 @@
 import { cn } from '@/lib/utils';
 
+/**
+ * Wordmark — SVG dot-cluster mark + sans-extrabold "Morning Form".
+ *
+ * NOTE: As of PR #93 the home page (`src/app/page.tsx`) and the rest
+ * of the marketing chrome use a text-only `font-display font-light`
+ * "Morning Form" treatment instead of this component, matching the
+ * `/demo` voice. This file is intentionally retained for future
+ * non-chrome contexts (favicon, social-share OG image, product chrome
+ * if/when the brand wants the mark back). It has zero callers in
+ * `src/` today — do not delete; do not re-import without checking
+ * with design that the dot-cluster mark is in scope for the surface.
+ */
 type WordmarkVariant = 'lockup' | 'inline' | 'mark';
 type WordmarkSize = 'sm' | 'md' | 'lg' | 'xl';
 
