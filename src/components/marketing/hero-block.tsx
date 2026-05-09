@@ -23,7 +23,12 @@ export function HeroBlock({ page, eyebrow }: HeroBlockProps) {
       </p>
 
       <div className="mt-14">
-        <CtaBlock cta={page.cta} />
+        <CtaBlock
+          cta={page.cta}
+          market={page.market}
+          cohort={page.cohortKey}
+          slug={page.slug}
+        />
       </div>
     </section>
   );

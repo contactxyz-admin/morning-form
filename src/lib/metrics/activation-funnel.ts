@@ -14,6 +14,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 export type Db = PrismaClient | Prisma.TransactionClient;
 
 export type StageKey =
+  | 'anchor-page-visit'
   | 'signup'
   | 'essentials'
   | 'connected'
@@ -58,6 +59,52 @@ export const DEFAULT_RETENTION_WINDOW_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Retention lower bound: activity must be at least 24h after grounded answer. */
 const RETENTION_MIN_OFFSET_MS = DAY_MS;
+
+/**
+ * Anchor-page-visit — pre-signup stage for the SEO/GEO funnel.
+ *
+ * LandingPageVisit rows are written before signup (keyed on the
+ * `mfAnonymousId` cookie). At magic-link verify, the verify route
+ * backfills `LandingPageVisit.email = User.email` for the visitor's
+ * pre-signup pageviews. We join on email here so the same userId
+ * cohort that drives the rest of the funnel resolves consistently.
+ *
+ * Users with no anchor-page-visit (direct signups without a marketing
+ * page) simply do not appear in the map — Map#has is the predicate.
+ */
+const anchorPageVisitStage: StageDefinition = {
+  key: 'anchor-page-visit',
+  label: 'Anchor page visit',
+  async resolve({ db, userIds, window }) {
+    if (userIds.length === 0) return new Map();
+    const users = await db.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, email: true },
+    });
+    if (users.length === 0) return new Map();
+    const emailToUserId = new Map<string, string>();
+    for (const u of users) {
+      if (u.email) emailToUserId.set(u.email, u.id);
+    }
+    if (emailToUserId.size === 0) return new Map();
+    const visits = await db.landingPageVisit.findMany({
+      where: {
+        email: { in: Array.from(emailToUserId.keys()) },
+        createdAt: { lte: window.until },
+      },
+      select: { email: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const map: StageReachMap = new Map();
+    for (const v of visits) {
+      if (!v.email) continue;
+      const userId = emailToUserId.get(v.email);
+      if (!userId) continue;
+      if (!map.has(userId)) map.set(userId, v.createdAt);
+    }
+    return map;
+  },
+};
 
 const signupStage: StageDefinition = {
   key: 'signup',
@@ -234,6 +281,7 @@ function appendActivity(
 }
 
 export const ACTIVATION_STAGES: readonly StageDefinition[] = [
+  anchorPageVisitStage,
   signupStage,
   essentialsStage,
   connectedStage,

@@ -83,7 +83,12 @@ export function PageTemplate({ page }: PageTemplateProps) {
           See what your numbers have been trying to tell you.
         </h2>
         <div className="mt-12">
-          <CtaBlock cta={page.cta} />
+          <CtaBlock
+            cta={page.cta}
+            market={page.market}
+            cohort={page.cohortKey}
+            slug={page.slug}
+          />
         </div>
       </section>
 

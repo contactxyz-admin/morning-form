@@ -30,9 +30,32 @@ export const MEMBERSHIP_PRICE: Record<
 
 /**
  * Cookie names. Centralised so middleware, route handlers, and the
- * market-banner component all read/write the same key. Phase 1's
- * `mf_anon` cookie + the rate-limit subjectKind constants + the
- * Stripe price-ID env-var keys land alongside their first consumers
- * (U5/U6/U8) rather than ahead of them.
+ * market-banner / visit-beacon components all read/write the same keys.
  */
 export const MARKET_COOKIE = 'mf_market';
+export const ANONYMOUS_COOKIE = 'mf_anon';
+
+/**
+ * Anonymous-visitor cookie lifespan. ~13 months keeps returning visitors
+ * attributable across a full year-over-year window without ballooning
+ * the LandingPageVisit row count via cookie churn.
+ */
+export const ANONYMOUS_COOKIE_MAX_AGE_S = 60 * 60 * 24 * 400;
+
+/**
+ * Rate-limit subjectKind constants for the marketing tree. Phase 0 uses
+ * only the visit-beacon kind; upload + signup variants land in Phase 1
+ * alongside their first consumers (U5/U6).
+ */
+export const RATE_LIMIT_KINDS = {
+  visitBeaconIp1h: 'visit-beacon-ip-1h',
+} as const;
+
+export type RateLimitKind = (typeof RATE_LIMIT_KINDS)[keyof typeof RATE_LIMIT_KINDS];
+
+/**
+ * Visit-beacon rate limit cap per IP per hour. 60/h is generous for
+ * legitimate browser-tab churn (a 60-min reading session reloading every
+ * minute would just hit the cap) while shutting down bot rotation.
+ */
+export const VISIT_BEACON_HOURLY_CAP = 60;

@@ -4,6 +4,7 @@ import { isMarket } from '@/lib/marketing/market';
 import { getMarketingPage, hasCounterpart } from '@/lib/marketing/slug-allowlist';
 import { MedicalWebPage } from '@/components/structured-data/medical-webpage';
 import { FaqPage } from '@/components/structured-data/faq-page';
+import { VisitBeacon } from '@/components/marketing/visit-beacon';
 
 interface SlugLayoutProps {
   children: React.ReactNode;
@@ -58,6 +59,7 @@ export default function SlugLayout({ children, params }: SlugLayoutProps) {
         reviewerOrgName="Morning Form"
       />
       {page.faq && page.faq.length > 0 ? <FaqPage entries={page.faq} /> : null}
+      <VisitBeacon slug={page.slug} cohort={page.cohortKey} market={page.market} />
       {children}
     </>
   );

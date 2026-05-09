@@ -1,6 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { assertAuthEnv } from '@/lib/env';
-import { MARKET_COOKIE } from '@/lib/marketing/constants';
+import {
+  ANONYMOUS_COOKIE,
+  ANONYMOUS_COOKIE_MAX_AGE_S,
+  MARKET_COOKIE,
+} from '@/lib/marketing/constants';
 import { inferMarketFromCountryCode, isMarket } from '@/lib/marketing/market';
 import { SESSION_COOKIE } from '@/lib/session-cookie';
 
@@ -49,6 +53,31 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.redirect(target);
   }
 
+  // Marketing tree (/uk/*, /us/*): public, no auth, but we set the
+  // mf_anon cookie on first paint so the visit-beacon and the future
+  // signup path can resolve a consistent anonymous-visitor id. Cookie is
+  // httpOnly (the beacon API route reads it server-side; client never
+  // needs the value) and ~13 months long so returning visits attribute
+  // back to the same id.
+  if (
+    path === '/uk' ||
+    path === '/us' ||
+    path.startsWith('/uk/') ||
+    path.startsWith('/us/')
+  ) {
+    const res = NextResponse.next();
+    if (!request.cookies.get(ANONYMOUS_COOKIE)?.value) {
+      res.cookies.set(ANONYMOUS_COOKIE, crypto.randomUUID(), {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: ANONYMOUS_COOKIE_MAX_AGE_S,
+        path: '/',
+      });
+    }
+    return res;
+  }
+
   if (
     path.startsWith('/share/') ||
     path.startsWith('/r/') ||
@@ -88,6 +117,10 @@ export function middleware(request: NextRequest): NextResponse {
 export const config = {
   matcher: [
     '/',
+    '/uk',
+    '/us',
+    '/uk/:path*',
+    '/us/:path*',
     '/api/admin/:path*',
     '/api/assessment',
     '/api/check-in',

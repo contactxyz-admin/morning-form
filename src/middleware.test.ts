@@ -184,4 +184,38 @@ describe('middleware', () => {
       expectRedirectTo(res, /\/us#how$/);
     });
   });
+
+  describe('marketing tree (/uk/*, /us/*) anonymous-visitor cookie', () => {
+    it('sets mf_anon cookie on first visit to a market homepage', () => {
+      const res = middleware(makeRequest('/uk'));
+      expect(res.status).toBe(200);
+      const setCookie = res.cookies.get('mf_anon');
+      expect(setCookie?.value).toBeTruthy();
+      // UUID v4-ish — 36 chars with hyphens.
+      expect(setCookie?.value).toMatch(/^[0-9a-f-]{36}$/);
+      expect(setCookie?.httpOnly).toBe(true);
+      expect(setCookie?.sameSite).toBe('lax');
+    });
+
+    it('sets mf_anon cookie on first visit to a slug page', () => {
+      const res = middleware(makeRequest('/uk/fatigue-in-men'));
+      expect(res.status).toBe(200);
+      expect(res.cookies.get('mf_anon')?.value).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it('preserves an existing mf_anon cookie (does not overwrite on every request)', () => {
+      const existing = '12345678-1234-1234-1234-123456789012';
+      const res = middleware(makeRequest('/uk/fatigue-in-men', { cookie: `mf_anon=${existing}` }));
+      expect(res.status).toBe(200);
+      // Middleware only sets the cookie when missing; an existing cookie
+      // means no Set-Cookie header for mf_anon on this response.
+      expect(res.cookies.get('mf_anon')).toBeUndefined();
+    });
+
+    it('does not require a session cookie for marketing pages (public)', () => {
+      const res = middleware(makeRequest('/uk/fatigue-in-men'));
+      expect(res.status).toBe(200);
+      expect(res.headers.get('WWW-Authenticate')).toBeNull();
+    });
+  });
 });

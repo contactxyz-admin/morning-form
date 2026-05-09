@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyMagicLink } from '@/lib/auth/magic-link';
 import { createSession } from '@/lib/session';
+import { ANONYMOUS_COOKIE } from '@/lib/marketing/constants';
 
 /**
  * GET /api/auth/verify?token=<raw>
@@ -39,6 +40,24 @@ export async function GET(request: Request) {
     userAgent: request.headers.get('user-agent'),
     ipHash: null,
   });
+
+  // R7 funnel attribution: backfill LandingPageVisit.email for the
+  // visitor's pre-signup pageviews so the activation-funnel resolver can
+  // join anchor-page-visit -> User by email. Best-effort — a missing
+  // cookie or zero matching rows is normal (organic homepage signups).
+  const anonymousId =
+    request.headers
+      .get('cookie')
+      ?.split(';')
+      .map((c) => c.trim())
+      .find((c) => c.startsWith(`${ANONYMOUS_COOKIE}=`))
+      ?.split('=')[1] ?? null;
+  if (anonymousId) {
+    await prisma.landingPageVisit.updateMany({
+      where: { mfAnonymousId: anonymousId, email: null },
+      data: { email: user.email },
+    });
+  }
 
   const onboarded = Boolean(user.assessment && user.stateProfile);
   const redirectTo = onboarded ? '/record' : '/assessment';
