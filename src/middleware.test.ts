@@ -2,9 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
 import { middleware } from './middleware';
 
-function makeRequest(url: string, cookie?: string): NextRequest {
+interface RequestOptions {
+  cookie?: string;
+  country?: string;
+}
+
+function makeRequest(url: string, options: RequestOptions | string = {}): NextRequest {
+  // Backwards-compat: existing tests pass a cookie string as the second arg.
+  const opts = typeof options === 'string' ? { cookie: options } : options;
   const headers = new Headers();
-  if (cookie) headers.set('cookie', cookie);
+  if (opts.cookie) headers.set('cookie', opts.cookie);
+  if (opts.country) headers.set('x-vercel-ip-country', opts.country);
   return new NextRequest(new URL(url, 'http://localhost:3000'), { headers });
 }
 
@@ -93,6 +101,64 @@ describe('middleware', () => {
       const res = middleware(makeRequest('/share'));
       expect(res.status).toBe(401);
       expect(res.headers.get('X-Robots-Tag')).toBeNull();
+    });
+  });
+
+  describe('multi-market geo redirect at /', () => {
+    // U1 of the SEO/GEO plan: visitor lands on `/`, gets routed to `/uk`
+    // or `/us` based on Vercel Edge geo (`x-vercel-ip-country`). Cookie
+    // (mf_market) wins over geo when present, so banner override sticks.
+    // Sub-paths under `/uk/...` and `/us/...` are NOT in the matcher and
+    // should never enter middleware (we don't test them here — Next's
+    // matcher handles that).
+
+    it('redirects / to /uk for GB visitors with no cookie', () => {
+      const res = middleware(makeRequest('/', { country: 'GB' }));
+      expect(res.status).toBe(307); // Next.js NextResponse.redirect default
+      expect(res.headers.get('location')).toMatch(/\/uk$/);
+    });
+
+    it('redirects / to /us for US visitors with no cookie', () => {
+      const res = middleware(makeRequest('/', { country: 'US' }));
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toMatch(/\/us$/);
+    });
+
+    it('redirects / to /us for visitors from unsupported countries (default fallback)', () => {
+      const res = middleware(makeRequest('/', { country: 'FR' }));
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toMatch(/\/us$/);
+    });
+
+    it('redirects / to /us when no country header is present (preview deployments)', () => {
+      const res = middleware(makeRequest('/'));
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toMatch(/\/us$/);
+    });
+
+    it('honours mf_market cookie over geo header (cookie wins)', () => {
+      const res = middleware(
+        makeRequest('/', { cookie: 'mf_market=us', country: 'GB' }),
+      );
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toMatch(/\/us$/);
+    });
+
+    it('honours mf_market=uk cookie even when geo says US', () => {
+      const res = middleware(
+        makeRequest('/', { cookie: 'mf_market=uk', country: 'US' }),
+      );
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toMatch(/\/uk$/);
+    });
+
+    it('falls through to geo when mf_market cookie has invalid value', () => {
+      const res = middleware(
+        makeRequest('/', { cookie: 'mf_market=fr', country: 'GB' }),
+      );
+      // Invalid cookie ignored; geo wins.
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toMatch(/\/uk$/);
     });
   });
 });

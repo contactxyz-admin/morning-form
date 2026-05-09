@@ -1,5 +1,12 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { isMarket } from '@/lib/marketing/market';
+import { type Market } from '@/lib/marketing/constants';
+
+interface MarketHomeProps {
+  params: { market: string };
+}
 
 const NAV_LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: 'How it works', href: '#how' },
@@ -11,14 +18,27 @@ const NAV_LINKS: ReadonlyArray<{ label: string; href: string }> = [
 const NAV_LINK_CLASS =
   'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring';
 
-export default function LandingPage() {
+const MARKET_LABEL: Record<Market, string> = {
+  uk: 'UK',
+  us: 'US',
+};
+
+const TESTIMONIAL_SAVINGS_DISPLAY: Record<Market, string> = {
+  uk: '£80 a month',
+  us: '$100 a month',
+};
+
+export default function LandingPage({ params }: MarketHomeProps) {
+  if (!isMarket(params.market)) notFound();
+  const market = params.market;
+
   return (
     <div className="min-h-screen bg-bg">
       {/* Header — text-only wordmark + mono-uppercase tabs, matching the
           /demo branding voice. */}
       <header className="px-6 sm:px-10 lg:px-16 pt-7 pb-4 flex items-center justify-between max-w-[1400px] mx-auto">
         <Link
-          href="/"
+          href={`/${market}`}
           aria-label="Morning Form — home"
           className="font-display font-light text-subheading -tracking-[0.02em] text-text-primary"
         >
@@ -37,7 +57,7 @@ export default function LandingPage() {
           generous breathing room. */}
       <section className="px-6 sm:px-10 lg:px-16 pt-20 sm:pt-32 pb-24 sm:pb-40 max-w-[1400px] mx-auto">
         <p className="mb-10 font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-          Now in private beta · UK
+          Now in private beta · {MARKET_LABEL[market]}
         </p>
 
         <h1 className="font-display font-light text-display sm:text-display-xl lg:text-display-2xl text-text-primary -tracking-[0.04em] leading-[0.98] max-w-5xl">
@@ -45,7 +65,7 @@ export default function LandingPage() {
         </h1>
 
         <p className="mt-10 text-body-lg text-text-secondary max-w-xl leading-relaxed">
-          The longitudinal view your GP doesn&rsquo;t have — written in plain English.
+          The longitudinal view your doctor doesn&rsquo;t have — written in plain English.
           Morning Form reads your Whoop, Oura, Apple Health, and blood panels and tells
           you what&rsquo;s changed, what it means, and what to do today.
         </p>
@@ -92,17 +112,17 @@ export default function LandingPage() {
           {[
             {
               n: '01',
-              title: 'A longitudinal record your GP doesn\u2019t have',
+              title: 'A longitudinal record your doctor doesn’t have',
               body: 'Most clinicians see you for ten minutes every two years, on a single snapshot. Morning Form builds the thread — month over month, panel over panel — so patterns surface before they become problems.',
             },
             {
               n: '02',
-              title: 'No more supplement guesswork',
+              title: 'No more guesswork',
               body: 'Every recommendation is justified by your bloods and wearable trends — never generic. Spend less, on the things that actually move your numbers.',
             },
             {
               n: '03',
-              title: 'A medical safety net, built in',
+              title: 'A safety net, built in',
               body: 'When a marker crosses a threshold that needs a real clinician, Morning Form flags it clearly with a referral. Never buried, never hyped, never sold around.',
             },
           ].map((b) => (
@@ -130,7 +150,7 @@ export default function LandingPage() {
             {
               n: 'Step 02',
               title: 'Read',
-              body: 'Your record arrives in minutes — every number in plain English, with the lifestyle changes and supplements ranked by impact on your data.',
+              body: 'Your record arrives in minutes — every number in plain English, with the lifestyle changes ranked by impact on your data.',
             },
             {
               n: 'Step 03',
@@ -162,20 +182,20 @@ export default function LandingPage() {
           {[
             {
               quote:
-                'I\u2019d been stacking ten supplements based on Reddit. Morning Form ranked four of them as doing nothing for my actual bloods. Saved me about \u00a380 a month inside a week.',
-              name: 'Placeholder \u00b7 M, 34',
-              meta: 'Whoop \u00b7 quarterly bloods',
+                `I’d been stacking ten supplements based on Reddit. Morning Form ranked four of them as doing nothing for my actual bloods. Saved me about ${TESTIMONIAL_SAVINGS_DISPLAY[market]} inside a week.`,
+              name: 'Placeholder · M, 34',
+              meta: 'Whoop · quarterly bloods',
             },
             {
               quote:
-                'It\u2019s the first thing that read my Oura, my CGM, and my last lab and gave me a sentence I could act on. Every other app made me do the synthesis.',
-              name: 'Placeholder \u00b7 M, 29',
-              meta: 'Oura \u00b7 Libre \u00b7 Apple Health',
+                'It’s the first thing that read my Oura, my CGM, and my last lab and gave me a sentence I could act on. Every other app made me do the synthesis.',
+              name: 'Placeholder · M, 29',
+              meta: 'Oura · Libre · Apple Health',
             },
             {
               quote:
-                'Flagged a liver marker my GP had told me to ignore and pushed me to retest. Came back in range after twelve weeks on the protocol. That alone paid for the year.',
-              name: 'Placeholder \u00b7 M, 38',
+                'Flagged a liver marker my doctor had told me to ignore and pushed me to retest. Came back in range after twelve weeks on the protocol. That alone paid for the year.',
+              name: 'Placeholder · M, 38',
               meta: 'Annual blood panel',
             },
           ].map((t, i) => (
@@ -184,7 +204,7 @@ export default function LandingPage() {
               className="rounded-card border border-border bg-surface p-7 sm:p-8 flex flex-col gap-6"
             >
               <blockquote className="text-body text-text-primary leading-relaxed">
-                {'\u201c'}{t.quote}{'\u201d'}
+                {'“'}{t.quote}{'”'}
               </blockquote>
               <figcaption className="mt-auto">
                 <p className="text-caption font-medium text-text-primary">{t.name}</p>
@@ -231,7 +251,7 @@ export default function LandingPage() {
       <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
           <Link
-            href="/"
+            href={`/${market}`}
             className="font-display font-light text-heading -tracking-[0.02em] text-text-primary"
           >
             Morning Form

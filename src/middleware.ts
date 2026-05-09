@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { assertAuthEnv } from '@/lib/env';
+import { MARKET_COOKIE } from '@/lib/marketing/constants';
+import { inferMarketFromCountryCode, isMarket } from '@/lib/marketing/market';
 import { SESSION_COOKIE } from '@/lib/session-cookie';
 
 // Module-scope boot check: fails the first Edge invocation fast if prod
@@ -28,6 +30,19 @@ assertAuthEnv();
  */
 export function middleware(request: NextRequest): NextResponse {
   const path = request.nextUrl.pathname;
+
+  // Multi-market geo redirect at `/` (U1 of the SEO/GEO plan).
+  // Cookie wins over geo so the in-page banner override sticks.
+  // Sub-paths under `/uk/...` and `/us/...` are NOT in the matcher
+  // and serve unconditionally per their market.
+  if (path === '/') {
+    const cookieMarket = request.cookies.get(MARKET_COOKIE)?.value;
+    const market = isMarket(cookieMarket)
+      ? cookieMarket
+      : inferMarketFromCountryCode(request.headers.get('x-vercel-ip-country'));
+    const target = new URL(`/${market}`, request.nextUrl);
+    return NextResponse.redirect(target);
+  }
 
   if (
     path.startsWith('/share/') ||
@@ -67,6 +82,7 @@ export function middleware(request: NextRequest): NextResponse {
  */
 export const config = {
   matcher: [
+    '/',
     '/api/admin/:path*',
     '/api/assessment',
     '/api/check-in',
