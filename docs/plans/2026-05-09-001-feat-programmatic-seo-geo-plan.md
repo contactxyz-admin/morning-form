@@ -3,6 +3,8 @@ title: "feat: Programmatic SEO/GEO landing system + multi-market subscription fu
 type: feat
 status: active
 date: 2026-05-09
+revised: 2026-05-09
+revision: 2
 origin: docs/brainstorms/2026-05-06-acquisition-anchor-pages-requirements.md
 supersedes: docs/plans/2026-05-06-001-feat-acquisition-anchor-pages-plan.md
 markets: [uk, us]
@@ -15,18 +17,20 @@ monetization: subscription-only
 
 Build a programmatic SEO/GEO landing system that funnels high-intent men 25–50 from organic search and AI answer engines into MorningForm's interpretation engine. The system targets eight cohort clusters (fatigue, testosterone/libido, longevity 40+, recovery/HRV, metabolic, cardiovascular, fertility, executive) across two markets (UK, US) under a single subscription product (£19/mo UK, $29/mo US).
 
-Origin: the user-supplied prompt of 2026-05-09 (a "world-class SEO/GEO strategist" brief specifying eight male cohorts, ten initial page concepts, GEO requirements for AI-engine surfacing, pay-per-insight mention rejected in favour of subscription-only). Carryover from `docs/brainstorms/2026-05-06-acquisition-anchor-pages-requirements.md`: regulatory posture (Path A — tech-first, no public clinician), the `forbidden-phrases.ts` runtime gate, the LandingPageVisit + funnel-stage instrumentation pattern, R11 source-of-truth and R12 silent-fallback principles.
+**Origin documents:**
+- The user-supplied 2026-05-09 prompt (a "world-class SEO/GEO strategist" brief specifying eight male cohorts, ten initial page concepts, GEO requirements for AI-engine surfacing, pay-per-insight mention rejected in favour of subscription-only).
+- Conceptual carryover from `docs/brainstorms/2026-05-06-acquisition-anchor-pages-requirements.md`: regulatory posture (Path A — tech-first, no public clinician), the `forbidden-phrases.ts` runtime gate, the LandingPageVisit + funnel-stage instrumentation pattern, the source-of-truth and silent-fallback principles. **Note: this plan's R1–R15 are net-new requirement IDs. The brainstorm's R1–R7 are different in scope (success metrics, not architecture). Do not search the brainstorm for "R1" expecting a match.**
 
 Two strategic concessions baked in from the adversarial review of the predecessor plan:
 
-1. **The 30-member milestone is not promised by this work.** Cold-organic SEO from a brand-new domain takes 6–18 months to produce meaningful traffic. This plan is foundational infrastructure for a Q4-onwards channel. Phase 0 success gate is "≥100 unique visitors AND ≥5 email signups per market in 3 weeks", not "≥X paying members". Channels 1–2 (concierge / founder network) own the 12-week milestone.
-2. **The retention question is answered, not assumed.** Month 2 of subscription cannot rely on a second blood panel. Phase 2 ships a wearable bridge (Whoop / Oura / Apple Health) so the trend dashboard has fresh data each month without a £200 retest. If wearable integration is not viable in scope, the product reverts to pay-per-insight pricing.
+1. **The 30-member milestone is not promised by this work.** Cold-organic SEO from a brand-new domain takes 6–18 months to produce meaningful traffic. Phase 0 success gate is "≥100 unique visitors AND ≥5 email signups per market in 21 days", not "≥X paying members". Channels 1–2 (concierge / founder network) own the 12-week milestone.
+2. **The retention question is answered, not assumed.** Month 2 of subscription cannot rely on a second blood panel. Phase 2 ships a wearable bridge (Whoop / Oura / Apple Health) so the trend dashboard has fresh data each month without a £200 retest. **Critical update:** the wearable infrastructure already exists in this codebase at [src/lib/health/whoop.ts](src/lib/health/whoop.ts), [src/lib/health/crypto.ts](src/lib/health/crypto.ts), [src/app/api/health/connect/route.ts](src/app/api/health/connect/route.ts), and the `HealthConnection` Prisma model at [prisma/schema.prisma:343-360](prisma/schema.prisma#L343-L360). Phase 2's wearable work is graph-extraction integration + subscriber UI surfacing, not a parallel build.
 
 Three phases:
 
-- **Phase 0 — Validation MVP (weeks 1–3, U1–U5):** ship multi-market URL infra, page-data schema, one anchor page per market, GEO infrastructure (sitemap / robots / JSON-LD / hreflang), and auth-gated upload with email capture. **No Stripe, no public no-auth upload, no preview tier, no lifecycle emails.** Just enough to validate that organic search will deliver visitors who upload and convert to email.
-- **Phase 1 — Programmatic + monetization (weeks 4–7, U6–U9), gated on Phase 0 hitting ≥100 visitors + ≥5 signups per market:** public no-auth upload + provisional-user pattern, preview Form Intelligence tier, multi-currency Stripe Subscription, lifecycle email sequence with signed unsubscribe.
-- **Phase 2 — Scale + retention (weeks 8–12, U10–U12), gated on Phase 1 paid conversion:** programmatic page generator (9 more pages per market = ~18 pages shipped), wearable-data bridge for month-2 retention, trend dashboard.
+- **Phase 0 — Validation MVP (weeks 1–3, U1–U4):** ship multi-market URL infra, page-data schema with embedded JSON-LD, GEO infrastructure (sitemap / robots / hreflang), and one anchor page per market with auth-gated email capture. **No Stripe, no public no-auth upload, no preview tier, no lifecycle emails.** Just enough to validate that organic search will deliver visitors who upload and convert to email.
+- **Phase 1 — Programmatic + monetization (weeks 4–7, U5–U9), gated on Phase 0 hitting ≥100 visitors + ≥5 signups per market:** public no-auth upload + provisional-user pattern, preview Form Intelligence tier (split into compile pipeline + cookie-bound results endpoint), multi-currency Stripe Subscription, lifecycle email sequence with signed unsubscribe.
+- **Phase 2 — Scale + retention (weeks 8–12, U10–U11), gated on Phase 1 paid conversion:** wearable-data bridge for month-2 retention (small unit thanks to existing infrastructure), trend dashboard.
 
 The rest of this document is a planning artifact, not implementation. Code is sketched only where directional guidance helps a reviewer.
 
@@ -35,47 +39,50 @@ The rest of this document is a planning artifact, not implementation. Code is sk
 | Decision | Stance |
 |---|---|
 | **Markets** | UK + US, market-aware from day one. URL prefix `/uk/...` and `/us/...`. Default by Vercel Edge geo (`x-vercel-ip-country`); user can override via banner. Separate sitemaps, separate canonical URLs, hreflang annotations both ways. |
-| **Monetization** | Subscription only. Single price tier per market: £19/mo UK, $29/mo US. No pay-per-insight CTA on the page surface. (If retention data forces a pivot, U8's `Order` shape is loose enough to add one-time later.) |
-| **Regulatory posture** | Path A — tech-first, no public clinician. "When to escalate to GP/specialist" copy is rendered as standardised page module, not a personalised recommendation. The personalised LLM output (preview tier, U7) is the genuine SaMD-adjacent surface and warrants separate FDA/MHRA legal review before Phase 1 ships. **Plan-level finding: Phase 0 ships no LLM interpretation to anonymous visitors; only auth-gated intake. The regulatory exposure window opens with U7, not U2.** |
+| **Monetization** | Subscription only. Single price tier per market: £19/mo UK, $29/mo US. **The market on a Subscription is locked to `User.signupMarket` at checkout time, not the cookie or current page context** (security finding — see R9). |
+| **Regulatory posture** | Path A — tech-first, no public clinician. Phase 0 ships zero LLM interpretation to anonymous visitors; only auth-gated intake. The personalised LLM output (preview tier in Phase 1) is the genuine SaMD-adjacent surface and warrants separate FDA/MHRA legal review **before U6/U7 ship to production**. |
 | **Content authoring** | TypeScript page-data files (`content/marketing/{market}/{slug}.ts`) — not MDX. Keeps the `static-copy.test.ts` editorial-QA pattern viable, gives type safety, and the data shape is the contract for Phase 2's programmatic generator. |
-| **Programmatic generation** | Phase 2 only. Phase 0 and Phase 1 ship hand-curated pages. The "generator" in U10 is a CLI scaffolder (cohort schema → page-data file template), not an AI-content pipeline. Editorial review remains human. |
+| **Programmatic generation** | The "generator" is a CLI scaffolder (cohort schema → page-data file template), absorbed into U2's deliverables — not its own unit. It does not write prose; it scaffolds the typed structure. New page authoring is a rolling content workstream, not an engineering gate. |
+| **Existing root page** | [src/app/page.tsx](src/app/page.tsx) is the current landing page. U1's geo-redirect at `/` will replace it. The current homepage is repurposed as `/uk/` (which it already addresses by tone — NHS, GP, £). The US variant is an explicit fork in U2's content authoring. |
 
 ## Requirements
 
-Numbered for traceability. Origin is the 2026-05-09 prompt unless noted.
+Numbered for traceability. **R1–R15 are this plan's own requirement IDs. They are not aligned with the brainstorm's R1–R7 (which are success-metric requirements, not architecture).**
 
-| # | Requirement | Origin |
+| # | Requirement | Source |
 |---|---|---|
 | **R1** | The system serves market-aware landing pages at `/{market}/{slug}` for `market ∈ {uk, us}`. Default market is inferred from `x-vercel-ip-country`; visitor can override via in-page banner. Override persists in `mf_market` cookie. | Prompt + research |
-| **R2** | Each page renders from a typed `MarketingPage` data record. The TSX template is single, the data is many. Phase 2's programmatic generator scaffolds new records; it does not generate prose. | Prompt + research |
-| **R3** | Each page emits valid `MedicalWebPage` and `FAQPage` JSON-LD. Pages include hreflang annotations to the same slug in the other market when an equivalent exists. | Prompt (GEO) |
+| **R2** | Each page renders from a typed `MarketingPage` data record. The TSX template is single, the data is many. The CLI scaffolder generates new records; it does not generate prose. | Prompt + research |
+| **R3** | Each page emits valid `MedicalWebPage` and `FAQPage` JSON-LD. Pages include hreflang annotations to the same slug in the other market when an equivalent exists. **All JSON-LD `<script>` blocks escape `</` to `</` to prevent injection.** | Prompt (GEO) + security finding |
 | **R4** | A `/{market}/sitemap.xml` and a top-level `/sitemap_index.xml` are generated at build/runtime via Next's `MetadataRoute.Sitemap` API. `/robots.txt` allows the marketing tree, disallows `/api/*`, `/account/*`, `/r/*`. | Prompt (GEO) |
-| **R5** | The conversion CTA from any page in Phase 0 is "Upload your last blood panel — see what your numbers actually mean → [email]" routed through the existing magic-link flow at `src/app/api/auth/request-link/route.ts`. Phase 1 replaces this with a public no-auth upload route that produces an immediate preview, then asks for email. | Prompt + R5 carryover |
-| **R6** | Editorial copy is gated by an extension of `src/lib/compliance/static-copy.test.ts` that scans `content/marketing/**/*.ts` for forbidden language: Rx drug names (drawn from `src/lib/scribe/policy/forbidden-phrases.ts`), imperative-treatment verbs ("take", "start", "begin taking"), specific dose strings, certainty claims about disease state. CI fails if any page-data file violates. | Prompt (clinical safety) + carryover R5 |
-| **R7** | A `LandingPageVisit` row is written for each first-paint of a marketing page; carries `slug`, `cohortKey`, `market`, `referrer`, `ipHash` (HMAC via session secret, reusing `src/app/api/auth/request-link/route.ts:113-119` helper), `mfAnonymousId`, `userAgentClass`. Two new funnel stages added to `src/lib/metrics/activation-funnel.ts`: `anchor-page-visit`, `anchor-page-to-signup`. | Carryover R7 |
-| **R8** | Phase 1 ships a `tier=preview` Form Intelligence output: ≤4 paragraphs, ≤200 tokens each, generated server-side from an uploaded PDF, returned in the upload-results response and stored on a typed model (see D5). Preview output is `Cache-Control: no-store, private` and only re-fetchable by the cookie-bound visitor. | Carryover R5 + adversarial security review |
-| **R9** | Phase 1 monetization is a Stripe Subscription per market (£19/mo via GBP price, $29/mo via USD price). Webhook metadata schema is `{ userId: string, market: 'uk' \| 'us' }` defined at checkout-session creation, validated on the webhook side, with `stripe-webhook-unmatched` Diagnostics counter on metadata mismatch. | Adversarial security review |
-| **R10** | Phase 1 ships a day-7 + day-14 lifecycle email scheduled at signup time. Unsubscribe links carry a HMAC-signed token over `(email, scheduledFor)`. The cron at `/api/cron/marketing-emails` validates `Authorization: Bearer <CRON_SECRET>` before iterating the queue. | Adversarial security review |
-| **R11** | All pricing strings, tier identifiers, and slug constants live in `src/lib/marketing/constants.ts` (single file, not four). Page templates and Stripe code import from this module. No ESLint rule — a PR-time greppable convention is sufficient at this scale. | Scope-guardian review of predecessor |
-| **R12** | Silent-fallback paths emit a Diagnostics counter on a single `DiagnosticEvent` row per emit, not a separate aggregation pipeline. The activation-funnel CLI surfaces them via a `SELECT key, COUNT(*) FROM diagnostic_event GROUP BY key WHERE created_at > <from>` query in its existing report formatter. | Scope-guardian review of predecessor |
-| **R13** | The provisional-user upgrade path (Phase 1 anonymous-upload → email-signup) cryptographically binds the `mf_anon` cookie to the magic-link verification: at verify time, the inbound `mf_anon` cookie value MUST equal the `anonymousSessionToken` field on the User row, OR equal the value embedded in the magic-link token payload. Mismatch = no upgrade, diagnostic counter `provisional-claim-cookie-mismatch`. | Adversarial security review |
-| **R14** | The provisional-user FK ownership transfer at signup is explicit: `UPDATE source_document SET user_id = real_user_id WHERE user_id = provisional_user_id` runs in the same transaction as the User row upgrade. If the email already exists on a different User, the upgrade is rejected and the visitor is offered a "sign in to claim this upload" path instead. | Adversarial security review |
-| **R15** | `User.email` becomes nullable. Schema migration is by `prisma db push --accept-data-loss` (the repo's only deploy mechanism), verified locally to be additive (no column drop) before merge. All call sites that read `user.email` are audited and handle `null`. | Feasibility review of predecessor |
+| **R5** | The conversion CTA from any page in Phase 0 is "Upload your last blood panel — see what your numbers actually mean → [email]" routed through the existing magic-link flow at `src/app/api/auth/request-link/route.ts`. Phase 1 replaces this with a public no-auth upload route that produces an immediate preview, then asks for email. | Prompt + carryover |
+| **R6** | Editorial copy is gated by an extension of [src/lib/compliance/static-copy.test.ts](src/lib/compliance/static-copy.test.ts) that scans `content/marketing/**/*.ts` for forbidden language: Rx drug names (drawn from [src/lib/scribe/policy/forbidden-phrases.ts](src/lib/scribe/policy/forbidden-phrases.ts)), imperative-treatment verbs ("take", "start", "begin taking"), specific dose strings, certainty claims about disease state. CI fails if any page-data file violates. | Prompt (clinical safety) |
+| **R7** | A `LandingPageVisit` row is written for each first-paint of a marketing page; carries `slug`, `cohortKey`, `market`, `referrer`, `ipHash` (HMAC via session secret, reusing existing helper), `mfAnonymousId`, `userAgentClass`. **The dedupe-within-1-minute is enforced by `@@unique([mfAnonymousId, slug, minuteBucket])` on the model — not by app-layer race-prone checks.** Two new funnel stages added to [src/lib/metrics/activation-funnel.ts](src/lib/metrics/activation-funnel.ts): `anchor-page-visit`, `anchor-page-to-signup`. | Carryover + feasibility finding |
+| **R8** | Phase 1 ships a `tier=preview` Form Intelligence output: ≤4 paragraphs, ≤200 tokens each, generated server-side from an uploaded PDF, returned in the upload-results response and stored on a typed `PreviewSummary` model. Preview output carries `Cache-Control: no-store, private` **on both the API endpoint AND the RSC page surface** (the page sets `export const dynamic = 'force-dynamic'` and emits the header explicitly). | Carryover + security finding |
+| **R9** | Phase 1 monetization is a Stripe Subscription per market (£19/mo via GBP price, $29/mo via USD price). **Market is locked to `User.signupMarket` at checkout creation; cookie/URL context is ignored.** **A pre-checkout guard rejects creation when an active or grace-period Subscription already exists for `userId`.** Webhook metadata schema is `{ userId, market }` set on **both** `Checkout.Session.create({ metadata, subscription_data: { metadata } })` so subsequent `customer.subscription.*` events also carry it. **Resolver fallback:** if an event arrives with no metadata, the webhook handler resolves `userId` via `Subscription.findUnique({ where: { stripeSubscriptionId } })` before incrementing `stripe-webhook-unmatched`. | Security + feasibility findings |
+| **R10** | Phase 1 ships a day-7 + day-14 lifecycle email scheduled at signup time. Unsubscribe links carry a HMAC-signed token over `(email, scheduledFor)` **in the URL query string** (per RFC 8058 §3.2, the POST body carries only the literal `List-Unsubscribe=One-Click`, not the token). The cron at `/api/cron/marketing-emails` validates `Authorization: Bearer ${CRON_SECRET}` before iterating the queue. | Security finding (RFC 8058 body-less POST) |
+| **R11** | All pricing strings, tier identifiers, and slug constants live in `src/lib/marketing/constants.ts` (single file). Page templates and Stripe code import from this module. No ESLint rule. **Rate-limit `subjectKind` constants are also exported from this module so callers cannot drift via literal strings.** | Scope-guardian (predecessor) + feasibility finding |
+| **R12** | Silent-fallback paths emit a single row to the `DiagnosticEvent` table per emit. **The DiagnosticEvent model is fully specified in U2 (not implicit)** with daily-counter rotation: `model DiagnosticEvent { id, key, day Date, count Int, lastSeenAt }` keyed `@@unique([key, day])`, so each emit is `INSERT … ON CONFLICT (key, day) DO UPDATE SET count = count + 1, lastSeenAt = NOW()`. This caps row growth at `O(N_keys * N_days)`, removes the unbounded write-amplifier vector, and lets the activation-funnel CLI surface counters via `SELECT key, SUM(count) FROM diagnostic_event WHERE day >= :from GROUP BY key`. | Scope-guardian + security finding |
+| **R13** | The provisional-user upgrade path enforces **strict AND** binding across two channels: at verify time, **both** (a) the inbound `mf_anon` cookie value MUST equal `User.anonymousSessionToken` AND (b) the inbound `mf_anon` cookie value MUST equal `MagicLinkToken.anonymousId` (a new nullable column added to [prisma/schema.prisma:49](prisma/schema.prisma#L49) MagicLinkToken). Either mismatch rejects the upgrade with diagnostic counter `provisional-claim-cookie-mismatch`. (The token format itself remains opaque random bytes; the binding lives in the DB row, not in the token payload.) | Security finding (OR → AND) |
+| **R14** | The provisional-user FK ownership transfer at signup is one explicit transaction with **all five** statements (sequence diagram and U5/U6 specs match): `UPDATE source_document`, `UPDATE preview_summary`, `UPDATE landing_page_visit`, `UPDATE "user"`, and the `DELETE … WHERE email IS NULL` safety net. If `User.email` already exists on a different real user, the upgrade is rejected pre-transaction; visitor sees "sign in to claim this upload" with a separate FK-transfer path. | Adversarial security review |
+| **R15** | `User.email` becomes nullable. Schema migration is by `prisma db push --accept-data-loss` (the repo's only deploy mechanism), verified locally to be additive (no column drop). Audit of read sites confirms only ~5 production callers; each handles `null` safely. | Feasibility review of predecessor |
 
 ## Key Technical Decisions
 
 | # | Decision | Rationale |
 |---|---|---|
-| **D1** | **Multi-market URL via `[market]` route segment, not domain or sub-path-after-rewrite.** | Cleanest seam for Next.js App Router. Each market gets a distinct canonical URL. Sitemap generation is straightforward. hreflang lives on layout metadata. No domain proliferation. |
-| **D2** | **Default market via Vercel Edge geo, user-overridable via cookie + banner.** | `x-vercel-ip-country` is free in middleware. Visitor lands on `/` → middleware rewrites to `/uk/` or `/us/` based on country. UK users hitting a US-only page see a banner; bot crawlers see canonical + hreflang and self-index correctly. |
-| **D3** | **Page data in TypeScript, not MDX or CMS.** | Type safety means cohort/market/slug invariants enforce at build. The editorial-QA Vitest test (R6) regex-scans `.ts` files trivially. Adding a CMS later is a non-breaking migration. |
-| **D4** | **`PreviewSummary` is a new Prisma model, not a `tier` column on `ScribeAudit`.** | `ScribeAudit` has `scribeId` as a required FK with cascade delete and `(scribeId, requestId)` unique. Preview path has no Scribe row to attach to (Scribes are topicKey-scoped per user). New model decouples cleanly: `PreviewSummary { id, userId, sourceDocumentId, output, lintReport, createdAt }`. Avoids the predecessor plan's three-way-decision impasse. |
-| **D5** | **Provisional-user pattern: `User.email` becomes nullable; `User.anonymousSessionToken` added; FK ownership transfers explicitly at upgrade.** | Closes the predecessor's P0 schema contradiction. Email-uniqueness is preserved (Postgres allows multiple NULLs in a unique index). Audit of read-sites for `user.email` is tractable (~20 files). |
-| **D6** | **Editorial-QA via extension of `src/lib/compliance/static-copy.test.ts`, not a new rendering rig.** | Pattern exists. Scans `.ts` source. No RSC-rendering complexity. Folder added to scan: `content/marketing/`. Same regex set + page-specific allowlist if needed. |
-| **D7** | **Stripe via the official `stripe` npm SDK, not a hand-rolled `fetch` client.** | Webhook signature verification (`stripe.webhooks.constructEvent`) is the SDK's primary value. Hand-rolling HMAC over `stripe-signature` is a security footgun. Mirror the SDK pattern, not Resend's pattern. |
-| **D8** | **Reuse `MagicLinkRateLimit` for upload + signup rate limits by extending its `subjectKind` enum.** | The model already has `(subjectKind, subject, window)` keying. New values: `upload-ip-1h`, `upload-ip-24h`, `signup-ip-1h`. No parallel primitive (R15 of predecessor brainstorm). |
-| **D9** | **Reuse the IP-hash helper from `src/app/api/auth/request-link/route.ts:113-119`. Factor it out to `src/lib/auth/ip-hash.ts`.** | Same SESSION_SECRET → same hash → same row across all surfaces. Avoids the rotation-divergence trap. |
-| **D10** | **Membership state is a typed result: `{ kind: 'free' } \| { kind: 'active', renewsAt } \| { kind: 'past_due', graceUntil } \| { kind: 'cancelled', endedAt } \| { kind: 'error', reason }`.** | Anti-Dexcom discipline: no `string \| undefined`, no defaults, fail-loud. Stripe's 7+ subscription states map explicitly to one of these via a single conversion table in `src/lib/billing/membership-state.ts`. |
+| **D1** | **Multi-market URL via `[market]` route segment.** | Cleanest seam for App Router. Each market gets a distinct canonical URL. Sitemap is straightforward. hreflang lives on layout metadata. |
+| **D2** | **Default market via Vercel Edge geo, user-overridable via cookie + banner.** Vercel Edge strips client-supplied `x-vercel-ip-country` headers in production; this is documented. Preview deployments may differ — preview-only smoke-test is part of U1's verification. | `x-vercel-ip-country` is free and trustworthy in production. |
+| **D3** | **Page data in TypeScript, not MDX or CMS.** | Type safety enforces invariants at build. The editorial-QA test scans `.ts` files trivially. CMS migration is non-breaking later. |
+| **D4** | **`PreviewSummary` is a new Prisma model, not a `tier` column on `ScribeAudit`.** | `ScribeAudit.scribeId` is a required FK with cascade delete; preview path has no Scribe row to attach to. New model decouples cleanly. |
+| **D5** | **Provisional-user pattern: `User.email` becomes nullable; `User.anonymousSessionToken` added; FK ownership transfers explicitly at upgrade.** Audit of `user.email` reads confirms ~5 production sites (verified via grep). | Closes the predecessor's P0 schema contradiction. Postgres allows multiple NULLs in a `@unique` index by default. |
+| **D6** | **Editorial-QA via extension of [src/lib/compliance/static-copy.test.ts](src/lib/compliance/static-copy.test.ts).** | Pattern exists. Scans `.ts` source. No RSC-rendering complexity. |
+| **D7** | **Stripe via the official `stripe` npm SDK with metadata propagated through both `metadata` and `subscription_data.metadata`.** | Webhook signature verification is the SDK's primary value. Metadata on subscription_data ensures `customer.subscription.*` events also carry `userId`/`market`. |
+| **D8** | **Reuse `MagicLinkRateLimit` for upload + signup + visit-beacon rate limits by extending its `subjectKind` enum.** New subject kinds: `upload-ip-1h`, `upload-ip-24h`, `signup-ip-1h`, **`visit-beacon-ip-1h`** (closes the visit-beacon DoS amplifier). Constants exported from `src/lib/marketing/constants.ts`. | Same `(subjectKind, subject, window)` keying as today. No parallel primitive. |
+| **D9** | **Reuse the IP-hash helper from [src/app/api/auth/request-link/route.ts:113-119](src/app/api/auth/request-link/route.ts#L113-L119). Factor it out to `src/lib/auth/ip-hash.ts`.** | Same SESSION_SECRET → same hash → same row across all surfaces. |
+| **D10** | **Membership state is a typed result: `{ kind: 'free' } \| { kind: 'active', renewsAt } \| { kind: 'past_due', graceUntil } \| { kind: 'cancelled', endedAt } \| { kind: 'error', reason }`.** | Anti-Dexcom discipline: no `string \| undefined`, no defaults, fail-loud. |
+| **D11** | **Reuse existing health-data infrastructure for U10 (wearable bridge):** `HealthConnection` model, `encryptToken`/`decryptToken` helpers, `WhoopClient`, `OuraClient`, OAuth callback at `src/app/api/health/callback/[provider]/route.ts`. **Do not introduce a parallel `WearableConnection` model.** | The infra is built; reinventing is the predecessor failure mode. |
+| **D12** | **Resend email transport: known gap.** [src/lib/auth/email.ts:16](src/lib/auth/email.ts#L16) currently uses the global URL `https://api.resend.com/emails`. UK-GDPR / Caldicott data-residency for health-context emails wants the EU endpoint `https://api.eu.resend.com/emails`. This plan fixes that in U8 (lifecycle emails), and as a side effect the magic-link flow also moves to EU — implementer must verify Resend dashboard has EU region enabled and re-issue the API key as an EU-scoped key before flipping. | Security finding (Resend EU claim was wrong) |
 
 ## Output Structure
 
@@ -83,78 +90,87 @@ Numbered for traceability. Origin is the 2026-05-09 prompt unless noted.
 src/
   app/
     [market]/
-      layout.tsx                       # market-aware layout: hreflang, JSON-LD wrapper, currency context
+      layout.tsx                       # market-aware: hreflang, JSON-LD wrapper, currency context
       page.tsx                         # market homepage (UK or US)
       [slug]/
         page.tsx                       # generic marketing page template, reads from content/
         layout.tsx                     # JSON-LD MedicalWebPage + FAQPage emitter
-    sitemap.ts                         # generates /uk/sitemap.xml + /us/sitemap.xml + index
+    sitemap.ts                         # generates per-market sitemaps + index
     robots.ts
     upload/
-      page.tsx                         # Phase 1 only: public no-auth upload UI
+      page.tsx                         # Phase 1: public no-auth upload UI
       results/
-        page.tsx                       # Phase 1 only: shows preview output, gates email signup
+        page.tsx                       # Phase 1: dynamic = 'force-dynamic', Cache-Control: no-store
     api/
       upload/
         route.ts                       # POST PDF, returns { previewId, anonymousSessionToken }
         results/
-          [previewId]/route.ts         # GET preview output, cookie-bound
-        webhooks/
-          stripe/route.ts              # NB: at /api/billing/webhooks/stripe — not /api/upload/webhooks (predecessor namespacing was wrong)
+          [previewId]/route.ts         # GET preview output, two-path access control
       billing/
-        checkout/route.ts              # creates Stripe Checkout Session with metadata { userId, market }
+        checkout/route.ts              # creates Stripe Checkout Session w/ metadata + subscription_data.metadata
         webhooks/
-          stripe/route.ts              # signature-verified, idempotent on stripeSubscriptionId
+          stripe/route.ts              # signature-verified, idempotent on stripeSubscriptionId,
+                                       # resolver fallback via stored ID
       cron/
-        marketing-emails/route.ts      # Vercel Cron, validates Authorization: Bearer <CRON_SECRET>
+        marketing-emails/route.ts      # Vercel Cron, validates Bearer CRON_SECRET
       marketing/
-        unsubscribe/route.ts           # POST with HMAC-signed token
+        visit/route.ts                 # writes LandingPageVisit, validates slug/market/cohort allowlist,
+                                       # rate-limited via MagicLinkRateLimit subjectKind=visit-beacon-ip-1h
+        unsubscribe/route.ts           # POST per RFC 8058: token in URL query, body=List-Unsubscribe=One-Click
   components/
     marketing/
       page-template.tsx                # the one TSX that renders all marketing pages
-      hero-block.tsx
-      cta-block.tsx
-      faq-block.tsx
-      escalation-module.tsx            # standardised "when to speak to a clinician" panel
+      hero-block.tsx, cta-block.tsx, faq-block.tsx, escalation-module.tsx
       market-banner.tsx                # geo-mismatch override
       visit-beacon.tsx                 # client-side LandingPageVisit emitter
     structured-data/
-      medical-webpage.tsx              # JSON-LD emitter
-      faq-page.tsx                     # JSON-LD emitter
+      medical-webpage.tsx              # JSON-LD emitter, escapes </ to </
+      faq-page.tsx                     # JSON-LD emitter, escapes </
   lib/
     marketing/
-      constants.ts                     # pricing, slugs, cohort keys, market config — single file, R11
+      constants.ts                     # pricing, slugs, cohort keys, rate-limit subject kinds (single file, R11)
       market.ts                        # getMarketFromRequest, useMarket hook, market types
       currency.ts                      # formatPrice(market, amount)
-      cohorts.ts                       # cohort taxonomy (fatigue, testosterone, longevity, ...)
+      cohorts.ts                       # cohort taxonomy (8 keys; allowlist)
       page-schema.ts                   # MarketingPage Zod schema + types
+      slug-allowlist.ts                # built at build time from content/marketing/ filesystem
+      diagnostic.ts                    # incrementDiagnostic(key) helper (R12 single primitive)
     auth/
       ip-hash.ts                       # factored out from request-link/route.ts
+      email.ts                         # MODIFIED: switch RESEND_URL to api.eu.resend.com (D12)
     billing/
       stripe.ts                        # SDK initialiser, single instance
       membership-state.ts              # typed conversion table (D10)
-      checkout.ts                      # session creation
+      checkout.ts                      # session creation, locks market = User.signupMarket
     upload/
       preview-compile.ts               # entry point that produces a PreviewSummary (D4)
       blob-storage.ts                  # thin wrapper if intake/storage.ts isn't reusable as-is
     compliance/
       static-copy.test.ts              # extended to scan content/marketing/**/*.ts (R6)
+scripts/
+  marketing-scaffold.ts                # CLI: scaffolds new content/marketing/{market}/{slug}.ts (absorbed into U2)
 content/
   marketing/
+    _templates/                        # cohort templates consumed by scaffolder
     uk/
       fatigue-in-men.ts
     us/
       fatigue-in-men.ts
 prisma/
-  schema.prisma                        # diff: User.email nullable + User.anonymousSessionToken;
-                                       #       MarketingPage NOT a model (TS files are SoT);
-                                       #       LandingPageVisit, PreviewSummary, Subscription,
-                                       #       MarketingEmailSchedule, EmailSuppression,
-                                       #       DiagnosticEvent.
-                                       #       MagicLinkRateLimit.subjectKind extended (no schema change).
+  schema.prisma                        # diff:
+                                       #   User: email -> String?, +anonymousSessionToken, +signupMarket, +signupCohort, +signupSlug
+                                       #   MagicLinkToken: +anonymousId String? (R13 second binding channel)
+                                       #   MagicLinkRateLimit: subjectKind values extended via constants only (no schema change)
+                                       #   +LandingPageVisit (with @@unique([mfAnonymousId, slug, minuteBucket]))
+                                       #   +PreviewSummary
+                                       #   +Subscription
+                                       #   +MarketingEmailSchedule, +EmailSuppression
+                                       #   +DiagnosticEvent (model fully specified, R12)
+                                       #   HealthConnection: REUSED, no schema change (D11)
+vercel.json                            # crons array only (no buildCommand — vercel-build script remains source of truth)
 ```
 
-## Visitor → Subscription Sequence (Phase 1)
+## Visitor → Subscription Sequence (Phase 1) — Complete
 
 ```mermaid
 sequenceDiagram
@@ -175,29 +191,40 @@ sequenceDiagram
     E-->>V: 302 /uk
     V->>P: GET /uk/fatigue-in-men
     P-->>V: HTML + JSON-LD + visit-beacon
-    V->>DB: LandingPageVisit { slug, cohort, market, ipHash, mfAnonymousId }
+    V->>DB: LandingPageVisit { slug, cohort, market, ipHash, mfAnonymousId, minuteBucket } via /api/marketing/visit (rate-limited, slug-allowlisted)
     V->>U: POST PDF + Turnstile token + mf_anon
     U->>DB: rate-limit check (MagicLinkRateLimit subjectKind='upload-ip-1h')
     U->>DB: provisional User { email: null, anonymousSessionToken: mf_anon }
     U->>DB: SourceDocument FK to provisional userId
     U->>W: compile preview (≤4 paragraphs)
     W->>DB: PreviewSummary { userId, sourceDocumentId, output }
-    U-->>V: { previewId, anonymousSessionToken }
+    U-->>V: { previewId, anonymousSessionToken } + Cache-Control: no-store
     V->>P: GET /upload/results
-    P-->>V: preview HTML + email-signup form (CTA: subscribe £19/mo)
-    V->>API: POST { email, anonymousId: mf_anon }
-    API->>DB: payload-bind anonymousId to magic-link token
+    P-->>V: preview HTML + email-signup form (CTA: subscribe £19/mo) + Cache-Control: no-store, private
+    V->>API: POST { email, anonymousId: mf_anon, signupContext: { market, cohort, slug } }
+    API->>DB: write MagicLinkToken { userId, tokenHash, anonymousId: mf_anon }  // R13 second channel
     API-->>V: 200 (link sent to email)
     V->>V2: GET magic-link
-    V2->>DB: verify cookie mf_anon == User.anonymousSessionToken AND token.payload.anonymousId matches (R13)
-    V2->>DB: UPDATE User SET email=:email; UPDATE source_document SET user_id=:realId (R14, in tx)
+    V2->>DB: verify cookie mf_anon == User.anonymousSessionToken AND cookie mf_anon == MagicLinkToken.anonymousId  (R13 strict AND)
+    V2->>DB: BEGIN tx (R14 — all 5 statements):
+    V2->>DB:   UPDATE source_document SET user_id=:realId WHERE user_id=:provisionalId
+    V2->>DB:   UPDATE preview_summary SET user_id=:realId WHERE user_id=:provisionalId
+    V2->>DB:   UPDATE landing_page_visit SET email=:email WHERE mf_anonymous_id=:anonymousId
+    V2->>DB:   UPDATE "user" SET email=:email, signupMarket=:market, signupCohort=:cohort, signupSlug=:slug, anonymous_session_token=NULL, name=:name WHERE id=:realId
+    V2->>DB:   DELETE FROM "user" WHERE id=:provisionalId AND email IS NULL  // safety net
+    V2->>DB: COMMIT
     V2-->>V: signed-in session
-    V->>CO: POST { market: 'uk' }
-    CO->>S: createCheckoutSession({ price: GBP_19, metadata: { userId, market: 'uk' } })
+    V->>CO: POST {} (no market field — market is read from User.signupMarket, not request body)
+    CO->>DB: SELECT FROM Subscription WHERE userId=:userId AND status IN ('active','past_due') -- pre-checkout guard
+    CO->>DB: User.signupMarket → market='uk'
+    CO->>S: createCheckoutSession({ price: GBP_19, metadata: { userId, market: 'uk' }, subscription_data: { metadata: { userId, market: 'uk' } } })
     CO-->>V: 303 → Stripe-hosted checkout
     V->>S: pay
     S->>WH: checkout.session.completed (signed)
-    WH->>DB: idempotent on stripeSubscriptionId; Subscription { userId, market, status: 'active' }
+    WH->>WH: stripe.webhooks.constructEvent(rawBody, signatureHeader, secret) — fail-closed on mismatch
+    WH->>DB: idempotent on stripeSubscriptionId; Subscription { userId, market: 'uk', status: 'active' }
+    S->>WH: customer.subscription.updated (later) — metadata still carries userId via subscription_data
+    WH->>DB: Subscription update; if metadata missing, fallback resolve via Subscription.findUnique({ stripeSubscriptionId })
     S-->>V: 303 back to /account (signed-in, active)
 ```
 
@@ -207,190 +234,185 @@ sequenceDiagram
 
 #### U1 · Multi-market URL infrastructure
 
-**Goal.** Visitor lands on `/`, gets routed to `/uk` or `/us` by Edge geo, with cookie-overridable preference. `useMarket()` hook available in any RSC; `formatPrice()` honours market currency. Hreflang and canonical URLs render correctly per market.
+**Goal.** Visitor lands on `/`, gets routed to `/uk` or `/us` by Edge geo, with cookie-overridable preference. The current [src/app/page.tsx](src/app/page.tsx) is rehoused at `/uk` (already UK-toned). `useMarket()` available in any RSC; `formatPrice()` honours market currency. Hreflang and canonical URLs render correctly per market.
 
 **Files.**
-- Create: `src/lib/marketing/market.ts` (types: `Market = 'uk' | 'us'`, `getMarketFromRequest(req)`, `useMarket()` server helper, `MarketProvider` context)
-- Create: `src/lib/marketing/currency.ts` (`formatPrice(market, amount)`, `MEMBERSHIP_PRICE` table)
-- Create: `src/lib/marketing/constants.ts` (R11 single file: pricing, cohorts, slugs, copy keys)
-- Create: `src/app/[market]/layout.tsx` (root layout for marketing tree; sets html lang, hreflang link rels, JSON-LD `WebSite` schema)
-- Modify: `src/middleware.ts` — add `/` to `config.matcher`, branch on `x-vercel-ip-country`. Match-only routes: `/`, `/uk`, `/us`, `/uk/(.*)`, `/us/(.*)` (when geo logic needed). For pages that don't need middleware processing, leave them out of the matcher entirely.
-- Create: `src/components/marketing/market-banner.tsx` (suggests switch when geo ≠ cookie)
+- Create: `src/lib/marketing/market.ts` (types: `Market = 'uk' | 'us'`, `getMarketFromRequest(req)`, `useMarket()`, `MarketProvider`)
+- Create: `src/lib/marketing/currency.ts`
+- Create: `src/lib/marketing/constants.ts` (R11 single file)
+- Create: `src/app/[market]/layout.tsx` (root layout for marketing tree)
+- Create: `src/app/[market]/page.tsx` (market homepage; `/uk/page.tsx` is the rehoused content from current `src/app/page.tsx`)
+- Modify: `src/middleware.ts` — add `/` to matcher; on match: read `mf_market` cookie first, fall back to `x-vercel-ip-country`, redirect 302 to `/uk` or `/us`. **Sub-paths under `/uk/...` and `/us/...` are NOT in the matcher** (no auth gate, no geo logic — they serve unconditionally per their market). Marketing-tree cookie-setting (visit-beacon emission) happens in U3, not here.
+- Delete: `src/app/page.tsx` (its content now lives at `/uk/page.tsx`)
+- Create: `src/components/marketing/market-banner.tsx`
 
-**Approach.** The middleware adds geo-based default routing only at root (`/`). Sub-paths under `/uk/...` and `/us/...` are not in the matcher (so middleware doesn't run on them) — they're served unconditionally per their market. The market is a structural URL parameter, not a runtime preference. The cookie `mf_market` is set when the visitor uses the banner override; on next root visit, middleware honours the cookie before geo. Non-matcher pSEO pages remain public-by-default per the existing allowlist behaviour.
+**Approach.** The middleware change is small and surgical: only `/` is matched for geo logic. Pages under `/uk/[slug]` and `/us/[slug]` are public-by-default per the existing allowlist behaviour. The current homepage is forked: UK version stays as-is (it's already NHS/£/GP-toned); US version is a new file authored separately, not generated. The market-banner component shows on a market-mismatch (e.g., GB visitor on `/us/...`).
 
-**Patterns to follow.** [src/middleware.ts:68-91](src/middleware.ts#L68-L91) (existing matcher + allowlist branch); [src/lib/utils.ts:58](src/lib/utils.ts#L58) (the only existing locale touch — replace with market-aware version).
+**Patterns to follow.** [src/middleware.ts:68-91](src/middleware.ts#L68-L91); [src/app/page.tsx](src/app/page.tsx) (the source content for `/uk/page.tsx`).
 
 **Test scenarios.**
-- Edge case: GET `/` from `x-vercel-ip-country: GB` and no `mf_market` cookie → 302 to `/uk`.
-- Edge case: GET `/` from `x-vercel-ip-country: US` and no cookie → 302 to `/us`.
-- Edge case: GET `/` from `x-vercel-ip-country: FR` and no cookie → 302 to `/us` (default fallback).
-- Happy path: GET `/uk/fatigue-in-men` from any geo → 200, no redirect.
-- Happy path: cookie `mf_market=us` and `x-vercel-ip-country: GB` → GET `/` redirects to `/us`.
-- Error path: GET `/xx/anything` (invalid market) → 404 (not a redirect loop).
-- Integration: `useMarket()` from inside `/uk/[slug]/page.tsx` returns `'uk'`; `formatPrice('uk', 1900)` returns `"£19"`.
+- GET `/` from `x-vercel-ip-country: GB`, no cookie → 302 to `/uk`.
+- GET `/` from `x-vercel-ip-country: US`, no cookie → 302 to `/us`.
+- GET `/` from any geo, cookie `mf_market=us` → 302 to `/us` (cookie wins).
+- GET `/` from `x-vercel-ip-country: FR`, no cookie → 302 to `/us` (default fallback for non-UK/US).
+- GET `/uk/fatigue-in-men` → 200, no redirect, no middleware involvement.
+- GET `/xx/anything` → 404 (no static params for `xx`).
+- Preview deployment smoke: confirm `x-vercel-ip-country` is present (not stripped); document behaviour in case it's missing.
+- Integration: `useMarket()` from `/uk/[slug]/page.tsx` returns `'uk'`; `formatPrice('uk', 1900)` returns `"£19"`.
 
-**Verification.** Manual smoke: visit `/` from VPN endpoints in GB and US; confirm correct redirect. Visit `/uk` from US, see market-banner suggesting `/us`. Click banner → `mf_market=uk` cookie set, banner disappears.
+**Verification.** Manual smoke from VPN endpoints in GB and US. Visit `/uk` from US → see market-banner → click → `mf_market=uk` cookie set, banner disappears.
 
 **Dependencies.** None.
 
-**Execution note.** Test-first for the redirect logic — middleware behaviour is sticky once written and easy to break silently. Write the matcher test with a Vitest mock of `NextRequest`.
+**Execution note.** Test-first for the redirect logic. Vitest mock of `NextRequest`.
 
 ---
 
-#### U2 · Page-data schema + one anchor page per market
+#### U2 · Page-data schema + JSON-LD components + scaffolder + 1 anchor page per market
 
-**Goal.** A typed `MarketingPage` data record. A single TSX template renders any page from data. Two pages shipped: UK and US versions of "Fatigue in men: causes, blood tests, and next steps". The editorial-QA Vitest gate (R6) is extended to scan the content folder. CI fails if any page-data file violates the regex sweep.
+**Goal.** A typed `MarketingPage` data record. A single TSX template renders any page from data. Two pages shipped: UK and US versions of "Fatigue in men: causes, blood tests, and next steps". JSON-LD for `MedicalWebPage` + `FAQPage` rendered from page-data with safe-string escaping. The CLI scaffolder is shipped as part of this unit (it consumes the same Zod schema). The editorial-QA Vitest gate (R6) extended to scan the content folder.
 
 **Files.**
-- Create: `src/lib/marketing/page-schema.ts` (Zod: `MarketingPageSchema` with `slug`, `market`, `cohortKey`, `seoTitle`, `metaDescription`, `h1`, `aboveFold`, `sections[]`, `faq[]`, `escalation`, `cta`, `publishedAt`, `lastReviewedAt`, `reviewerKey`)
-- Create: `src/lib/marketing/cohorts.ts` (cohort taxonomy: `fatigue | testosterone | longevity-40 | recovery-hrv | metabolic | cardio | fertility | executive`)
-- Create: `src/components/marketing/page-template.tsx` (the single TSX template)
-- Create: `src/components/marketing/hero-block.tsx`, `cta-block.tsx`, `faq-block.tsx`, `escalation-module.tsx`
-- Create: `src/app/[market]/[slug]/page.tsx` (dynamic route, generates static params from content folder, reads page-data, renders template)
-- Create: `src/app/[market]/[slug]/layout.tsx` (emits MedicalWebPage + FAQPage JSON-LD)
+- Create: `src/lib/marketing/page-schema.ts` (Zod: `MarketingPageSchema` with `slug`, `market`, `cohortKey`, `seoTitle`, `metaDescription`, `h1`, `aboveFold`, `sections[]`, `faq[]`, `escalation`, `cta`, `publishedAt`, `lastReviewedAt`, `reviewerKey`, `qaAllowlist?`)
+- Create: `src/lib/marketing/cohorts.ts` (cohort taxonomy + allowlist set)
+- Create: `src/lib/marketing/slug-allowlist.ts` (built at build time from content/marketing/ filesystem)
+- Create: `src/components/marketing/page-template.tsx`
+- Create: `src/components/marketing/{hero-block,cta-block,faq-block,escalation-module}.tsx`
+- Create: `src/components/structured-data/medical-webpage.tsx` — JSON-LD emitter; serializes via `JSON.stringify(data).replace(/</g, '\\u003c')` (R3 escape)
+- Create: `src/components/structured-data/faq-page.tsx` — same escape pattern
+- Create: `src/app/[market]/[slug]/page.tsx` (dynamic route, `generateStaticParams` walks content folder)
+- Create: `src/app/[market]/[slug]/layout.tsx` (renders MedicalWebPage + FAQPage JSON-LD from page-data)
 - Create: `content/marketing/uk/fatigue-in-men.ts`
 - Create: `content/marketing/us/fatigue-in-men.ts`
-- Modify: `src/lib/compliance/static-copy.test.ts` — extend the file-walk to also scan `content/marketing/**/*.ts`. Page-data file may declare a `qaAllowlist?: string[]` field for explicit phrase exemptions (each requires a comment explaining why).
+- Create: `content/marketing/_templates/{cohort}.template.ts` (8 templates, scaffolder consumes)
+- Create: `scripts/marketing-scaffold.ts` (CLI: `pnpm marketing:scaffold --cohort=fatigue --slug=ferritin-low --market=uk`)
+- Modify: `package.json` — add `marketing:scaffold` script
+- Modify: `src/lib/compliance/static-copy.test.ts` — extend file-walk to also scan `content/marketing/**/*.ts`. Page-data file may declare `qaAllowlist?: string[]` for explicit phrase exemptions (each requires a comment).
 
-**Approach.** Pages are imported eagerly at build time (Next 14 SSG). `generateStaticParams` walks `content/marketing/{market}/` and returns the cartesian product. The template is intentionally rigid — sections render from a fixed schema (hero, FAQ, escalation, CTA), not freeform components. This keeps the editorial-QA scan effective: regexes only need to match flat strings, never component trees.
+**Approach.** Pages imported eagerly at build time (Next 14 SSG). `generateStaticParams` walks `content/marketing/{market}/`. The template is intentionally rigid — sections render from a fixed schema (hero, FAQ, escalation, CTA), not freeform components. The slug-allowlist is built at build time and consumed by U3's `/api/marketing/visit` route to validate inbound `slug` values. The scaffolder is a few hundred lines: argv parse → render template → write file → exit 0/1. It runs at dev time; new pages still require a redeploy because `generateStaticParams` is build-time.
 
-The two anchor pages have hreflang annotations pointing to each other. Pages without an equivalent in the other market emit `hreflang=x-default` to the configured default (UK).
-
-**Patterns to follow.** [src/lib/compliance/static-copy.test.ts](src/lib/compliance/static-copy.test.ts) (extend the walk + regex sweep); [src/lib/scribe/policy/forbidden-phrases.ts](src/lib/scribe/policy/forbidden-phrases.ts) (import its phrase list directly — single source of truth, R11); [src/app/r/[slug]/page.tsx](src/app/r/[slug]/page.tsx) (precedent for slug-based routing, though that one is hand-mapped).
+**Patterns to follow.** [src/lib/compliance/static-copy.test.ts](src/lib/compliance/static-copy.test.ts); [src/lib/scribe/policy/forbidden-phrases.ts](src/lib/scribe/policy/forbidden-phrases.ts) (single-source-of-truth phrase list).
 
 **Test scenarios.**
-- Happy path: GET `/uk/fatigue-in-men` → 200, H1 matches data, JSON-LD validates against schema.org/MedicalWebPage.
-- Happy path: GET `/us/fatigue-in-men` → 200, USD currency in CTA, US-sourced clinical references.
-- Edge case: Page-data file with `body: "start taking creatine"` → editorial-QA test fails CI (matches imperative-treatment regex).
-- Edge case: Page-data file with `body: "discuss creatine with your GP"` → passes (the contextual GP-prep phrasing is explicitly allowlisted in `static-copy.test.ts` precedent).
-- Edge case: Page-data file referring to "Adderall" → fails (Rx drug name in `forbidden-phrases.ts`).
-- Error path: GET `/uk/nonexistent-slug` → 404 (Next default).
-- Integration: hreflang on `/uk/fatigue-in-men` page source includes `<link rel="alternate" hreflang="en-GB" href="https://.../uk/fatigue-in-men">` AND `<link rel="alternate" hreflang="en-US" href="https://.../us/fatigue-in-men">`.
-- Integration: JSON-LD includes `mainEntityOfPage`, `lastReviewed`, `medicalAudience`, FAQ entries with `Question` + `Answer` pairs.
+- GET `/uk/fatigue-in-men` → 200, H1 matches, JSON-LD validates against schema.org/MedicalWebPage.
+- GET `/us/fatigue-in-men` → 200, USD currency, US-sourced clinical references.
+- Edit page-data to insert `body: "start taking creatine"` → editorial-QA fails CI (imperative-treatment regex).
+- Edit page-data to insert `</script>` in any string → JSON-LD output contains `</script` (escaped); HTML doesn't break.
+- Edit page-data to reference "Adderall" → editorial-QA fails (Rx drug name).
+- Scaffolder: `pnpm marketing:scaffold --cohort=testosterone --slug=low-libido --market=us` → file written; passes Zod validation; passes editorial-QA on the template stub.
+- Scaffolder: duplicate slug → exit 1 with helpful error.
+- Scaffolder: invalid cohort → exit 1, valid keys listed.
+- Integration: hreflang on `/uk/fatigue-in-men` includes `<link rel="alternate" hreflang="en-GB" href="...">` AND `<link rel="alternate" hreflang="en-US" href="...">`.
+- Integration: JSON-LD includes `mainEntityOfPage`, `lastReviewed`, `medicalAudience`, FAQ entries; `reviewedBy` is `Organization` for Path A.
+- DiagnosticEvent: emit at startup if any page-data file fails Zod parse → counter `page-data-zod-fail` increments.
 
-**Verification.** Local: `npm run test:compliance` (or whatever the static-copy.test.ts runner is) passes with both pages. `npm run dev` → both URLs render. Lighthouse SEO audit ≥95 on both.
+**Verification.** Local test pass; `npm run dev` renders both URLs. Lighthouse SEO ≥95. Google Rich Results Test passes both pages.
 
 **Dependencies.** U1.
 
-**Execution note.** Characterization-first for the editorial-QA extension: write a failing test that asserts the new content folder is scanned BEFORE adding pages. Then add pages and confirm the regex sweep catches a deliberately-bad fixture before removing the fixture.
+**Execution note.** Characterization-first for the editorial-QA extension: write a failing test that asserts the new content folder is scanned BEFORE adding pages.
 
 ---
 
-#### U3 · Auth-gated upload landing + email capture (validation MVP path)
+#### U3 · Auth-gated CTA + LandingPageVisit + funnel measurement (merged from prior U3 + U5)
 
-**Goal.** Phase 0's CTA from any anchor page → existing magic-link signup with `cohortKey` and `market` captured on the User row → existing intake pipeline. NO public no-auth upload, NO preview tier. The visitor signs up first (auth-gate), then uploads. Validation MVP only — Phase 1 replaces this with the no-auth flow.
+**Goal.** Phase 0's CTA from any anchor page → existing magic-link signup with `cohortKey` and `market` captured on the User row → existing intake pipeline. Every marketing page emits a single `LandingPageVisit` row on first paint, deduped within 1 minute by schema constraint (R7). Activation-funnel report has new stages `anchor-page-visit` and `anchor-page-to-signup`.
 
 **Files.**
-- Modify: `prisma/schema.prisma` — add `User.signupMarket: String?`, `User.signupCohort: String?`, `User.signupSlug: String?` (all nullable, populated at signup time only).
-- Modify: `src/app/api/auth/request-link/route.ts` — accept optional `signupContext: { market, cohort, slug }` in the request body, attach to User on upsert.
-- Modify: `src/components/marketing/cta-block.tsx` — POST to `/api/auth/request-link` with the page's market/cohort/slug context, then show "check your email" state.
-- Modify: `src/lib/metrics/activation-funnel.ts` — add stages `anchor-page-visit` (joined via `LandingPageVisit`), `anchor-page-to-signup` (joined via `User.signupSlug` non-null).
+- Modify: `prisma/schema.prisma`:
+  - `User: +signupMarket String?, +signupCohort String?, +signupSlug String?` (nullable, set only at first signup)
+  - Add `LandingPageVisit` model:
+    ```
+    model LandingPageVisit {
+      id              String   @id @default(cuid())
+      slug            String
+      cohortKey       String
+      market          String
+      referrer        String?
+      ipHash          String
+      mfAnonymousId   String
+      userAgentClass  String   // 'browser' | 'bot' | 'unknown'
+      email           String?  @db.VarChar(320)  // backfilled at signup-time (R14)
+      minuteBucket    BigInt   // unix-epoch-minute, computed app-side
+      createdAt       DateTime @default(now())
+      @@unique([mfAnonymousId, slug, minuteBucket])  // R7 dedupe enforced at schema level
+      @@index([slug, market, createdAt])
+      @@index([email])
+    }
+    ```
+  - Add `DiagnosticEvent` model (R12):
+    ```
+    model DiagnosticEvent {
+      id          String   @id @default(cuid())
+      key         String
+      day         DateTime @db.Date
+      count       Int      @default(1)
+      lastSeenAt  DateTime @default(now())
+      @@unique([key, day])
+      @@index([day])
+    }
+    ```
+- Create: `src/lib/auth/ip-hash.ts` (factored out from request-link/route.ts)
+- Modify: [src/app/api/auth/request-link/route.ts](src/app/api/auth/request-link/route.ts) — import from `lib/auth/ip-hash.ts`; accept optional `signupContext: { market, cohort, slug }` in body; persist on User via upsert (only on first creation — never overwrite existing).
+- Modify: `src/components/marketing/cta-block.tsx` — POST email + signupContext to `/api/auth/request-link`.
+- Create: `src/components/marketing/visit-beacon.tsx` (client component; POSTs once per pageview)
+- Create: `src/app/api/marketing/visit/route.ts` — writes LandingPageVisit. **Validates `slug ∈ slug-allowlist`, `market ∈ {uk,us}`, `cohort ∈ cohort-allowlist`**; rejects with 400 otherwise (DiagnosticEvent: `visit-beacon-input-rejected`). **Rate-limited via MagicLinkRateLimit `subjectKind='visit-beacon-ip-1h'` (D8)** capped at 60/hour per IP. minuteBucket computed and inserted; unique constraint silently dedupes via `INSERT … ON CONFLICT DO NOTHING`.
+- Create: `src/lib/marketing/diagnostic.ts` — single helper `incrementDiagnostic(key)` that runs the upsert. All units use this; no parallel implementations (R12).
+- Modify: [src/lib/metrics/activation-funnel.ts](src/lib/metrics/activation-funnel.ts) — add stages:
+  - `anchor-page-visit`: min `LandingPageVisit.createdAt` per `mfAnonymousId`, joined to `User` via `email` (after signup-time backfill in R14)
+  - `anchor-page-to-signup`: time delta from first `LandingPageVisit` to `User.createdAt` (where `signupSlug = LandingPageVisit.slug`)
 
-**Approach.** This unit is intentionally minimal. The page CTA is the existing magic-link flow with three extra fields persisted on the User row. The user signs in, lands at the existing intake screen, uploads. We measure: page → email signup (the funnel's R7 stage) and email signup → upload (existing intake instrumentation).
+**Approach.** The visit-beacon does its own client-side dedupe (1 request per page-load); the API also enforces dedupe via the unique constraint. Both layers are needed: client-side stops the obvious double-fire on hydration, schema-side stops bot-rotation attacks. `userAgentClass` is computed server-side via a conservative regex (Googlebot, GPTBot, ClaudeBot, PerplexityBot, GeminiBot, common SEO crawlers); bot visits ARE persisted (we want AI-engine crawl rates).
 
-The Phase 0 success gate is whether anchor pages produce email signups at all. If yes (≥5 signups per market in 3 weeks), Phase 1 replaces this unit's CTA with the public no-auth upload flow.
-
-**Patterns to follow.** [src/app/api/auth/request-link/route.ts](src/app/api/auth/request-link/route.ts) (existing magic-link); [src/lib/metrics/activation-funnel.ts](src/lib/metrics/activation-funnel.ts) (stage definitions).
+**Patterns to follow.** [src/app/api/auth/request-link/route.ts:113-119](src/app/api/auth/request-link/route.ts#L113-L119); [src/lib/metrics/activation-funnel.ts](src/lib/metrics/activation-funnel.ts).
 
 **Test scenarios.**
-- Happy path: GET `/uk/fatigue-in-men` → click CTA → email submitted with `signupContext: { market: 'uk', cohort: 'fatigue', slug: 'fatigue-in-men' }` → User row created with those fields.
-- Happy path: After email verify, redirect to `/intake` (existing flow). User uploads PDF normally.
-- Edge case: User already exists (returning visitor with same email) → upsert preserves original `signupSlug` (don't overwrite — `signupSlug` is set only on first creation).
-- Integration: Funnel report shows new stages `anchor-page-visit` and `anchor-page-to-signup` with cohort breakdown.
-- Edge case: CTA submission fails (network error, rate limit) → existing magic-link error UX.
+- Visitor lands on `/uk/fatigue-in-men` → LandingPageVisit row, all fields correct.
+- Reload within 1 minute → ON CONFLICT DO NOTHING; no duplicate row.
+- Reload at minute boundary (61 seconds later) → second row written (different minuteBucket).
+- Bot user-agent → `userAgentClass='bot'`; row persists.
+- Beacon POST with `slug='../../etc/passwd'` → 400, no row, `visit-beacon-input-rejected` counter.
+- Beacon POST 61st time within 1h from same IP → 429, no row, `visit-beacon-rate-limit-1h` counter.
+- CTA submit → User created with `signupMarket=uk, signupCohort=fatigue, signupSlug=fatigue-in-men`.
+- Returning visitor (existing email) signs up again → `signupSlug` NOT overwritten (preserved on first creation only).
+- After signup, LandingPageVisit.email backfilled for all rows matching mfAnonymousId.
+- Funnel report shows `anchor-page-visit` and `anchor-page-to-signup` with cohort + market breakdown.
+- DiagnosticEvent: emit `visit-beacon-input-rejected` 100 times → table has 1 row with count=100, not 100 rows.
 
-**Verification.** Manual: visit `/uk/fatigue-in-men`, submit email, verify magic link, confirm User row in DB has `signupMarket=uk, signupCohort=fatigue, signupSlug=fatigue-in-men`. Run activation-funnel report and see new stages populated.
+**Verification.** Manual smoke produces visit rows with correct fields; signup populates User context fields; funnel CLI shows new stages.
 
-**Dependencies.** U1, U2, U5 (LandingPageVisit emission).
+**Dependencies.** U1, U2 (slug-allowlist + cohort-allowlist).
 
-**Execution note.** None. Trivial extension of existing flow.
+**Execution note.** Test-first for the dedupe constraint and the input validation. Schema migration runs locally on a copy of prod data first to verify `db push` produces the expected DDL.
 
 ---
 
-#### U4 · GEO infrastructure (sitemap, robots, structured data)
+#### U4 · GEO infrastructure (sitemap, robots, hreflang utility)
 
-**Goal.** Both markets have valid sitemaps. Robots respects the marketing tree. Every marketing page emits `MedicalWebPage` + `FAQPage` JSON-LD. AI answer engines (Perplexity, ChatGPT browsing, Gemini, Google AI Overviews) can crawl and cite pages.
+**Goal.** Both markets have valid sitemaps. Robots respects the marketing tree. Sitemaps + robots are crawler-discoverable. JSON-LD components themselves live in U2 (where the templates that need them live); U4 owns the discovery surfaces only.
 
 **Files.**
-- Create: `src/app/sitemap.ts` (Next 14 `MetadataRoute.Sitemap` — generates a single sitemap-index that points at per-market sitemaps)
-- Create: `src/app/uk/sitemap.ts`, `src/app/us/sitemap.ts` (each enumerates pages in `content/marketing/{market}/`)
-- Create: `src/app/robots.ts` (allows `/uk/`, `/us/`, `/`; disallows `/api/`, `/account/`, `/r/`, `/share/`, `/intake`, `/onboarding`)
-- Create: `src/components/structured-data/medical-webpage.tsx` (JSON-LD emitter for MedicalWebPage schema)
-- Create: `src/components/structured-data/faq-page.tsx` (JSON-LD emitter for FAQPage schema)
-- Modify: `src/app/[market]/[slug]/layout.tsx` — render both JSON-LD components from page-data
+- Create: `src/app/sitemap.ts` — sitemap-index pointing at per-market sitemaps
+- Create: `src/app/uk/sitemap.ts`, `src/app/us/sitemap.ts` (each enumerates content/marketing/{market}/)
+- Create: `src/app/robots.ts` (allows `/uk/`, `/us/`, `/`; disallows `/api/`, `/account/`, `/r/`, `/share/`, `/intake`, `/onboarding`, `/upload`, `/upload/results`)
 - Create: `src/lib/marketing/seo.ts` (`buildCanonicalUrl(market, slug)`, `buildHreflangAlternates(slug, availableMarkets)`)
 
-**Approach.** JSON-LD entities are typed (Zod) per schema.org's MedicalWebPage. Required fields: `@type`, `name`, `url`, `mainEntityOfPage`, `medicalAudience`, `lastReviewed`, `reviewedBy.@type` (where allowed under Path A — see regulatory note below). Page-data carries `lastReviewedAt: Date` and `reviewerKey: string`; the JSON-LD emitter renders `reviewedBy` as an `Organization` (MorningForm) for Path A. (If/when Path B engages, `reviewedBy` becomes a `Person` with credentials.)
+**Approach.** Sitemap is generated at build time via filesystem walk, same as `generateStaticParams` in U2. Robots disallows the upload tree (R8 — preview surface noindex).
 
-**Patterns to follow.** Next 14 [`MetadataRoute.Sitemap`](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap) and [`MetadataRoute.Robots`](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/robots) APIs (no codebase precedent — verify against current Next 14.2.35 docs at implementation time).
+**Patterns to follow.** Next 14 [`MetadataRoute.Sitemap`](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap) and [`MetadataRoute.Robots`](https://nextjs.org/docs/app/api-reference/file-conventions/metadata/robots) APIs.
 
 **Test scenarios.**
-- Happy path: GET `/sitemap.xml` returns sitemap-index with two entries (`/uk/sitemap.xml`, `/us/sitemap.xml`).
-- Happy path: GET `/uk/sitemap.xml` lists all pages in `content/marketing/uk/`.
-- Happy path: GET `/robots.txt` matches expected disallow rules.
-- Integration: Page source for `/uk/fatigue-in-men` contains a `<script type="application/ld+json">` block validating against schema.org/MedicalWebPage.
-- Integration: FAQ JSON-LD `mainEntity` array matches the page's `faq` data.
-- Edge case: Page with no FAQ → no FAQPage JSON-LD emitted (avoid empty `mainEntity`).
-- Edge case: Page with `lastReviewedAt > 90 days ago` → editorial-QA test warns (not fail) about stale review.
+- GET `/sitemap.xml` returns sitemap-index with two entries.
+- GET `/uk/sitemap.xml` lists all UK pages.
+- GET `/robots.txt` matches expected allow/disallow rules.
+- Edge case: page with no FAQ → no FAQPage JSON-LD emitted (handled in U2 layout).
+- Editorial-QA warning on `lastReviewedAt > 90 days ago`.
 
-**Verification.** Run pages through Google's Rich Results Test and Schema.org Validator. Confirm `lastReviewed` and `medicalAudience` are recognised.
+**Verification.** Google Rich Results Test passes. Schema.org Validator green. Google Search Console submission accepts sitemap.
 
 **Dependencies.** U2.
 
-**Execution note.** None. JSON-LD output is testable as plain string assertions.
-
----
-
-#### U5 · Funnel measurement: LandingPageVisit + cohort-aware funnel stages
-
-**Goal.** Every marketing page emits a single `LandingPageVisit` row on first paint. The activation-funnel report has new stages for `anchor-page-visit` and `anchor-page-to-signup`, broken down by cohort and market.
-
-**Files.**
-- Modify: `prisma/schema.prisma` — add `LandingPageVisit` model:
-  ```
-  model LandingPageVisit {
-    id                  String   @id @default(cuid())
-    slug                String
-    cohortKey           String
-    market              String
-    referrer            String?
-    ipHash              String   // HMAC via session secret (D9)
-    mfAnonymousId       String   // matches User.anonymousSessionToken if upgraded
-    userAgentClass      String   // 'browser' | 'bot' | 'unknown' (R12 single-source-of-truth)
-    email               String?  @db.VarChar(320)  // backfilled at signup-time (R14 join key)
-    createdAt           DateTime @default(now())
-    @@index([slug, market, createdAt])
-    @@index([mfAnonymousId])
-    @@index([email])
-  }
-  ```
-- Create: `src/lib/auth/ip-hash.ts` (factored out from `src/app/api/auth/request-link/route.ts:113-119`; same SESSION_SECRET, same algorithm)
-- Modify: `src/app/api/auth/request-link/route.ts` — import from `lib/auth/ip-hash.ts` (replace inline helper)
-- Create: `src/components/marketing/visit-beacon.tsx` (client component; POSTs to `/api/marketing/visit` once per page-load with `slug`, `cohort`, `market`, `referrer`)
-- Create: `src/app/api/marketing/visit/route.ts` (writes `LandingPageVisit` after dedupe-by-mfAnonymousId-and-slug-within-1-minute)
-- Modify: `src/lib/metrics/activation-funnel.ts` — add two new stages:
-  - `anchor-page-visit`: min `LandingPageVisit.createdAt` per `mfAnonymousId`, joined to `User` via `email`
-  - `anchor-page-to-signup`: time delta from first `LandingPageVisit` to first `User.createdAt` (where `signupSlug = LandingPageVisit.slug`)
-- Modify: `src/middleware.ts` — set `mf_anon` cookie on the marketing tree's first visit (random UUID, httpOnly, sameSite=lax). Read cookie if present.
-
-**Approach.** The bot/non-bot detection is a single conservative regex (Googlebot, GPTBot, ClaudeBot, PerplexityBot, GeminiBot, common SEO crawlers). Bot visits ARE persisted (separate `userAgentClass='bot'`) — we want to know AI-engine crawl rates. The R7 join-key handoff: at email-verify time (U6 in Phase 1, or U3 in Phase 0), we `UPDATE landing_page_visit SET email = :realEmail WHERE mf_anonymous_id = :mfAnonymousId`. This makes funnel attribution precise; without the backfill, the join silently under-counts (predecessor's F6 finding).
-
-**Patterns to follow.** [src/app/api/auth/request-link/route.ts:113-119](src/app/api/auth/request-link/route.ts#L113-L119) (IP hash); [src/lib/metrics/activation-funnel.ts](src/lib/metrics/activation-funnel.ts) (stage definitions).
-
-**Test scenarios.**
-- Happy path: Visitor lands on `/uk/fatigue-in-men` → `LandingPageVisit` row written with correct fields.
-- Edge case: Same visitor reloads page within 1 min → no duplicate row (deduped by mfAnonymousId + slug + 1-min window).
-- Edge case: Bot user-agent → `userAgentClass='bot'`; row persists.
-- Edge case: No `mf_anon` cookie → middleware sets it before page render; visit-beacon reads it.
-- Integration: After email signup via U3, `LandingPageVisit.email` is populated for all rows matching `mfAnonymousId`.
-- Integration: Activation-funnel CLI shows `anchor-page-visit → anchor-page-to-signup` conversion percentage by cohort and market.
-
-**Verification.** Cohort report query produces non-zero counts after manual smoke. Bot count is >0 within 24h (Googlebot will hit fast).
-
-**Dependencies.** U1, U2.
-
-**Execution note.** Test-first for the dedupe window: it's the kind of logic that silently over-counts.
+**Execution note.** None.
 
 ---
 
@@ -403,121 +425,150 @@ Before Phase 1 begins:
 - Editorial-QA Vitest gate green on every commit.
 - Both anchor pages indexed by Google (verified via `site:` query) and rendering in at least one AI answer engine (Perplexity test query).
 
-If signups are <5 per market, do not build Phase 1. Iterate on copy, distribution, or recommend pivoting to channels 1+2 (concierge / founder).
+If signups are <5 per market, do not build Phase 1. Iterate on copy, distribution, or recommend pivoting to channels 1+2.
 
 ---
 
 ### Phase 1 — Programmatic + monetization (weeks 4–7)
 
-#### U6 · Public no-auth upload + provisional-user pattern
+#### U5 · Public no-auth upload + provisional-user pattern
 
-**Goal.** Visitor on a marketing page can upload a PDF without signing in. A provisional User row is created with `email=null`. SourceDocument is FK'd to that provisional user. At later signup, the `mf_anon`-cookie-bound upgrade transfers ownership to the real user atomically.
+**Goal.** Visitor on a marketing page can upload a PDF without signing in. A provisional User row is created with `email=null`. SourceDocument is FK'd to that provisional user. At later signup, the upgrade path enforces R13 strict AND binding (cookie + MagicLinkToken.anonymousId) and the R14 atomic five-statement transaction.
 
 **Files.**
 - Modify: `prisma/schema.prisma`:
-  - `User.email: String?` (was `String @unique`, becomes `String? @unique` — Postgres allows multiple NULLs in a unique index)
+  - `User.email: String?` (was `String @unique`, becomes `String? @unique` — Postgres allows multiple NULLs)
   - `User.anonymousSessionToken: String? @unique` (added)
-  - Verify by audit: every read site of `user.email` handles `null` (predecessor's F1)
-- Modify: `MagicLinkRateLimit` — add new `subjectKind` values via constants only (no schema change): `upload-ip-1h`, `upload-ip-24h`, `signup-ip-1h`. (D8)
-- Create: `src/app/upload/page.tsx` (public, no auth — the upload UI)
-- Create: `src/app/api/upload/route.ts` (POST PDF + Turnstile token + `mf_anon`)
-- Create: `src/lib/upload/blob-storage.ts` (wraps `src/lib/intake/storage.ts:storePdf`; ensures path uses provisional userId)
-- Modify: `src/middleware.ts` — add `/upload`, `/upload/results`, `/api/upload/*` to `config.matcher` so the matcher actually runs on these routes; in the if-branch, set `X-Robots-Tag: noindex` (preview surface should not be indexable).
-- Modify: `src/app/api/auth/request-link/route.ts` — accept `anonymousId` parameter; embed in magic-link token payload for verification cross-check.
-- Modify: `src/app/api/auth/verify/route.ts` — at verify time, check inbound `mf_anon` cookie matches token's `anonymousId` AND matches `User.anonymousSessionToken` (R13). Run FK ownership transfer in same transaction (R14).
+  - `MagicLinkToken.anonymousId: String?` (added — R13 second binding channel)
+- Modify: `MagicLinkRateLimit.subjectKind` constants (no schema change): add `upload-ip-1h`, `upload-ip-24h`, `signup-ip-1h` (visit-beacon already added in U3).
+- Create: `src/app/upload/page.tsx` (public, no auth)
+- Create: `src/app/api/upload/route.ts` (POST PDF + Turnstile + `mf_anon`)
+- Create: `src/lib/upload/blob-storage.ts` (wraps `src/lib/intake/storage.ts:storePdf`)
+- Modify: `src/middleware.ts` — add `/upload`, `/upload/results`, `/api/upload/*` to `config.matcher` AND extend the public-allowlist branch to include them; in that branch, set `X-Robots-Tag: noindex`.
+- Modify: [src/app/api/auth/request-link/route.ts](src/app/api/auth/request-link/route.ts) — accept `anonymousId` parameter; persist on the new MagicLinkToken row (R13 second channel binding).
+- Modify: [src/app/api/auth/verify/route.ts](src/app/api/auth/verify/route.ts) — verify-time strict-AND check (R13): inbound `mf_anon` cookie matches both `User.anonymousSessionToken` AND `MagicLinkToken.anonymousId`. Reject otherwise. Run R14 atomic transaction with all 5 statements.
 
-**Approach.** The middleware change is the predecessor's F4 trap. We MUST add `/upload`, `/upload/results`, `/api/upload/*` to `config.matcher` for the public-allowlist branch to fire. For routes that should remain public-by-default (anything else), we keep them out of the matcher. The matcher edit is small but load-bearing.
+**Approach.** Middleware change is the predecessor's F4 trap — done correctly here: BOTH the matcher AND the if-branch are extended. The provisional-user creation runs inside the upload route after Turnstile verification + IP rate-limit. `User.anonymousSessionToken` equals `mf_anon`. At verify time, `mf_anon` cookie must match BOTH the User row AND the MagicLinkToken row — single-channel compromise is insufficient.
 
-The provisional-user creation runs inside the upload route after Turnstile verification + IP rate-limit (D8 + D9). The `User.anonymousSessionToken` value equals the `mf_anon` cookie. This is the cryptographic binding: at verify-time, the cookie must still match.
+If `User.email` already exists on a different real user (the `mf_anon` upgrade tries to set an email already in use), the upgrade is rejected pre-transaction and the visitor is offered "sign in to claim this upload" — a separate path that re-runs the FK transfer keyed on the existing User's id with the same R13 strict-AND verification.
 
-The FK ownership transfer at signup (R14) is one transaction:
-```
-BEGIN;
-UPDATE source_document SET user_id = :realUserId WHERE user_id = :provisionalUserId;
-UPDATE preview_summary SET user_id = :realUserId WHERE user_id = :provisionalUserId;
-UPDATE landing_page_visit SET email = :email WHERE mf_anonymous_id = :anonymousId;
-UPDATE "user" SET email = :email, name = :name, anonymous_session_token = NULL WHERE id = :provisionalUserId;
-DELETE FROM "user" WHERE id = :provisionalUserId AND email IS NULL;  -- safety net; should be no-op
-COMMIT;
-```
-
-If `email` already exists on a different User, we reject the upgrade and surface "sign in to claim this upload" — the visitor signs in via a separate path that re-runs the FK transfer keyed on the existing User's id.
-
-**Patterns to follow.** [src/lib/intake/storage.ts](src/lib/intake/storage.ts) (Blob API); [src/lib/auth/magic-link.ts:66-128](src/lib/auth/magic-link.ts#L66-L128) (rate-limit transaction pattern); [src/app/api/auth/request-link/route.ts:113-119](src/app/api/auth/request-link/route.ts#L113-L119) (now factored to `lib/auth/ip-hash.ts` per U5).
+**Patterns to follow.** [src/lib/intake/storage.ts](src/lib/intake/storage.ts); [src/lib/auth/magic-link.ts:66-128](src/lib/auth/magic-link.ts#L66-L128); [src/app/api/auth/request-link/route.ts:113-119](src/app/api/auth/request-link/route.ts#L113-L119) (now factored).
 
 **Test scenarios.**
-- Happy path: anonymous visitor POSTs PDF + Turnstile + `mf_anon` → 200 with `{ previewId, anonymousSessionToken }`. Provisional User row exists; SourceDocument FK is provisional userId.
-- Edge case: Turnstile token invalid → 401, no User row created.
-- Edge case: 6th upload from same IP within 1h → 429, `MagicLinkRateLimit.subjectKind=upload-ip-1h` triggered.
-- Edge case: PDF has no magic bytes (`%PDF-1.`) → 415, no User row created. Diagnostic counter `upload-magic-byte-rejected` written.
-- Edge case: At verify time, cookie `mf_anon` is missing or mismatched → reject, diagnostic counter `provisional-claim-cookie-mismatch`.
-- Edge case: At verify time, email already exists on a different User → reject upgrade, surface "sign in to claim" path, no FK transfer.
-- Integration: Successful upgrade → SourceDocument now FKs real User; `LandingPageVisit.email` is populated; provisional User row is gone.
-- Edge case: Verify-time transaction fails partway → entire transaction rolls back; provisional User remains intact; visitor can retry.
+- Anonymous POST PDF + valid Turnstile + valid mf_anon → 200 with `{ previewId, anonymousSessionToken }`. Provisional User exists; SourceDocument FK is provisional userId.
+- Invalid Turnstile token → 401, no User row.
+- 6th upload from same IP within 1h → 429, `MagicLinkRateLimit.subjectKind=upload-ip-1h`.
+- PDF without `%PDF-1.` magic bytes → 415; `upload-magic-byte-rejected` counter.
+- Verify-time: cookie missing → reject, `provisional-claim-cookie-mismatch` counter.
+- Verify-time: cookie present, matches User.anonymousSessionToken but NOT MagicLinkToken.anonymousId → reject (single-channel compromise blocked).
+- Verify-time: cookie present, matches MagicLinkToken but NOT User.anonymousSessionToken → reject.
+- Verify-time: both match → proceed; FK transfer runs all 5 statements atomically.
+- Verify-time: email collision with another User → reject upgrade, "sign in to claim" UX, no transaction.
+- Verify-time: transaction fails partway (forced via fixture) → entire rollback; provisional User intact.
 
-**Verification.** Manual: anonymous upload → check DB for provisional User; sign up → confirm transaction completes atomically; confirm provisional User cleanup.
+**Verification.** Manual: anonymous upload → DB has provisional User; sign up → atomic transaction completes; provisional User cleaned up.
 
-**Dependencies.** U1, U5.
+**Dependencies.** U1, U3 (DiagnosticEvent, ip-hash).
 
-**Execution note.** Characterization-first for the existing `User.email` references: write a failing test asserting at least N call sites and grep for the actual count first. Audit every call site for null-handling before applying the schema change.
+**Execution note.** Characterization-first for the User.email read-site audit — write a failing test that lists every read site BEFORE applying the schema change. Test-first for the strict-AND verification logic.
 
 ---
 
-#### U7 · Preview Form Intelligence tier
+#### U6 · Preview compile pipeline (server-side)
 
-**Goal.** Anonymous visitor's uploaded PDF is processed server-side and produces a ≤4-paragraph, ≤200-tokens-each plain-English summary. Output is stored on a typed `PreviewSummary` model (D4), not on `ScribeAudit`. Output is `Cache-Control: no-store` and only re-fetchable by the cookie-bound visitor.
+**Goal.** Anonymous visitor's uploaded PDF is processed server-side and produces a ≤4-paragraph, ≤200-tokens-each plain-English summary. Output stored on a typed `PreviewSummary` model. No client-facing surface in this unit — that's U7.
 
 **Files.**
-- Modify: `prisma/schema.prisma` — add:
+- Modify: `prisma/schema.prisma` — add `PreviewSummary`:
   ```
   model PreviewSummary {
     id                  String   @id @default(cuid())
     userId              String
     sourceDocumentId    String
     output              String   // ≤4 paragraphs of plain text
-    lintReport          Json     // forbidden-phrases scan output
+    lintReport          Json
     createdAt           DateTime @default(now())
     user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
     sourceDocument      SourceDocument @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
     @@unique([userId, sourceDocumentId])
+    @@index([userId])
   }
   ```
-- Create: `src/lib/upload/preview-compile.ts` — entry point that takes a SourceDocument, runs extraction (existing pipeline), generates a preview prompt with G1–G7 constraints baked in, calls LLMClient, runs output through `forbidden-phrases.ts`, writes `PreviewSummary` row.
-- Modify: `src/lib/llm/linter.ts` — extend `LintSurface` union with `'preview'`. Adding the string is a one-line union extension; the surface-aware behaviour is genuinely new code (predecessor's F9). Branch: preview output is a flat array of paragraphs, no section keys.
-- Create: `src/lib/llm/preview-prompt.ts` — Anthropic prompt with explicit constraints: no Rx names, no doses, no imperative-treatment verbs, no certainty claims, no diagnostic conclusions, return JSON `{ paragraphs: string[] }`.
-- Create: `src/app/upload/results/page.tsx` (RSC, reads PreviewSummary by id, gated by cookie match)
-- Create: `src/app/api/upload/results/[previewId]/route.ts` (cookie-bound GET; sets `Cache-Control: no-store, private` on response)
+- Create: `src/lib/upload/preview-compile.ts` — entry point: takes SourceDocument, runs extraction (existing pipeline), generates preview prompt with G1–G7 constraints, calls LLMClient, runs output through `forbidden-phrases.ts`, writes PreviewSummary row.
+- Create: `src/lib/llm/preview-prompt.ts` — Anthropic prompt with explicit constraints: no Rx names, no doses, no imperative-treatment verbs, no certainty claims, returns JSON `{ paragraphs: string[] }`.
+- Modify: [src/lib/llm/linter.ts](src/lib/llm/linter.ts) — extend `LintSurface` union with `'preview'`; new branch handles flat `paragraphs: string[]` shape (no section keys, unlike topic/brief/gp_prep).
 
-**Approach.** The preview prompt is short and constrained: extract markers in the PDF, identify ≤3 markers most likely to cause anxiety/curiosity for the cohort, write 1 paragraph per. No supplements, no protocols, no comparisons. If the PDF lacks recognisable lab markers, the preview falls back to "we couldn't read your panel — upload a Quest, LabCorp, NHS, or Medichecks PDF" with a `preview-fallback-no-markers` Diagnostic counter (R12). The fallback is fail-loud: no synthetic content generated.
+**Approach.** Preview prompt is short and constrained: extract markers, identify ≤3 most-anxiety/curiosity-relevant for cohort, write 1 paragraph per. No supplements, no protocols, no comparisons. If PDF lacks recognisable lab markers, fallback to "we couldn't read your panel — upload a Quest, LabCorp, NHS, or Medichecks PDF" with `preview-fallback-no-markers` counter (R12, fail-loud, no synthetic content).
 
-The cookie-binding on `/api/upload/results/[previewId]` works by deriving `userId` from `PreviewSummary.userId`, then reading the inbound `mf_anon` cookie. Match against `User.anonymousSessionToken` for provisional users; match against the session cookie for upgraded users. Mismatch returns 403, not 401 (we don't want to reveal the resource exists).
-
-**Patterns to follow.** [src/lib/llm/linter.ts](src/lib/llm/linter.ts) (LintSurface extension); [src/lib/scribe/policy/forbidden-phrases.ts](src/lib/scribe/policy/forbidden-phrases.ts) (regulatory gate); the LLMClient pattern with DPA SHA pin and Edge Config kill-switch (existing).
+**Patterns to follow.** [src/lib/llm/linter.ts](src/lib/llm/linter.ts); [src/lib/scribe/policy/forbidden-phrases.ts](src/lib/scribe/policy/forbidden-phrases.ts); existing LLMClient with DPA SHA pin and Edge Config kill-switch.
 
 **Test scenarios.**
-- Happy path: Provisional user with valid PDF → preview generated, 4 paragraphs, passes forbidden-phrases scan.
-- Edge case: PDF has no recognisable markers → fallback message; Diagnostic counter `preview-fallback-no-markers`.
-- Edge case: LLM output contains an Rx drug name → forbidden-phrases scan rejects; preview not stored; `preview-rejected-rx-name` counter; user sees "we're checking your results — try again in a minute" (no synthetic preview).
-- Edge case: Edge Config kill-switch flipped → preview compile errors loudly; user sees error state, not silent fallback.
-- Edge case: GET `/api/upload/results/[previewId]` from a different `mf_anon` cookie → 403.
-- Edge case: GET `/api/upload/results/[previewId]` with no cookie → 403.
-- Integration: Preview HTML response carries `Cache-Control: no-store, private`.
+- Provisional user with valid PDF → preview generated, 4 paragraphs, passes forbidden-phrases scan.
+- PDF with no recognisable markers → fallback message; `preview-fallback-no-markers` counter.
+- LLM output contains "Adderall" → forbidden-phrases scan rejects; preview not stored; `preview-rejected-rx-name` counter.
+- Edge Config kill-switch flipped → preview compile errors loudly; no synthetic fallback.
+- LintSurface `'preview'` branch correctly handles flat paragraph array (vs section-keyed shapes for `topic`/`brief`/`gp_prep`).
 
-**Verification.** Manual: anonymous upload of synthetic Quest panel → preview renders ≤4 paragraphs, all marker-specific. Try variations: corrupted PDF, panel with only one marker, panel with cancer-related markers (forbidden-phrases must catch). Confirm `Cache-Control` header.
+**Verification.** Synthetic Quest panel → preview renders ≤4 paragraphs, marker-specific. Variations: corrupted PDF, single-marker panel, panel with cancer-related markers (forbidden-phrases must catch).
 
-**Dependencies.** U6.
+**Dependencies.** U5.
 
-**Execution note.** Test-first for the linter extension and the cookie-binding logic. Both are silent-fail surfaces.
+**Execution note.** Test-first for the linter extension and the forbidden-phrases gate. Both are silent-fail surfaces.
 
 ---
 
-#### U8 · Multi-currency Stripe Subscription
+#### U7 · Cookie-bound preview results endpoint + RSC page (client-facing)
 
-**Goal.** Authed user (post-upgrade) clicks "Subscribe £19/mo" on the results page → Stripe Checkout Session is created with `metadata: { userId, market }` → Stripe webhook writes `Subscription` row → `getMembershipState(userId)` returns a typed result. Two prices: GBP £19/mo (UK), USD $29/mo (US).
+**Goal.** Authed-or-provisional visitor can view their preview at `/upload/results`. Access control is two-path explicitly: (1) provisional users — `mf_anon` cookie matches `User.anonymousSessionToken`; (2) upgraded users — session cookie matches `User.id`. RSC page surface AND API endpoint both emit `Cache-Control: no-store, private`.
+
+**Files.**
+- Create: `src/app/upload/results/page.tsx` (RSC; **`export const dynamic = 'force-dynamic'`**; reads PreviewSummary by id; resolves via two-path access control; emits `Cache-Control: no-store, private` via response headers helper)
+- Create: `src/app/api/upload/results/[previewId]/route.ts` — two-path access control:
+  ```
+  const previewSummary = await prisma.previewSummary.findUnique({ where: { id: previewId } });
+  if (!previewSummary) return forbidden();  // 403 not 404 (no resource enumeration)
+
+  const sessionUser = await getCurrentUser();
+  if (sessionUser?.id === previewSummary.userId) return ok(previewSummary);
+
+  // Fall back to provisional cookie path
+  const mfAnon = req.cookies.get('mf_anon')?.value;
+  if (!mfAnon) return forbidden();
+  const owner = await prisma.user.findUnique({ where: { id: previewSummary.userId } });
+  if (owner?.anonymousSessionToken === mfAnon) return ok(previewSummary);
+  return forbidden();
+  ```
+  Emits `Cache-Control: no-store, private` on success response.
+
+**Approach.** The two-path access control closes the post-upgrade gap. After upgrade, `anonymousSessionToken` is NULL on the User row (per U5's R14 transaction); the provisional-cookie path naturally fails. The session-cookie path then takes over because the user is authed. Day-7/14 email CTAs work because the magic-link sign-in puts the user into the session-cookie path.
+
+**Patterns to follow.** [src/lib/session.ts](src/lib/session.ts) (`getCurrentUser`); existing private-API-route conventions.
+
+**Test scenarios.**
+- Provisional user with valid `mf_anon` cookie matching `User.anonymousSessionToken` → 200 with preview output.
+- Upgraded user with valid session cookie (own preview) → 200.
+- Upgraded user with valid session cookie but trying to fetch ANOTHER user's preview → 403.
+- No cookies, no session → 403.
+- Wrong `mf_anon` cookie (matches no user) → 403 (not 404 — don't reveal existence).
+- Response on success: `Cache-Control: no-store, private` header present.
+- RSC page: `dynamic = 'force-dynamic'` set; HTML response carries `Cache-Control: no-store, private`.
+- POST attempt to GET-only route → 405.
+
+**Verification.** Manual: provisional view, then sign up, then re-view via session — both paths work. Try cross-user fetch attempt → 403. cURL response inspection confirms cache headers.
+
+**Dependencies.** U5, U6.
+
+**Execution note.** Test-first for the access control branches. This is the security-critical path the predecessor missed.
+
+---
+
+#### U8 · Multi-currency Stripe Subscription + lifecycle emails (Resend EU)
+
+**Goal.** Authed user clicks "Subscribe £19/mo" on the results page → Stripe Checkout Session (with `metadata` AND `subscription_data.metadata`) → Stripe webhook writes `Subscription` row → `getMembershipState(userId)` returns typed result. Day-7 + day-14 lifecycle emails scheduled at signup time. RFC 8058 one-click unsubscribe with token-in-URL-query (not body).
 
 **Files.**
 - Add dependency: `stripe` (npm, official SDK).
-- Modify: `prisma/schema.prisma` — add:
+- Modify: `prisma/schema.prisma`:
   ```
   model Subscription {
     id                    String   @id @default(cuid())
@@ -534,46 +585,6 @@ The cookie-binding on `/api/upload/results/[previewId]` works by deriving `userI
     @@index([userId])
     @@index([stripeSubscriptionId])
   }
-  ```
-- Create: `src/lib/billing/stripe.ts` — single Stripe SDK instance, env-keyed.
-- Create: `src/lib/billing/checkout.ts` — `createCheckoutSession({ userId, market })` returns the session URL. Sets metadata `{ userId, market }` (R9).
-- Create: `src/lib/billing/membership-state.ts` — `getMembershipState(userId): MembershipState` typed result (D10). Conversion table maps Stripe's 7+ statuses to our 5.
-- Create: `src/app/api/billing/checkout/route.ts` (auth-gated POST; reads market from User row's `signupMarket` or current market context)
-- Create: `src/app/api/billing/webhooks/stripe/route.ts` — webhook signature verified via `stripe.webhooks.constructEvent`. Handles `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`. Idempotent on `stripeSubscriptionId`. Diagnostic counter `stripe-webhook-unmatched` if metadata missing.
-- Modify: `src/middleware.ts` — add `/api/billing/webhooks/*` to matcher with the public-allowlist branch (no cookie auth; Stripe signs).
-- Modify: `src/lib/marketing/constants.ts` — add `STRIPE_PRICE_IDS: { uk: 'price_xxx_gbp_19', us: 'price_yyy_usd_29' }` (env-driven; `_TEST_` and `_LIVE_` variants).
-
-**Approach.** Two prices, one product. Stripe Checkout returns to `/account?welcome=1` on success. The webhook is the source of truth: Subscription row is only written by the webhook, never by the checkout endpoint. Idempotency is enforced by the unique constraint on `stripeSubscriptionId`. Diagnostic counter on metadata mismatch (predecessor's P1-4): if `metadata.userId` is missing or doesn't match a User, counter increments and we email ops alerts.
-
-The metadata schema is `{ userId, market }` — defined upfront, not deferred (predecessor's P1-4). Both fields are required at session creation; the webhook validates both before writing the Subscription row.
-
-**Patterns to follow.** Official Stripe Node SDK docs (must be verified at implementation time — pin SDK version in `package.json`).
-
-**Test scenarios.**
-- Happy path: Authed user POSTs `/api/billing/checkout` → Stripe Checkout URL with `metadata.userId` and `metadata.market` set.
-- Happy path: Webhook receives `checkout.session.completed` with valid signature → Subscription row written, `Membership.getState(userId).kind === 'active'`.
-- Edge case: Webhook arrives before checkout endpoint completes (race) → idempotent on `stripeSubscriptionId`.
-- Edge case: Webhook with invalid signature → 400, no DB write.
-- Edge case: Webhook with metadata missing `userId` → 200 (Stripe's expected response), Diagnostic counter `stripe-webhook-unmatched`, ops alert.
-- Edge case: User cancels subscription → `customer.subscription.updated` webhook → Subscription.status='cancelled', cancelAt populated.
-- Edge case: Card fails on renewal → `customer.subscription.updated` with status=past_due → `getMembershipState(userId).kind === 'past_due'`, graceUntil set.
-- Integration: `getMembershipState(userId)` for a deleted User returns `{ kind: 'error', reason: 'user-not-found' }`. No defaults, no falsy returns.
-
-**Verification.** Stripe test-mode end-to-end: create checkout, pay with `4242…`, confirm Subscription row. Cancel via Stripe dashboard → confirm webhook fires → confirm membership state transitions.
-
-**Dependencies.** U6.
-
-**Execution note.** Test-first for the typed conversion table in `membership-state.ts`. It's the boundary between Stripe's truth and our truth. Use Stripe's published event fixtures.
-
----
-
-#### U9 · Lifecycle emails (cron + queue + signed unsubscribe)
-
-**Goal.** At signup-from-preview time, day-7 and day-14 emails are scheduled to nudge the visitor toward subscription if they haven't paid yet. A Vercel Cron at `/api/cron/marketing-emails` runs hourly and processes due rows. Unsubscribe links carry a HMAC-signed token. Suppression honoured globally.
-
-**Files.**
-- Modify: `prisma/schema.prisma` — add:
-  ```
   model MarketingEmailSchedule {
     id            String    @id @default(cuid())
     userId        String
@@ -581,9 +592,10 @@ The metadata schema is `{ userId, market }` — defined upfront, not deferred (p
     scheduledFor  DateTime
     sentAt        DateTime?
     bouncedAt     DateTime?
+    attemptCount  Int       @default(0)
     createdAt     DateTime  @default(now())
     user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-    @@unique([userId, segmentKey])  // R12 idempotency on schedule write
+    @@unique([userId, segmentKey])  // R12 idempotency
     @@index([scheduledFor, sentAt])
   }
   model EmailSuppression {
@@ -593,37 +605,63 @@ The metadata schema is `{ userId, market }` — defined upfront, not deferred (p
     createdAt     DateTime @default(now())
   }
   ```
-- Create: `vercel.json` (first time in repo): cron declaration. Single entry: `/api/cron/marketing-emails` at hourly schedule. (Verify Pro tier; Hobby caps at daily.)
-- Create: `src/app/api/cron/marketing-emails/route.ts` — POST handler. Validates `Authorization: Bearer ${CRON_SECRET}` (R10). Returns 401 on mismatch, no DB read. On success, processes due rows (`scheduledFor <= now() AND sentAt IS NULL`), checks suppression, sends via Resend, marks `sentAt`.
-- Create: `src/lib/marketing/unsubscribe-token.ts` — `signUnsubscribeToken(email): string` and `verifyUnsubscribeToken(token): { email } | null`. HMAC-SHA256 over `(email, schedulingDate)` with SESSION_SECRET. Time-limited (90 days).
-- Create: `src/app/api/marketing/unsubscribe/route.ts` — POST with token in body (RFC 8058 one-click compliant). Verifies token, writes EmailSuppression row.
-- Create: `src/app/marketing/unsubscribe/page.tsx` — UX confirmation page after unsubscribe.
-- Modify: signup-completion paths (U6's verify endpoint; U3's existing magic-link flow if it doesn't auto-schedule) — write 2 MarketingEmailSchedule rows, idempotent via the unique constraint.
-- Modify: `src/lib/auth/email.ts` (or sibling `src/lib/marketing/email.ts`) — add `sendMarketingEmail({ to, segmentKey, market })`. Adds `List-Unsubscribe` and `List-Unsubscribe-Post` headers per RFC 8058.
+- Create: `vercel.json` — **`crons` array only**, no `buildCommand` field. Single entry: `/api/cron/marketing-emails` at hourly schedule. (Pro tier required.)
+- Create: `src/lib/billing/stripe.ts` — single SDK instance, env-keyed.
+- Create: `src/lib/billing/checkout.ts` — `createCheckoutSession({ userId })`. **Reads `User.signupMarket` exclusively (R9); ignores cookie/URL.** **Pre-checkout guard: rejects if `Subscription.findFirst({ where: { userId, status: { in: ['active', 'past_due'] } } })` returns a row.** Sets metadata on BOTH `metadata` AND `subscription_data.metadata`.
+- Create: `src/lib/billing/membership-state.ts` — `getMembershipState(userId)` typed result (D10). Conversion table maps Stripe's 7+ statuses to our 5.
+- Create: `src/app/api/billing/checkout/route.ts` (auth-gated POST; no body params — market derived server-side).
+- Create: `src/app/api/billing/webhooks/stripe/route.ts` — webhook signature verified via `stripe.webhooks.constructEvent`; handles `checkout.session.completed`, `customer.subscription.{created,updated,deleted}`. Idempotent on `stripeSubscriptionId`. **Resolver fallback: if event metadata lacks `userId`, look up Subscription by `stripeSubscriptionId` to recover.** Diagnostic counter `stripe-webhook-unmatched` only when both metadata AND fallback fail.
+- Modify: `src/middleware.ts` — add `/api/billing/webhooks/*` to matcher with the public-allowlist branch.
+- Modify: `src/lib/marketing/constants.ts` — add `STRIPE_PRICE_IDS: { uk, us }` (env-driven test/live variants).
+- Create: `src/app/api/cron/marketing-emails/route.ts` — POST handler, validates `Authorization: Bearer ${CRON_SECRET}` (R10). On match, processes due rows; on mismatch, 401 no DB read.
+- Create: `src/lib/marketing/unsubscribe-token.ts` — `signUnsubscribeToken(email): string` and `verifyUnsubscribeToken(token): { email } | null`. HMAC-SHA256 keyed on SESSION_SECRET. 90-day expiry.
+- Create: `src/app/api/marketing/unsubscribe/route.ts` — **POST per RFC 8058**: `?token=<signedToken>` in URL query string; body is the literal `List-Unsubscribe=One-Click`. The handler reads token from query param, body parsing is informational only. Body-less POSTs (Gmail/Outlook auto-fire) work because the token lives in the URL.
+- Create: `src/app/marketing/unsubscribe/page.tsx` (UX confirmation, links to re-subscribe path)
+- **Modify: [src/lib/auth/email.ts:16](src/lib/auth/email.ts#L16) — change `RESEND_URL` from `https://api.resend.com/emails` to `https://api.eu.resend.com/emails`** (D12). All email flows (magic-link AND marketing) move to EU. Implementer must verify Resend dashboard has EU region enabled and re-issue API key as EU-scoped before merge.
+- Create: `src/lib/marketing/email.ts` — `sendMarketingEmail({ to, segmentKey, market })`. Adds `List-Unsubscribe: <https://.../unsubscribe?token=…>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers per RFC 8058.
+- Modify: U5's verify endpoint — at upgrade-completion, write 2 MarketingEmailSchedule rows for `day-7` and `day-14` (idempotent via unique constraint).
 
-**Approach.** The day-7 / day-14 emails are templated server-side per market. Each email's body includes a CTA back to `/upload/results/[previewId]` (still cookie-bound — they need to click the magic-link in their email to re-authenticate, then the CTA works) and the Stripe checkout. The suppression check happens at send time, not at schedule time, so a visitor who unsubscribes after scheduling but before send is honoured.
+**Approach.** Two prices, one product. Stripe Checkout returns to `/account?welcome=1` on success. The webhook is the source of truth; Subscription row is only written by the webhook, never by the checkout endpoint. Idempotency enforced by `stripeSubscriptionId` unique. Pre-checkout guard prevents double-subscriptions.
 
-The cron runs hourly. Day-7 emails fire as soon as `scheduledFor <= now()`, so the actual send delay can be 0–60 minutes. Acceptable for marketing.
+The lifecycle emails are templated server-side per market. Suppression check happens at SEND time, not at SCHEDULE time. The cron runs hourly; day-7 emails fire as soon as `scheduledFor <= now()`, so actual send delay is 0–60 minutes. Acceptable for marketing.
 
-**Patterns to follow.** [src/lib/auth/email.ts](src/lib/auth/email.ts) (Resend HTTP client pattern); RFC 8058 §3 (one-click unsubscribe); `MagicLinkRateLimit` precedent for transaction-safe writes.
+The Resend EU switch is the side effect of D12: existing magic-link emails also move to EU, which is correct for UK-GDPR but requires the EU API key to be in place first. Operations runbook: roll the API key, then merge the URL change in the same deploy.
+
+**Patterns to follow.** Official Stripe Node SDK (verify version pin at implementation time via context7); [src/lib/auth/email.ts](src/lib/auth/email.ts) (Resend HTTP pattern, with URL change); RFC 8058 §3.
 
 **Test scenarios.**
-- Happy path: Signup completes → 2 MarketingEmailSchedule rows written for `(userId, day-7)` and `(userId, day-14)`. Idempotent: second signup attempt does not write duplicates (unique constraint).
-- Happy path: Cron fires at day-7 → email sent, `sentAt` populated, no second send within 24h.
-- Edge case: User unsubscribes before day-7 → cron skips that row, `sentAt` populated to `now()`, no email actually sent (or `sentAt` left null and a `Diagnostic` counter records `marketing-suppressed`).
-- Edge case: Cron POST without valid `Authorization: Bearer <CRON_SECRET>` → 401, no DB read.
-- Edge case: Cron POST with valid header but no due rows → 200, no-op.
-- Edge case: Resend send fails (5xx) → row's `sentAt` left null, retry next hour. After 3 failures, mark `bouncedAt`, suppression added.
-- Edge case: User signs up after subscribing → no day-7/14 scheduled (different signup path, no MarketingEmailSchedule write).
-- Edge case: Unsubscribe POST with expired token → 400.
-- Edge case: Unsubscribe POST with token for `email-A` but `email-B` in suppression → only `email-A` added.
-- Integration: Inbound email to `unsub@morning.form` (or however List-Unsubscribe-Mailto is configured) — out of scope for this unit; email-list manager handles bounces.
+- Authed user POSTs `/api/billing/checkout` (empty body) → Stripe URL with metadata.userId, metadata.market = User.signupMarket.
+- Authed user with cookie `mf_market=us` but `User.signupMarket=uk` → checkout uses `'uk'`; no currency arbitrage.
+- Authed user with existing active Subscription → checkout returns 409 Conflict, no Stripe call.
+- Webhook `checkout.session.completed` with valid signature → Subscription row written.
+- Webhook with invalid signature → 400, no DB write.
+- Webhook `customer.subscription.updated` (later) — metadata still carries userId via subscription_data.metadata → Subscription update.
+- Webhook with metadata wiped (mocked Stripe edge case) → resolver fallback finds Subscription by stripeSubscriptionId, update succeeds.
+- Webhook with metadata wiped AND no Subscription row exists → `stripe-webhook-unmatched` counter, 200 response (Stripe expects).
+- Cancellation: `customer.subscription.updated` with status=cancelled → status persisted, cancelAt set.
+- Past-due: status=past_due → `getMembershipState(userId).kind === 'past_due'`, graceUntil set.
+- Cron POST without `Authorization: Bearer <CRON_SECRET>` → 401, no DB read.
+- Cron POST with valid header, no due rows → 200, no-op.
+- Day-7 email send → row's sentAt populated; no duplicate within 24h.
+- Resend send 5xx → attemptCount incremented; retry next hour. After 3 failures, bouncedAt set, suppression added.
+- Suppressed email at schedule time → schedule row written; at send time, suppression check skips, sentAt set to now() with `marketing-suppressed` counter.
+- Unsubscribe POST `?token=<valid>` (Gmail-style body-less) → 200, EmailSuppression row.
+- Unsubscribe POST `?token=<valid>` with body `List-Unsubscribe=One-Click` (correct RFC 8058) → 200, EmailSuppression row.
+- Unsubscribe POST `?token=<expired>` → 400.
+- Unsubscribe POST without token in URL → 400.
+- Unsubscribe POST `?token=<for-email-A>` for `email-B` request → 400 (token doesn't match request context).
 
-**Verification.** Stage env: schedule row, force `scheduledFor` to past, manually POST cron with valid header → email arrives. Click unsubscribe → suppression row written, future cron skips.
+**Verification.** Stripe test-mode end-to-end: checkout → pay 4242… → Subscription row. Cancel via Stripe dashboard → webhook fires → state transitions. Resend EU: send a magic-link, confirm in EU dashboard. Unsubscribe: send a real email to a Gmail account, click → suppression row written.
 
-**Dependencies.** U6, U8.
+**Dependencies.** U5 (provisional-user upgrade writes signupMarket).
 
-**Execution note.** Test-first for the unsubscribe-token verify. It's the single attack surface for suppression DoS.
+**Execution note.** Test-first for: (a) the typed conversion table in `membership-state.ts`; (b) the strict market-from-signupMarket guard; (c) the unsubscribe token verify with signed-URL-query path. Resend EU URL change is a single-line edit but must roll out with API key migration.
+
+---
+
+#### U9 · (intentionally absorbed into U8)
+
+This unit number is reserved for future Phase 1 expansion if needed. Lifecycle emails are part of U8.
 
 ---
 
@@ -631,97 +669,67 @@ The cron runs hourly. Day-7 emails fire as soon as `scheduledFor <= now()`, so t
 
 Before Phase 2 begins:
 
-- ≥30 free uploads in 4 weeks (validates that the no-auth flow works).
-- ≥10 paid Subscription conversions across both markets (validates that preview → subscription is a real funnel — even at this small N).
+- ≥30 free uploads in 4 weeks.
+- ≥10 paid Subscription conversions across both markets.
 - Webhook idempotency proven in production (no duplicate Subscription rows after manual replay test).
-- `forbidden-phrases.ts` rejection rate <5% on real preview output (validates the prompt is safe-enough).
+- `forbidden-phrases.ts` rejection rate <5% on real preview output.
+- FDA SaMD + FTC HBNR + MHRA legal review complete and on file.
 
-If paid conversions are <10 in 4 weeks, do not build U10–U12. Instead, run synthetic-persona tests (predecessor adversarial review's recommendation) to challenge the wedge framing before committing more engineering.
+If paid conversions are <10, do not build Phase 2. Run synthetic-persona tests on the wedge framing first.
 
 ---
 
 ### Phase 2 — Scale + retention (weeks 8–12)
 
-#### U10 · Programmatic page generator
+#### U10 · Wearable bridge (reuses existing HealthConnection infrastructure)
 
-**Goal.** A CLI tool (`pnpm marketing:scaffold`) generates a new `content/marketing/{market}/{slug}.ts` from a cohort schema. Eight more pages per market shipped (16 pages total) bringing per-market total to 9 pages each. The generator does not write prose — it scaffolds the typed structure and copies a cohort-specific section template. A human writes the actual content; CI validates.
+**Goal.** Subscribed users can connect Whoop or use Apple Health export to provide ongoing trend data without a new blood panel. **The OAuth, token encryption, callback routing, and provider clients already exist** at [src/lib/health/whoop.ts](src/lib/health/whoop.ts), [src/lib/health/crypto.ts](src/lib/health/crypto.ts), [src/app/api/health/connect/route.ts](src/app/api/health/connect/route.ts), [src/app/api/health/callback/[provider]/route.ts](src/app/api/health/callback/[provider]/route.ts), and [prisma/schema.prisma:343-360](prisma/schema.prisma#L343-L360). This unit is graph-extraction integration + subscriber UI — not a parallel build.
 
 **Files.**
-- Create: `scripts/marketing-scaffold.ts` — CLI: `pnpm marketing:scaffold --cohort=fatigue --slug=ferritin-low-but-haemoglobin-normal --market=uk`. Generates the file from a template, validates against the Zod schema, refuses on duplicate slug.
-- Create: `content/marketing/_templates/{cohort}.template.ts` — one template per cohort with section scaffolding (placeholders, not real copy).
-- Modify: `package.json` — add the scripts entry.
-- Author: 8 pages per market (the remaining initial-priority pages from the prompt). UK + US variants where the cohort applies; UK-only or US-only where regulatory framing differs (e.g., NHS-record uploads → UK only).
+- Modify: existing graph extraction pipeline — accept wearable signals as a `SourceDocument` variant. Wire `HealthDataPoint` rows from the existing sync pipeline into the graph as a third source type alongside PDF and manual entry.
+- Create: `src/app/(app)/account/wearables/page.tsx` — surfaces existing connect/disconnect flow to subscribers; gated on `getMembershipState(userId).kind === 'active' || === 'past_due'`. Lists supported providers from existing `src/lib/health/sync.ts`.
+- (Optional, scope-flexible) Add Apple Health support if not already in the existing sync service — verify scope at implementation time.
 
-**Approach.** The generator is intentionally dumb. It opens the cohort template, substitutes `{slug}`, `{cohortKey}`, `{market}`, and writes the file. The human edits the file to add real copy, run editorial-QA locally, ship.
+**Approach.** No new schema. No new OAuth code. No new encryption code. The unit is "make existing health data appear in the graph + dashboard" plus the subscriber-facing settings UI.
 
-**Patterns to follow.** Existing scripts in `scripts/` (if any exist).
+**Patterns to follow.** [src/lib/health/sync.ts](src/lib/health/sync.ts) (existing 503-line orchestrator); [src/app/api/health/connect/route.ts](src/app/api/health/connect/route.ts); [prisma/schema.prisma:343-360](prisma/schema.prisma#L343-L360) (HealthConnection — REUSE).
 
 **Test scenarios.**
-- Happy path: `pnpm marketing:scaffold --cohort=testosterone --slug=low-libido --market=us` → file written; passes `marketing-page-schema.ts` Zod validation; passes `static-copy.test.ts` (because template is allowlisted).
-- Edge case: Duplicate slug → exit 1 with helpful error.
-- Edge case: Invalid cohort key → exit 1 with valid keys listed.
-- Integration: Scaffolded file imports from `lib/marketing/cohorts.ts` via a registered `CohortKey` type.
+- Active subscriber connects Whoop via existing flow → tokens stored encrypted via existing `encryptToken()`.
+- 30 days of HRV data appears in graph extraction pipeline as wearable-source `SourceDocument`.
+- Token refresh fails → user sees existing "reconnect Whoop" UX.
+- Free-tier user accesses `/account/wearables` → 402, redirect to billing.
 
-**Verification.** Generate 8 new pages, fill in copy, ship.
+**Verification.** Real Whoop account in dev — confirm OAuth + sync end-to-end via existing infrastructure. Confirm wearable data joins blood panel data on trend dashboard timeline.
 
-**Dependencies.** U2.
+**Dependencies.** U5, U8.
 
-**Execution note.** None.
+**Execution note.** None. Cited reuse means this unit is significantly smaller than the predecessor's U11.
 
 ---
 
-#### U11 · Wearable-data bridge for retention
+#### U11 · Trend dashboard (Membership product surface)
 
-**Goal.** Subscribed users can connect Whoop, Oura, or Apple Health to provide ongoing trend data without requiring a new £200 blood panel. This is the month-2 retention answer. **In scope: Whoop + Apple Health, OAuth + read-only.** Out of scope: real-time push, write-back, Garmin, Fitbit.
-
-**Files.**
-- Modify: `prisma/schema.prisma` — add `WearableConnection` model (`userId`, `provider`, `accessToken` (encrypted), `refreshToken`, `connectedAt`, `lastSyncAt`).
-- Create: `src/lib/wearables/whoop.ts` — OAuth flow + read endpoints (HRV, RHR, sleep, recovery score).
-- Create: `src/lib/wearables/apple-health.ts` — read from HealthKit export PDF/XML (the Apple Health pattern; iOS Files app export).
-- Create: `src/app/(app)/account/wearables/page.tsx` — connect/disconnect UI.
-- Create: `src/app/api/wearables/whoop/callback/route.ts` — OAuth callback.
-- Create: `src/app/api/wearables/sync/route.ts` — manual + scheduled sync trigger.
-- Modify: existing graph extraction pipeline — accept wearable signals as a SourceDocument variant.
-
-**Approach.** Wearable data flows into the existing graph extraction pipeline as a third SourceDocument type (alongside PDF and manual entry). The trend dashboard (U12) reads from the graph, so as wearable data accumulates, the dashboard has fresh data each week — closing the month-2 retention gap that the adversarial review flagged.
-
-**Patterns to follow.** [src/app/api/intake/documents/route.ts](src/app/api/intake/documents/route.ts) (existing intake patterns); auth flows for OAuth (no codebase precedent — verify against Whoop API docs at implementation time, fetch via context7 MCP).
-
-**Test scenarios.**
-- Happy path: User clicks "Connect Whoop" → OAuth flow → tokens stored encrypted → first sync pulls 30 days of HRV.
-- Edge case: Token refresh fails → user sees "reconnect Whoop" prompt; sync errors logged, not silent.
-- Edge case: User has no recent Whoop data (gap >7 days) → dashboard shows "no recent data — wear your Whoop?" prompt instead of empty chart.
-- Integration: Wearable data appears in the graph extraction pipeline; trend dashboard renders combined (blood-panel + wearable) view.
-
-**Verification.** Real Whoop account in dev — confirm OAuth + sync end-to-end.
-
-**Dependencies.** U6, U8.
-
-**Execution note.** None. This is a substantial unit (likely 2× scope on first pass) — give it the full Phase 2 window.
-
----
-
-#### U12 · Trend dashboard (Membership product surface)
-
-**Goal.** Subscribed user has a single dashboard at `/account/trends` showing biomarkers + wearable signals over time. Charts render from the existing graph extraction pipeline; wearable data joins via U11. Dashboard is the visible Membership benefit and the primary anti-churn surface.
+**Goal.** Subscribed user has a single dashboard at `/account/trends` showing biomarkers + wearable signals over time. Charts render from the existing graph extraction pipeline; wearable data joins via U10. Dashboard is the visible Membership benefit.
 
 **Files.**
 - Create: `src/app/(app)/account/trends/page.tsx`
-- Create: `src/components/trends/marker-chart.tsx` (line + range visualisation per marker)
-- Create: `src/components/trends/composite-view.tsx` (HRV + ferritin + ApoB on one timeline)
-- Modify: `src/lib/graph/queries.ts` (or sibling) — add `getTrendsForUser(userId, dateRange)` query that joins blood panel + wearable + manual entries.
+- Create: `src/components/trends/marker-chart.tsx`
+- Create: `src/components/trends/composite-view.tsx`
+- Modify: existing graph queries — add `getTrendsForUser(userId, dateRange)` joining HealthDataPoint + biomarker entries.
 
-**Approach.** Read-only product surface. No new mutation paths. Charts are SVG (the codebase already has graph-rendering precedent in `src/components/graph-canvas/*`). Dashboard gates on `getMembershipState(userId).kind === 'active' || === 'past_due'` (active or in grace).
+**Approach.** Read-only product surface. No new mutation paths. Charts via existing `src/components/graph-canvas/*` precedent. Gates on `getMembershipState`.
 
 **Test scenarios.**
-- Happy path: User with 1 blood panel + 30 days Whoop → chart renders both.
-- Edge case: User with 1 blood panel only → chart shows panel markers, "connect a wearable" prompt for trend continuity.
-- Edge case: Cancelled subscription past grace → 402, redirect to billing.
+- User with 1 blood panel + 30 days Whoop → chart renders both.
+- User with 1 blood panel only → chart renders panel; "connect a wearable" prompt for trend continuity.
+- Cancelled subscription past grace → 402, redirect to billing.
+- Past-due subscription within grace → access granted.
 - Integration: HRV from Whoop appears on same timeline as ferritin from blood panel.
 
 **Verification.** Dogfood with real Whoop data.
 
-**Dependencies.** U8, U11.
+**Dependencies.** U8, U10.
 
 **Execution note.** None.
 
@@ -729,67 +737,68 @@ If paid conversions are <10 in 4 weeks, do not build U10–U12. Instead, run syn
 
 ## Risk Table
 
-| Risk | Likelihood | Impact | Mitigation | Plan-level owner |
+| Risk | Likelihood | Impact | Mitigation | Owner |
 |---|---|---|---|---|
-| **Cold-organic SEO produces <100 visits/page in 12 weeks** | High | High (Phase 0 gate fails) | Phase 0 designed to detect this in 21 days, not 12 weeks. If it happens, do not build Phase 1 — channel-3 is a longer bet than the milestone window. | Founder + Phase 0 gate |
-| **Multi-market scope expands engineering 30%+** | Medium | Medium | The market dimension is structural (URL segment + cookie + currency formatter); 80% of the cost lands in U1 + U2. Subsequent units are mostly market-aware via that infra. Budget held in U1 design. | U1, U2 |
-| **`User.email` nullable migration is non-trivial** (read-site audit) | High | Medium (delay) | Audit grep before migrating. Estimate: 15–25 read sites; each is a `??` null-coalesce or guard. Characterization-first. | U6 |
-| **Path A regulatory exposure on preview tier (LLM SaMD-adjacent)** | Medium | High (FDA / FTC HBNR / MHRA) | Phase 0 ships zero LLM interpretation to anonymous visitors. Phase 1 introduces it AFTER FDA/MHRA legal review (added as a Phase 1 prerequisite). The `forbidden-phrases.ts` gate is necessary but not sufficient under FDA SaMD framework. | Pre-Phase-1 legal review |
-| **Stripe metadata schema diverges between checkout and webhook** | Medium | High (silent revenue loss) | Schema defined upfront in U8 (`{ userId, market }`); Diagnostic counter on mismatch; ops alert on every increment. Tested before Stripe goes to live mode. | U8 |
-| **Wearable integration substantially more work than scoped** | High | Medium (Phase 2 delay) | Whoop + Apple Health only; defer Garmin/Fitbit. Scope U11 generously (it can take the full Phase 2 window if needed; U12 has a stub mode without wearable data). | U11 scope |
-| **Editorial-QA Vitest gate produces false positives that block PRs** | Medium | Low | Per-page `qaAllowlist?: string[]` field with required justification comment. PR-time greppable. Not gold-plating; operationally cheap. | U2, U6 |
-| **Provisional-user upgrade race conditions** | Low | High (data leak) | R13 (cookie-binding) + R14 (atomic FK transfer in tx) are non-negotiable plan requirements. Test-first. | U6 |
-| **Cron CRON_SECRET not validated in U9** | Low | High (bulk email DoS / abuse) | R10 explicit; first test scenario is "missing header → 401 no DB read". | U9 |
-| **Subscription retention <30% at month 3 without wearable data** | Medium | Medium (LTV miss) | U11 wearable bridge is plan-level mitigation. If U11 slips beyond Phase 2, pivot subscription pricing to one-time pay-per-insight (£39 / $39) — U8's `Subscription` is loose enough to extend with `Order` model. | U11 + U8 design |
+| **Cold-organic SEO produces <100 visits/page in 12 weeks** | High | High (Phase 0 gate fails) | Phase 0 detects in 21 days; if it happens, do not build Phase 1. | Phase 0 gate |
+| **Multi-market scope expands engineering 30%+** | Medium | Medium | 80% of cost in U1+U2; remaining 20% in U5+U8 is parameterization, not new abstraction. | U1, U2 |
+| **`User.email` nullable migration** | Low | Medium | ~5 production read sites verified. Audit gate runs before migration. | U5 |
+| **Path A regulatory exposure on preview tier (LLM SaMD-adjacent)** | Medium | High | Phase 0 ships zero LLM interpretation to anonymous visitors. FDA/MHRA legal review is a Phase 1 prerequisite. forbidden-phrases.ts is a mitigation, not the regulatory posture. | Pre-Phase-1 legal |
+| **Stripe metadata schema diverges or is missing on subscription events** | Low | Medium | Both `metadata` AND `subscription_data.metadata` set; resolver fallback via stored stripeSubscriptionId. | U8 |
+| **Resend EU URL change breaks magic-link emails** | Low | High (auth outage) | EU API key issued + verified in dashboard before URL change. Test in staging. | U8 |
+| **U10 wearable integration delayed** | Low | Medium | Existing infrastructure means scope is small. If U10 slips beyond Phase 2, pivot pricing to one-time pay-per-insight. | U10 |
+| **Editorial-QA Vitest gate produces false positives that block PRs** | Low | Low | Per-page `qaAllowlist?: string[]` field with required justification comment. | U2 |
+| **Provisional-user upgrade race conditions** | Low | High (data leak) | R13 strict-AND across cookie + MagicLinkToken + R14 atomic FK transfer in single transaction. Test-first. | U5 |
+| **CRON_SECRET not validated** | Very low | High (bulk email DoS) | R10 explicit; first test scenario is "missing header → 401 no DB read". | U8 |
+| **Visit-beacon DoS amplifier** | Low | Medium | Rate-limited via MagicLinkRateLimit subjectKind=visit-beacon-ip-1h capped at 60/hour per IP; slug+market+cohort allowlist. | U3 |
+| **DiagnosticEvent table row explosion** | Very low | Low | Daily-counter rotation `(key, day)` unique with INSERT … ON CONFLICT DO UPDATE. O(N_keys × N_days). | U3 |
+| **JSON-LD injection from accidental `</script>` in page-data** | Very low | Medium | R3 explicit escape `</` → `</` in `JSON.stringify` output before inlining. | U2 |
+| **Multi-market signup → checkout currency arbitrage** | Low | Medium | R9 locks market = User.signupMarket at checkout; cookie/URL ignored. | U8 |
+| **Subscription retention <30% at month 3 without wearable data** | Medium | Medium | U10 wearable bridge is plan-level mitigation. If retention is poor even with wearables, pivot pricing. | U10 + U8 |
 
 ## Operational Notes
 
-- **Env vars added (must exist in Vercel before each phase):**
-  - Phase 0: none new (uses existing SESSION_SECRET, RESEND_API_KEY).
-  - Phase 1: `STRIPE_SECRET_KEY_TEST`, `STRIPE_SECRET_KEY_LIVE`, `STRIPE_WEBHOOK_SECRET_TEST`, `STRIPE_WEBHOOK_SECRET_LIVE`, `STRIPE_PRICE_GBP_19`, `STRIPE_PRICE_USD_29`, `CRON_SECRET`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY`.
-  - Phase 2: `WHOOP_CLIENT_ID`, `WHOOP_CLIENT_SECRET`.
-- **Vercel Cron tier:** Phase 1 requires Pro (Hobby caps cron at 1/day). Verify tier before U9 begins.
-- **Schema deploy mechanism:** Vercel build runs `prisma db push --accept-data-loss`. There is no migrations directory (verified). Each schema diff in this plan is verified locally to be additive (no column drops) before merge. The `User.email String → String?` change in U6 is the most-watched diff: confirm `db push` does not decide to drop+recreate the column. If it does, run a manual `ALTER TABLE` first.
-- **Pre-Phase-1 legal review (R: Path A regulatory):** before U6/U7 go to production, get FDA SaMD + FTC HBNR + MHRA opinions in writing on the personalised LLM preview surface. Path A's "tech-first, no clinician" framing is more exposed under SaMD's HCP-mediation criterion (21 U.S.C. §360j(o)) than the predecessor brainstorm acknowledged. The forbidden-phrases gate is a mitigation, not the regulatory posture itself.
-- **Diagnostic counter naming convention (R12):** `<surface>-<failure-type>` with kebab-case. Examples: `provisional-claim-cookie-mismatch`, `stripe-webhook-unmatched`, `preview-fallback-no-markers`, `marketing-suppressed`, `upload-magic-byte-rejected`, `upload-rate-limit-1h`. All written to a single `DiagnosticEvent` table (R12 single-pipeline rule).
+- **Env vars by phase:**
+  - Phase 0: existing `SESSION_SECRET`, `RESEND_API_KEY` (re-issued as EU-scoped key — see D12).
+  - Phase 1: `STRIPE_SECRET_KEY_TEST`, `STRIPE_SECRET_KEY_LIVE`, `STRIPE_WEBHOOK_SECRET_TEST`, `STRIPE_WEBHOOK_SECRET_LIVE`, `STRIPE_PRICE_GBP_19`, `STRIPE_PRICE_USD_29`, `CRON_SECRET`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY`. **Pre-flip checklist:** RESEND_API_KEY rotated to EU-scoped, EU region enabled in Resend dashboard, magic-link smoke-test green in staging.
+  - Phase 2: `WHOOP_CLIENT_ID`, `WHOOP_CLIENT_SECRET` (existing — see [src/lib/env.ts](src/lib/env.ts)). `HEALTH_TOKEN_ENCRYPTION_KEY` (existing).
+- **Vercel Cron tier:** Phase 1 requires Pro (Hobby caps cron at 1/day). Verify tier before U8 begins.
+- **Schema deploy mechanism:** `prisma db push --accept-data-loss`. No migrations directory (verified). `User.email String → String?` is the most-watched diff: confirm `db push` does not decide to drop+recreate.
+- **vercel.json:** contains ONLY the `crons` array. **Do not add a `buildCommand` field** — that would silently override `package.json:vercel-build` and skip `prisma db push`.
+- **Pre-Phase-1 legal review:** before U6/U7 production, get FDA SaMD + FTC HBNR + MHRA opinions in writing on the personalised LLM preview surface. Path A's "tech-first" framing exposes the application under SaMD's HCP-mediation criterion.
+- **Diagnostic counter naming convention (R12):** `<surface>-<failure>` kebab-case. Examples: `provisional-claim-cookie-mismatch`, `stripe-webhook-unmatched`, `preview-fallback-no-markers`, `marketing-suppressed`, `upload-magic-byte-rejected`, `upload-rate-limit-1h`, `visit-beacon-rate-limit-1h`, `visit-beacon-input-rejected`, `page-data-zod-fail`. All emit via `incrementDiagnostic()` to the daily-rotated `DiagnosticEvent` table.
+- **Resend EU rollout (D12):** the URL change in [src/lib/auth/email.ts:16](src/lib/auth/email.ts#L16) affects existing magic-link emails. Order of operations: (1) issue EU-scoped Resend API key in dashboard, (2) update Vercel env var, (3) test magic-link in staging, (4) merge URL change.
 
 ## Deferred to Implementation
 
-- Exact Whoop API endpoint shapes (verify via `context7` MCP at U11 implementation time — Whoop's API has changed materially in the last 18 months).
-- Apple Health export format (HKZIP vs HealthKit XML vs the user-exportable PDF) — pick the one that produces tractable parsed data.
-- Stripe SDK version pin — pin to latest stable at implementation time.
-- The geo-redirect banner UX (U1) — A/B test design vs immediate redirect; product call.
-- The cohort-template prose (U10) — written by the founder/clinical reviewer, not the implementer.
-- Diagnostic counter aggregation cadence — "near-real-time" via the activation-funnel CLI is acceptable; if dashboard demand emerges, U12 can extend.
-- Email template HTML (U9) — designed by founder; implementer wires up the Resend send.
+- Whoop API endpoint shapes (verify via context7 MCP at U10 implementation time).
+- Stripe SDK version pin (latest stable at impl time).
+- Cohort-template prose (founder/clinical reviewer authors).
+- Email template HTML (founder designs; implementer wires Resend send).
+- Geo-redirect banner UX A/B (product call).
 
 ## Scope Boundaries (NOT in this plan)
 
-- **Channels 1 + 2 (concierge / founder network).** This plan owns channel 3 (digital) only. The 30-member milestone is owned by channels 1 + 2 unless this plan over-delivers on traffic.
-- **Pay-per-insight pricing (£39 / $39 one-time).** Explicitly rejected by user choice. U8 keeps the model loose enough to add later if subscription LTV underperforms.
-- **DOB collection at signup.** The predecessor plan included DOB; this plan drops it. Reduces signup friction; the User model has no `dob` column today (predecessor's F10) and adding one is non-trivial. Surface DOB collection inside the authed product if it becomes load-bearing.
-- **Slack-channel marketing pings.** Out of scope; founder owns marketing-team comms manually.
-- **A/B testing infrastructure (PostHog, GrowthBook).** Out of scope; cohort signal at this volume is not statistically meaningful and feature-flag tooling is engineering theatre at <100 users.
-- **Programmatic AI-content generation (LLM-written page bodies).** Explicitly out — every page is human-authored under editorial review. The "generator" in U10 is a scaffolder, not a content tool.
-- **Real-time wearable push integration.** U11 ships read-only OAuth + manual sync only.
-- **GP-prep document generation.** Subscription value-add for a future plan, after retention data is in.
-- **Localisation beyond EN-GB / EN-US.** Single language, two markets only.
-
-## Origin Document Cross-Reference
-
-This plan inherits from two origin documents:
-
-1. The **2026-05-09 prompt** (the user-supplied "world-class SEO/GEO strategist" brief). Source for: cohort taxonomy, page concepts, GEO requirements, clinical-safety framework, 8 cohorts × 10 pages structure, `MarketingPage` schema shape.
-2. **`docs/brainstorms/2026-05-06-acquisition-anchor-pages-requirements.md`**. Source for: regulatory posture (Path A), `forbidden-phrases.ts` gate, R11 source-of-truth principle, R12 silent-fallback principle, LandingPageVisit + funnel-stage pattern, decision frame around tech-first.
-
-This plan **explicitly diverges** from the prompt on: pay-per-insight pricing (rejected for subscription-only per user choice), the `5 fully written example pages` deliverable (only 1 per market in Phase 0; the rest via U10 scaffolder + human authoring), and the prompt's "GP/specialist" referral framing (rendered as standardised page module, not personalised guidance).
+- Channels 1 + 2 (concierge / founder network).
+- Pay-per-insight pricing (£39 / $39 one-time) — explicitly rejected.
+- DOB collection at signup.
+- Slack-channel marketing pings.
+- A/B testing infrastructure (PostHog, GrowthBook).
+- Programmatic AI-content generation.
+- Real-time wearable push integration.
+- GP-prep document generation.
+- Localisation beyond EN-GB / EN-US.
 
 ## Phased Delivery Summary
 
-| Phase | Weeks | Units | Scope | Success gate (must pass to proceed) |
+| Phase | Weeks | Units | Scope | Success gate |
 |---|---|---|---|---|
-| **Phase 0 — Validation MVP** | 1–3 | U1, U2, U3, U4, U5 | Multi-market URL infra, page-data schema, 1 anchor page per market, GEO infra, funnel measurement, auth-gated upload | ≥100 visits + ≥5 signups per market in 21 days |
-| **Phase 1 — Programmatic + monetization** | 4–7 | U6, U7, U8, U9 | Public no-auth upload, preview Form Intelligence, Stripe Subscription (multi-currency), lifecycle emails | ≥30 free uploads + ≥10 paid Subscriptions in 4 weeks; FDA/MHRA legal review complete before go-live |
-| **Phase 2 — Scale + retention** | 8–12 | U10, U11, U12 | Programmatic page generator (8 more pages × 2 markets), wearable bridge, trend dashboard | Membership month-2 retention ≥40% |
+| **Phase 0 — Validation MVP** | 1–3 | U1, U2, U3, U4 | Multi-market URL, page schema + JSON-LD + scaffolder, auth-gated CTA + funnel + visit-beacon, GEO infra | ≥100 visits + ≥5 signups per market in 21 days |
+| **Phase 1 — Programmatic + monetization** | 4–7 | U5, U6, U7, U8 | Public no-auth upload + provisional User, preview compile, cookie-bound results endpoint, Stripe Subscription + lifecycle emails | ≥30 free uploads + ≥10 paid Subscriptions in 4 weeks; FDA/MHRA legal review on file |
+| **Phase 2 — Scale + retention** | 8–12 | U10, U11 | Wearable bridge (small thanks to existing infra), trend dashboard | Membership month-2 retention ≥40% |
 
-Total: 12 implementation units across 12 weeks, with two real success gates that allow honest abandonment if validation fails.
+Total: **11 implementation units across 12 weeks**, with two real success gates that allow honest abandonment if validation fails.
+
+## Revision History
+
+- **2026-05-09 r1:** initial plan (12 units across 3 phases).
+- **2026-05-09 r2:** confidence-check revision. Folded P0/P1 findings: U10 reuses existing HealthConnection infrastructure (was: parallel WearableConnection); R13 OR → AND with MagicLinkToken.anonymousId as second binding channel; U7 split into U6 (compile) + U7 (results endpoint) with explicit two-path access control; Stripe metadata on both `metadata` AND `subscription_data.metadata` plus resolver fallback; checkout market locked to `User.signupMarket`; pre-checkout active-Subscription guard; RFC 8058 token in URL query (not body); RSC `Cache-Control` explicit; LandingPageVisit dedupe via `@@unique([mfAnonymousId, slug, minuteBucket])` schema constraint (was: app-layer); DiagnosticEvent model fully specified with daily-counter rotation; visit-beacon rate-limited via MagicLinkRateLimit; visit-beacon input validation against allowlists; JSON-LD `</` escape; Resend EU endpoint switch in [src/lib/auth/email.ts:16](src/lib/auth/email.ts#L16) (D12 — was wrongly claimed already in place); `/` middleware redirect rehouses existing [src/app/page.tsx](src/app/page.tsx) at `/uk/page.tsx`; merged old U3+U5 into single U3; absorbed scaffolder into U2; corrected origin labels (R1–R15 are net-new, not brainstorm carryover).
