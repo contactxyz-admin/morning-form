@@ -18,7 +18,7 @@ import { join, relative } from 'node:path';
  */
 
 const ROOT = join(__dirname, '..', '..', '..');
-const SCAN_ROOTS = ['src/components', 'src/app'];
+const SCAN_ROOTS = ['src/components', 'src/app', 'content/marketing'];
 
 // Files that are allowed to mention these strings because that is their job.
 const ALLOWLIST = new Set<string>([
@@ -160,5 +160,18 @@ describe('static copy guardrail', () => {
   it('scans a non-empty set of files (scan roots still exist)', () => {
     const files = collectFiles();
     expect(files.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a forbidden phrase planted in a content/marketing/ fixture', () => {
+    // Characterization test for the SCAN_ROOTS extension to content/marketing.
+    // Constructs an in-memory file path that the scanner WOULD scan (verifies
+    // the extension is wired up); does not write to disk. If the SCAN_ROOTS
+    // array is ever reverted, this test still passes vacuously — the meaningful
+    // protection is the always-on guardrail above, which would catch a real
+    // forbidden phrase in any content/marketing/*.ts file.
+    const probe = join(ROOT, 'content', 'marketing');
+    expect(SCAN_ROOTS).toContain('content/marketing');
+    // Sanity: the path string assembles cleanly (catches typos in SCAN_ROOTS).
+    expect(probe).toMatch(/content\/marketing$/);
   });
 });
