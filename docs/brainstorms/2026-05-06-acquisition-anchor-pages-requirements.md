@@ -2,12 +2,13 @@
 date: 2026-05-06
 revised: 2026-05-06
 topic: acquisition-anchor-pages
-window: months 1–6 (digital channel; pre-Studio)
+window: months 1–6 (digital channel; pre-Studio, pre-Supply)
 target: 500 paying customers by month 6 (deck milestone); 50 paying via digital channel by month 2 as page-validation milestone
 audience: men 30–50 (US, premium spenders)
-strategy: 1–2 anchor SEO/GEO pages → upload → translation → Supply subscription
+strategy: 1–2 anchor SEO/GEO pages → upload → Form Intelligence translation → Membership subscription ($29/mo). Supply ($69/mo) is a cross-sell once Supply ships.
 out_of_scope: founder outreach, premium-gym/concierge partnerships, Studio rollout — all separate channels
-supersedes: prior 2026-05-06 draft (UK/£/GP-prep framing) — re-aligned with pre-seed deck (US/$/Supply-led)
+clinician_posture: Path A (tech-first, no clinician on the public surface). Regulatory protection comes from page-voice discipline, not visible disclaimers.
+supersedes: prior 2026-05-06 drafts — re-aligned with deck (US/$/three-layer product) and with Form-Intelligence-as-wedge framing (validation pitch, not supplement pitch)
 ---
 
 # Acquisition: anchor-page strategy for the US digital channel
@@ -26,43 +27,63 @@ The honest scope: stand up enough digital infrastructure in 12 weeks that, by mo
 
 ## Decision Frame
 
-Locked: **option B from the strategic re-framing — 1–2 anchor SEO/GEO pages, US-framed, ending in Supply subscription.** Engineering: medium. Programmatic scaling deferred until anchors prove the funnel.
+Locked: **1–2 anchor SEO/GEO pages, US-framed, ending in Form Intelligence Membership ($29/mo).** Engineering: medium. Programmatic scaling deferred until anchors prove the funnel.
+
+**Why Form Intelligence first, Supply later:**
+- The deck describes a three-layer product: Studios (Layer I, acquisition), Form Intelligence (Layer II, IP — "what you understand"), Supply (Layer III, hero — "what you do"). The wedge is **Layer II**, not Layer III.
+- Form Intelligence answers a different (and earlier) question than Supply: not *"what should I take?"* but *"is what I'm already doing actually working?"* That question doesn't need a manufacturer, fulfillment, or a personalized-formulation algorithm. It just needs the translation layer the deck already says is the IP.
+- Supply isn't ready (per founder confirmation) — making it the conversion CTA blocks the entire 12-week plan on a workstream that isn't this brainstorm's scope. Membership is shippable now.
+- Validation intent compounds with subscription. Diagnostic intent (one-time interpretation) doesn't. Membership-via-validation is structurally a better fit for $29/mo recurring than Supply-via-prescription.
+- Lower regulatory surface. "Did your numbers move" is even further from medical advice than "what does this number mean." MorningForm is positioned as a coach for what users are already doing, not as a diagnostician.
+
+When Supply ships: Membership users get *"based on your last 3 panels and what you're already taking, your personalized formulation would be X — switch to Supply $69/mo for it shipped monthly."* Cross-sell, not first-sell.
 
 Rejected:
-- Option A (4-week pure outreach) — already happening as channel 2; not a digital-channel bet.
-- Option C (full programmatic 10-page system in 12 weeks) — multiplying zero, premature scale, larger surface for clinical-safety drift.
+- Founder outreach as channel-3 work (it's channel 2, separate).
+- Full programmatic 10-page system in 12 weeks (multiplying zero).
+- Supply as the primary conversion target (Supply not ready; Membership is shippable now and is the better wedge anyway).
 
-## Regulatory Frame (Two Surfaces, Two Frameworks)
+## Regulatory Frame (Tech-First, Framing as Safeguard)
 
-The [existing regulatory-posture brainstorm](2026-04-21-regulatory-posture-requirements.md) (G1–G7) was written with a UK/NHS posture. The deck pivots to US and makes Supply (personalized supplements) the HERO product. This isn't a contradiction once the surfaces are split:
+The [existing regulatory-posture brainstorm](2026-04-21-regulatory-posture-requirements.md) (G1–G7) was written with a UK/NHS posture. The deck is US, tech-first, no clinician credentials on the public surface. The protection isn't visible disclaimers — it's **page-voice discipline**.
 
-### Informational surfaces (pages + Form Intelligence translation layer)
-Govern by **G1–G7-equivalent US wellness posture:**
-- No specific drug names (Rx)
-- No dose strings ("take X mg of Y")
-- No imperative-treatment language ("treat your X with Y")
+### What's on the public surface
+- **Light footer disclaimer** ("MorningForm provides data interpretation; it is not a medical service") — visible but quiet, like Whoop Labs / Levels / Lumen
+- **ToS-at-signup** captures the legal protection where it actually matters
+- **No clinician credentials, no advisory-board names, no "reviewed by Dr. X."** Brand stays tech-first.
+
+### What's NOT on the public surface
+- Loud "TALK TO YOUR DOCTOR" warnings
+- Medical-advisor headshots
+- "Reviewed by" stamps
+
+### What IS load-bearing — the framing in every piece of copy
+
+The page-voice rules (apply to every word of copy on every page + every translation output):
+
+- ❌ *"Your testosterone is sub-optimal — here's what to do"* → medical advice, no disclaimer saves you
+- ✅ *"Your testosterone is at 380 ng/dL — that's below the median for your age cohort. Here's what's known about how that range tends to feel"* → data interpretation, no disclaimer needed beyond the quiet footer
+- ❌ *"You should take X"* / *"Treat with Y"* / *"Cure Z"* — anywhere
+- ✅ *"Other men in your demographic with similar numbers tend to..."* / *"Here's how this compares to..."* / *"Track this over time to see if [your current effort] is working"*
+- No specific Rx drug names
+- No dose strings on the informational surface
 - No diagnostic claims ("you have X")
-- Decision-points route to "discuss with your physician," "consider retesting," "watch the trend," or "see your personalized protocol" — never "do X to cure Y"
+- Decision points route to "track this over time," "consider retesting," "discuss with your physician" if symptoms warrant — never "treat with..."
 - Every numeric/clinical claim cites a US-trusted source (Mayo Clinic, Cleveland Clinic, NIH, JAMA, NEJM, peer-reviewed)
 
-### Supply product
-Govern by **DSHEA 1994** (US Dietary Supplement Health and Education Act):
-- Personalized formulations based on bloodwork are permitted
-- Structure/function claims permitted with the standard FDA disclaimer
-- **No disease/treatment claims.** "Supports healthy testosterone levels," not "treats low testosterone."
-- FDA-registered manufacturer, GMP-compliant facility (Supply chain prerequisite — separate from this brainstorm)
+### Supply (when it ships, separate workstream)
 
-### The seam between them
+DSHEA 1994 governs the Supply product itself. Personalized formulations based on bloodwork are permitted; no disease/treatment claims. The seam: the page never says "take 5,000 IU Vitamin D"; the translation says "your numbers and trend"; the Supply commercial surface (when it exists) handles formulation and copy under DSHEA.
 
-The page never says *"you should take 5,000 IU Vitamin D."* The translation says *"your Vitamin D is 22 ng/mL — below optimal for someone with your demographic and activity level."* The CTA says *"Get your personalized Supply protocol — $69/mo"* — and inside Supply, DSHEA-compliant product copy and a personalized formulation take over.
+### Risk profile of Path A
 
-**The CTA can also offer:** *"Or download a summary to take to your own physician"* — secondary path for users who don't want the Supply subscription. Reuses the existing GP-prep tier.
+Whoop, Levels, Lumen all run this exact posture. The framing is the safeguard. The known failure mode is a single page or a single translation output that crosses into prescriptive language — caught by editorial review, not by a disclaimer.
 
 ## Requirements Trace
 
 - **R1** Anchor page #1 ranks in top-10 organic for at least one high-intent US query within 12 weeks.
 - **R2** Anchor page #1 converts ≥5% of organic visitors into a free data upload.
-- **R3** Free uploads convert ≥30% to paid (**Supply subscription $69/mo, primary; or one-time Studio visit $299 once Studio is live**) within 14 days.
+- **R3** Free uploads convert ≥20% to paid Form Intelligence Membership ($29/mo) within 14 days. (Lower than the Supply target because the price is lower; recurring rev/user math still works at this rate.)
 - **R4** Channel 3 contributes ≥50 paying customers by end of month 2 — the validation gate for further investment in the digital channel.
 - **R5** Every shipped page passes a clinical-safety review (US framing, G1–G7-equivalent) before publishing. Zero exceptions.
 - **R6** Pages are designed for AI-answer-engine surfacing (GEO): question-led headings, direct answers, structured FAQ, sourceable claims, schema.org `MedicalWebPage` + `FAQPage` markup.
@@ -123,8 +144,8 @@ Eight cohorts × three page types (`results-explainer`, `cohort-overview`, `quer
 
 | # | Page | Cohort | Safety | Notes |
 |---|---|---|---|---|
-| **1** | **"Quest blood test results explained — what your numbers mean for men 30–50"** | private-test confusion | **safe** | **ANCHOR #1.** Visitor *has* results from Quest (or LabCorp / BioReference — partners per deck) → upload → translation → personalized Supply protocol. Direct loop. |
-| **2** | **"Best blood tests for men over 40 — US guide"** | longevity/prevention | **safe** | **ANCHOR #2.** Pre-test comparison/educational. Drives ordering through partners + free interpretation when results return. |
+| **1** | **"Is your protocol actually working? Read your bloodwork over time"** | validation intent (men actively training/dieting/supplementing who want feedback) | **safe** | **ANCHOR #1.** New positioning per founder call: lead with Form Intelligence as the wedge, not Supply. Hero question = "is what I'm already doing actually moving my numbers?" Conversion: Membership $29/mo. Compounds naturally with subscription — every upload increases value of the next translation. |
+| **2** | **"Quest blood test results explained — what your numbers mean for men 30–50"** | diagnostic intent (one-time question) | **safe** | **ANCHOR #2.** Higher search volume than #1, lower value-per-visitor (one-time intent doesn't compound). Same upload → translation flow. Soft upsell: *"Want a deeper report? $39"* for high-intent diagnostic visitors. |
 | 3 | "Ferritin low but hemoglobin normal — what it means for men" | tired men 30–45 | safe | Template-fit. Specific result-pattern explainer. |
 | 4 | "ApoB vs LDL — which matters more for men 35–50" | heart-risk anxious | safe | Template-fit. Educational comparison. |
 | 5 | "Why am I always tired? Blood tests for men 30–45" | tired men 30–45 | safe | Symptom→tests page. |
@@ -142,67 +163,78 @@ Eight cohorts × three page types (`results-explainer`, `cohort-overview`, `quer
 
 ## Output 3 — 1 Fully Written Anchor Page + 1 Sketch
 
-### Anchor #1: "Quest blood test results explained — what your numbers mean for men 30–50"
+### Anchor #1: "Is your protocol actually working? Read your bloodwork over time."
 
-**Slug:** `/explainers/quest-blood-test-results-explained`
+**Slug:** `/is-your-protocol-working`
 
-**SEO title** (≤60 chars): "Quest Blood Test Results Explained — Men's Guide"
-**Meta description** (≤155 chars): "Just got Quest, LabCorp, or BioReference results? Understand what your numbers mean alongside your wearable data. Free upload, plain-English read."
-**H1:** "Quest blood test results — what your numbers actually mean"
+**SEO title** (≤60 chars): "Is Your Protocol Actually Working? Track Bloodwork Over Time"
+**Meta description** (≤155 chars): "Lifting, dieting, supplementing — but is it actually working? MorningForm reads your bloodwork, wearable data, and protocol so you can see what's moving."
+**H1:** "Is what you're doing actually working?"
 
-**Above-the-fold direct answer (GEO-citable):**
-> A private blood panel shows your numbers compared to a reference range. But "in range" doesn't always mean "fine for you," and "out of range" rarely means "you have a disease." What changes the meaning is *context*: your symptoms, your trend over time, your wearable data, and the markers you didn't test. This page explains how to read a Quest, LabCorp, or BioReference panel as a man 30–50 — what the most common flags mean, why your "in range" testosterone might still be sub-optimal, and how to turn your results into a personalized daily protocol.
+**Above-the-fold (GEO-citable, written as the answer to the visitor's question):**
+> You started lifting heavy. You changed your diet. You're stacking creatine, vitamin D, omega-3. Your wearable says recovery is up — but your bloodwork says ferritin is down. **Is what you're doing actually working?** MorningForm reads your numbers, your training, your sleep, and your protocol — and tells you what's moving and what isn't. Free to start.
 
 **Page outline:**
 
-1. **What you get from a private panel** (~250 words; non-promotional educational)
-2. **The 8 most common flags on US panels for men 30–50** — table: marker, reference range, what "high" can mean, what "low" can mean, *what context shifts the meaning* — never "what to do about it"
-3. **Why "in range" can still be sub-optimal for performance** — explainer with two synthetic worked examples (e.g. testosterone 380 ng/dL — in range but bottom-quintile for a 35-year-old; HbA1c 5.6 — in range but trending up YoY)
-4. **Upload section:** *"Upload your Quest, LabCorp, or BioReference PDF and we'll show you what it means in context — free."*
-5. **Example translation** — synthetic anonymized output from Form Intelligence, showing trend + cross-marker pattern + the personalized Supply protocol that emerges from those numbers
-6. **What MorningForm does (and doesn't do)** — trust block:
-   - We translate your data into plain English and a personalized daily protocol
-   - We don't replace your physician, prescribe medications, or claim to treat any disease
-   - For severe or unexplained results, we say so clearly and route to your physician
-7. **CTA primary:** *"Get your personalized Supply protocol — $69/mo (cancel anytime)"*
-8. **CTA secondary:** *"Or download a summary to take to your physician — free"*
-9. **FAQ block** (GEO-friendly):
-   - "Are private blood tests as accurate as my doctor's?"
-   - "What if my Quest result disagrees with my last clinic test?"
-   - "Should I take supplements based on a private blood test?" (DSHEA-compliant answer: yes, when personalized to your bloodwork — never as a generic regimen. Explain the difference.)
-   - "When should I show my private results to my doctor?"
-   - "What's MorningForm's relationship with Quest / LabCorp / BioReference?" (Per deck: partners.)
+1. **The validation gap** (~200 words). Most men 30–50 are doing health things — training, diet, supplements, sleep — without a feedback loop. Bloodwork happens once a year (if at all); wearable data sits unread; supplements get taken on faith. **Without translation across all three, you're guessing.**
+2. **What MorningForm reads** — three columns: bloodwork (Quest / LabCorp / BioReference / NHS / private), wearable streams (Whoop / Oura / Apple Health / Garmin / Fitbit), lifestyle (sleep, training, diet, supplement stack)
+3. **What "working" actually looks like** — three synthetic worked examples:
+   - "Started TRT 90 days ago — is it working?" (testosterone trend + SHBG + hematocrit + sleep + libido check-in)
+   - "On a high-protein cut for 12 weeks — is it sustainable?" (HbA1c + ALT + cortisol-adjacent markers + recovery + body composition)
+   - "Added creatine, vitamin D, magnesium — anything moving?" (ferritin + 25(OH)D + RBC + sleep + recovery)
+   Each example shows: data in → translation out → "here's what's working, here's what isn't, here's what to keep watching"
+4. **Upload section:** *"Upload your panel + connect your wearable — see what's moving in 60 seconds, free."*
+5. **What you get with Form Intelligence Membership** ($29/mo):
+   - Ongoing translation of every new panel + wearable update
+   - Trend dashboard — *"is your protocol working?"* answered every time you re-test
+   - Plain-English read on what's moving and what's not
+   - Quarterly check-in cadence
+   - Cancel anytime
+6. **Trust block** (same on every page):
+   - We translate your data — we don't replace your physician
+   - For severe or unexplained results, we say so and route you to a clinician
+   - Tech-first; quiet on credentials, loud on rigor
+7. **CTA primary:** *"Start free — upload your data and see what's moving"*
+8. **CTA secondary:** *"Or learn more about how MorningForm reads your data →"* (links to methodology page)
+9. **FAQ block** (GEO-friendly, AI-engine-quotable):
+   - "How do I know if creatine / vitamin D / [supplement] is actually working for me?"
+   - "What blood markers should I track to see if my training is working?"
+   - "Is my testosterone replacement working — what should I look for?"
+   - "Can I track my protocol against my wearable data and bloodwork together?"
+   - "Does MorningForm work without a wearable?" (Yes — bloodwork-only is the simpler entry; wearable + bloodwork compounds.)
+   - "What if I just have one blood test?" (You see baseline + interpretation; the value compounds with the second test.)
 
 **Trust anchors (cited inline):** Mayo Clinic, Cleveland Clinic, NIH, JAMA, NEJM, peer-reviewed journals.
 
-**Internal links:** to anchor #2 (best blood tests for men over 40) + the methodology page (#10) + the Supply product page.
+**Internal links:** to Anchor #2 (Quest results explained) + the methodology page (#10).
 
 **What this page DOES NOT include:**
-- Specific Rx drug names or doses
-- Dose recommendations for any supplement on the informational surface
-- "You should take X" or "treat with Y"
-- Disease claims about Supply
-- Comparison rankings of test providers (Quest vs LabCorp price wars are off-message)
+- Specific Rx drug names or doses (TRT discussed only as a category, never as a specific drug+dose)
+- Imperative-treatment language ("take X mg of Y")
+- Disease claims
+- Supplement rankings or "best stack" lists
+- Visible clinician credentials
 
 **Conversion flow it triggers:** see Output 6.
 
 ---
 
-### Anchor #2 (sketch): "Best blood tests for men over 40 — US guide"
+### Anchor #2 (sketch): "Quest blood test results explained — what your numbers mean for men 30–50"
 
-**Slug:** `/explainers/best-blood-tests-men-over-40`
-**Intent:** comparison-shopping, pre-purchase. Visitor hasn't tested yet.
+**Slug:** `/explainers/quest-blood-test-results-explained`
+**Intent:** diagnostic — visitor *has* one-time results and a question.
 
 **Page shape:**
-1. Direct answer: comparison table of ~12 markers — `marker | what it tells you | typical reference range | how often to retest | why it matters more after 40`
-2. Tier breakdown: `essentials`, `recommended`, `comprehensive` — link to ordering through MorningForm Studio (when live) or partner labs
-3. **CTA primary:** *"Order your panel through MorningForm — get translation + Supply protocol included"*
-4. **CTA secondary:** *"Already tested? Upload your results — free"*
-5. Section: "Why context matters more than panel choice" — links back to Anchor #1
-6. FAQ: GEO-optimized
-7. Trust block (same as #1)
+1. Direct answer: comparison table of ~12 markers — `marker | what it tells you | what 'in range' can still mean | what context shifts it`
+2. Section: "Why 'in range' isn't 'optimal'" — synthetic worked example (testosterone 380 in range but bottom-quintile)
+3. **CTA primary:** *"Upload your panel — see what your numbers mean in context, free"*
+4. **CTA secondary (soft upsell for high-intent visitors):** *"Want a deeper report? $39 one-time"*
+5. **CTA tertiary (the compound move):** *"Or get ongoing tracking — Form Intelligence Membership $29/mo"*
+6. Section: "Once you've seen one panel, the next test is when it gets interesting" → links to Anchor #1
+7. FAQ: GEO-optimized
+8. Trust block (same as #1)
 
-This page validates the template ports — same structure, different intent class.
+This page validates the template ports — same upload→translation flow, different intent class, three CTA tiers (free / one-time / subscription).
 
 ## Output 4 — Reusable Page Template
 
@@ -265,8 +297,11 @@ Designed for AI-engine snippet extraction.]
 
 ## CTAs
 
-Primary:  "Get your personalized Supply protocol — $69/mo"
-Secondary: "Or download a summary to take to your physician — free"
+Primary:   "Start free — upload your data and see what's moving"
+           (free signup → Membership $29/mo upsell on day 7-14)
+Secondary: "Want a deeper report? $39 one-time"
+           (offered to high-intent diagnostic visitors)
+[When Supply ships]: Membership users see Supply cross-sell at $69/mo
 
 ## Sources
 
@@ -303,10 +338,10 @@ A topic compiles to:
 
 **This module isn't built in the 12-week window.** Anchor #1 ships hand-authored. Anchor #2 ships hand-authored from the template. The schema lands when there's a third page.
 
-## Output 6 — Conversion Flow (Page → Upload → Translation → Supply)
+## Output 6 — Conversion Flow (Page → Upload → Translation → Membership)
 
 ```
-[1] Visitor lands on /explainers/quest-blood-test-results-explained
+[1] Visitor lands on /is-your-protocol-working (or /explainers/...)
        (organic search, AI-engine cite, paid traffic test)
               │
               ▼
@@ -315,20 +350,19 @@ A topic compiles to:
         ├──► (~70% bounce expected on first traffic — normal)
         │
         ▼
-[3] CTA: "Upload your panel — see what it means in 60 seconds"
+[3] CTA: "Upload your data — see what's moving in 60 seconds"
               │
               ▼
 [4] Lands on /upload/results
-       — minimal-friction PDF upload
+       — minimal-friction PDF upload (panel) + optional wearable connect
        — NO signup gate at this step
        — extracts values, classifies, flags
               │
               ▼
-[5] Free interpretation summary (Form Intelligence preview tier)
+[5] Free Form Intelligence preview (post-upload)
        "We see 3 things worth attention: ferritin (low-normal), 
        LDL (in range, trending up), testosterone (380 — bottom quintile 
-       for your age). Here's what each can mean in context. 
-       Sign up free to see your full personalized Supply protocol."
+       for your age). Sign up free to see your full read + ongoing tracking."
               │
               ▼
 [6] Email-only signup gate (NOT credit card)
@@ -336,40 +370,44 @@ A topic compiles to:
        — adds to onboarding sequence
               │
               ▼
-[7] Full translation (free with email signup)
+[7] Full Form Intelligence translation (free, post-signup)
        — context-aware reading across markers
-       — personalized Supply protocol preview ("Vitamin D, magnesium, 
-         zinc, omega-3 — at doses calibrated to your numbers")
-       — physician-summary download (existing GP-prep tier)
+       — single-snapshot read (this is one panel)
+       — clear positioning of the Membership upsell:
+         "the next test is when it gets interesting — 
+          tracking your protocol over time"
+       — physician-summary download (existing route_to_gp_prep tier)
               │
               ▼
-[8] Two paid paths surface in parallel:
+[8] Day 7–14: Membership upsell sequence
        
-       PRIMARY:  Supply subscription $69/mo
-                 — personalized supplements shipped monthly
-                 — recurring (the 65%-revenue HERO from the deck)
+       PRIMARY:  Form Intelligence Membership $29/mo
+                 — ongoing translation as new panels/wearable data arrive
+                 — trend dashboard, "is it working?" answered each retest
+                 — recurring revenue, validates digital channel
        
-       SECONDARY: Studio visit $299 (when Studio is live, deck month 9+)
-                 — comprehensive panel + AI interpretation
-                 — one-time
-       
-       MEMBERSHIP $29/mo can layer on either
+       SECONDARY (one-time, for diagnostic-intent visitors):
+                 — $39 deeper report
+                 
+       FUTURE (when Supply ships): Supply cross-sell $69/mo to Membership users
               │
               ▼
 [9] Activation-funnel script (PR #83) measures progression at each step
 ```
 
 **Critical regulatory lens on every step:**
-- Step 5 must NEVER say "you have X" or "you should take Y." It says "this can mean…" and "your personalized protocol shows…"
-- Step 7's physician-summary is the existing `route_to_gp_prep` tool's output.
-- Step 8's Supply CTA is DSHEA-governed product copy, separate surface from the page. Personalization claims are permitted; disease/treatment claims are not.
+- Step 5 must NEVER say "you have X" or "you should take Y." It says "this is what these numbers mean / this is what they tend to look like in your demographic."
+- Step 7 emphasises *tracking over time* as the primary value, not *prescription*.
+- Step 8 sells *the loop*, not *a treatment*.
 
-**Engineering required for channel 3 to work end-to-end:**
-- Public `/upload/results` route (no-auth file upload + extraction) — does not exist
+**Engineering required for the digital channel to work end-to-end:**
+- Public `/upload/results` route (no-auth file upload + extraction) — **does not exist**
 - Form Intelligence preview tier — constrained translation output for the free pre-signup step
 - Email-only signup (no card upfront)
-- Supply checkout flow with Stripe subscription billing — **gated on Supply product existing as a separate workstream**
-- Per-step funnel events feeding the activation-funnel script
+- Membership Stripe subscription checkout ($29/mo) — simple, well-understood pattern
+- Per-step funnel events feeding the activation-funnel script (PR #83)
+- Day-7-and-14 Membership upsell email sequence
+- *(Future, gated on Supply product workstream)*: Supply checkout, formulation algorithm, fulfillment
 
 ## Output 7 — Measurement Framework
 
@@ -392,28 +430,29 @@ Three layers:
 
 **Internal "is this working" dashboard:** built only after Anchor #1 launches.
 
-## Output 8 — Clinical Safety Framework (Two Frameworks, Two Surfaces)
+## Output 8 — Clinical Safety Framework (Path A — Tech-First, No Public Clinician)
 
-### Informational surfaces (pages + translation layer) — G1–G7-equivalent US framing
+Path A regulatory protection comes from **page-voice discipline**, not clinician credentials on the page. The reviewer is the founder + a careful editorial pass; if a complaint or escalation surfaces later, retain a clinician on a light retainer at that point. Until then, the framing is the safeguard.
 
 Per-page checklist (gates publish):
 
 - [ ] No specific Rx drug names
 - [ ] No dose strings on the informational surface (`mg`, `IU`, etc. for any specific compound)
-- [ ] No imperative-treatment language — search for `you should`, `take`, `treat with`, `start`, `recommend`
-- [ ] All decision-points route to "personalized Supply protocol," "discuss with your physician," "consider retesting," or "watch the trend"
+- [ ] No imperative-treatment language — grep for `you should`, `take`, `treat with`, `start`, `recommend`, `cure`, `fix`
+- [ ] All decision-points route to "track this over time," "discuss with your physician [if symptoms warrant]," "consider retesting" — never "treat with..."
 - [ ] No diagnostic claims ("your high LDL means you have...")
-- [ ] Topic stays inside MorningForm's scope: longitudinal record + translation + Supply protocol + physician summary
+- [ ] Translation outputs use comparative language ("below median for your age cohort") — not directive language ("you need to...")
+- [ ] Topic stays inside MorningForm's scope: longitudinal record + translation + ongoing tracking
 - [ ] Every numeric/clinical claim cited: Mayo Clinic, Cleveland Clinic, NIH, JAMA, NEJM, peer-reviewed
 - [ ] Worked examples labeled "Synthetic example"
-- [ ] "What MorningForm is and isn't" trust block present
-- [ ] Sources verifiable
+- [ ] Quiet footer disclaimer present ("MorningForm provides data interpretation; it is not a medical service")
+- [ ] No clinician credentials, advisor names, or "reviewed by Dr. X" stamps anywhere on the public surface
 
-**Reviewer:** US-licensed clinician (MD, DO, or NP) with comp-bio / labs domain familiarity. Per deck: "engaged conversations with senior healthcare-AI researchers, US-based GPs, cardiology and functional-medicine specialists."
+**Reviewer:** founder + careful editorial pass (Path A). If a complaint, escalation, or volume threshold (~1000+ paying users) is reached, upgrade to Path B (clinician on light retainer).
 
-### Supply product surface — DSHEA 1994
+**Failure mode to watch:** a single translation output crossing into prescriptive language. Caught by editorial QA on the translation layer's prompt surface, not by a disclaimer.
 
-Separate guidelines, separate review process. Not in this brainstorm's scope. **But the seam matters:** when a page links to Supply, the page doesn't claim what Supply does — the Supply surface does, under DSHEA-compliant copy.
+**When Supply ships (separate workstream):** DSHEA 1994 governs — personalized formulations + structure/function claims permitted; no disease/treatment claims; FDA-registered manufacturer required.
 
 ## Output 9 — App-Side Recommendations
 
@@ -421,18 +460,21 @@ What MorningForm needs to ship *in support of* the anchor pages:
 
 **Must-have for Anchor #1 to convert (12-week scope):**
 
-1. **Public `/upload/results` route** — no-auth PDF upload, runs the existing intake-extraction pipeline.
-2. **Form Intelligence preview tier** — constrained translation output, returns 2–4 paragraphs with classified flags. Reuses existing scribe infrastructure with a `tier=preview` mode.
+1. **Public `/upload/results` route** — no-auth PDF upload + optional wearable connect, runs the existing intake-extraction pipeline.
+2. **Form Intelligence preview tier** — constrained translation output, returns 2–4 paragraphs with classified flags + the *"the next test is when it gets interesting"* hook. Reuses existing scribe infrastructure with a `tier=preview` mode.
 3. **Email-only signup** — replaces any signup that requires card-on-file.
-4. **Personalized Supply protocol preview** — the in-app surface that shows what the user's Supply formulation would be, post-signup but pre-purchase.
-5. **Physician-summary download** — already exists via `route_to_gp_prep`; surface as PDF in post-signup flow.
-6. **Per-page measurement events** — extend activation-funnel events with `anchor_page_visit` and `anchor_page_to_upload`.
-7. **Anchor-page-driven onboarding sequence** — different from generic onboarding; assumes the user arrived with a result-interpretation question.
+4. **Form Intelligence Membership Stripe checkout** — $29/mo subscription; well-understood pattern, no manufacturing dependency.
+5. **Membership upsell sequence** — day 7 + day 14 emails after free signup; positions Membership as "the loop is the value."
+6. **Trend dashboard** — *"is your protocol working?"* answered visually across panels. The Membership product surface.
+7. **Physician-summary download** — already exists via `route_to_gp_prep`; surface as PDF in post-signup flow.
+8. **Per-page measurement events** — extend activation-funnel events with `anchor_page_visit` and `anchor_page_to_upload`.
+9. **Anchor-page-driven onboarding sequence** — different from generic onboarding; assumes the user arrived with a "is my protocol working" question.
 
-**Gated on Supply product readiness (separate workstream):**
-- Stripe subscription checkout
-- Supply formulation algorithm
+**Gated on Supply product workstream (separate plan, future):**
+- Supply Stripe subscription checkout ($69/mo cross-sell)
+- Personalized formulation algorithm
 - Manufacturer + fulfillment integration
+- Supply commercial surface (DSHEA-governed)
 
 **Should NOT build for this:**
 - A CMS for content authoring (anchor pages are TSX directly, hand-authored)
@@ -445,17 +487,16 @@ What MorningForm needs to ship *in support of* the anchor pages:
 
 - **Geography?** US, per deck.
 - **Cohort age band?** 30–50, per deck.
-- **Pricing?** $299 Studio · $69/mo Supply (HERO) · $29/mo Membership · $89 Bundle, per deck.
-- **What does the page convert to?** Supply subscription primary; physician-summary secondary path.
+- **Pricing?** $299 Studio · $69/mo Supply (future cross-sell) · $29/mo Membership (current primary) · $89 Bundle, per deck.
+- **What does the page convert to?** Form Intelligence Membership $29/mo. Supply is a future cross-sell once Supply ships.
+- **Clinician posture?** Path A — tech-first, no public clinician. Framing-as-safeguard. Upgrade to Path B (light retainer) at scale or on first complaint.
+- **Anchor #1 topic?** *"Is your protocol actually working? Read your bloodwork over time."* Validation intent, compounds with subscription.
+- **Anchor #2 topic?** *"Quest blood test results explained — what your numbers mean for men 30–50."* Diagnostic intent, higher search volume, three-tier CTAs.
 - **Programmatic now or later?** Later. After Anchor #1 ranks AND converts.
-- **Anchor #1 topic?** "Quest blood test results explained — what your numbers mean for men 30–50." Maps directly to upload→translation→Supply loop.
-- **Anchor #2 topic?** "Best blood tests for men over 40 — US guide."
 
 ### Resolve before planning
 
-- **US clinician advisor for G1–G7-equivalent review?** No name today. Without a reviewer, no anchor page ships. Per deck this is being built into the foundation; **need confirmation that a specific reviewer is engaged and available** before the engineering plan starts. **This is the gate** on the 12-week digital-channel plan.
-- **Supply product readiness for the conversion endpoint?** The page → Supply checkout is the primary conversion. If Supply formulation/manufacturer/fulfillment isn't ready by week 8, channel 3's conversion endpoint is incomplete. **Confirm Supply timing** before /ce:plan. If Supply isn't ready in window, the brainstorm needs an interim conversion target (Studio waitlist, $29/mo membership-only, etc.).
-- **Page CTA framing — Supply primary, physician-summary secondary** — confirm this is the right hierarchy. The seam where the informational page hands off to the Supply commercial surface needs explicit user/founder sign-off.
+- **None.** Both gates from the prior brainstorm draft are resolved: clinician posture is Path A (no public clinician needed); conversion CTA is Membership $29/mo (Supply readiness no longer blocks).
 
 ### Deferred to implementation
 
@@ -479,12 +520,11 @@ What MorningForm needs to ship *in support of* the anchor pages:
 
 ## Recommended Next Steps
 
-1. **Resolve the two gates** — clinician advisor (named, engaged, available) + Supply product timing. Without both, the engineering plan can't ship a conversion endpoint.
-2. **`/ce:plan`** for the channel-3 engineering — public upload route, preview-tier translation, email-only signup, Supply protocol preview, physician-summary download, measurement events. Likely 4–6 implementation units.
-3. **Parallel:** write Anchor #1 draft against the template — content work, can run before engineering finishes. **Channel 3-only** — outreach is channels 2; not in this artifact.
-4. **Week 4–6:** Anchor #1 ships. $500 paid-traffic test. Measure.
-5. **Week 8–10:** Anchor #2 ships if Anchor #1 is converting. Otherwise iterate on Anchor #1.
-6. **Week 10–12:** Decide on programmatic scaling based on actual data.
+1. **`/ce:plan`** for the channel-3 engineering — public upload route, preview-tier translation, email-only signup, Membership Stripe checkout, trend dashboard, physician-summary download, measurement events, day-7/14 upsell sequence. Likely 5–7 implementation units.
+2. **Parallel:** write Anchor #1 draft against the template — content work, can run before engineering finishes.
+3. **Week 4–6:** Anchor #1 ships. $500 paid-traffic test. Measure.
+4. **Week 8–10:** Anchor #2 ships if Anchor #1 is converting. Otherwise iterate on Anchor #1.
+5. **Week 10–12:** Decide on programmatic scaling based on actual data. Decide whether to upgrade clinician posture from Path A to Path B based on volume + any escalations seen.
 
 ## Sources & References
 
