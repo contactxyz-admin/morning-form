@@ -112,44 +112,51 @@ describe('middleware', () => {
     // should never enter middleware (we don't test them here — Next's
     // matcher handles that).
 
+    function expectRedirectTo(res: ReturnType<typeof middleware>, target: string | RegExp) {
+      // Pin the redirect contract loosely (any 3xx status) so a Next.js
+      // upgrade that flips between 307/308 doesn't break every test.
+      expect(res.status).toBeGreaterThanOrEqual(300);
+      expect(res.status).toBeLessThan(400);
+      const location = res.headers.get('location');
+      if (typeof target === 'string') {
+        expect(location).toBe(target);
+      } else {
+        expect(location).toMatch(target);
+      }
+    }
+
     it('redirects / to /uk for GB visitors with no cookie', () => {
       const res = middleware(makeRequest('/', { country: 'GB' }));
-      expect(res.status).toBe(307); // Next.js NextResponse.redirect default
-      expect(res.headers.get('location')).toMatch(/\/uk$/);
+      expectRedirectTo(res, /\/uk$/);
     });
 
     it('redirects / to /us for US visitors with no cookie', () => {
       const res = middleware(makeRequest('/', { country: 'US' }));
-      expect(res.status).toBe(307);
-      expect(res.headers.get('location')).toMatch(/\/us$/);
+      expectRedirectTo(res, /\/us$/);
     });
 
     it('redirects / to /us for visitors from unsupported countries (default fallback)', () => {
       const res = middleware(makeRequest('/', { country: 'FR' }));
-      expect(res.status).toBe(307);
-      expect(res.headers.get('location')).toMatch(/\/us$/);
+      expectRedirectTo(res, /\/us$/);
     });
 
     it('redirects / to /us when no country header is present (preview deployments)', () => {
       const res = middleware(makeRequest('/'));
-      expect(res.status).toBe(307);
-      expect(res.headers.get('location')).toMatch(/\/us$/);
+      expectRedirectTo(res, /\/us$/);
     });
 
     it('honours mf_market cookie over geo header (cookie wins)', () => {
       const res = middleware(
         makeRequest('/', { cookie: 'mf_market=us', country: 'GB' }),
       );
-      expect(res.status).toBe(307);
-      expect(res.headers.get('location')).toMatch(/\/us$/);
+      expectRedirectTo(res, /\/us$/);
     });
 
     it('honours mf_market=uk cookie even when geo says US', () => {
       const res = middleware(
         makeRequest('/', { cookie: 'mf_market=uk', country: 'US' }),
       );
-      expect(res.status).toBe(307);
-      expect(res.headers.get('location')).toMatch(/\/uk$/);
+      expectRedirectTo(res, /\/uk$/);
     });
 
     it('falls through to geo when mf_market cookie has invalid value', () => {
@@ -157,8 +164,24 @@ describe('middleware', () => {
         makeRequest('/', { cookie: 'mf_market=fr', country: 'GB' }),
       );
       // Invalid cookie ignored; geo wins.
-      expect(res.status).toBe(307);
-      expect(res.headers.get('location')).toMatch(/\/uk$/);
+      expectRedirectTo(res, /\/uk$/);
+    });
+
+    it('preserves the query string through the redirect (paid-search attribution)', () => {
+      const res = middleware(
+        makeRequest('/?utm_source=google&utm_campaign=fatigue&gclid=xyz', {
+          country: 'GB',
+        }),
+      );
+      expectRedirectTo(
+        res,
+        /\/uk\?utm_source=google&utm_campaign=fatigue&gclid=xyz$/,
+      );
+    });
+
+    it('preserves the URL hash through the redirect', () => {
+      const res = middleware(makeRequest('/#how', { country: 'US' }));
+      expectRedirectTo(res, /\/us#how$/);
     });
   });
 });

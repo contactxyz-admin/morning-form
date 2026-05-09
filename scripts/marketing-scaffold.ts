@@ -15,8 +15,9 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-import { COHORT_KEYS, type CohortKey } from '../src/lib/marketing/cohorts';
+import { COHORT_KEYS, type CohortKey, isCohortKey } from '../src/lib/marketing/cohorts';
 import { MARKETS, type Market } from '../src/lib/marketing/constants';
+import { isMarket } from '../src/lib/marketing/market';
 import { FATIGUE_TEMPLATE } from '../content/marketing/_templates/fatigue.template';
 
 interface Args {
@@ -54,12 +55,12 @@ function parseArgs(argv: ReadonlyArray<string>): Args {
     process.exit(1);
   }
 
-  if (!(COHORT_KEYS as readonly string[]).includes(cohort)) {
+  if (!isCohortKey(cohort)) {
     console.error(`Invalid cohort "${cohort}". Valid: ${COHORT_KEYS.join(', ')}`);
     process.exit(1);
   }
 
-  if (!(MARKETS as readonly string[]).includes(market)) {
+  if (!isMarket(market)) {
     console.error(`Invalid market "${market}". Valid: ${MARKETS.join(', ')}`);
     process.exit(1);
   }
@@ -69,11 +70,7 @@ function parseArgs(argv: ReadonlyArray<string>): Args {
     process.exit(1);
   }
 
-  return {
-    cohort: cohort as CohortKey,
-    slug,
-    market: market as Market,
-  };
+  return { cohort, slug, market };
 }
 
 function main(): void {

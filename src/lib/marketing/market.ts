@@ -2,18 +2,12 @@
  * Market detection and helpers.
  *
  * The [market] route segment is the canonical source of truth at request
- * time; RSC pages get `params.market` directly. The functions below are
- * for two cases:
- *
- *   1. Middleware geo-redirect at `/` — `inferMarketFromCountryCode`
- *      maps `x-vercel-ip-country` to a Market.
- *   2. Components below the `[market]` segment that don't have access to
- *      params (e.g., the market-banner shell) — `getMarket()` reads
- *      cookie/header context. Tests should pass `params.market` directly
- *      where possible.
+ * time; RSC pages get `params.market` directly. `inferMarketFromCountryCode`
+ * exists for the middleware geo-redirect at `/` and for the
+ * market-banner suppression check (see `src/components/marketing/market-banner.tsx`,
+ * which reads cookies/headers itself rather than going through a helper).
  */
-import { cookies, headers } from 'next/headers';
-import { DEFAULT_MARKET, MARKETS, MARKET_COOKIE, type Market } from './constants';
+import { DEFAULT_MARKET, MARKETS, type Market } from './constants';
 
 export function isMarket(value: unknown): value is Market {
   return typeof value === 'string' && (MARKETS as readonly string[]).includes(value);
@@ -31,16 +25,4 @@ export function inferMarketFromCountryCode(countryCode: string | null | undefine
   if (code === 'GB' || code === 'UK') return 'uk';
   if (code === 'US') return 'us';
   return DEFAULT_MARKET;
-}
-
-/**
- * Server helper: resolve the visitor's market from cookie (override)
- * then geo header (default). Cookie wins when both are present, so
- * the in-page banner override sticks across requests.
- */
-export function getMarket(): Market {
-  const cookieMarket = cookies().get(MARKET_COOKIE)?.value;
-  if (isMarket(cookieMarket)) return cookieMarket;
-  const country = headers().get('x-vercel-ip-country');
-  return inferMarketFromCountryCode(country);
 }

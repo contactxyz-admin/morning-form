@@ -29,32 +29,10 @@ export const MEMBERSHIP_PRICE: Record<
 };
 
 /**
- * Stripe price-ID env-var keys. The actual price IDs are runtime env
- * vars (separate test/live values via STRIPE_SECRET_KEY_{TEST,LIVE}
- * dispatch). U8 wires the lookup; U1 only needs the key names.
- */
-export const STRIPE_PRICE_ENV_KEYS: Record<Market, string> = {
-  uk: 'STRIPE_PRICE_GBP_19',
-  us: 'STRIPE_PRICE_USD_29',
-};
-
-/**
- * Rate-limit subjectKind constants. D8 reuses MagicLinkRateLimit by
- * extending its subjectKind enum; callers MUST use these constants
- * (drift via literal strings would silently never match a lookup).
- */
-export const RATE_LIMIT_KINDS = {
-  uploadIp1h: 'upload-ip-1h',
-  uploadIp24h: 'upload-ip-24h',
-  signupIp1h: 'signup-ip-1h',
-  visitBeaconIp1h: 'visit-beacon-ip-1h',
-} as const;
-
-export type RateLimitKind = (typeof RATE_LIMIT_KINDS)[keyof typeof RATE_LIMIT_KINDS];
-
-/**
  * Cookie names. Centralised so middleware, route handlers, and the
- * market-banner component all read/write the same keys.
+ * market-banner component all read/write the same key. Phase 1's
+ * `mf_anon` cookie + the rate-limit subjectKind constants + the
+ * Stripe price-ID env-var keys land alongside their first consumers
+ * (U5/U6/U8) rather than ahead of them.
  */
 export const MARKET_COOKIE = 'mf_market';
-export const ANONYMOUS_COOKIE = 'mf_anon';

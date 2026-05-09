@@ -41,6 +41,11 @@ export function middleware(request: NextRequest): NextResponse {
       ? cookieMarket
       : inferMarketFromCountryCode(request.headers.get('x-vercel-ip-country'));
     const target = new URL(`/${market}`, request.nextUrl);
+    // Preserve search + hash so paid-search attribution (utm_*, gclid, ref)
+    // survives the geo redirect. Without this, every visitor landing on `/`
+    // from an ad loses their source params before reaching the market page.
+    target.search = request.nextUrl.search;
+    target.hash = request.nextUrl.hash;
     return NextResponse.redirect(target);
   }
 

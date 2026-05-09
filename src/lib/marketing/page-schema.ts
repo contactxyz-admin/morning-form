@@ -72,14 +72,6 @@ export const MarketingPageSchema = z.object({
   publishedAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'must be ISO date'),
   lastReviewedAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'must be ISO date'),
   reviewerKey: z.string().min(1),
-
-  /**
-   * Optional per-page allowlist for editorial-QA exemptions. Each entry
-   * MUST be accompanied by a comment in the page-data file explaining
-   * why the phrase appears (e.g., a clinical glossary term). The QA
-   * test reads this field directly when raising violations.
-   */
-  qaAllowlist: z.array(z.string().min(1)).optional(),
 });
 
 export type MarketingPage = z.infer<typeof MarketingPageSchema>;
