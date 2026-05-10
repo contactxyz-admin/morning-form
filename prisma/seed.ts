@@ -80,6 +80,24 @@ async function main() {
     },
   });
 
+  // Demo Priorities row — uses the priority-marker-engine output for the
+  // sustained-activator archetype so the seed stays in sync with whatever
+  // content/priority-markers/sustained-activator.ts says (the editorial-QA
+  // gate scans that file). Avoids the seed drifting out of sync with the
+  // clinically-reviewed content.
+  const { buildPriorities } = await import('../src/lib/priority-marker-engine');
+  const demoPriorities = buildPriorities({
+    primary_goal: 'focus',
+    afternoon_energy: 4,
+    wind_down_ability: 2,
+    morning_energy: 3,
+    stress_level: 3,
+    stimulant_sensitivity: 'moderate',
+    sleep_quality: 3,
+    anxiety_frequency: 'sometimes',
+    night_waking: 'rare',
+    pregnancy: 'no',
+  });
   await prisma.priorities.upsert({
     where: { userId: user.id },
     update: {},
@@ -87,40 +105,16 @@ async function main() {
       userId: user.id,
       version: 1,
       status: 'active',
-      rationale:
-        'Demo seed — sustained-activator archetype priority markers. Real archetype-to-marker mapping lands via clinical review (U3 of priority-markers-pivot plan).',
+      rationale: demoPriorities.rationale,
       confidence: 'high',
       items: {
-        create: [
-          {
-            markerName: 'Ferritin',
-            rationale: 'Iron stores often run low in men who train hard, even when haemoglobin reads normal.',
-            category: 'iron',
-            panelAvailability: 'both',
-            sortOrder: 0,
-          },
-          {
-            markerName: 'Free testosterone',
-            rationale: 'Energy, libido, and recovery sit downstream of free T more reliably than total T.',
-            category: 'hormones',
-            panelAvailability: 'both',
-            sortOrder: 1,
-          },
-          {
-            markerName: 'hs-CRP',
-            rationale: 'Persistently elevated inflammation signals something else is doing the work.',
-            category: 'inflammation',
-            panelAvailability: 'both',
-            sortOrder: 2,
-          },
-          {
-            markerName: 'Vitamin D (25-OH)',
-            rationale: 'Northern winters consistently produce low values in men who work indoors.',
-            category: 'micronutrients',
-            panelAvailability: 'both',
-            sortOrder: 3,
-          },
-        ],
+        create: demoPriorities.items.map((m) => ({
+          markerName: m.markerName,
+          rationale: m.rationale,
+          category: m.category,
+          panelAvailability: m.panelAvailability,
+          sortOrder: m.sortOrder,
+        })),
       },
     },
   });
