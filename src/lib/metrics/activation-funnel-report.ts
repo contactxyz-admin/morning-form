@@ -90,6 +90,7 @@ export async function computeActivationFunnel(
   const signupAtByUser = new Map<string, Date>(cohort.map((u) => [u.id, u.createdAt]));
 
   const stageMaps: Record<StageKey, StageReachMap> = {
+    'anchor-page-visit': new Map(),
     'signup': new Map(),
     'essentials': new Map(),
     'connected': new Map(),
@@ -112,6 +113,11 @@ export async function computeActivationFunnel(
 
   const signupCount = stageMaps.signup.size;
   const stages: StageReport[] = [];
+  // The activation chain anchors on `signup`; pre-signup stages
+  // (anchor-page-visit) are parallel source-attribution metrics and do not
+  // propagate the chain. Initial value is signupCount so signup's own
+  // pctOfPrevious is 100% even though anchor-page-visit precedes it in
+  // ACTIVATION_STAGES.
   let previousCount = signupCount;
 
   for (const stage of ACTIVATION_STAGES) {
@@ -135,7 +141,11 @@ export async function computeActivationFunnel(
       p75DaysFromSignup,
     });
 
-    previousCount = count;
+    // Pre-signup stages do not anchor the chain — keep previousCount as
+    // signupCount so the signup row's pctOfPrevious lands at 100%.
+    if (stage.key !== 'anchor-page-visit') {
+      previousCount = count;
+    }
   }
 
   return {

@@ -18,7 +18,8 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "marketing:scaffold": "tsx scripts/marketing-scaffold.ts"
   },
   "engines": {
     "node": "20.x"

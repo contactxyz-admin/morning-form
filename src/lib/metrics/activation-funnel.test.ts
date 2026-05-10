@@ -90,8 +90,9 @@ describe('hasAtLeastOneCitation', () => {
 });
 
 describe('ACTIVATION_STAGES registry', () => {
-  it('exposes the six ordered stage keys', () => {
+  it('exposes the seven ordered stage keys (anchor-page-visit precedes signup)', () => {
     expect(ACTIVATION_STAGES.map((s) => s.key)).toEqual([
+      'anchor-page-visit',
       'signup',
       'essentials',
       'connected',

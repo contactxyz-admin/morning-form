@@ -35,6 +35,17 @@ const WINDOW_24H_MS = 24 * 60 * 60 * 1000;
 export interface IssueArgs {
   email: string;
   requestIpHash: string;
+  /**
+   * SEO/GEO funnel attribution — only consumed when the User row is being
+   * created for the first time. Existing users keep their original signup
+   * context untouched (a returning visitor on a different cohort does not
+   * re-attribute the original signup).
+   */
+  signupContext?: {
+    market: string;
+    cohort: string;
+    slug: string;
+  };
 }
 
 export type IssueOutcome =
@@ -139,8 +150,15 @@ export async function issueMagicLink(
 
   const user = await prisma.user.upsert({
     where: { email: normalizedEmail },
-    update: {},
-    create: { email: normalizedEmail },
+    update: {}, // Never overwrite — signup attribution stays with first creation.
+    create: {
+      email: normalizedEmail,
+      // Signup-context fields are nullable; omit them when no marketing
+      // context was passed so direct-signup users have NULL attribution.
+      signupMarket: args.signupContext?.market ?? null,
+      signupCohort: args.signupContext?.cohort ?? null,
+      signupSlug: args.signupContext?.slug ?? null,
+    },
   });
 
   const rawToken = randomBytes(32).toString('base64url');

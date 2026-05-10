@@ -1,5 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { assertAuthEnv } from '@/lib/env';
+import {
+  ANONYMOUS_COOKIE,
+  ANONYMOUS_COOKIE_MAX_AGE_S,
+  MARKET_COOKIE,
+} from '@/lib/marketing/constants';
+import { inferMarketFromCountryCode, isMarket } from '@/lib/marketing/market';
 import { SESSION_COOKIE } from '@/lib/session-cookie';
 
 // Module-scope boot check: fails the first Edge invocation fast if prod
@@ -28,6 +34,49 @@ assertAuthEnv();
  */
 export function middleware(request: NextRequest): NextResponse {
   const path = request.nextUrl.pathname;
+
+  // Multi-market geo redirect at `/` (U1 of the SEO/GEO plan).
+  // Cookie wins over geo so the in-page banner override sticks.
+  // Sub-paths under `/uk/...` and `/us/...` are NOT in the matcher
+  // and serve unconditionally per their market.
+  if (path === '/') {
+    const cookieMarket = request.cookies.get(MARKET_COOKIE)?.value;
+    const market = isMarket(cookieMarket)
+      ? cookieMarket
+      : inferMarketFromCountryCode(request.headers.get('x-vercel-ip-country'));
+    const target = new URL(`/${market}`, request.nextUrl);
+    // Preserve search + hash so paid-search attribution (utm_*, gclid, ref)
+    // survives the geo redirect. Without this, every visitor landing on `/`
+    // from an ad loses their source params before reaching the market page.
+    target.search = request.nextUrl.search;
+    target.hash = request.nextUrl.hash;
+    return NextResponse.redirect(target);
+  }
+
+  // Marketing tree (/uk/*, /us/*): public, no auth, but we set the
+  // mf_anon cookie on first paint so the visit-beacon and the future
+  // signup path can resolve a consistent anonymous-visitor id. Cookie is
+  // httpOnly (the beacon API route reads it server-side; client never
+  // needs the value) and ~13 months long so returning visits attribute
+  // back to the same id.
+  if (
+    path === '/uk' ||
+    path === '/us' ||
+    path.startsWith('/uk/') ||
+    path.startsWith('/us/')
+  ) {
+    const res = NextResponse.next();
+    if (!request.cookies.get(ANONYMOUS_COOKIE)?.value) {
+      res.cookies.set(ANONYMOUS_COOKIE, crypto.randomUUID(), {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: ANONYMOUS_COOKIE_MAX_AGE_S,
+        path: '/',
+      });
+    }
+    return res;
+  }
 
   if (
     path.startsWith('/share/') ||
@@ -67,6 +116,11 @@ export function middleware(request: NextRequest): NextResponse {
  */
 export const config = {
   matcher: [
+    '/',
+    '/uk',
+    '/us',
+    '/uk/:path*',
+    '/us/:path*',
     '/api/admin/:path*',
     '/api/assessment',
     '/api/check-in',

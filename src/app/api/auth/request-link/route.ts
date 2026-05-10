@@ -1,13 +1,27 @@
 import { NextResponse } from 'next/server';
-import { createHmac } from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { env, getSessionSecret } from '@/lib/env';
+import { env } from '@/lib/env';
+import { hashIp } from '@/lib/auth/ip-hash';
 import { issueMagicLink } from '@/lib/auth/magic-link';
 import { sendMagicLinkEmail } from '@/lib/auth/email';
+import { COHORT_KEYS } from '@/lib/marketing/cohorts';
+import { MARKETS } from '@/lib/marketing/constants';
 
 const bodySchema = z.object({
   email: z.string().trim().toLowerCase().email(),
+  // Phase 0 SEO/GEO funnel attribution: optional context captured when the
+  // visitor submits email from a marketing page. Persisted on User row at
+  // FIRST CREATION ONLY — never overwrites an existing user's signup
+  // context, so a returning visitor on a different cohort does not
+  // re-attribute the original signup.
+  signupContext: z
+    .object({
+      market: z.enum(MARKETS),
+      cohort: z.enum(COHORT_KEYS),
+      slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    })
+    .optional(),
 });
 
 const DEMO_EMAIL = 'demo@morningform.com';
@@ -33,10 +47,14 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'A valid email is required.' }, { status: 400 });
   }
-  const { email } = parsed.data;
+  const { email, signupContext } = parsed.data;
   const ipHash = hashIp(request);
 
-  const result = await issueMagicLink(prisma, { email, requestIpHash: ipHash });
+  const result = await issueMagicLink(prisma, {
+    email,
+    requestIpHash: ipHash,
+    signupContext,
+  });
   if (result.outcome === 'rate_limited') {
     return NextResponse.json(
       { error: 'Too many requests. Try again in a few minutes.' },
@@ -110,10 +128,3 @@ function resolveAppOrigin(request: Request): string {
   return new URL(request.url).origin;
 }
 
-function hashIp(request: Request): string {
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
-  return createHmac('sha256', getSessionSecret()).update('ip:').update(ip).digest('hex').slice(0, 32);
-}

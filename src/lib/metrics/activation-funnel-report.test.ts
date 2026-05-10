@@ -71,6 +71,31 @@ async function seedRetentionActivity(userId: string, at: Date): Promise<void> {
   });
 }
 
+async function seedAnchorPageVisit(userId: string, at: Date): Promise<void> {
+  // The funnel resolves anchor-page-visit by joining LandingPageVisit.email
+  // to User.email (the verify route backfills email post-signup). Mirror
+  // that shape here: the visit row carries the user's email and a synthetic
+  // mfAnonymousId scoped to the test fixture.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  if (!user?.email) throw new Error(`seedAnchorPageVisit: user ${userId} has no email`);
+  await prisma.landingPageVisit.create({
+    data: {
+      slug: 'fatigue-in-men',
+      cohortKey: 'fatigue',
+      market: 'uk',
+      ipHash: `test-ip-${userId}`,
+      mfAnonymousId: `test-anon-${userId}`,
+      userAgentClass: 'browser',
+      email: user.email,
+      minuteBucket: BigInt(Math.floor(at.getTime() / 60_000)),
+      createdAt: at,
+    },
+  });
+}
+
 function stageByKey(report: ActivationFunnelReport, key: StageKey): StageReport {
   const s = report.stages.find((x) => x.key === key);
   if (!s) throw new Error(`Missing stage ${key} in report`);
@@ -298,6 +323,9 @@ describe('computeActivationFunnel — all stages 100%', () => {
       [1, 2].map((i) => freshUser(`full-${i}`, signupAt)),
     );
     for (const u of users) {
+      // Visit BEFORE signup, e.g. 30 min earlier — anchor-page-visit anchors
+      // on the earliest LandingPageVisit row for the user's email.
+      await seedAnchorPageVisit(u, new Date(signupAt.getTime() - 30 * 60 * 1000));
       await seedEssentials(u, new Date(signupAt.getTime() + 1 * 60 * 60 * 1000));
       await seedConnection(u, new Date(signupAt.getTime() + 2 * 60 * 60 * 1000));
       await seedChat(u, new Date(signupAt.getTime() + 3 * 60 * 60 * 1000));

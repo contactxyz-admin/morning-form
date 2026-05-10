@@ -1,12 +1,17 @@
 ---
 title: "feat: Activation funnel instrumentation — signup to first grounded answer"
 type: feat
-status: active
+status: shipped
 date: 2026-04-21
+shipped: 2026-04-25
+shipped_pr: 83
+deepened: 2026-05-06
 origin: docs/brainstorms/2026-04-21-mvp-validation-requirements.md
 ---
 
 # feat: Activation funnel instrumentation — signup to first grounded answer
+
+> **Status: Shipped in PR #83** (`feat(metrics): activation funnel instrumentation — signup → retained`, plus `chore(metrics): apply ce:review safe-auto fixes`). The CLI lives at `scripts/metrics/activation-funnel.ts`, the stage resolvers at `src/lib/metrics/activation-funnel.ts`, the cohort report at `src/lib/metrics/activation-funnel-report.ts`, and an additional CSV/summary formatter (not in the original plan) at `src/lib/metrics/activation-funnel-format.ts`. Implementation deviates from this plan in two small, reasonable ways, both noted inline below.
 
 ## Overview
 
@@ -77,6 +82,7 @@ This plan ships a single command that answers that question and its cohort varia
 - **D1 — Derive, don't emit.** No event table, no analytics pipeline, no third-party tracker. Stages are defined as queries against existing tables. Reversible, testable, no privacy surface enlargement. The only cost is that stage definitions must stay in sync with the source tables — mitigated by the shared module (R7).
 - **D2 — Six stages, fixed.** Signup, essentials, connected, first chat, first grounded answer, retained-in-week-2. Six is enough to locate the biggest drop-off without over-segmenting a small cohort. More stages become noise at n<50.
 - **D3 — "First grounded answer" is the aha moment.** Defined as first `ScribeAudit` row with `safetyClassification='clinical-safe'` and non-empty `citations`. Same predicate B2 uses — consistent with the grounding-rate plan. The alternative (first visible citation in the UI) is harder to nail down from persistence alone and would drift.
+  - **Implementation note (2026-05-06 deepening):** `ScribeAudit.citations` is a `String` column ([prisma/schema.prisma:489](../../prisma/schema.prisma#L489)) holding stringified JSON, not a Prisma `Json` column. "Non-empty" must be evaluated by parsing — implemented in `hasAtLeastOneCitation` ([src/lib/metrics/activation-funnel.ts:171-179](../../src/lib/metrics/activation-funnel.ts#L171-L179)) via `JSON.parse` with a `try/catch` returning `false` on parse failure.
 - **D4 — Retention = any user activity ≥24h after first grounded answer within 7 days.** Activity = a new `ChatMessage` or a new `HealthDataPoint` ingestion. Both are low-threshold signals of "the user came back." Avoid conflating with session-length or DAU — those are engagement metrics, not retention.
 - **D5 — Cohort by signup date, not enrolment flag.** Jonathan's R1 framing ("30-50 early adopters") implies an explicit cohort list. This plan supports both: `--user-ids` (explicit) and `--signup-since/--signup-until` (date-window). A cohort table is not needed.
 - **D6 — Time-to-stage uses median + p75, not mean.** Activation times are long-tailed; means are misleading. Report both so a reader can see the spread.
@@ -127,7 +133,7 @@ StageDefinition = {
 
 ## Implementation Units
 
-- [ ] **Unit 1: Stage definitions and resolvers**
+- [x] **Unit 1: Stage definitions and resolvers**
 
 **Goal:** Typed, testable set of stage-resolver functions that map a cohort's userIds + a window to `Map<userId, Date>` for each funnel stage.
 
@@ -168,7 +174,7 @@ StageDefinition = {
 - Tests pass.
 - Each resolver works end-to-end against the dev DB when called from a REPL with real userIds.
 
-- [ ] **Unit 2: Cohort funnel report**
+- [x] **Unit 2: Cohort funnel report**
 
 **Goal:** Aggregate Unit 1's per-stage maps into a single cohort report with counts, drop-off percentages, and time-to-stage distributions.
 
@@ -207,7 +213,7 @@ StageDefinition = {
 - Tests pass.
 - Report output object is stable enough to render to CSV without further transformation.
 
-- [ ] **Unit 3: CLI script + README line**
+- [x] **Unit 3: CLI script + README line**
 
 **Goal:** Invocable CLI that calls Unit 2 and prints CSV + a human summary. One-line README entry.
 
@@ -248,6 +254,16 @@ StageDefinition = {
 - **API surface parity:** None. No public API surface.
 - **Integration coverage:** The per-stage resolvers are integration-tested against real Prisma. The cohort-report aggregation is tested with seeded data covering realistic drop-off patterns.
 - **Unchanged invariants:** All existing write paths, safety policies, scribe behavior, and user-facing surfaces are untouched.
+
+### Known follow-up — silent-fallback visibility (filed 2026-05-06)
+
+The shipped `hasAtLeastOneCitation` ([activation-funnel.ts:171-179](../../src/lib/metrics/activation-funnel.ts#L171-L179)) and the cohort `--user-ids` filter both exhibit the **silent-fallback** class-of-bug the team has since named (the same shape as the twMerge invisible-text bug): malformed inputs resolve to a default and the operator never sees how often it happened. Concrete gaps:
+
+1. **Malformed citations are not counted.** A bad-JSON row is silently dropped from stage 5; if 30% of qualifying rows have parse failures (e.g. from a future writer-side bug), the funnel under-reports activation by 30% and the operator treats the number as truth.
+2. **Cohort-id misses are not counted.** When `--user-ids "a,b,c"` is supplied and one ID doesn't exist in `User`, it's silently dropped from the cohort. Indistinguishable in the report from a legitimately small cohort.
+3. **No `Diagnostics:` footer convention.** No surface for "fallbacks fired during this run." Future scripts in `scripts/metrics/*` will independently re-invent or skip the same need.
+
+These don't reopen this plan — implementation already shipped. They go on the metrics-family backlog: a separate small PR adds (a) malformed-JSON count to the resolver return type, (b) `requested vs matched` userId reporting, (c) a shared `Diagnostics:` footer convention to be applied to this script and any future metric script.
 
 ## Risks & Dependencies
 
