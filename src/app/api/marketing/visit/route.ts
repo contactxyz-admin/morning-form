@@ -25,7 +25,6 @@ import { hashIp } from '@/lib/auth/ip-hash';
 import { isCohortKey } from '@/lib/marketing/cohorts';
 import {
   ANONYMOUS_COOKIE,
-  MARKETS,
   RATE_LIMIT_KINDS,
   VISIT_BEACON_HOURLY_CAP,
 } from '@/lib/marketing/constants';
