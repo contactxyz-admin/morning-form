@@ -35,14 +35,22 @@ export function PageTemplate({ page }: PageTemplateProps) {
         >
           Morning Form
         </Link>
-        <nav className="flex items-center gap-6">
+        <nav className="hidden sm:flex items-center gap-6">
           <Link href={`/${page.market}`} className={NAV_LINK_CLASS}>Home</Link>
           <Link href="/demo" className={NAV_LINK_CLASS}>See a demo</Link>
           <Link href="/sign-in" className={NAV_LINK_CLASS}>Sign in</Link>
         </nav>
+        <Link
+          href="/sign-in"
+          aria-label="Sign in"
+          className={`${NAV_LINK_CLASS} sm:hidden`}
+        >
+          Sign in
+        </Link>
       </header>
 
-      <HeroBlock page={page} eyebrow={eyebrow} />
+      <main>
+        <HeroBlock page={page} eyebrow={eyebrow} />
 
       {/* Body sections — typed flat strings, scanned by editorial-QA. */}
       <article className="px-6 sm:px-10 lg:px-16 pb-16 sm:pb-24 max-w-[1400px] mx-auto">
@@ -91,6 +99,7 @@ export function PageTemplate({ page }: PageTemplateProps) {
           />
         </div>
       </section>
+      </main>
 
       {/* Footer — text-only wordmark, mono-uppercase nav. */}
       <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">

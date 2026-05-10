@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { CohortKey } from '@/lib/marketing/cohorts';
 import type { Market } from '@/lib/marketing/constants';
@@ -19,7 +19,7 @@ interface EmailCaptureFormProps {
   caption?: string;
 }
 
-type Status = 'idle' | 'sent' | 'error' | 'rate_limited';
+type Status = 'idle' | 'submitting' | 'sent' | 'error' | 'rate_limited';
 
 /**
  * Phase 0 conversion CTA. Submits the visitor's email + signup context
@@ -28,6 +28,14 @@ type Status = 'idle' | 'sent' | 'error' | 'rate_limited';
  *
  * The form swaps to a "check your email" state on success so the
  * visitor knows the magic link is on the way without a full page nav.
+ *
+ * Implementation note: we deliberately use plain useState rather than
+ * useTransition here. useTransition is for non-urgent state updates
+ * React can defer; an async fetch-on-submit is neither non-urgent nor
+ * synchronously interruptible, and React 18's behaviour with async
+ * callbacks inside startTransition is finicky enough that the success
+ * state can fail to flip in dev/StrictMode. Plain state machine is
+ * predictable and one less primitive to reason about.
  */
 export function EmailCaptureForm({
   market,
@@ -38,35 +46,33 @@ export function EmailCaptureForm({
 }: EmailCaptureFormProps) {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<Status>('idle');
-  const [pending, startTransition] = useTransition();
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!email.trim()) return;
-    startTransition(async () => {
-      try {
-        const res = await fetch('/api/auth/request-link', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            email: email.trim(),
-            signupContext: { market, cohort, slug },
-          }),
-        });
-        if (res.status === 429) {
-          setStatus('rate_limited');
-          return;
-        }
-        if (!res.ok) {
-          setStatus('error');
-          return;
-        }
-        setStatus('sent');
-      } catch {
-        setStatus('error');
+    if (!email.trim() || status === 'submitting') return;
+    setStatus('submitting');
+    try {
+      const res = await fetch('/api/auth/request-link', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          signupContext: { market, cohort, slug },
+        }),
+      });
+      if (res.status === 429) {
+        setStatus('rate_limited');
+        return;
       }
-    });
+      if (!res.ok) {
+        setStatus('error');
+        return;
+      }
+      setStatus('sent');
+    } catch {
+      setStatus('error');
+    }
   }
 
   if (status === 'sent') {
@@ -82,6 +88,8 @@ export function EmailCaptureForm({
     );
   }
 
+  const submitting = status === 'submitting';
+
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="flex items-center gap-3 flex-wrap">
@@ -93,19 +101,19 @@ export function EmailCaptureForm({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           aria-label="Email address"
-          className="flex-1 min-w-[220px] rounded-card border border-border bg-surface px-4 py-3 text-body text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-text-secondary transition-colors"
-          disabled={pending}
+          className="flex-1 min-w-[220px] rounded-card border border-border bg-surface px-4 py-3 text-body text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-text-primary focus:ring-2 focus:ring-text-primary/20 transition-colors"
+          disabled={submitting}
         />
-        <Button type="submit" size="lg" disabled={pending}>
-          {pending ? 'Sending…' : buttonLabel}
+        <Button type="submit" size="lg" disabled={submitting}>
+          {submitting ? 'Sending…' : buttonLabel}
         </Button>
       </div>
       {status === 'rate_limited' ? (
-        <p className="text-caption text-caution">
+        <p className="text-caption text-caution" role="status">
           Too many requests. Try again in a few minutes.
         </p>
       ) : status === 'error' ? (
-        <p className="text-caption text-caution">
+        <p className="text-caption text-caution" role="status">
           Something went wrong. Please try again.
         </p>
       ) : caption ? (

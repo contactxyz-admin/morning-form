@@ -44,13 +44,20 @@ export default function LandingPage({ params }: MarketHomeProps) {
         >
           Morning Form
         </Link>
-        <nav className="flex items-center gap-6">
+        <nav className="hidden sm:flex items-center gap-6">
           {NAV_LINKS.map((t) => (
             <Link key={t.href} href={t.href} className={NAV_LINK_CLASS}>
               {t.label}
             </Link>
           ))}
         </nav>
+        <Link
+          href="/sign-in"
+          aria-label="Sign in"
+          className={`${NAV_LINK_CLASS} sm:hidden`}
+        >
+          Sign in
+        </Link>
       </header>
 
       {/* Hero — mono-uppercase eyebrow (was a chip-soft pill), ink headline,

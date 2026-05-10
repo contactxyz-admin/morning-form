@@ -34,7 +34,11 @@ export function MarketBanner({ pageMarket }: MarketBannerProps) {
   const switchTarget = inferred === 'uk' ? '/uk' : '/us';
 
   return (
-    <div className="border-b border-border bg-surface-warm">
+    <div
+      role="region"
+      aria-label="Market mismatch suggestion"
+      className="border-b border-border bg-surface-warm"
+    >
       <div className="px-6 sm:px-10 lg:px-16 py-2 max-w-[1400px] mx-auto flex items-center justify-between gap-4 text-caption text-text-secondary">
         <span>
           You appear to be visiting from {inferredLabel}.
