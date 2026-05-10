@@ -80,7 +80,7 @@ async function main() {
     },
   });
 
-  await prisma.protocol.upsert({
+  await prisma.priorities.upsert({
     where: { userId: user.id },
     update: {},
     create: {
@@ -88,39 +88,37 @@ async function main() {
       version: 1,
       status: 'active',
       rationale:
-        'Morning activation support, midday transition buffering, and structured evening downshift for sustained output with better sleep onset.',
+        'Demo seed — sustained-activator archetype priority markers. Real archetype-to-marker mapping lands via clinical review (U3 of priority-markers-pivot plan).',
       confidence: 'high',
       items: {
         create: [
           {
-            timeSlot: 'morning',
-            timeLabel: 'Morning — Activation Support',
-            compounds: 'L-Tyrosine + Alpha-GPC',
-            dosage: '500mg + 300mg',
-            timingCue: 'Before breakfast',
-            mechanism: 'Supports dopamine and acetylcholine synthesis for sustained focus.',
-            evidenceTier: 'strong',
+            markerName: 'Ferritin',
+            rationale: 'Iron stores often run low in men who train hard, even when haemoglobin reads normal.',
+            category: 'iron',
+            panelAvailability: 'both',
             sortOrder: 0,
           },
           {
-            timeSlot: 'afternoon',
-            timeLabel: 'Afternoon — Transition Buffer',
-            compounds: 'L-Theanine',
-            dosage: '200mg',
-            timingCue: 'After lunch',
-            mechanism: 'Smooths the cortisol curve without sedation.',
-            evidenceTier: 'strong',
+            markerName: 'Free testosterone',
+            rationale: 'Energy, libido, and recovery sit downstream of free T more reliably than total T.',
+            category: 'hormones',
+            panelAvailability: 'both',
             sortOrder: 1,
           },
           {
-            timeSlot: 'evening',
-            timeLabel: 'Evening — Downshift Protocol',
-            compounds: 'Magnesium L-Threonate + Apigenin',
-            dosage: '200mg + 50mg',
-            timingCue: '90 minutes before bed',
-            mechanism: 'Supports GABA activity and melatonin onset.',
-            evidenceTier: 'strong',
+            markerName: 'hs-CRP',
+            rationale: 'Persistently elevated inflammation signals something else is doing the work.',
+            category: 'inflammation',
+            panelAvailability: 'both',
             sortOrder: 2,
+          },
+          {
+            markerName: 'Vitamin D (25-OH)',
+            rationale: 'Northern winters consistently produce low values in men who work indoors.',
+            category: 'micronutrients',
+            panelAvailability: 'both',
+            sortOrder: 3,
           },
         ],
       },

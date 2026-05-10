@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { Protocol, StateProfile } from '@/types';
+import type { Priorities, StateProfile } from '@/types';
 
-type AssessmentData = { stateProfile: StateProfile; protocol: Protocol };
+type AssessmentData = { stateProfile: StateProfile; priorities: Priorities };
 
 type LoadState =
   | { kind: 'loading' }
@@ -13,8 +13,8 @@ type LoadState =
   | { kind: 'error'; message: string };
 
 /**
- * Fetches the persisted assessment output (state profile + protocol) for the
- * current user. Shared across /reveal/profile, /reveal/protocol, and
+ * Fetches the persisted assessment output (state profile + priorities) for
+ * the current user. Shared across /reveal/profile, /reveal/priorities, and
  * /reveal/rationale so each page renders real data rather than mock fixtures.
  *
  * Returns discriminated states so callers can route (e.g. not-onboarded →

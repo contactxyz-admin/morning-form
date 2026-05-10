@@ -34,15 +34,15 @@ export default function RationalePage() {
     );
   }
 
-  const { protocol } = state.data;
-  const paragraphs = protocol.rationale
+  const { priorities } = state.data;
+  const paragraphs = priorities.rationale
     .split(/\n\s*\n/) // blank-line paragraph split
     .map((p) => p.trim())
     .filter(Boolean);
   const paragraphsToRender =
-    paragraphs.length > 1 ? paragraphs : splitBySentence(protocol.rationale, 2);
+    paragraphs.length > 1 ? paragraphs : splitBySentence(priorities.rationale, 2);
   const confidenceLabel =
-    protocol.confidence.charAt(0).toUpperCase() + protocol.confidence.slice(1);
+    priorities.confidence.charAt(0).toUpperCase() + priorities.confidence.slice(1);
 
   return (
     <div className="min-h-screen bg-bg px-5 sm:px-8 pt-16 pb-32">
@@ -69,7 +69,7 @@ export default function RationalePage() {
             {confidenceLabel}
           </p>
           <p className="mt-3 text-body text-text-secondary leading-relaxed">
-            {CONFIDENCE_COPY[protocol.confidence]}
+            {CONFIDENCE_COPY[priorities.confidence]}
           </p>
         </Card>
       </motion.div>
@@ -85,9 +85,9 @@ export default function RationalePage() {
   );
 }
 
-// The protocol-engine emits a single-paragraph rationale. Breaking roughly in
-// half by sentence keeps the reveal page's existing two-column reading rhythm
-// without forcing the engine to change shape.
+// The priority-marker engine emits a single-paragraph rationale. Breaking
+// roughly in half by sentence keeps the reveal page's existing two-column
+// reading rhythm without forcing the engine to change shape.
 function splitBySentence(text: string, chunks: number): string[] {
   const sentences = text.match(/[^.!?]+[.!?]+\s*/g) ?? [text];
   if (sentences.length <= chunks) return [text];

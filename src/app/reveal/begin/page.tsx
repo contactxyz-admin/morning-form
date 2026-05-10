@@ -18,27 +18,24 @@ export default function BeginPage() {
       >
         <p className="text-label uppercase text-text-tertiary mb-5">Ready</p>
         <h1 className="font-display font-light text-display sm:text-display-xl text-text-primary -tracking-[0.04em] leading-[1.05]">
-          Your protocol is <span className="italic font-light">ready</span>.
+          Your record is <span className="italic font-light">ready</span>.
         </h1>
 
         <div className="mt-14 space-y-3">
-          <Button fullWidth size="lg" onClick={() => router.push('/setup')}>
-            Start your protocol
-          </Button>
-          <Button variant="secondary" fullWidth size="lg" disabled>
-            View alternative protocol
+          <Button fullWidth size="lg" onClick={() => router.push('/intake')}>
+            Open your record
           </Button>
         </div>
 
         <p className="mt-8 text-caption text-text-tertiary">
-          You can adjust timing and preferences after you begin.
+          Upload a recent blood panel and we&rsquo;ll translate it into plain English.
         </p>
 
         <Link
-          href="/guide"
+          href="/ask"
           className="mt-4 inline-block text-caption text-accent font-medium hover:underline underline-offset-4"
         >
-          Talk to our guide →
+          Ask a question first →
         </Link>
       </motion.div>
     </div>

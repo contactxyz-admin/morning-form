@@ -23,7 +23,7 @@ model User {
 
   assessment        AssessmentResponse?
   stateProfile      StateProfile?
-  protocol          Protocol?
+  priorities        Priorities?
   checkIns          CheckIn[]
   chatMessages      ChatMessage[]
   healthConnections HealthConnection[]
@@ -328,43 +328,59 @@ model StateProfile {
   updatedAt          DateTime @updatedAt
 }
 
-model Protocol {
-  id          String               @id @default(cuid())
-  userId      String               @unique
-  user        User                 @relation(fields: [userId], references: [id])
-  version     Int                  @default(1)
-  status      String               @default("active")
+// ---------------------------------------------------------------------------
+// Priority markers — post-assessment deliverable. Pivots the previous-gen
+// "supplement protocol" output (compounds + doses) to data-acquisition
+// guidance (which biomarkers are worth measuring for the user's archetype).
+// See docs/plans/2026-05-10-001-feat-priority-markers-pivot-plan.md.
+// Same table shape as the deleted Protocol/ProtocolItem (per-user, versioned,
+// rationale string, ordered items list) — only the field names + content
+// change. Adjustments stay (same versioning concept survives the rename).
+// ---------------------------------------------------------------------------
+model Priorities {
+  id          String                  @id @default(cuid())
+  userId      String                  @unique
+  user        User                    @relation(fields: [userId], references: [id])
+  version     Int                     @default(1)
+  status      String                  @default("active")
   rationale   String
-  confidence  String               @default("high")
-  items       ProtocolItem[]
-  adjustments ProtocolAdjustment[]
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  confidence  String                  @default("high")
+  items       PriorityMarker[]
+  adjustments PrioritiesAdjustment[]
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
 }
 
-model ProtocolItem {
-  id           String   @id @default(cuid())
-  protocolId   String
-  protocol     Protocol @relation(fields: [protocolId], references: [id])
-  timeSlot     String
-  timeLabel    String
-  compounds    String
-  dosage       String
-  timingCue    String
-  mechanism    String
-  evidenceTier String   @default("strong")
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now())
+model PriorityMarker {
+  id                String     @id @default(cuid())
+  prioritiesId      String
+  priorities        Priorities @relation(fields: [prioritiesId], references: [id])
+  // Marker name (e.g. "Ferritin", "Free testosterone", "ApoB"). NEVER a
+  // compound or supplement name — the editorial-QA gate at
+  // src/lib/compliance/static-copy.test.ts catches drift.
+  markerName        String
+  // One-sentence "why this matters for someone like you", tied to assessment
+  // answers. Plain prose; no imperative-treatment language.
+  rationale         String
+  // Grouping tag (e.g. "iron", "hormones", "cardio"). Used for visual
+  // grouping on the reveal page.
+  category          String
+  // Whether a typical UK or US private-blood-test panel includes the marker
+  // out-of-the-box. One of: 'uk' | 'us' | 'both' | 'neither'. Helps the
+  // visitor decide which provider to use.
+  panelAvailability String     @default("both")
+  sortOrder         Int        @default(0)
+  createdAt         DateTime   @default(now())
 }
 
-model ProtocolAdjustment {
-  id          String   @id @default(cuid())
-  protocolId  String
-  protocol    Protocol @relation(fields: [protocolId], references: [id])
-  description String
-  rationale   String
-  status      String   @default("pending")
-  createdAt   DateTime @default(now())
+model PrioritiesAdjustment {
+  id           String     @id @default(cuid())
+  prioritiesId String
+  priorities   Priorities @relation(fields: [prioritiesId], references: [id])
+  description  String
+  rationale    String
+  status       String     @default("pending")
+  createdAt    DateTime   @default(now())
 }
 
 model CheckIn {

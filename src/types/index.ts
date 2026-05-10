@@ -48,30 +48,36 @@ export interface Sensitivity {
   level: 'low' | 'moderate' | 'moderate-high' | 'high';
 }
 
-// ── Protocol Types ──
+// ── Priority-marker Types ──
+// (Pivoted from the previous-gen Protocol output. Markers are
+// data-acquisition guidance — what biomarkers to measure for the
+// user's archetype — never compounds or supplement names. The
+// editorial-QA gate at src/lib/compliance/static-copy.test.ts
+// catches drift.)
 
-export interface Protocol {
+export interface Priorities {
   id: string;
   version: number;
   status: 'active' | 'paused' | 'completed';
   rationale: string;
   confidence: 'high' | 'moderate' | 'low';
-  items: ProtocolItem[];
+  items: PriorityMarker[];
 }
 
-export interface ProtocolItem {
+export interface PriorityMarker {
   id: string;
-  timeSlot: 'morning' | 'afternoon' | 'evening';
-  timeLabel: string;
-  compounds: string;
-  dosage: string;
-  timingCue: string;
-  mechanism: string;
-  evidenceTier: 'strong' | 'moderate' | 'emerging';
+  /** Marker name, e.g. "Ferritin", "Free testosterone", "ApoB". */
+  markerName: string;
+  /** One-sentence "why this matters for someone like you". */
+  rationale: string;
+  /** Grouping tag (e.g. "iron", "hormones", "cardio"). */
+  category: string;
+  /** Where the marker appears in typical private-blood-test panels. */
+  panelAvailability: 'uk' | 'us' | 'both' | 'neither';
   sortOrder?: number;
 }
 
-export interface ProtocolAdjustment {
+export interface PrioritiesAdjustment {
   id: string;
   description: string;
   rationale: string;
@@ -199,9 +205,8 @@ export type AppPhase =
   | 'assessment'
   | 'processing'
   | 'reveal-profile'
-  | 'reveal-protocol'
+  | 'reveal-priorities'
   | 'reveal-rationale'
   | 'reveal-expectations'
   | 'reveal-begin'
-  | 'setup'
   | 'app';

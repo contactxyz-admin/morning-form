@@ -85,7 +85,7 @@ export default function ProfileRevealPage() {
 
       <div className="fixed bottom-0 left-0 right-0 px-5 sm:px-8 pb-6 pt-12 bg-gradient-to-t from-bg via-bg/95 to-transparent">
         <div className="max-w-xl mx-auto">
-          <Button fullWidth size="lg" onClick={() => router.push('/reveal/protocol')}>
+          <Button fullWidth size="lg" onClick={() => router.push('/reveal/priorities')}>
             Continue →
           </Button>
         </div>
