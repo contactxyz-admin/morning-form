@@ -1,8 +1,19 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { ActionIllustration } from '@/components/marketing/illustrations/action-illustration';
+import { ReadIllustration } from '@/components/marketing/illustrations/read-illustration';
+import { TrendIllustration } from '@/components/marketing/illustrations/trend-illustration';
 import { isMarket } from '@/lib/marketing/market';
 import { type Market } from '@/lib/marketing/constants';
+
+type CardKey = 'Trend' | 'Read' | 'Action';
+
+const CARD_ILLUSTRATION: Record<CardKey, (props: { className?: string }) => JSX.Element> = {
+  Trend: TrendIllustration,
+  Read: ReadIllustration,
+  Action: ActionIllustration,
+};
 
 interface MarketHomeProps {
   params: { market: string };
@@ -87,24 +98,33 @@ export default function LandingPage({ params }: MarketHomeProps) {
         </div>
       </section>
 
-      {/* Imagery rail — neutral rounded frames, equal heights, no decorative offsets. */}
+      {/* Imagery rail — three product-feature illustrations on the
+          panel-arch frame. Each illustration communicates a feature
+          (Trend / Read / Action) without making numerical or clinical
+          claims that real screenshots would have to defend. */}
       <section className="px-6 sm:px-10 lg:px-16 pb-28 sm:pb-40 max-w-[1400px] mx-auto">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8">
-          {[
+          {([
             { label: 'Trend', caption: 'Every marker moving in one view, month over month.' },
             { label: 'Read', caption: 'What your numbers mean, written in plain English.' },
             { label: 'Action', caption: 'What to change today, ranked by impact on your data.' },
-          ].map((p) => (
-            <figure key={p.label}>
-              <div className="panel-arch aspect-[4/5] flex items-end p-5 font-mono text-[10px] uppercase tracking-[0.14em] text-text-whisper">
-                {p.label}
-              </div>
-              <figcaption className="mt-5 text-caption leading-relaxed">
-                <span className="text-text-primary font-medium">{p.label}.</span>{' '}
-                <span className="text-text-tertiary">{p.caption}</span>
-              </figcaption>
-            </figure>
-          ))}
+          ] as ReadonlyArray<{ label: CardKey; caption: string }>).map((p) => {
+            const Illustration = CARD_ILLUSTRATION[p.label];
+            return (
+              <figure key={p.label}>
+                <div className="panel-arch aspect-[4/5] relative overflow-hidden">
+                  <Illustration className="absolute inset-0 w-full h-full" />
+                  <span className="absolute bottom-5 left-5 font-mono text-[10px] uppercase tracking-[0.14em] text-text-whisper">
+                    {p.label}
+                  </span>
+                </div>
+                <figcaption className="mt-5 text-caption leading-relaxed">
+                  <span className="text-text-primary font-medium">{p.label}.</span>{' '}
+                  <span className="text-text-tertiary">{p.caption}</span>
+                </figcaption>
+              </figure>
+            );
+          })}
         </div>
       </section>
 
