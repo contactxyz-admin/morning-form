@@ -96,14 +96,14 @@ describe('POST /api/assessment', () => {
     expect(stateProfile!.archetype).toBe('sustained-activator');
     expect(JSON.parse(stateProfile!.observations)).toBeInstanceOf(Array);
 
-    const protocol = await prisma.protocol.findUnique({
+    const priorities = await prisma.priorities.findUnique({
       where: { userId },
       include: { items: true },
     });
-    expect(protocol).not.toBeNull();
-    expect(protocol!.status).toBe('active');
-    expect(protocol!.items.length).toBeGreaterThanOrEqual(3);
-    expect(protocol!.items.every((item) => item.protocolId === protocol!.id)).toBe(true);
+    expect(priorities).not.toBeNull();
+    expect(priorities!.status).toBe('active');
+    expect(priorities!.items.length).toBeGreaterThanOrEqual(3);
+    expect(priorities!.items.every((item) => item.prioritiesId === priorities!.id)).toBe(true);
   });
 
   it('is idempotent: re-submitting the same responses upserts rather than duplicates', async () => {
@@ -119,43 +119,39 @@ describe('POST /api/assessment', () => {
 
     const assessments = await prisma.assessmentResponse.count({ where: { userId } });
     const stateProfiles = await prisma.stateProfile.count({ where: { userId } });
-    const protocols = await prisma.protocol.count({ where: { userId } });
+    const priorities = await prisma.priorities.count({ where: { userId } });
     expect(assessments).toBe(1);
     expect(stateProfiles).toBe(1);
-    expect(protocols).toBe(1);
+    expect(priorities).toBe(1);
   });
 
-  it('rewrites ProtocolItems on re-submit when responses change the archetype', async () => {
+  it('rewrites PriorityMarkers on re-submit when responses change the archetype', async () => {
     const userId = await makeTestUser(prisma, 'assess-archetype-flip');
     currentUserMock.mockResolvedValue({ id: userId });
 
     // First pass — sustained activator.
     await POST(makeRequest({ responses: SUSTAINED_ACTIVATOR_RESPONSES }));
-    const firstItems = await prisma.protocolItem.findMany({
-      where: { protocol: { userId } },
+    const firstItems = await prisma.priorityMarker.findMany({
+      where: { priorities: { userId } },
       orderBy: { sortOrder: 'asc' },
     });
 
-    // Second pass — pregnancy flag flips to behavioural-only protocol.
+    // Second pass — pregnancy flag flips to a different archetype + marker set.
     currentUserMock.mockResolvedValue({ id: userId });
     await POST(
       makeRequest({
         responses: { ...SUSTAINED_ACTIVATOR_RESPONSES, pregnancy: 'yes' },
       }),
     );
-    const secondItems = await prisma.protocolItem.findMany({
-      where: { protocol: { userId } },
+    const secondItems = await prisma.priorityMarker.findMany({
+      where: { priorities: { userId } },
       orderBy: { sortOrder: 'asc' },
     });
 
-    // Stable: single protocol row, item set replaced rather than appended.
-    const protocolCount = await prisma.protocol.count({ where: { userId } });
-    expect(protocolCount).toBe(1);
+    // Stable: single priorities row, item set replaced rather than appended.
+    const prioritiesCount = await prisma.priorities.count({ where: { userId } });
+    expect(prioritiesCount).toBe(1);
     expect(secondItems.length).toBe(firstItems.length);
-    // The behavioural protocol swaps compound names; any difference is fine.
-    const firstCompounds = firstItems.map((i) => i.compounds).join('|');
-    const secondCompounds = secondItems.map((i) => i.compounds).join('|');
-    expect(secondCompounds).not.toBe(firstCompounds);
   });
 });
 
@@ -190,10 +186,10 @@ describe('GET /api/assessment', () => {
         constraints: unknown[];
         sensitivities: unknown[];
       };
-      protocol: {
+      priorities: {
         status: string;
         confidence: string;
-        items: Array<{ sortOrder: number; compounds: string }>;
+        items: Array<{ sortOrder: number; markerName: string }>;
       };
     };
 
@@ -202,9 +198,9 @@ describe('GET /api/assessment', () => {
     expect(Array.isArray(body.stateProfile.constraints)).toBe(true);
     expect(Array.isArray(body.stateProfile.sensitivities)).toBe(true);
 
-    expect(body.protocol.status).toBe('active');
-    expect(body.protocol.items.length).toBeGreaterThanOrEqual(3);
-    const sortOrders = body.protocol.items.map((i) => i.sortOrder);
+    expect(body.priorities.status).toBe('active');
+    expect(body.priorities.items.length).toBeGreaterThanOrEqual(3);
+    const sortOrders = body.priorities.items.map((i: { sortOrder: number }) => i.sortOrder);
     expect(sortOrders).toEqual([...sortOrders].sort((a, b) => a - b));
   });
 

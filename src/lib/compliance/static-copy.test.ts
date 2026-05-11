@@ -18,7 +18,16 @@ import { join, relative } from 'node:path';
  */
 
 const ROOT = join(__dirname, '..', '..', '..');
-const SCAN_ROOTS = ['src/components', 'src/app', 'content/marketing'];
+const SCAN_ROOTS = [
+  'src/components',
+  'src/app',
+  'content/marketing',
+  // Priority-marker content lands here in Phase 2 of the priority-markers
+  // pivot (docs/plans/2026-05-10-001-feat-priority-markers-pivot-plan.md U3).
+  // Path is included now so the gate is ready when content arrives — the
+  // walker handles a missing directory gracefully.
+  'content/priority-markers',
+];
 
 // Files that are allowed to mention these strings because that is their job.
 const ALLOWLIST = new Set<string>([

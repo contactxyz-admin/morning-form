@@ -12,7 +12,7 @@ import { deriveStatus } from '@/components/home/record-anchor-helpers';
 import { AskAnywhereCard } from '@/components/home/ask-anywhere-card';
 import { getGreeting, formatDate, getTimeOfDay, getDateKey } from '@/lib/utils';
 import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
-import type { HealthSummary, ProtocolItem } from '@/types';
+import type { HealthSummary, PriorityMarker } from '@/types';
 import type { RecordIndex } from '@/lib/record/types';
 
 const EMPTY_HEALTH_SUMMARY: HealthSummary = {
@@ -23,14 +23,11 @@ const EMPTY_HEALTH_SUMMARY: HealthSummary = {
   metabolic: { glucose: null },
 };
 
-function pickNextProtocolItem(
-  items: ProtocolItem[],
-  timeOfDay: ReturnType<typeof getTimeOfDay>,
-): ProtocolItem | undefined {
-  if (items.length === 0) return undefined;
-  const targetSlot =
-    timeOfDay === 'afternoon' ? 'afternoon' : timeOfDay === 'evening' ? 'evening' : 'morning';
-  return items.find((item) => item.timeSlot === targetSlot) ?? items[0];
+function getTopPriorityMarker(items: PriorityMarker[]): PriorityMarker | undefined {
+  // Priority markers are pre-sorted by sortOrder in the API GET handler.
+  // The "Next priority" card surfaces the top marker — the one we'd most
+  // want the user to measure first for their archetype.
+  return items[0];
 }
 
 export default function HomePage() {
@@ -94,9 +91,9 @@ export default function HomePage() {
     };
   }, []);
 
-  const currentProtocolItem =
+  const topPriorityMarker =
     assessment.kind === 'ready'
-      ? pickNextProtocolItem(assessment.data.protocol.items, timeOfDay)
+      ? getTopPriorityMarker(assessment.data.priorities.items)
       : undefined;
 
   const showMorningCheckin = (timeOfDay === 'morning' || timeOfDay === 'afternoon') && !morningDone;
@@ -112,12 +109,12 @@ export default function HomePage() {
           <span className="text-label uppercase text-text-tertiary">Morning Form</span>
         </div>
         <Link
-          href="/guide"
-          aria-label="Open guide"
+          href="/settings"
+          aria-label="Open settings"
           className="inline-flex items-center justify-center rounded-full -m-2 p-2 focus-visible:outline-none focus-visible:shadow-ring-focus"
         >
           <Icon
-            name="guide"
+            name="settings"
             size="md"
             className="text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
           />
@@ -204,23 +201,25 @@ export default function HomePage() {
         {/* Your record — anchor card, position 3 */}
         <RecordAnchorCard state={recordState} />
 
-        {/* Next protocol — shown only when the user has a real protocol */}
-        {currentProtocolItem && (
+        {/* Next priority — surfaces the user's top priority biomarker so the
+            home page nudges them toward upload, not toward consumption. */}
+        {topPriorityMarker && (
           <Card variant="default">
             <div className="flex items-baseline gap-2.5 mb-2">
               <span className="font-mono text-label uppercase text-text-tertiary">02</span>
-              <span className="text-label uppercase text-text-tertiary">Next up</span>
+              <span className="text-label uppercase text-text-tertiary">Next priority</span>
             </div>
             <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
-              {currentProtocolItem.compounds}
+              {topPriorityMarker.markerName}
             </h3>
-            <p className="mt-1 font-mono text-data text-accent">{currentProtocolItem.dosage}</p>
-            <p className="mt-1 text-caption text-text-tertiary">{currentProtocolItem.timingCue}</p>
+            <p className="mt-2 text-body text-text-secondary leading-relaxed">
+              {topPriorityMarker.rationale}
+            </p>
             <Link
-              href="/protocol"
+              href="/intake"
               className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group"
             >
-              View detail
+              Upload a panel
               <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
             </Link>
           </Card>

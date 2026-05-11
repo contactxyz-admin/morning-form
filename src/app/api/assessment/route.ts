@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
-import { generateStateProfile, generateProtocol } from '@/lib/protocol-engine';
+import { generateStateProfile, buildPriorities } from '@/lib/priority-marker-engine';
 import type {
   AssessmentResponses,
   Constraint,
   Observation,
-  Protocol,
+  Priorities,
+  PriorityMarker,
   Sensitivity,
   StateProfile,
 } from '@/types';
 
 /**
- * POST /api/assessment — persist the answers and the derived state/protocol.
+ * POST /api/assessment — persist the answers and the derived state/priorities.
  *
  * Idempotent by userId: re-submitting the same (or corrected) responses upserts
  * all three rows in a single transaction. Onboarding-status is derived by the
@@ -20,8 +21,8 @@ import type {
  * write here would leave the user stuck bouncing back to /assessment on every
  * sign-in. Everything lands atomically or nothing does.
  *
- * ProtocolItems are rewritten on every upsert — the protocol-engine can produce
- * a different item set if the archetype changes (e.g. pregnancy flip), so we
+ * PriorityMarker rows are rewritten on every upsert — the engine can produce
+ * a different marker set if the archetype changes (e.g. pregnancy flip), so we
  * deleteMany + createMany rather than trying to diff.
  */
 export async function POST(request: Request) {
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
 
   try {
     const stateProfile = generateStateProfile(responses);
-    const protocol = generateProtocol(responses);
+    const priorities = buildPriorities(responses);
 
     await prisma.$transaction(async (tx) => {
       await tx.assessmentResponse.upsert({
@@ -73,40 +74,37 @@ export async function POST(request: Request) {
         },
       });
 
-      const persistedProtocol = await tx.protocol.upsert({
+      const persistedPriorities = await tx.priorities.upsert({
         where: { userId: user.id },
         update: {
-          version: protocol.version,
-          status: protocol.status,
-          rationale: protocol.rationale,
-          confidence: protocol.confidence,
+          version: priorities.version,
+          status: priorities.status,
+          rationale: priorities.rationale,
+          confidence: priorities.confidence,
         },
         create: {
           userId: user.id,
-          version: protocol.version,
-          status: protocol.status,
-          rationale: protocol.rationale,
-          confidence: protocol.confidence,
+          version: priorities.version,
+          status: priorities.status,
+          rationale: priorities.rationale,
+          confidence: priorities.confidence,
         },
       });
 
-      await tx.protocolItem.deleteMany({ where: { protocolId: persistedProtocol.id } });
-      await tx.protocolItem.createMany({
-        data: protocol.items.map((item, idx) => ({
-          protocolId: persistedProtocol.id,
-          timeSlot: item.timeSlot,
-          timeLabel: item.timeLabel,
-          compounds: item.compounds,
-          dosage: item.dosage,
-          timingCue: item.timingCue,
-          mechanism: item.mechanism,
-          evidenceTier: item.evidenceTier,
+      await tx.priorityMarker.deleteMany({ where: { prioritiesId: persistedPriorities.id } });
+      await tx.priorityMarker.createMany({
+        data: priorities.items.map((item, idx) => ({
+          prioritiesId: persistedPriorities.id,
+          markerName: item.markerName,
+          rationale: item.rationale,
+          category: item.category,
+          panelAvailability: item.panelAvailability,
           sortOrder: item.sortOrder ?? idx,
         })),
       });
     });
 
-    return NextResponse.json({ stateProfile, protocol });
+    return NextResponse.json({ stateProfile, priorities });
   } catch (error) {
     console.error('[API] Assessment error:', error);
     return NextResponse.json({ error: 'Failed to process assessment' }, { status: 500 });
@@ -114,10 +112,10 @@ export async function POST(request: Request) {
 }
 
 /**
- * GET /api/assessment — return the persisted state profile + protocol for the
- * current user. Powers /reveal/* pages, which used to read mockStateProfile.
- * Returns 404 when the user hasn't completed onboarding yet; callers should
- * route back to /assessment in that case.
+ * GET /api/assessment — return the persisted state profile + priorities for
+ * the current user. Powers /reveal/* pages. Returns 404 when the user hasn't
+ * completed onboarding yet; callers should route back to /assessment in that
+ * case.
  */
 export async function GET() {
   const user = await getCurrentUser();
@@ -125,15 +123,15 @@ export async function GET() {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
-  const [stateRow, protocolRow] = await Promise.all([
+  const [stateRow, prioritiesRow] = await Promise.all([
     prisma.stateProfile.findUnique({ where: { userId: user.id } }),
-    prisma.protocol.findUnique({
+    prisma.priorities.findUnique({
       where: { userId: user.id },
       include: { items: { orderBy: { sortOrder: 'asc' } } },
     }),
   ]);
 
-  if (!stateRow || !protocolRow) {
+  if (!stateRow || !prioritiesRow) {
     return NextResponse.json({ error: 'Assessment not completed.' }, { status: 404 });
   }
 
@@ -146,24 +144,21 @@ export async function GET() {
     sensitivities: JSON.parse(stateRow.sensitivities) as Sensitivity[],
   };
 
-  const protocol: Protocol = {
-    id: protocolRow.id,
-    version: protocolRow.version,
-    status: protocolRow.status as Protocol['status'],
-    rationale: protocolRow.rationale,
-    confidence: protocolRow.confidence as Protocol['confidence'],
-    items: protocolRow.items.map((item) => ({
+  const priorities: Priorities = {
+    id: prioritiesRow.id,
+    version: prioritiesRow.version,
+    status: prioritiesRow.status as Priorities['status'],
+    rationale: prioritiesRow.rationale,
+    confidence: prioritiesRow.confidence as Priorities['confidence'],
+    items: prioritiesRow.items.map((item): PriorityMarker => ({
       id: item.id,
-      timeSlot: item.timeSlot as 'morning' | 'afternoon' | 'evening',
-      timeLabel: item.timeLabel,
-      compounds: item.compounds,
-      dosage: item.dosage,
-      timingCue: item.timingCue,
-      mechanism: item.mechanism,
-      evidenceTier: item.evidenceTier as 'strong' | 'moderate' | 'emerging',
+      markerName: item.markerName,
+      rationale: item.rationale,
+      category: item.category,
+      panelAvailability: item.panelAvailability as PriorityMarker['panelAvailability'],
       sortOrder: item.sortOrder,
     })),
   };
 
-  return NextResponse.json({ stateProfile, protocol });
+  return NextResponse.json({ stateProfile, priorities });
 }

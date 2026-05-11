@@ -80,49 +80,41 @@ async function main() {
     },
   });
 
-  await prisma.protocol.upsert({
+  // Demo Priorities row — uses the priority-marker-engine output for the
+  // sustained-activator archetype so the seed stays in sync with whatever
+  // content/priority-markers/sustained-activator.ts says (the editorial-QA
+  // gate scans that file). Avoids the seed drifting out of sync with the
+  // clinically-reviewed content.
+  const { buildPriorities } = await import('../src/lib/priority-marker-engine');
+  const demoPriorities = buildPriorities({
+    primary_goal: 'focus',
+    afternoon_energy: 4,
+    wind_down_ability: 2,
+    morning_energy: 3,
+    stress_level: 3,
+    stimulant_sensitivity: 'moderate',
+    sleep_quality: 3,
+    anxiety_frequency: 'sometimes',
+    night_waking: 'rare',
+    pregnancy: 'no',
+  });
+  await prisma.priorities.upsert({
     where: { userId: user.id },
     update: {},
     create: {
       userId: user.id,
       version: 1,
       status: 'active',
-      rationale:
-        'Morning activation support, midday transition buffering, and structured evening downshift for sustained output with better sleep onset.',
+      rationale: demoPriorities.rationale,
       confidence: 'high',
       items: {
-        create: [
-          {
-            timeSlot: 'morning',
-            timeLabel: 'Morning — Activation Support',
-            compounds: 'L-Tyrosine + Alpha-GPC',
-            dosage: '500mg + 300mg',
-            timingCue: 'Before breakfast',
-            mechanism: 'Supports dopamine and acetylcholine synthesis for sustained focus.',
-            evidenceTier: 'strong',
-            sortOrder: 0,
-          },
-          {
-            timeSlot: 'afternoon',
-            timeLabel: 'Afternoon — Transition Buffer',
-            compounds: 'L-Theanine',
-            dosage: '200mg',
-            timingCue: 'After lunch',
-            mechanism: 'Smooths the cortisol curve without sedation.',
-            evidenceTier: 'strong',
-            sortOrder: 1,
-          },
-          {
-            timeSlot: 'evening',
-            timeLabel: 'Evening — Downshift Protocol',
-            compounds: 'Magnesium L-Threonate + Apigenin',
-            dosage: '200mg + 50mg',
-            timingCue: '90 minutes before bed',
-            mechanism: 'Supports GABA activity and melatonin onset.',
-            evidenceTier: 'strong',
-            sortOrder: 2,
-          },
-        ],
+        create: demoPriorities.items.map((m) => ({
+          markerName: m.markerName,
+          rationale: m.rationale,
+          category: m.category,
+          panelAvailability: m.panelAvailability,
+          sortOrder: m.sortOrder,
+        })),
       },
     },
   });
