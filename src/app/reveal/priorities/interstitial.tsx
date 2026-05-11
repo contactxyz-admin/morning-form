@@ -17,8 +17,8 @@
  * surface; the interstitial is intentionally lighter and assumes the
  * user has reached it via a normal flow.
  */
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { trackIntakeClickAndRedirect } from './actions';
 
 export function PrioritiesInterstitial() {
   return (
@@ -35,11 +35,11 @@ export function PrioritiesInterstitial() {
           values into plain English — what each number means for you, written
           against the pattern your assessment surfaced.
         </p>
-        <div className="mt-14">
-          <Link href="/intake">
-            <Button size="lg">Upload your last blood panel</Button>
-          </Link>
-        </div>
+        <form action={trackIntakeClickAndRedirect} className="mt-14">
+          <Button type="submit" size="lg">
+            Upload your last blood panel
+          </Button>
+        </form>
         <p className="mt-8 text-caption text-text-tertiary">
           No panel yet? Order one through Medichecks, Thriva, Quest, or
           LabCorp — we&rsquo;ll handle whichever PDF format they send back.

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
+import { trackIntakeClickAndRedirect } from './actions';
 
 const stagger = {
   hidden: { opacity: 0 },
@@ -99,9 +100,11 @@ export function PrioritiesClient() {
 
       <div className="fixed bottom-0 left-0 right-0 px-5 sm:px-8 pb-6 pt-12 bg-gradient-to-t from-bg via-bg/95 to-transparent">
         <div className="max-w-xl mx-auto flex flex-col gap-3">
-          <Button fullWidth size="lg" onClick={() => router.push('/intake')}>
-            Upload your last blood panel →
-          </Button>
+          <form action={trackIntakeClickAndRedirect}>
+            <Button type="submit" fullWidth size="lg">
+              Upload your last blood panel →
+            </Button>
+          </form>
           <Button
             fullWidth
             size="lg"
