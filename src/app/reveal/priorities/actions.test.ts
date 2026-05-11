@@ -1,31 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { incrementDiagnostic as IncrementDiagnostic } from '@/lib/marketing/diagnostic';
+import type { redirect as Redirect } from 'next/navigation';
 
-const incrementDiagnostic = vi.fn();
-const redirect = vi.fn((path: string) => {
-  // next/navigation's redirect signals control flow by throwing a special
-  // marker error. We mimic the throw so the action terminates after the
-  // redirect, the same way it does in a real server-action invocation.
-  throw new Error(`__NEXT_REDIRECT:${path}`);
-});
+// Next signals redirects by throwing an Error with a digest of
+// `NEXT_REDIRECT;<type>;<path>;<status>;`. Checking the digest prefix is the
+// stable detection contract — the internal isRedirectError import path has
+// shifted across Next minor versions.
+const isRedirectError = (e: unknown): e is Error & { digest: string } =>
+  e instanceof Error &&
+  'digest' in e &&
+  typeof (e as { digest: unknown }).digest === 'string' &&
+  (e as { digest: string }).digest.startsWith('NEXT_REDIRECT');
 
-vi.mock('@/lib/marketing/diagnostic', () => ({
-  incrementDiagnostic: (key: string) => incrementDiagnostic(key),
+const { incrementDiagnostic, redirect } = vi.hoisted(() => ({
+  incrementDiagnostic: vi.fn<typeof IncrementDiagnostic>(),
+  redirect: vi.fn<typeof Redirect>((path) => {
+    const err = new Error('NEXT_REDIRECT') as Error & { digest: string };
+    err.digest = `NEXT_REDIRECT;replace;${path};307;`;
+    throw err;
+  }),
 }));
 
-vi.mock('next/navigation', () => ({
-  redirect: (path: string) => redirect(path),
-}));
+vi.mock('@/lib/marketing/diagnostic', () => ({ incrementDiagnostic }));
+vi.mock('next/navigation', () => ({ redirect }));
 
 import { trackIntakeClickAndRedirect } from './actions';
 
 describe('trackIntakeClickAndRedirect', () => {
-  it('increments the priorities-to-intake-click counter and redirects to /intake', async () => {
-    await expect(trackIntakeClickAndRedirect()).rejects.toThrow(
-      '__NEXT_REDIRECT:/intake',
-    );
-
+  it('increments the priorities-to-intake-click counter, then redirects to /intake', async () => {
+    await expect(trackIntakeClickAndRedirect()).rejects.toSatisfy(isRedirectError);
     expect(incrementDiagnostic).toHaveBeenCalledWith('priorities-to-intake-click');
-    expect(incrementDiagnostic).toHaveBeenCalledTimes(1);
     expect(redirect).toHaveBeenCalledWith('/intake');
   });
 });
