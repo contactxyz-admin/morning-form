@@ -111,12 +111,12 @@ export default function TopicPage() {
       {/* Back + kicker */}
       <div className="flex items-center justify-between mb-8">
         <Link
-          href="/graph"
+          href="/record"
           className="flex items-center gap-2 text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
-          aria-label="Back to graph"
+          aria-label="Back to record"
         >
           <Icon name="back" size="sm" />
-          <span className="text-caption">Graph</span>
+          <span className="text-caption">Record</span>
         </Link>
         <div className="flex items-center gap-3">
           {state.status === 'ready' && state.data.status === 'full' && (

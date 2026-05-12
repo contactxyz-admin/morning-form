@@ -225,8 +225,8 @@ export default function HomePage() {
           </Card>
         )}
 
-        {/* Graph view */}
-        <Link href="/graph" className="block">
+        {/* Map view — the force-directed graph mode of the unified vault */}
+        <Link href="/record?mode=map" className="block">
           <Card variant="action" accentColor="sage" clickable>
             <div className="flex items-baseline gap-2.5 mb-2">
               <span className="font-mono text-label uppercase text-text-tertiary">·</span>

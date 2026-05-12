@@ -229,6 +229,50 @@ describe('aggregateRecord', () => {
       expect(result.edges.some((e) => e.fromNodeId === 'drop' || e.toNodeId === 'drop')).toBe(false);
     });
 
+    it('omitting nodeCap falls back to the production default of 200', () => {
+      // Pin the constant — a refactor that flips DEFAULT_NODE_CAP from 200
+      // to anything else would silently change behavior in production; this
+      // test fails loudly so it must be deliberate.
+      const manyNodes = Array.from({ length: 201 }, (_, i) =>
+        node(`n${i}`, 'biomarker', `marker${i}`, `Marker ${i}`),
+      );
+
+      const result = aggregateRecord({
+        topics: [],
+        nodes: manyNodes,
+        sources: [],
+        edges: [],
+      });
+
+      expect(result.totalNodes).toBe(201);
+      expect(result.nodes).toHaveLength(200);
+      expect(result.truncated).toBe(true);
+    });
+
+    it('nodeCap=0 explicitly truncates to zero nodes (does NOT mean "unlimited")', () => {
+      // The current contract: `nodeCap ?? DEFAULT_NODE_CAP` uses nullish
+      // coalescing, so 0 passes through and slice(0, 0) yields []. This
+      // test locks the contract so a future refactor to `||` (which would
+      // silently default 0 -> 200) breaks loudly.
+      const nodes = [
+        node('n1', 'biomarker', 'ferritin'),
+        node('n2', 'biomarker', 'hrv'),
+      ];
+
+      const result = aggregateRecord({
+        topics: [],
+        nodes,
+        sources: [],
+        edges: [],
+        nodeCap: 0,
+      });
+
+      expect(result.totalNodes).toBe(2);
+      expect(result.nodes).toEqual([]);
+      expect(result.edges).toEqual([]);
+      expect(result.truncated).toBe(true);
+    });
+
     it('builds nodeTypeCounts across the kept set', () => {
       const nodes = [
         node('n1', 'biomarker', 'ferritin'),

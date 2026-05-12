@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
@@ -8,16 +8,11 @@ import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-view';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { useRecordIndex } from '@/lib/hooks/use-record-index';
 import type { GraphNodeWire } from '@/types/graph';
 import { VaultIndex } from './vault-index';
-import { VaultModeToggle, type VaultMode } from './vault-mode-toggle';
+import { VaultModeToggle, parseVaultMode, type VaultMode } from './vault-mode-toggle';
 import type { RecordIndex as RecordIndexData } from '@/lib/record/types';
-
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'unauth' }
-  | { status: 'error'; message: string }
-  | { status: 'ready'; data: RecordIndexData };
 
 /**
  * Minimum non-SUPPORTS-edges-per-node ratio before the desktop canvas
@@ -51,11 +46,10 @@ export function VaultLayout() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isDesktop = useMediaQuery('(min-width: 768px)');
-  const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const { state, refresh } = useRecordIndex();
   const [, startTransition] = useTransition();
 
-  const rawMode = searchParams.get('mode');
-  const requestedMode: VaultMode = rawMode === 'map' ? 'map' : 'index';
+  const requestedMode = parseVaultMode(searchParams.get('mode'));
   const selectedEntityKey = searchParams.get('entity');
 
   // Empty-graph guard: when the user has no nodes, map mode renders a list-
@@ -64,64 +58,6 @@ export function VaultLayout() {
   // to index without editing the URL. Coerce to index for that case.
   const hasNodes = state.status === 'ready' && state.data.totalNodes > 0;
   const mode: VaultMode = requestedMode === 'map' && !hasNodes ? 'index' : requestedMode;
-
-  /**
-   * Re-fetch the vault index without flashing the page through a loading
-   * state — used by post-add callbacks (e.g. AddDocumentsDialog completion).
-   * Keeping the current data visible while the new payload is in-flight
-   * avoids unmounting topics/activity/mode-toggle on a happy-path action.
-   * Errors still surface via the error-state branch.
-   */
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch('/api/record', { cache: 'no-store' });
-      if (res.status === 401) {
-        setState({ status: 'unauth' });
-        return;
-      }
-      if (!res.ok) {
-        setState({ status: 'error', message: `HTTP ${res.status}` });
-        return;
-      }
-      const json = (await res.json()) as RecordIndexData;
-      setState({ status: 'ready', data: json });
-    } catch (err) {
-      setState({
-        status: 'error',
-        message: err instanceof Error ? err.message : 'Unknown error',
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/record', { cache: 'no-store' });
-        if (cancelled) return;
-        if (res.status === 401) {
-          setState({ status: 'unauth' });
-          return;
-        }
-        if (!res.ok) {
-          setState({ status: 'error', message: `HTTP ${res.status}` });
-          return;
-        }
-        const json = (await res.json()) as RecordIndexData;
-        if (!cancelled) setState({ status: 'ready', data: json });
-      } catch (err) {
-        if (!cancelled) {
-          setState({
-            status: 'error',
-            message: err instanceof Error ? err.message : 'Unknown error',
-          });
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const updateUrl = useCallback(
     (next: { mode?: VaultMode; entity?: string | null }) => {
@@ -157,6 +93,18 @@ export function VaultLayout() {
     state.status === 'ready' && selectedEntityKey
       ? state.data.nodes.find((n) => n.canonicalKey === selectedEntityKey) ?? null
       : null;
+
+  // Deep-link truncation guard (ce:review C3): if the URL references an
+  // entity that isn't present in the importance-capped node set (likely
+  // dropped by the 200-node cap when totalNodes > 200, or a stale link),
+  // clear the param so the URL truthfully reflects what's selected. Avoids
+  // a silent no-op where the URL claims an entity is open but the sheet is
+  // closed.
+  useEffect(() => {
+    if (state.status === 'ready' && selectedEntityKey && !selectedNode) {
+      updateUrl({ entity: null });
+    }
+  }, [state.status, selectedEntityKey, selectedNode, updateUrl]);
 
   return (
     <div className="min-h-screen bg-record-grid">
