@@ -1,8 +1,11 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { VAULT_MODES, parseVaultMode, type VaultMode } from './vault-mode';
 
-export type VaultMode = 'index' | 'map';
+// Re-export the pure-logic symbols so consumers have one canonical import.
+export { VAULT_MODES, parseVaultMode };
+export type { VaultMode };
 
 interface VaultModeToggleProps {
   active: VaultMode;
