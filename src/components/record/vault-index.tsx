@@ -12,12 +12,20 @@ import { TopicCard } from './topic-card';
 import { WhatWeKnowCard } from './what-we-know-card';
 import type { RecordIndex as RecordIndexData } from '@/lib/record/types';
 
-interface RecordIndexProps {
+interface VaultIndexProps {
   data: RecordIndexData;
   onDocumentsAdded?: () => void;
 }
 
-function RecordIndex({ data, onDocumentsAdded }: RecordIndexProps) {
+/**
+ * Index-mode body of the vault — topics, recent activity, and the catalog
+ * framing. Rendered inside <VaultLayout> when `mode=index` (default). When
+ * the user toggles to `mode=map`, <VaultLayout> swaps to <VaultMapMode>.
+ *
+ * Structurally unchanged from the previous `<RecordIndex>` — same component,
+ * renamed for the vault-unification mental model.
+ */
+function VaultIndex({ data, onDocumentsAdded }: VaultIndexProps) {
   const { topics, recentActivity, graphSummary } = data;
   const isEmpty = graphSummary.sourceCount === 0;
   const [addOpen, setAddOpen] = useState(false);
@@ -100,4 +108,4 @@ function RecordIndex({ data, onDocumentsAdded }: RecordIndexProps) {
   );
 }
 
-export { RecordIndex };
+export { VaultIndex };

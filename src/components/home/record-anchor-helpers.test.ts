@@ -7,6 +7,11 @@ function makeRecord(overrides: Partial<RecordIndex> = {}): RecordIndex {
     topics: [],
     recentActivity: [],
     graphSummary: { nodeCount: 0, sourceCount: 0, topicCount: 0 },
+    nodes: [],
+    edges: [],
+    nodeTypeCounts: {},
+    truncated: false,
+    totalNodes: 0,
     ...overrides,
   };
 }

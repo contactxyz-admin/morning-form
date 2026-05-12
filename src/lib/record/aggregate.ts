@@ -1,14 +1,19 @@
 import { listTopicConfigs } from '@/lib/topics/registry';
-import type { GraphNodeRecord } from '@/lib/graph/types';
-import type {
-  AggregateInput,
-  LogEntry,
-  LogEntryKind,
-  RecordIndex,
-  TopicStatus,
+import { computeImportance } from '@/lib/graph/importance';
+import type { GraphNodeRecord, NodeType } from '@/lib/graph/types';
+import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
+import {
+  edgeRecordToWire,
+  nodeRecordToWire,
+  type AggregateInput,
+  type LogEntry,
+  type LogEntryKind,
+  type RecordIndex,
+  type TopicStatus,
 } from './types';
 
 const MAX_RECENT_ACTIVITY = 10;
+const DEFAULT_NODE_CAP = 200;
 
 function matchesTopic(node: GraphNodeRecord, patterns: string[]): boolean {
   const key = node.canonicalKey.toLowerCase();
@@ -16,9 +21,15 @@ function matchesTopic(node: GraphNodeRecord, patterns: string[]): boolean {
 }
 
 /**
- * Pure aggregator powering `GET /api/record/index`. Kept Prisma-free so tests
- * can exercise the full surface with synthetic fixtures — the route layer
- * handles auth and hydration, the library handles the shape.
+ * Pure aggregator powering the unified `GET /api/record` endpoint (and the
+ * legacy `/api/record/index` route during the Phase 2 transition). Kept
+ * Prisma-free so tests can exercise the full surface with synthetic fixtures
+ * — the route layer handles auth and hydration, the library handles the
+ * shape.
+ *
+ * Folds in importance scoring + the 200-node cap that the previous
+ * `/api/graph` endpoint owned, so a single round-trip serves the entire
+ * vault surface (index + map mode + entity detail).
  */
 export function aggregateRecord(input: AggregateInput): RecordIndex {
   const configs = listTopicConfigs();
@@ -81,7 +92,9 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
       ts: n.createdAt.toISOString(),
       kind: 'node-added' satisfies LogEntryKind,
       label: `${n.displayName} added to graph`,
-      targetHref: `/graph?focus=${n.id}`,
+      // Lands on the unified vault with the entity preselected. The URL-state
+      // pattern (?entity=<canonicalKey>) is what Phase 2 U3+U4 reads.
+      targetHref: `/record?entity=${n.canonicalKey}`,
     });
   }
 
@@ -90,13 +103,64 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
     .slice(0, MAX_RECENT_ACTIVITY)
     .map((a) => ({ ts: a.ts, kind: a.kind, label: a.label, targetHref: a.targetHref }));
 
+  // Importance scoring + node cap (formerly /api/graph). Recency scoring is
+  // a no-op when recencyMap isn't supplied — that path is for callers (tests)
+  // that don't care about per-node scoring specifics. Output is the wire
+  // shape (string timestamps) so clients consume it directly without an
+  // adapter pass.
+  const nodeCap = input.nodeCap ?? DEFAULT_NODE_CAP;
+  const totalNodes = input.nodes.length;
+
+  let nodes: GraphNodeWire[] = [];
+  let edges: GraphEdgeWire[] = [];
+  const nodeTypeCounts: Partial<Record<NodeType, number>> = {};
+  let truncated = false;
+
+  if (totalNodes > 0) {
+    const scores = computeImportance({
+      nodes: input.nodes,
+      edges: input.edges,
+      recencyMap: input.recencyMap,
+    });
+
+    const scoredPairs: Array<{ record: GraphNodeRecord; score: number }> = input.nodes.map(
+      (record) => {
+        const s = scores.get(record.id)!;
+        return { record, score: s.score };
+      },
+    );
+    scoredPairs.sort((a, b) => b.score - a.score);
+
+    truncated = scoredPairs.length > nodeCap;
+    const keptPairs = truncated ? scoredPairs.slice(0, nodeCap) : scoredPairs;
+
+    nodes = keptPairs.map(({ record }) => {
+      const s = scores.get(record.id)!;
+      return nodeRecordToWire(record, { tier: s.tier, score: s.score });
+    });
+
+    const keptIds = new Set(nodes.map((n) => n.id));
+    edges = input.edges
+      .filter((e) => keptIds.has(e.fromNodeId) && keptIds.has(e.toNodeId))
+      .map(edgeRecordToWire);
+
+    for (const n of nodes) {
+      nodeTypeCounts[n.type] = (nodeTypeCounts[n.type] ?? 0) + 1;
+    }
+  }
+
   return {
     topics,
     recentActivity,
     graphSummary: {
-      nodeCount: input.nodes.length,
+      nodeCount: totalNodes,
       sourceCount: input.sources.length,
       topicCount: topics.length,
     },
+    nodes,
+    edges,
+    nodeTypeCounts,
+    truncated,
+    totalNodes,
   };
 }
