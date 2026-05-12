@@ -55,11 +55,24 @@ export function VaultLayout() {
   const [, startTransition] = useTransition();
 
   const rawMode = searchParams.get('mode');
-  const mode: VaultMode = rawMode === 'map' ? 'map' : 'index';
+  const requestedMode: VaultMode = rawMode === 'map' ? 'map' : 'index';
   const selectedEntityKey = searchParams.get('entity');
 
+  // Empty-graph guard: when the user has no nodes, map mode renders a list-
+  // empty state, but `VaultModeToggle` disables every non-active pill, so a
+  // user landing on `/record?mode=map` with an empty graph cannot click back
+  // to index without editing the URL. Coerce to index for that case.
+  const hasNodes = state.status === 'ready' && state.data.totalNodes > 0;
+  const mode: VaultMode = requestedMode === 'map' && !hasNodes ? 'index' : requestedMode;
+
+  /**
+   * Re-fetch the vault index without flashing the page through a loading
+   * state — used by post-add callbacks (e.g. AddDocumentsDialog completion).
+   * Keeping the current data visible while the new payload is in-flight
+   * avoids unmounting topics/activity/mode-toggle on a happy-path action.
+   * Errors still surface via the error-state branch.
+   */
   const refresh = useCallback(async () => {
-    setState({ status: 'loading' });
     try {
       const res = await fetch('/api/record', { cache: 'no-store' });
       if (res.status === 401) {
