@@ -193,7 +193,7 @@ export interface HealthSummary {
 
 // ── Navigation ──
 
-export type NavTab = 'home' | 'record' | 'graph' | 'protocol' | 'you';
+export type NavTab = 'home' | 'record' | 'ask' | 'you';
 
 // ── Onboarding ──
 

@@ -7,20 +7,25 @@ describe('resolveActiveTab', () => {
     ['/check-in', 'home'],
     ['/intake', 'home'],
     ['/intake/upload', 'home'],
-    ['/ask', 'home'],
-    ['/ask?seed=ferritin', 'home'],
+    ['/ask', 'ask'],
+    ['/ask?seed=ferritin', 'ask'],
     ['/record', 'record'],
     ['/record/source/abc123', 'record'],
     ['/topics/iron', 'record'],
-    ['/graph', 'graph'],
-    ['/graph/demo-id', 'graph'],
-    ['/protocol', 'protocol'],
     ['/you', 'you'],
     ['/guide', 'you'],
     ['/settings', 'you'],
     ['/settings/shared-links', 'you'],
   ] as const)('maps %s -> %s', (path, expected) => {
     expect(resolveActiveTab(path)).toBe(expected);
+  });
+
+  it('falls back to home for /graph (route 308 redirects to /record so layout never sees this path in the wild)', () => {
+    expect(resolveActiveTab('/graph')).toBe('home');
+  });
+
+  it('falls back to home for /protocol (RSC redirects to /reveal/priorities so layout never sees this path in the wild)', () => {
+    expect(resolveActiveTab('/protocol')).toBe('home');
   });
 
   it('falls back to home for unmapped paths', () => {
