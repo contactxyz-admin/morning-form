@@ -70,7 +70,7 @@ export default function HomePage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/record/index', { cache: 'no-store' });
+        const res = await fetch('/api/record', { cache: 'no-store' });
         if (cancelled) return;
         const data = res.ok ? ((await res.json()) as RecordIndex) : null;
         if (cancelled) return;

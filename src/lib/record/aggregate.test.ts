@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { GraphNodeRecord } from '@/lib/graph/types';
+import type { GraphEdgeRecord, GraphNodeRecord } from '@/lib/graph/types';
 import { aggregateRecord } from './aggregate';
-import type { AggregateEdgeRow, AggregateSourceRow, AggregateTopicRow } from './types';
+import type { AggregateSourceRow, AggregateTopicRow } from './types';
 
 function node(
   id: string,
@@ -9,6 +9,7 @@ function node(
   canonicalKey: string,
   displayName = canonicalKey,
   createdAt = new Date('2026-04-10T00:00:00Z'),
+  promoted = true,
 ): GraphNodeRecord {
   return {
     id,
@@ -18,7 +19,7 @@ function node(
     displayName,
     attributes: {},
     confidence: 1,
-    promoted: true,
+    promoted,
     createdAt,
     updatedAt: createdAt,
   };
@@ -37,8 +38,24 @@ function source(
   return { id, kind, capturedAt, createdAt };
 }
 
-function edge(fromNodeId: string, toNodeId: string, fromDocumentId: string | null = null): AggregateEdgeRow {
-  return { fromNodeId, toNodeId, fromDocumentId };
+function edge(
+  fromNodeId: string,
+  toNodeId: string,
+  fromDocumentId: string | null = null,
+  type: GraphEdgeRecord['type'] = 'ASSOCIATED_WITH',
+): GraphEdgeRecord {
+  return {
+    id: `${fromNodeId}-${type}-${toNodeId}`,
+    userId: 'u',
+    type,
+    fromNodeId,
+    toNodeId,
+    fromChunkId: null,
+    fromDocumentId,
+    weight: 1,
+    metadata: {},
+    createdAt: new Date('2026-04-10T00:00:00Z'),
+  };
 }
 
 describe('aggregateRecord', () => {
@@ -94,6 +111,12 @@ describe('aggregateRecord', () => {
     expect(result.recentActivity).toEqual([]);
     expect(result.graphSummary).toEqual({ nodeCount: 0, sourceCount: 0, topicCount: 3 });
     expect(result.topics.every((t) => t.sourceCount === 0 && t.nodeCount === 0)).toBe(true);
+    // Graph fields are present but empty on a blank record.
+    expect(result.nodes).toEqual([]);
+    expect(result.edges).toEqual([]);
+    expect(result.nodeTypeCounts).toEqual({});
+    expect(result.truncated).toBe(false);
+    expect(result.totalNodes).toBe(0);
   });
 
   it('activity is reverse-chronological across sources, topic compiles, and nodes', () => {
@@ -113,6 +136,18 @@ describe('aggregateRecord', () => {
     expect(result.recentActivity[2].kind).toBe('source-added');
   });
 
+  it('node-added activity targets /record?entity=<canonicalKey> (vault entity-state URL, not retired /graph)', () => {
+    const result = aggregateRecord({
+      topics: [],
+      nodes: [node('n1', 'biomarker', 'ferritin', 'Ferritin')],
+      sources: [],
+      edges: [],
+    });
+
+    const nodeEntry = result.recentActivity.find((a) => a.kind === 'node-added')!;
+    expect(nodeEntry.targetHref).toBe('/record?entity=ferritin');
+  });
+
   it('recent activity is capped at 10 entries', () => {
     const sources = Array.from({ length: 15 }, (_, i) =>
       source(`s${i}`, 'lab_pdf', new Date(2026, 3, i + 1)),
@@ -124,5 +159,113 @@ describe('aggregateRecord', () => {
     const tsOrder = result.recentActivity.map((a) => a.ts);
     const sortedDesc = [...tsOrder].sort().reverse();
     expect(tsOrder).toEqual(sortedDesc);
+  });
+
+  describe('graph fields (importance + cap + edges)', () => {
+    it('emits importance-scored nodes ordered by score (highest first)', () => {
+      const nodes = [
+        node('n1', 'biomarker', 'ferritin', 'Ferritin'), // promoted
+        node('n2', 'biomarker', 'hrv', 'HRV', undefined, false), // not promoted
+        node('n3', 'symptom', 'fatigue', 'Fatigue'), // promoted
+      ];
+      const edges = [
+        edge('n1', 'n3'), // n1 + n3 each get a degree edge
+        edge('n1', 'n2'), // n1 gets another
+      ];
+
+      const result = aggregateRecord({ topics: [], nodes, sources: [], edges });
+
+      // n1 has promoted + 2 degree edges → highest score.
+      expect(result.nodes[0].canonicalKey).toBe('ferritin');
+      expect(result.nodes[0].score).toBeGreaterThan(result.nodes[1].score);
+      expect(result.nodes[0].tier).toBeLessThanOrEqual(result.nodes[1].tier);
+      // Every node carries tier + score.
+      expect(result.nodes.every((n) => typeof n.tier === 'number' && typeof n.score === 'number')).toBe(true);
+    });
+
+    it('caps nodes at nodeCap and reports truncated=true', () => {
+      const manyNodes = Array.from({ length: 5 }, (_, i) =>
+        node(`n${i}`, 'biomarker', `m${i}`, `M${i}`),
+      );
+
+      const result = aggregateRecord({
+        topics: [],
+        nodes: manyNodes,
+        sources: [],
+        edges: [],
+        nodeCap: 3,
+      });
+
+      expect(result.totalNodes).toBe(5);
+      expect(result.nodes).toHaveLength(3);
+      expect(result.truncated).toBe(true);
+    });
+
+    it('filters edges to the kept-nodes set when truncated', () => {
+      const nodes = [
+        node('keep1', 'biomarker', 'ferritin', 'Ferritin'),
+        node('keep2', 'biomarker', 'hrv', 'HRV'),
+        node('drop', 'biomarker', 'cholesterol', 'Cholesterol'),
+      ];
+      // Without a cap on a 3-node set, all three are kept. Force a cap so
+      // one node drops, then assert any edge touching the dropped node is
+      // filtered out.
+      const edges = [
+        edge('keep1', 'keep2', null, 'ASSOCIATED_WITH'),
+        edge('keep1', 'drop', null, 'ASSOCIATED_WITH'), // should drop
+      ];
+
+      const result = aggregateRecord({
+        topics: [],
+        nodes,
+        sources: [],
+        edges,
+        nodeCap: 2,
+      });
+
+      const keptIds = new Set(result.nodes.map((n) => n.id));
+      expect(result.edges.every((e) => keptIds.has(e.fromNodeId) && keptIds.has(e.toNodeId))).toBe(true);
+      // The keep1-drop edge must be gone.
+      expect(result.edges.some((e) => e.fromNodeId === 'drop' || e.toNodeId === 'drop')).toBe(false);
+    });
+
+    it('builds nodeTypeCounts across the kept set', () => {
+      const nodes = [
+        node('n1', 'biomarker', 'ferritin'),
+        node('n2', 'biomarker', 'hrv'),
+        node('n3', 'symptom', 'fatigue'),
+        node('n4', 'intervention', 'iron-protocol'),
+      ];
+
+      const result = aggregateRecord({ topics: [], nodes, sources: [], edges: [] });
+
+      expect(result.nodeTypeCounts.biomarker).toBe(2);
+      expect(result.nodeTypeCounts.symptom).toBe(1);
+      expect(result.nodeTypeCounts.intervention).toBe(1);
+    });
+
+    it('recencyMap (when supplied) lifts the score of recent nodes', () => {
+      const recentDate = new Date(); // very recent → within recency window
+      const nodes = [
+        node('recent', 'biomarker', 'ferritin', 'Ferritin'),
+        node('stale', 'biomarker', 'hrv', 'HRV'),
+      ];
+      const recencyMap = new Map<string, Date | null>([
+        ['recent', recentDate],
+        ['stale', null],
+      ]);
+
+      const result = aggregateRecord({
+        topics: [],
+        nodes,
+        sources: [],
+        edges: [],
+        recencyMap,
+      });
+
+      const recent = result.nodes.find((n) => n.id === 'recent')!;
+      const stale = result.nodes.find((n) => n.id === 'stale')!;
+      expect(recent.score).toBeGreaterThan(stale.score);
+    });
   });
 });

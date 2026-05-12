@@ -1,4 +1,5 @@
-import type { GraphNodeRecord } from '@/lib/graph/types';
+import type { GraphEdgeRecord, GraphNodeRecord, NodeType } from '@/lib/graph/types';
+import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 
 /**
  * Per-topic state shown on `/record` — enough to render a card without a
@@ -33,11 +34,28 @@ export interface RecordIndex {
   topics: TopicStatus[];
   recentActivity: LogEntry[];
   graphSummary: GraphSummary;
+  /**
+   * Importance-scored nodes, capped at `nodeCap` (default 200 in the route
+   * handler). Order is descending by score, so `nodes[0]` is the most
+   * important node in the user's graph. Wire shape — string timestamps —
+   * because this is the JSON-serialised response consumed by client
+   * components (`<GraphCanvas>`, `<GraphListView>`) without adapter shims.
+   */
+  nodes: GraphNodeWire[];
+  /** Edges restricted to the kept-nodes set. SUPPORTS edges retained. */
+  edges: GraphEdgeWire[];
+  /** Counts per node type across the kept-nodes set. */
+  nodeTypeCounts: Partial<Record<NodeType, number>>;
+  /** True when the importance-ranked node count exceeded `nodeCap`. */
+  truncated: boolean;
+  /** Total node count across the user's full graph (pre-truncation). */
+  totalNodes: number;
 }
 
 /**
  * Plain-old-data shapes the aggregate function consumes. Kept narrow so the
- * pure function is trivial to unit-test without Prisma.
+ * pure function is trivial to unit-test without Prisma — the route layer
+ * hydrates these from Prisma rows.
  */
 export interface AggregateTopicRow {
   topicKey: string;
@@ -52,15 +70,59 @@ export interface AggregateSourceRow {
   createdAt: Date;
 }
 
-export interface AggregateEdgeRow {
-  fromNodeId: string;
-  toNodeId: string;
-  fromDocumentId: string | null;
-}
-
 export interface AggregateInput {
   topics: AggregateTopicRow[];
   nodes: GraphNodeRecord[];
   sources: AggregateSourceRow[];
-  edges: AggregateEdgeRow[];
+  edges: GraphEdgeRecord[];
+  /**
+   * Optional. Per-node `latest supporting-doc capturedAt`. When supplied,
+   * importance scoring uses recency; otherwise recency contributes 0. The
+   * route handler always supplies this; tests can omit when scoring
+   * specifics aren't under test.
+   */
+  recencyMap?: Map<string, Date | null>;
+  /** Defaults to 200 (matches the previous `/api/graph` cap). */
+  nodeCap?: number;
+}
+
+/**
+ * Convert a server-side `GraphNodeRecord` (with Date timestamps) into the
+ * JSON-serialised wire shape clients consume. Reused for edges in the
+ * companion helper below. Kept here so the aggregate function can emit the
+ * wire shape directly without callers having to round-trip through Date.
+ */
+export function nodeRecordToWire(
+  n: GraphNodeRecord,
+  scoring: { tier: GraphNodeWire['tier']; score: number },
+): GraphNodeWire {
+  return {
+    id: n.id,
+    userId: n.userId,
+    type: n.type,
+    canonicalKey: n.canonicalKey,
+    displayName: n.displayName,
+    attributes: n.attributes,
+    confidence: n.confidence,
+    promoted: n.promoted,
+    createdAt: n.createdAt.toISOString(),
+    updatedAt: n.updatedAt.toISOString(),
+    tier: scoring.tier,
+    score: scoring.score,
+  };
+}
+
+export function edgeRecordToWire(e: GraphEdgeRecord): GraphEdgeWire {
+  return {
+    id: e.id,
+    userId: e.userId,
+    type: e.type,
+    fromNodeId: e.fromNodeId,
+    toNodeId: e.toNodeId,
+    fromChunkId: e.fromChunkId,
+    fromDocumentId: e.fromDocumentId,
+    weight: e.weight,
+    metadata: e.metadata,
+    createdAt: e.createdAt.toISOString(),
+  };
 }
