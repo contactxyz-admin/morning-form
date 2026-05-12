@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { VaultLayout } from '@/components/record/vault-layout';
 
 /**
@@ -6,7 +7,18 @@ import { VaultLayout } from '@/components/record/vault-layout';
  *
  * Page-level entry is intentionally thin; the orchestrator handles auth,
  * data fetch, URL-state, and the index/map mode swap.
+ *
+ * Suspense wrapper required because `<VaultLayout>` reads URL state via
+ * `useSearchParams()`, which forces a client-side-rendering bailout at
+ * build time without a boundary — see
+ * https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout.
+ * `fallback={null}` because `<VaultLayout>` renders its own loading state
+ * the moment it hydrates.
  */
 export default function RecordPage() {
-  return <VaultLayout />;
+  return (
+    <Suspense fallback={null}>
+      <VaultLayout />
+    </Suspense>
+  );
 }
