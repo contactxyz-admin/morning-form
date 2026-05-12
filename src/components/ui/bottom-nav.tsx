@@ -12,8 +12,7 @@ interface BottomNavProps {
 const tabs: { id: NavTab; label: string; icon: IconName; href: string }[] = [
   { id: 'home', label: 'Home', icon: 'home', href: '/home' },
   { id: 'record', label: 'Record', icon: 'record', href: '/record' },
-  { id: 'graph', label: 'Graph', icon: 'graph', href: '/graph' },
-  { id: 'protocol', label: 'Protocol', icon: 'protocol', href: '/protocol' },
+  { id: 'ask', label: 'Ask', icon: 'guide', href: '/ask' },
   { id: 'you', label: 'You', icon: 'profile', href: '/you' },
 ];
 
