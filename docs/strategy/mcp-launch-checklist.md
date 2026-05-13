@@ -63,24 +63,13 @@ Add the Claude Code instructions to the just-issued dialog after the package is 
 
 ### 3. Submit to MCP directories
 
-#### Anthropic MCP directory
-Process: not yet automated; reach out to the Anthropic DevRel team or submit via their MCP servers PR list (https://github.com/modelcontextprotocol/servers).
+Ready-to-submit copy for all three registries lives in [mcp-directory-submission.md](mcp-directory-submission.md):
 
-Information to provide:
-- Name: MorningForm
-- Description: Read-only access to a user's personal health graph — biomarkers, symptoms, conditions, medications, source documents — for AI agents to ground responses in real clinical context.
-- Server URL: `https://morning-form.vercel.app/api/mcp`
-- Setup instructions: link to https://morning-form.vercel.app/settings/integrations/claude
-- Tools: list the 8 read-only tools with one-line descriptions (from `tools/list`)
-- Auth: bearer token (user-issued via web UI)
-- License: TBD
+- **Anthropic** — PR against https://github.com/modelcontextprotocol/servers (README entry to Community Servers section + PR description)
+- **Cursor** — MCP marketplace JSON entry (process TBD, check https://docs.cursor.com/context/model-context-protocol)
+- **VS Code MCP extension** — YAML catalog entry
 
-#### Cursor MCP marketplace
-Cursor's MCP server registry: https://cursor.sh/mcp (URL TBD; check Cursor docs).
-Same info as Anthropic submission.
-
-#### VS Code MCP extension catalog
-The MCP extension's catalog: settings JSON entry. Open a PR against the extension's example-servers list with the same info.
+All three can be submitted in parallel — none has a hard dependency on the others.
 
 ### 4. Post-launch monitoring
 
@@ -89,17 +78,16 @@ For the first 2 weeks, watch:
 - 401 traffic: anomalous bursts suggest token harvesting attempts
 - 429 traffic: legitimate over-cap users → consider per-token rate-limit override
 
-Set up a daily query:
-```sql
-SELECT
-  date_trunc('day', "createdAt") AS day,
-  "resultStatus",
-  count(*)
-FROM "MCPAuditEvent"
-WHERE "createdAt" > now() - interval '14 days'
-GROUP BY 1, 2
-ORDER BY 1 DESC, 2;
+Use the bundled CLI rather than ad-hoc SQL:
+
+```bash
+pnpm mcp:audit                       # 14-day daily breakdown by status
+pnpm mcp:audit --days 30 --status error   # last month, errors only
+pnpm mcp:audit --tools               # which tools agents actually call
+pnpm mcp:audit --users               # who's actively using MCP
 ```
+
+The script reads `MCPAuditEvent` rows from `DATABASE_URL` and renders a compact tabular breakdown. See [scripts/metrics/mcp-audit.ts](../../scripts/metrics/mcp-audit.ts).
 
 ### 5. Known follow-ups (Phase 2.5 backlog)
 
