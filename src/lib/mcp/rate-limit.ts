@@ -39,10 +39,15 @@ export async function checkMcpRateLimit(
 ): Promise<RateLimitResult> {
   const windowStart = new Date(now.getTime() - MCP_RATE_LIMIT_WINDOW_MS);
 
+  // Exclude rows that ARE the throttle outcome. Otherwise each rate-limited
+  // attempt writes an audit row that itself counts toward the next call's
+  // rate-limit count, producing a self-amplifying throttle: retry-spamming
+  // clients extend their own window indefinitely (review correctness-1).
   const count = await db.mCPAuditEvent.count({
     where: {
       tokenId,
       createdAt: { gte: windowStart },
+      resultStatus: { not: 'rate_limited' },
     },
   });
 
@@ -56,7 +61,11 @@ export async function checkMcpRateLimit(
   // table scan — the table is per-token-prefixed via the @@index([tokenId,
   // createdAt]) so this stays cheap even with millions of historical rows.
   const oldestInWindow = await db.mCPAuditEvent.findFirst({
-    where: { tokenId, createdAt: { gte: windowStart } },
+    where: {
+      tokenId,
+      createdAt: { gte: windowStart },
+      resultStatus: { not: 'rate_limited' },
+    },
     orderBy: { createdAt: 'asc' },
     select: { createdAt: true },
   });

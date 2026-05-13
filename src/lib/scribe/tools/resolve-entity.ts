@@ -52,8 +52,14 @@ export const resolveEntityHandler: ToolHandler<
     'Look up a graph node by its canonical key (e.g. "ferritin", "fatigue", "creatine_monohydrate"). Returns the node id + display metadata when found, `{ found: false }` otherwise. Use after `list_graph_index` or `search_graph_nodes` to address an entity for follow-up calls like `get_node_detail`.',
   parameters: resolveEntitySchema,
   async execute(ctx: ToolContext, args: ResolveEntityArgs) {
+    // canonicalKey is lowercase-by-convention (see src/lib/intake/biomarkers.ts
+    // for the write-side normalization on lab data). External agents passing
+    // human-typed strings like 'Ferritin' must resolve to the stored
+    // 'ferritin' row. Normalize on the read side rather than depending on
+    // caller discipline.
+    const canonicalKey = args.canonicalKey.toLowerCase();
     const row = await ctx.db.graphNode.findFirst({
-      where: { userId: ctx.userId, canonicalKey: args.canonicalKey },
+      where: { userId: ctx.userId, canonicalKey },
       select: {
         id: true,
         type: true,

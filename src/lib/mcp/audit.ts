@@ -29,6 +29,30 @@ export interface WriteMcpAuditEventInput {
 }
 
 /**
+ * Hard cap on serialized parameters length stored per audit row. Caps the
+ * per-call storage cost (review adv-mcp-003) and blunts the unknown-key
+ * padding amplification (review adv-mcp-004) for the error path that
+ * intentionally logs rawArgs.
+ */
+const MAX_PARAMETERS_BYTES = 8 * 1024;
+
+/**
+ * Safely stringify the parameters object. JSON.stringify can throw on
+ * pathological input (circular references, BigInt, etc.) — without this
+ * wrap the whole audit write fails silently and the call leaves no trail.
+ */
+function safeStringifyParameters(parameters: unknown): string {
+  let raw: string;
+  try {
+    raw = JSON.stringify(parameters ?? {});
+  } catch {
+    raw = '"<unserializable>"';
+  }
+  if (raw.length <= MAX_PARAMETERS_BYTES) return raw;
+  return raw.slice(0, MAX_PARAMETERS_BYTES) + '"<truncated>"';
+}
+
+/**
  * Best-effort audit-event write. Catches and logs DB errors rather than
  * propagating them — a failed audit write must not become a failed tool
  * response (the user already paid in scribe latency).
@@ -43,7 +67,7 @@ export async function writeMcpAuditEvent(
         tokenId: input.tokenId,
         userId: input.userId,
         toolName: input.toolName,
-        parameters: JSON.stringify(input.parameters ?? {}),
+        parameters: safeStringifyParameters(input.parameters),
         resultStatus: input.resultStatus,
         errorMessage: input.errorMessage ?? null,
         latencyMs: input.latencyMs,

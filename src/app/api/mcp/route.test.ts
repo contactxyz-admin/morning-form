@@ -28,8 +28,10 @@ afterAll(async () => {
 // data is naturally scoped. A wipe-per-test would race against parallel
 // test files sharing the same test DB.
 
-// Import AFTER the prisma mock so the route reads from the test DB.
-const { POST } = await import('./route');
+// Static import — vi.mock above is hoisted by vitest's transform so the
+// mock takes effect before the route module loads, regardless of import
+// ordering in this file.
+import { POST } from './route';
 
 interface JsonRpcEnvelope {
   jsonrpc: '2.0';
@@ -137,7 +139,7 @@ describe('POST /api/mcp — initialize handshake', () => {
 });
 
 describe('POST /api/mcp — tools/list', () => {
-  it('returns exactly the 9 read-allowlist tools', async () => {
+  it('returns exactly the 8 read-allowlist tools', async () => {
     const userId = await makeTestUser(prisma, 'mcp-route-list');
     const { rawToken } = await createMcpToken(prisma, { userId, label: 'list' });
 
@@ -162,12 +164,16 @@ describe('POST /api/mcp — tools/list', () => {
       'list_graph_index',
       'recognize_pattern_in_history',
       'resolve_entity',
-      'route_to_gp_prep',
       'search_graph_nodes',
     ]);
 
     // refer_to_specialist must NOT be exposed (spawns child scribes — not read-only).
     expect(names).not.toContain('refer_to_specialist');
+    // route_to_gp_prep was removed from the allowlist in the ce:review pass —
+    // its result payload is consumed by the compile pipeline (not run on
+    // MCP path), so external calls were Silent Actions. Re-expose once a
+    // real GpPrepQuestion write path lands.
+    expect(names).not.toContain('route_to_gp_prep');
   });
 
   it('topic-scoped tools advertise a topicKey field in inputSchema', async () => {

@@ -43,6 +43,31 @@ const SERVER_INFO = {
 } as const;
 
 /**
+ * Server-level instructions surfaced to MCP clients during `initialize`.
+ * Gives external agents enough domain context to choose the right tool
+ * without consulting external docs — closes the "domain vocabulary
+ * unknown to fresh agents" gap from the PR #106 review.
+ */
+const SERVER_INSTRUCTIONS = `MorningForm is a longitudinal personal health record. This MCP server exposes a user's vault — graph nodes for biomarkers, symptoms, conditions, medications, interventions; per-topic compiled summaries; provenance back to source documents.
+
+Read-only access. No write tools.
+
+Workflow:
+1. Call list_graph_index first to discover topics + recent activity + top nodes (capped at 200 by importance).
+2. Use resolve_entity to map a canonical key (e.g. "ferritin", "fatigue") to a node id.
+3. Use get_node_detail / get_node_provenance to read facts + their supporting source chunks. Every claim is grounded in a SourceChunk.
+4. For topic-scoped reasoning (search, range comparison, pattern recognition), pass topicKey explicitly — discoverable via list_graph_index or get_topic_overview.
+
+Specialist routing is internal to the scribe; external clients invoke specialist tools directly. Do not invent tool names.`;
+
+/**
+ * Hard cap on request body size. Authenticated DoS via multi-GB POSTs to
+ * a streamable transport is the obvious attack vector — the SDK's
+ * handleRequest buffers req.json() with no limit (review sec-1).
+ */
+const MAX_BODY_BYTES = 256 * 1024;
+
+/**
  * Parse the bearer token from the `Authorization` header. Returns null
  * for any malformed input — no error throw, the caller just emits 401.
  */
@@ -58,11 +83,26 @@ function extractBearerToken(req: Request): string | null {
 function jsonError(status: number, body: object, extraHeaders: HeadersInit = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', ...extraHeaders },
+    headers: {
+      'Content-Type': 'application/json',
+      // Per-user vault state is never cacheable at intermediaries. Vary by
+      // Authorization so any well-behaved CDN treats different tokens as
+      // distinct cache keys (review api-contract-7).
+      'Cache-Control': 'no-store, private',
+      Vary: 'Authorization',
+      ...extraHeaders,
+    },
   });
 }
 
 async function handle(req: Request): Promise<Response> {
+  // Body-size cap before transport.handleRequest invokes req.json() —
+  // unbounded for authenticated POSTs without this gate (review sec-1).
+  const lengthHeader = req.headers.get('content-length');
+  if (lengthHeader && Number.parseInt(lengthHeader, 10) > MAX_BODY_BYTES) {
+    return jsonError(413, { error: 'Request body too large.' });
+  }
+
   const rawToken = extractBearerToken(req);
   if (!rawToken) {
     logMcpAuthFailure('missing_bearer');
@@ -81,7 +121,9 @@ async function handle(req: Request): Promise<Response> {
   const rl = await checkMcpRateLimit(prisma, token.id);
   if (!rl.allowed) {
     // Audit the throttle so the abuse pattern shows up in the trail.
-    await writeMcpAuditEvent(prisma, {
+    // Fire-and-forget — matches the success path semantics in tool-adapter.ts
+    // and keeps the 429 fast. (writeMcpAuditEvent swallows its own errors.)
+    void writeMcpAuditEvent(prisma, {
       tokenId: token.id,
       userId: token.userId,
       toolName: '__rate_limited__',
@@ -99,7 +141,7 @@ async function handle(req: Request): Promise<Response> {
   // Build a fresh server + transport per request (stateless mode). userId
   // is closed over by the tool callbacks below — safe because the server
   // instance never outlives this handler call.
-  const server = new McpServer(SERVER_INFO);
+  const server = new McpServer(SERVER_INFO, { instructions: SERVER_INSTRUCTIONS });
   const transport = new WebStandardStreamableHTTPServerTransport({
     // Stateless mode: no sessionIdGenerator means each request is its own
     // session. Simplifies horizontal scaling — no sticky-session routing.
@@ -129,7 +171,13 @@ async function handle(req: Request): Promise<Response> {
   return response;
 }
 
-export async function POST(req: Request): Promise<Response> {
+/**
+ * Top-level error wrap shared by every supported HTTP method. Streamable
+ * HTTP accepts GET (SSE handshake), POST (RPC), and DELETE (session
+ * terminate, no-op in stateless mode). Same auth + rate-limit gate
+ * applies to all three.
+ */
+async function handleWithTopLevelErrorWrap(req: Request): Promise<Response> {
   try {
     return await handle(req);
   } catch (err) {
@@ -138,14 +186,6 @@ export async function POST(req: Request): Promise<Response> {
   }
 }
 
-export async function GET(req: Request): Promise<Response> {
-  // Streamable HTTP also accepts GET for SSE streams in some client flows.
-  // The same auth + rate-limit gate applies.
-  try {
-    return await handle(req);
-  } catch (err) {
-    console.error('[mcp] unhandled error', err);
-    return jsonError(500, { error: 'Internal server error.' });
-  }
-}
+export const POST = handleWithTopLevelErrorWrap;
+export const GET = handleWithTopLevelErrorWrap;
 

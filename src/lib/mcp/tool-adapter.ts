@@ -31,9 +31,16 @@ import { writeMcpAuditEvent } from './audit';
 
 /**
  * Read-only allowlist. Anything not in this set is invisible to external
- * MCP clients. `refer_to_specialist` is intentionally excluded — it
- * spawns a child scribe invocation (side effect; LLM cost) and is a
- * control-flow primitive for internal orchestration, not a read.
+ * MCP clients.
+ *
+ * Intentional exclusions:
+ *   - `refer_to_specialist` — spawns a child scribe invocation (side
+ *     effect; LLM cost). Internal orchestration primitive, not a read.
+ *   - `route_to_gp_prep` — its result payload is consumed by the compile
+ *     pipeline and the inline-explain card; the compile pipeline doesn't
+ *     run on the MCP path, so an external call is a Silent Action
+ *     (audit row written, nothing user-visible). Will be re-exposed once
+ *     a real `GpPrepQuestion` write path lands.
  */
 export const READ_ALLOWED_TOOLS = [
   'search_graph_nodes',
@@ -41,7 +48,6 @@ export const READ_ALLOWED_TOOLS = [
   'get_node_provenance',
   'compare_to_reference_range',
   'recognize_pattern_in_history',
-  'route_to_gp_prep',
   'list_graph_index',
   'resolve_entity',
   'get_topic_overview',
@@ -58,17 +64,17 @@ export function isReadAllowed(name: string): name is ReadAllowedToolName {
  * `inputSchema` adds a required `topicKey: string` field; the adapter
  * extracts it from args and injects into ToolContext at call time.
  *
- * Whole-graph tools (list_graph_index, resolve_entity) and tools that
- * take topicKey as an arg already (get_topic_overview) are not in this
- * list — they don't need adapter-side merging.
+ * Whole-graph tools (list_graph_index, resolve_entity), tools that take
+ * topicKey as an arg already (get_topic_overview), and tools that scope
+ * by nodeId + userId at the query layer (get_node_detail,
+ * get_node_provenance — ctx.topicKey is unread in both) are not in this
+ * list. Adding a tool here that doesn't actually read ctx.topicKey is
+ * friction for external callers with no security gain.
  */
 const TOPIC_SCOPED_TOOLS: ReadonlySet<string> = new Set([
   'search_graph_nodes',
-  'get_node_detail',
-  'get_node_provenance',
   'compare_to_reference_range',
   'recognize_pattern_in_history',
-  'route_to_gp_prep',
 ]);
 
 /**
@@ -174,7 +180,11 @@ function registerOne(args: {
           tokenId,
           userId,
           toolName: handler.name,
-          parameters: rawArgs,
+          // Pass the Zod-parsed args, not raw. Two reasons:
+          //   1. Zod strips unknown keys — kills the 10MB-padding
+          //      amplification attack (review adv-mcp-004).
+          //   2. Audit reflects what the handler actually executed.
+          parameters: parsed,
           resultStatus: 'success',
           latencyMs: Date.now() - startedAt,
         });
@@ -186,6 +196,9 @@ function registerOne(args: {
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
+        // On the error path `parsed` may not be in scope (if parse() itself
+        // threw). Fall back to rawArgs; the 8KB truncation + safe-stringify
+        // in writeMcpAuditEvent prevents oversized-arg amplification.
         void writeMcpAuditEvent(db, {
           tokenId,
           userId,
@@ -217,5 +230,12 @@ function extractShape(schema: z.ZodType<unknown>): Record<string, z.ZodTypeAny> 
   if (schema instanceof z.ZodObject) {
     return schema.shape as Record<string, z.ZodTypeAny>;
   }
-  return {};
+  // Throw at registration time rather than silently registering a
+  // zero-arg tool that the MCP client can't usefully call. The day a
+  // scribe tool switches to z.union / z.discriminatedUnion / .refine
+  // (which wraps in ZodEffects), this is the loud failure that catches
+  // it instead of a wire-time silent UX bug.
+  throw new Error(
+    `MCP tool adapter: cannot extract shape from non-ZodObject schema (${schema.constructor?.name ?? typeof schema}). Wrap the tool's parameters in z.object({...}).`,
+  );
 }
