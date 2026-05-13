@@ -150,6 +150,61 @@ describe('POST /api/mcp/tokens', () => {
     const resolved = await findMcpTokenByRaw(prisma, body.rawToken);
     expect(resolved?.id).toBe(body.id);
   });
+
+  it('422 once the user is at the active-token cap (closes adv-mcp-010)', async () => {
+    const userId = await signIn('mcp-tokens-cap');
+    // Burn 20 active tokens directly via Prisma — faster than 20 POSTs and
+    // tests the cap independent of POST's own correctness.
+    await prisma.mCPToken.createMany({
+      data: Array.from({ length: 20 }, (_, i) => ({
+        userId,
+        tokenHash: `cap-test-hash-${i}-${Date.now()}`,
+        label: `slot-${i}`,
+      })),
+    });
+
+    const res = await POST(
+      jsonRequest('http://localhost/api/mcp/tokens', { label: '21st' }),
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/active token limit/i);
+    expect(body.error).toMatch(/20/);
+
+    // Revoke one — should free a slot.
+    const oldest = await prisma.mCPToken.findFirst({
+      where: { userId, revokedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    await prisma.mCPToken.update({
+      where: { id: oldest!.id },
+      data: { revokedAt: new Date() },
+    });
+
+    const res2 = await POST(
+      jsonRequest('http://localhost/api/mcp/tokens', { label: 'after-revoke' }),
+    );
+    expect(res2.status).toBe(200);
+  });
+
+  it('expired tokens do not count toward the cap', async () => {
+    const userId = await signIn('mcp-tokens-cap-expired');
+    // 20 already-expired tokens — should NOT block a 21st (active) issue.
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    await prisma.mCPToken.createMany({
+      data: Array.from({ length: 20 }, (_, i) => ({
+        userId,
+        tokenHash: `expired-${i}-${Date.now()}`,
+        label: `old-${i}`,
+        expiresAt: yesterday,
+      })),
+    });
+
+    const res = await POST(
+      jsonRequest('http://localhost/api/mcp/tokens', { label: 'fresh' }),
+    );
+    expect(res.status).toBe(200);
+  });
 });
 
 describe('DELETE /api/mcp/tokens/[id]', () => {
