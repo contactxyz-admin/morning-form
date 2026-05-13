@@ -2,7 +2,7 @@
 title: "MCP Phase 2.5 — usage-signal-gated hardening + capability additions"
 date: 2026-05-13
 status: queued
-type: plan
+type: feat
 origin: docs/plans/2026-05-12-002-feat-external-mcp-server-plan.md
 ---
 
@@ -20,7 +20,7 @@ Backlog of follow-ups intentionally deferred from the MCP foundation. None block
 
 ### 1. Redis-backed rate-limit (closes adv-mcp-001 parallel-burst bypass)
 
-**Trigger:** any single token hits >60 req/min OR active-token count >1000 (whichever first).
+**Trigger:** any single token hits >60 req/min OR active-token count >1000 (whichever first). Pre-defined in foundation plan §D9 — pull that wording verbatim when this lands.
 
 **Why:** Current implementation counts `MCPAuditEvent` rows in Postgres — N concurrent requests all see count<60 before any row is written, bypassing the gate.
 
@@ -48,7 +48,7 @@ Backlog of follow-ups intentionally deferred from the MCP foundation. None block
 
 ### 3. Pagination on `list_graph_index`
 
-**Trigger:** any user with >200 graph nodes. Currently the result is capped at 200; users past that point see a silent truncation.
+**Trigger:** any user with >200 graph nodes. `aggregateRecord` already returns `truncated: true` + `totalNodes` so the truncation is *visible* but **unaddressable** — agents see "there are more nodes" with no way to fetch them.
 
 **Why:** Today's cap of 200 importance-scored nodes was chosen to keep wire size under ~50KB. A power user with 500+ nodes loses tail visibility, agents can't address the missing nodes.
 
@@ -94,9 +94,9 @@ Backlog of follow-ups intentionally deferred from the MCP foundation. None block
 
 **Why:** External agents bind to the JSON Schema returned by `tools/list`. A silent shape change (renaming a field, loosening a validator) is a wire-contract break that the type system won't catch — Zod produces JSON Schema via `zodToJsonSchema`, which is opaque to grep.
 
-**Approach:** Add a vitest snapshot test that serializes the full `tools/list` response (all 8 tool schemas) and pins it. PR review surfaces any drift.
+**Approach:** Extend foundation plan §U4 (which already snapshotted one tool's MCP definition) to all 8 tools via a full `tools/list` response. Snapshot `result.tools` only (not the JSON-RPC envelope — its `id` is request-coupled), sort tools by name and recursively sort object keys to defang `zodToJsonSchema` ordering drift across zod versions.
 
-**Files:** `src/app/api/mcp/route.snapshot.test.ts` (new).
+**Files:** `src/app/api/mcp/route.snapshot.test.ts` (new — extend the U4 fixture pattern).
 
 **Test:** The test itself.
 
@@ -108,7 +108,7 @@ Backlog of follow-ups intentionally deferred from the MCP foundation. None block
 
 **Why:** Prisma's accessor convention lowercases the first letter of the model name, so `MCPToken` becomes `prisma.mCPToken` and `MCPAuditEvent` becomes `prisma.mCPAuditEvent`. `McpToken` would yield `prisma.mcpToken` — cleaner.
 
-**Approach:** Standard Prisma model rename. Migration is a `@@map` to the existing table name (so no data move) plus a global rename of the Prisma accessor in code.
+**Approach:** Standard Prisma model rename. Migration is a `@@map` to the existing table name (so no data move) plus a global rename of the Prisma accessor in code. Contrast with the priorities-pivot rename (D1 in [2026-05-10-001-feat-priority-markers-pivot-plan.md](2026-05-10-001-feat-priority-markers-pivot-plan.md)) which chose `db push --accept-data-loss` + `TRUNCATE CASCADE` because there was only 1 production row — `@@map` is correct here precisely because `MCPAuditEvent` carries live audit data we already read via `pnpm mcp:audit`.
 
 **Files:** `prisma/schema.prisma`, anywhere `mCPToken` / `mCPAuditEvent` appears (~15 files).
 
@@ -130,8 +130,9 @@ These items are independent — pull whichever the usage signal demands first. T
 
 ## References
 
-- Foundation plan: [docs/plans/2026-05-12-002-feat-external-mcp-server-plan.md](2026-05-12-002-feat-external-mcp-server-plan.md)
-- Launch checklist: [docs/strategy/mcp-launch-checklist.md](../strategy/mcp-launch-checklist.md)
+- Foundation plan: [docs/plans/2026-05-12-002-feat-external-mcp-server-plan.md](2026-05-12-002-feat-external-mcp-server-plan.md) — see §D9 (rate-limit promotion criteria) and §U4 (one-tool snapshot fixture this plan's item 6 extends)
+- Launch checklist §5 (canonical deferral source-of-truth): [docs/strategy/mcp-launch-checklist.md](../strategy/mcp-launch-checklist.md)
 - Directory submission drafts: [docs/strategy/mcp-directory-submission.md](../strategy/mcp-directory-submission.md)
 - Monitoring CLI: [scripts/metrics/mcp-audit.ts](../../scripts/metrics/mcp-audit.ts)
 - Original ce:review (Phase 1+2 stacked): adv-mcp-001 (parallel-burst), adv-mcp-004 (audit amplification — fixed in Phase 5), adv-mcp-007 (TOCTOU revoke — documented)
+- Overdue follow-up: foundation plan promised a `/ce:compound` writeup capturing the bearer-token + audit + rate-limit pattern as institutional knowledge — never filed. File one after Phase 2.5 ships covering both the foundation patterns and the new cursor-pagination convention from item 3.
