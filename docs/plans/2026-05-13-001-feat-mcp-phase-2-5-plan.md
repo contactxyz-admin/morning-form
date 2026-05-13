@@ -20,7 +20,18 @@ Backlog of follow-ups intentionally deferred from the MCP foundation. None block
 
 ### 1. Redis-backed rate-limit (closes adv-mcp-001 parallel-burst bypass)
 
-**Trigger:** any single token hits >60 req/min OR active-token count >1000 (whichever first). Pre-defined in foundation plan §D9 — pull that wording verbatim when this lands.
+**Trigger:** any single token hits >60 req/min OR active-token count >1000 (whichever first). Pre-defined in foundation plan §D9 — pull that wording verbatim when this lands. Observe via direct SQL (today's `pnpm mcp:audit` groups by day/tool/user, not by token-minute):
+
+```sql
+-- per-token-per-minute rate
+SELECT "tokenId", date_trunc('minute', "createdAt") AS m, count(*) AS calls
+FROM "MCPAuditEvent" WHERE "createdAt" > now() - interval '1 day'
+GROUP BY 1, 2 HAVING count(*) > 60 ORDER BY m DESC;
+
+-- active-token count
+SELECT count(*) FROM "MCPToken"
+WHERE "revokedAt" IS NULL AND ("expiresAt" IS NULL OR "expiresAt" > now());
+```
 
 **Why:** Current implementation counts `MCPAuditEvent` rows in Postgres — N concurrent requests all see count<60 before any row is written, bypassing the gate.
 
@@ -34,21 +45,26 @@ Backlog of follow-ups intentionally deferred from the MCP foundation. None block
 
 ### 2. `get_topic_content` tool
 
-**Trigger:** any user asks an agent "what does my [topic] page say?" and gets back metadata only. Watch via `pnpm mcp:audit --tools` for high `get_topic_overview` call volume without follow-up node fetches (i.e. agents giving up).
+**Trigger:** any user asks an agent "what does my [topic] page say?" and gets back metadata only. Watch via SQL on `MCPAuditEvent`: consecutive `get_topic_overview` calls per `tokenId` without a follow-up `get_node_detail` / `search_graph_nodes` in the same minute window (i.e. agents giving up after the metadata-only response). Today's `pnpm mcp:audit --tools` shows raw counts but not the follow-up pattern — add a `--funnel` flag here if this trigger fires.
 
 **Why:** Agents currently see topic *status* (count, last-updated) via `get_topic_overview` but cannot read the compiled topic body. Topic pages are the most agent-shaped output we produce — withholding them is a leak in the read-only contract.
 
-**Approach:** New scribe tool `get_topic_content(topicKey)` returning the `TopicPage.compiledMarkdown` field. Add to `READ_ALLOWED_TOOLS`. Topic-scoped (not whole-graph).
+**Approach:** New scribe tool `get_topic_content(topicKey)` returning the parsed `TopicCompiledOutput` (the three-tier structured object: `understanding`, `whatYouCanDoNow`, `discussWithClinician`, `gpPrep`). The compiled body is stored as `TopicPage.rendered: String?` (JSON-serialized) — the tool parses on read and exposes the structured shape so agents get section-level addressability, not a markdown blob. Add to `READ_ALLOWED_TOOLS`. Topic-scoped (not whole-graph). Return `null` when `rendered` is unset (topic in `stub` or `error` status).
 
 **Files:** `src/lib/scribe/tools/get-topic-content.ts` (new), `src/lib/scribe/tool-catalog.ts` (register), `src/lib/mcp/tool-adapter.ts` (allowlist).
 
-**Test:** Handler test (happy path, missing topic returns null, cross-user returns null) + route test (tools/list now lists 9 names).
+**Test:** Handler test — happy path returns parsed `TopicCompiledOutput`, missing topic (no row) returns `null`, stub-status topic returns `null`, cross-user lookup returns `null` (mirror the pattern in `resolve-entity.test.ts:56-72`: userA owns topic, userB calls with same `topicKey`, asserts userB gets `null` not userA's content) + route test (tools/list now lists 9 names).
 
 **Lift:** ~2 hours.
 
 ### 3. Pagination on `list_graph_index`
 
-**Trigger:** any user with >200 graph nodes. `aggregateRecord` already returns `truncated: true` + `totalNodes` so the truncation is *visible* but **unaddressable** — agents see "there are more nodes" with no way to fetch them.
+**Trigger:** any user with >200 graph nodes. `aggregateRecord` already returns `truncated: true` + `totalNodes` so the truncation is *visible* but **unaddressable** — agents see "there are more nodes" with no way to fetch them. Observe via:
+
+```sql
+SELECT "userId", count(*) FROM "GraphNode"
+GROUP BY "userId" HAVING count(*) > 200;
+```
 
 **Why:** Today's cap of 200 importance-scored nodes was chosen to keep wire size under ~50KB. A power user with 500+ nodes loses tail visibility, agents can't address the missing nodes.
 
@@ -66,11 +82,11 @@ Backlog of follow-ups intentionally deferred from the MCP foundation. None block
 
 **Why:** MCP's `resources` capability lets clients show a picker of "things you can reference" (e.g. each topic as a resource). It's a UX upgrade for agents, not a security boundary.
 
-**Approach:** Register the user's topics as resources via `server.registerResource`. URI scheme `morningform://topic/<topicKey>`. Resource read returns the compiled topic markdown (same as `get_topic_content` above).
+**Approach:** Register the user's topics as resources via `server.registerResource`. URI scheme `morningform://topic/<topicKey>` (reserve `morningform://node/<canonicalKey>` for a future iteration — biomarker nodes are an even more natural `@`-mention target than topics). Resource read **must delegate to a shared `loadTopicBody(userId, topicKey)` helper** also used by `get_topic_content` so the two surfaces can't drift on payload shape. Returns the same parsed `TopicCompiledOutput` as item 2.
 
 **Files:** `src/app/api/mcp/route.ts` (capabilities + registrations), `src/lib/mcp/resource-adapter.ts` (new).
 
-**Test:** Route test asserting `resources/list` returns the user's topics and `resources/read` returns the topic body.
+**Test:** Route test asserting `resources/list` returns the user's topics, `resources/read` returns the topic body (parsed `TopicCompiledOutput`), and cross-user `resources/read` returns an error / empty rather than another user's content (same probe as item 2's cross-user test).
 
 **Lift:** ~1 day (mostly figuring out the SDK's resource shape).
 
@@ -115,6 +131,27 @@ Backlog of follow-ups intentionally deferred from the MCP foundation. None block
 **Test:** Existing tests should pass unchanged (it's a code-level rename, not a behaviour change).
 
 **Lift:** ~2 hours.
+
+## Agent-native parity audit
+
+The seven items above cover graph-side gaps the foundation left. Below is every read-shaped surface in the domain with an explicit disposition, so future "should agents have X?" questions resolve against a documented call rather than ad hoc taste. Trigger to flip `defer` to `expose` is real user demand surfaced through `MCPAuditEvent` or product asks — not engineering preference.
+
+| Surface | Human path | Disposition | Why |
+|---|---|---|---|
+| `CheckIn` (morning / evening) | `/api/check-in` | **expose** (Phase 3) | "What has this user told me lately" is squarely in agent-prompt territory; own-data, low security cost |
+| `WeeklyReview` aggregate | `/api/insights/weekly` | **expose** (Phase 3) | Exactly the surface for "summarize my last week" — derived signal, not raw |
+| `Suggestion` (today's prompts) | `/api/suggestions` | **expose** (Phase 3) | Material context for "why is this on my mind today" — small payload, simple shape |
+| Node → topics cross-ref | `/api/graph/nodes/[id]/topics` | **expose** (Phase 2.5 candidate) | Natural follow-up to `get_node_detail`; cheap to add — consider folding into the structure of item 2 |
+| Source-document retrieval | `/api/record/source/[id]` | **expose** (Phase 3) | Provenance escalation path agents currently lack — chunk text from `get_node_provenance` only, no parent doc |
+| `HealthDataPoint` (Apple Health / Terra) | `/api/insights/health-history` | **defer** | High signal but needs a deliberate tool shape (windowed? aggregated? raw time-series?). Phase 3+ design call |
+| `ConversationMessage` (chat history) | `/api/chat/history` | **defer** | Sensitive — user's prior agentic conversations. Reconsider only if an agent demonstrably needs "what did the user already explore" |
+| `/api/scribe/explain` (selection-grounded) | scribe Explain UI | **defer** | Write-shaped (creates a scribe annotation). Reconsider once read-side is solid |
+| Intake document listing | `/api/intake/documents` | **defer** | Privacy-sensitive onboarding flow; not load-bearing for grounded Q&A |
+| `route_to_gp_prep` | scribe tool (currently excluded from allowlist) | **expose later** | Tied to a real `GpPrepQuestion` write path landing. Currently noted in `tool-adapter.ts` comment as deferred — name it here too so the backlog isn't split |
+| Health connections status | `/api/health/connections` | **never** | Settings ceremony, not user data |
+| Token management (`/settings/integrations/claude`) | settings UI | **never** | Self-referential; leaked token must not enable token-laundering. Enforces foundation §R15 (session cookie is not a valid MCP credential) |
+
+Item 2 (`get_topic_content`) and item 4 (resources) above remain the top of the Phase 2.5 queue. Everything in the **expose (Phase 3)** rows is candidate work once the Phase 2.5 backlog clears or a real user signal pulls one forward.
 
 ## Order of operations (when triggered)
 
