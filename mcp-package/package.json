@@ -1,6 +1,7 @@
 {
   "name": "@morningform/mcp",
   "version": "0.1.0",
+  "mcpName": "io.github.contactxyz-admin/morningform",
   "description": "stdio MCP proxy for MorningForm — bridges Claude Code (and any stdio-only MCP client) to MorningForm's HTTPS MCP server.",
   "license": "MIT",
   "homepage": "https://morning-form.vercel.app",

@@ -1,104 +1,86 @@
 ---
-title: "MCP directory submission drafts"
+title: "MCP discoverability — submission paths"
 date: 2026-05-13
 status: ready-to-submit
 type: strategy
 ---
 
-# MCP directory submission drafts
+# MCP discoverability — submission paths
 
-Ready-to-submit copy for the three MCP registries. Submit once `@morningform/mcp` is published to npm and the production smoke through Claude Desktop passes.
+How to make `@morningform/mcp` discoverable to MCP clients. **Process changed since the original draft (2026-05-13 AM):** Anthropic retired the README list in `modelcontextprotocol/servers` in favour of a dedicated **MCP Server Registry** (`registry.modelcontextprotocol.io`). Cursor and VS Code's catalogs increasingly source from that same registry.
 
-## Anthropic — modelcontextprotocol/servers
+## Path 1 (canonical) — MCP Server Registry
 
-Submission target: PR against https://github.com/modelcontextprotocol/servers, adding a `MorningForm` entry to the **Community Servers** section of the README.
+Anthropic-hosted, queryable by every modern MCP client. Source-of-truth for server metadata. **This is the only submission worth doing right now** — both Cursor and VS Code's marketplaces consume it (or are converging on it).
 
-### README entry (markdown)
+### Pre-requisites already done in the repo
 
-```markdown
-- **[MorningForm](https://github.com/contactxyz-admin/morning-form)** — Read-only access to a user's personal health graph (biomarkers, symptoms, conditions, medications, source documents). Eight tools for searching nodes, fetching provenance, comparing reference ranges, and recognising temporal patterns. Bearer-token auth via the user's web settings; HTTP transport at `https://morning-form.vercel.app/api/mcp`; stdio bridge via `@morningform/mcp` for Claude Code.
+- `mcpName` field in `mcp-package/package.json` (must be `io.github.contactxyz-admin/morningform` per GitHub-auth namespace rule)
+- `mcp-package/server.json` populated with metadata, npm package identifier, transport, and env-var descriptions
+- `repository.url` + `repository.directory` in `package.json` so the registry can link back to source
+
+### Founder run-list (5 commands)
+
+```bash
+# 1. npm publish — first time only
+cd mcp-package
+npm login                              # interactive; uses your npm account
+npm publish --access public            # publishes @morningform/mcp@0.1.0
+
+# 2. mcp-publisher (CLI tool from Anthropic)
+brew install mcp-publisher             # or: curl -L … (see registry/quickstart)
+mcp-publisher login github             # GitHub device-flow auth — opens browser
+
+# 3. Publish server.json to the registry
+mcp-publisher publish                  # reads ./server.json
 ```
 
-### PR description
+### Verify
 
-```markdown
-Adding MorningForm as a community MCP server.
-
-**What it is:** MorningForm is a longitudinal personal health record. Users connect lab PDFs, GP letters, wearable data, and free-text intake; the platform compiles these into a graph of biomarkers, symptoms, conditions, medications, and interventions with source-chunk provenance on every claim.
-
-**What this MCP server exposes:** Eight read-only tools for an AI client to navigate that graph — `list_graph_index`, `search_graph_nodes`, `get_node_detail`, `get_node_provenance`, `compare_to_reference_range`, `recognize_pattern_in_history`, `resolve_entity`, `get_topic_overview`. No write tools. The full scribe-tool catalog is intentionally narrowed to a read-only allowlist for external clients.
-
-**Transports:**
-- Streamable HTTP at `https://morning-form.vercel.app/api/mcp`
-- stdio via `@morningform/mcp` (npm) for Claude Code
-
-**Auth:** bearer token issued from the user's account settings (`/settings/integrations/claude`). HMAC-hashed at rest with a `mcp:` domain-separation prefix; revocable; per-token rate limit 60 req/min.
-
-**Setup docs:** https://morning-form.vercel.app/settings/integrations/claude (link visible after sign-in)
+```bash
+curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.contactxyz-admin/morningform"
 ```
 
----
+Should return the manifest. Cursor / Claude Desktop / VS Code clients then auto-discover via their respective registry queries.
 
-## Cursor — MCP marketplace
+### Repeat-publish
 
-Submission target: Cursor's MCP server registry. Process TBD; check https://docs.cursor.com/context/model-context-protocol for the current submission flow at the time of submission.
+For version bumps (e.g. fixing a bug in the proxy):
 
-### Entry shape (likely JSON for the cursor registry)
-
-```json
-{
-  "name": "morningform",
-  "displayName": "MorningForm",
-  "description": "Read-only access to your personal health graph — biomarkers, symptoms, source documents — for clinical Q&A grounded in your real record.",
-  "category": "health",
-  "homepage": "https://morning-form.vercel.app",
-  "transport": {
-    "type": "http",
-    "url": "https://morning-form.vercel.app/api/mcp",
-    "auth": {
-      "type": "bearer",
-      "tokenIssuer": "https://morning-form.vercel.app/settings/integrations/claude"
-    }
-  }
-}
+```bash
+# In mcp-package/, bump version in BOTH package.json and server.json
+npm publish --access public
+mcp-publisher publish
 ```
 
----
+The registry rejects a publish whose `version` already exists.
 
-## VS Code MCP extension catalog
+## Path 2 — Cursor (cursor.directory community listing)
 
-Submission target: a PR against the VS Code MCP extension's catalog file (the extension reads a list of `name`/`command` entries). Path: see the extension's CONTRIBUTING.md at submission time.
+Cursor's official documentation marketplace lists "official providers" only — submission process is unclear from public docs and likely requires direct Cursor outreach (Discord, support email). The community-discoverable path is **[cursor.directory/plugins](https://cursor.directory/plugins)** — a community-maintained list of MCP servers / plugins for Cursor.
 
-### Catalog entry (likely YAML or JSON)
+**When to do this:** Once Path 1 (Registry) is live AND a user has confirmed Cursor picks the server up via Registry. If Cursor doesn't auto-source from the Registry, fall back to a cursor.directory submission.
 
-```yaml
-- name: morningform
-  displayName: MorningForm
-  description: Read-only access to your personal health graph
-  command: npx
-  args: ["-y", "@morningform/mcp"]
-  envVars:
-    - name: MORNINGFORM_TOKEN
-      description: Bearer token from https://morning-form.vercel.app/settings/integrations/claude
-      required: true
-  homepage: https://morning-form.vercel.app
-```
+**How:** cursor.directory has a "submit a plugin" path on its homepage. Process not documented in detail; expect a simple form or GitHub PR.
 
----
+## Path 3 — VS Code MCP marketplace
 
-## Pre-submission checklist
+VS Code 1.102+ (July 2025) ships with a built-in MCP marketplace in the Extensions panel (search `@mcp` to see installed servers). It sources from:
 
-Before opening any of the three PRs:
+1. **VS Code extensions** that register MCP servers via `mcpServerDefinitionProviders` in their manifest. This requires shipping a VS Code extension that wraps our server — engineering effort beyond this launch.
+2. **The MCP Server Registry** (Path 1) — VS Code is progressively consuming registry entries directly.
 
+**When to do this:** Wait. After Path 1 lands, check `code --install-extension @mcp/...` or the in-app `@mcp` search to confirm visibility. If not visible after Registry approval, evaluate building a thin VS Code extension that registers the server (Phase 2.5+ work).
+
+## Pre-submission checklist (Path 1)
+
+- [x] `mcpName` in `mcp-package/package.json` (`io.github.contactxyz-admin/morningform`)
+- [x] `server.json` populated in `mcp-package/`
 - [ ] `@morningform/mcp` published to npm (`npm view @morningform/mcp` returns the manifest)
-- [ ] Production smoke completed (token issued, Claude Desktop config tested, at least one `tools/call` confirmed via the MCPAuditEvent table)
-- [ ] README in the repo updated with the install instructions (so the linked-from-directory README is the source of truth)
-- [ ] License decided (the npm package currently declares MIT)
+- [ ] Production smoke completed (token issued, Claude Desktop config tested, at least one `tools/call` confirmed via the `MCPAuditEvent` table)
 
-## Order of operations
+## After-submission monitoring
 
-1. `npm publish --access public` for `@morningform/mcp`
-2. Smoke install in Claude Code (`claude mcp add morningform -- npx -y @morningform/mcp <real-token>`)
-3. Smoke install in Claude Desktop (paste JSON config from settings UI)
-4. Submit to all three registries (parallel — none of them have hard dependencies on each other)
-5. Monitor `MCPAuditEvent` over the following 14 days for unexpected traffic patterns
+- `pnpm mcp:audit` — daily breakdown by tool / user / status. Watch for the first inbound traffic.
+- `curl https://registry.modelcontextprotocol.io/v0.1/servers/io.github.contactxyz-admin/morningform` — confirm registry visibility.
+- Search Cursor + VS Code `@mcp` panels in-product after a few days to confirm cross-client pickup.
