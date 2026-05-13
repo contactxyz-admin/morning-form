@@ -16,8 +16,11 @@ import type { ZodType } from 'zod';
 import { compareToReferenceRangeHandler } from './tools/compare-to-reference-range';
 import { getNodeDetailHandler } from './tools/get-node-detail';
 import { getNodeProvenanceHandler } from './tools/get-node-provenance';
+import { getTopicOverviewHandler } from './tools/get-topic-overview';
+import { listGraphIndexHandler } from './tools/list-graph-index';
 import { recognizePatternInHistoryHandler } from './tools/recognize-pattern-in-history';
 import { referToSpecialistHandler } from './tools/refer-to-specialist';
+import { resolveEntityHandler } from './tools/resolve-entity';
 import { routeToGpPrepHandler } from './tools/route-to-gp-prep';
 import { searchGraphNodesHandler } from './tools/search-graph-nodes';
 import type { AnyToolHandler } from './tools/types';
@@ -30,6 +33,16 @@ export const SCRIBE_TOOL_HANDLERS = [
   recognizePatternInHistoryHandler,
   routeToGpPrepHandler,
   referToSpecialistHandler,
+  // U3 of the external-MCP-server plan
+  // (docs/plans/2026-05-12-002-feat-external-mcp-server-plan.md). The first
+  // seven tools above are topic-scoped (each reads `ctx.topicKey`). The
+  // three below are the agent-native additions: `list_graph_index` and
+  // `resolve_entity` are whole-graph (they ignore `ctx.topicKey`);
+  // `get_topic_overview` takes the topic key as an explicit arg so external
+  // callers don't need ctx-channel knowledge.
+  listGraphIndexHandler,
+  resolveEntityHandler,
+  getTopicOverviewHandler,
 ] as const satisfies ReadonlyArray<AnyToolHandler>;
 
 export type ScribeToolName = (typeof SCRIBE_TOOL_HANDLERS)[number]['name'];
