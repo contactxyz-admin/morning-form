@@ -30,6 +30,15 @@ const NO_STORE: HeadersInit = {
 // outer-bound revocation date even if the user forgets it exists.
 const MAX_EXPIRY_MS = 5 * 365 * 24 * 60 * 60 * 1000;
 
+// Cap on active (non-revoked, non-expired) tokens per user. Realistic
+// ceiling: Claude Desktop + Claude Code on 3-5 machines + Cursor +
+// VS Code + a couple of dev tokens ≈ 10. 20 leaves rotation headroom
+// (issue new before revoking old) and makes abuse detectable. A
+// compromised cookie can no longer mass-issue tokens to amplify the
+// per-token rate limit into a storage-exhaustion vector
+// (closes adv-mcp-010 from the post-foundation review).
+const MAX_ACTIVE_TOKENS_PER_USER = 20;
+
 const PostBodySchema = z
   .object({
     label: z.string().min(1).max(120),
@@ -85,6 +94,27 @@ export async function POST(req: Request): Promise<NextResponse> {
     parsed = PostBodySchema.parse(await req.json());
   } catch {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 422 });
+  }
+
+  // Per-user active-token cap. Count tokens that are still usable
+  // (not revoked, and either no expiry or expiry in the future). The
+  // gate is on issue, not on list — historical revoked/expired rows
+  // don't count against the user.
+  const now = new Date();
+  const activeCount = await prisma.mCPToken.count({
+    where: {
+      userId: user.id,
+      revokedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+  });
+  if (activeCount >= MAX_ACTIVE_TOKENS_PER_USER) {
+    return NextResponse.json(
+      {
+        error: `Active token limit reached (${MAX_ACTIVE_TOKENS_PER_USER} per user). Revoke an unused token at /settings/integrations/claude or contact support.`,
+      },
+      { status: 422, headers: NO_STORE },
+    );
   }
 
   const expiresAt = parsed.expiresAt ? new Date(parsed.expiresAt) : null;
