@@ -96,14 +96,30 @@ function jsonError(status: number, body: object, extraHeaders: HeadersInit = {})
 }
 
 async function handle(req: Request): Promise<Response> {
-  // Body-size cap before transport.handleRequest invokes req.json() —
-  // unbounded for authenticated POSTs without this gate (review sec-1).
-  const lengthHeader = req.headers.get('content-length');
-  if (lengthHeader && Number.parseInt(lengthHeader, 10) > MAX_BODY_BYTES) {
-    return jsonError(413, { error: 'Request body too large.' });
+  // Body-size cap. Earlier revisions checked only Content-Length, which
+  // an authenticated client could bypass by omitting the header or
+  // sending chunked-encoding (review adv-mcp-011 / sec-2). Read the body
+  // once, measure actual bytes, then hand a fresh Request to the SDK so
+  // it can still call .json() on its own.
+  let cappedReq = req;
+  if (req.method === 'POST') {
+    const lengthHeader = req.headers.get('content-length');
+    if (lengthHeader && Number.parseInt(lengthHeader, 10) > MAX_BODY_BYTES) {
+      // Cheap reject before reading: client self-reported >cap.
+      return jsonError(413, { error: 'Request body too large.' });
+    }
+    const buf = await req.arrayBuffer();
+    if (buf.byteLength > MAX_BODY_BYTES) {
+      return jsonError(413, { error: 'Request body too large.' });
+    }
+    cappedReq = new Request(req.url, {
+      method: req.method,
+      headers: req.headers,
+      body: buf.byteLength > 0 ? buf : undefined,
+    });
   }
 
-  const rawToken = extractBearerToken(req);
+  const rawToken = extractBearerToken(cappedReq);
   if (!rawToken) {
     logMcpAuthFailure('missing_bearer');
     return jsonError(401, { error: 'Authentication required.' });
@@ -167,7 +183,9 @@ async function handle(req: Request): Promise<Response> {
   await markMcpTokenUsed(prisma, token.id);
 
   await server.connect(transport);
-  const response = await transport.handleRequest(req);
+  // Use cappedReq (POST path) so the SDK reads the body we already
+  // consumed for size checking. Falls through to req for non-POST methods.
+  const response = await transport.handleRequest(cappedReq);
   return response;
 }
 

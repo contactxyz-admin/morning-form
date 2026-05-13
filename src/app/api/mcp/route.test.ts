@@ -280,3 +280,77 @@ describe('POST /api/mcp — tools/call', () => {
     expect(event.userId).toBe(userId);
   });
 });
+
+describe('POST /api/mcp — rate limit envelope', () => {
+  it('returns 429 with a Retry-After header after the 60th call in a window', async () => {
+    const userId = await makeTestUser(prisma, 'mcp-rate-limit');
+    const { id: tokenId, rawToken } = await createMcpToken(prisma, {
+      userId,
+      label: 'rl',
+    });
+
+    // Pre-seed 60 audit rows in the rolling window so the next call trips
+    // the gate. Cheaper than making 60 real HTTP calls and pins the route's
+    // 429 envelope (Retry-After header + JSON body shape) without relying
+    // on the actual rate-limit implementation strategy.
+    const now = new Date();
+    await prisma.mCPAuditEvent.createMany({
+      data: Array.from({ length: 60 }, (_, i) => ({
+        tokenId,
+        userId,
+        toolName: 'list_graph_index',
+        parameters: '{}',
+        resultStatus: 'success' as const,
+        latencyMs: 5,
+        createdAt: new Date(now.getTime() - i * 100),
+      })),
+    });
+
+    const res = await POST(makeRequest(rawToken, initEnvelope));
+    expect(res.status).toBe(429);
+
+    const retryAfter = res.headers.get('Retry-After');
+    expect(retryAfter).toMatch(/^\d+$/);
+    expect(Number.parseInt(retryAfter!, 10)).toBeGreaterThan(0);
+
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/rate limit/i);
+  });
+});
+
+describe('POST /api/mcp — body cap', () => {
+  it('rejects POST bodies larger than 256KB even with no Content-Length header', async () => {
+    const userId = await makeTestUser(prisma, 'mcp-body-cap');
+    const { rawToken } = await createMcpToken(prisma, { userId, label: 'cap' });
+
+    // Build a >256KB payload. Use a valid-looking JSON-RPC envelope so we
+    // know the rejection is by size, not by parse failure.
+    const padding = 'a'.repeat(260 * 1024);
+    const oversize = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: { padding },
+    });
+
+    // Construct the Request manually so we can omit Content-Length entirely.
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      Authorization: `Bearer ${rawToken}`,
+    });
+    headers.delete('Content-Length');
+
+    const res = await POST(
+      new Request('http://localhost/api/mcp', {
+        method: 'POST',
+        headers,
+        body: oversize,
+      }),
+    );
+
+    expect(res.status).toBe(413);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/too large/i);
+  });
+});

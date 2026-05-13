@@ -34,8 +34,12 @@ interface Args {
   groupBy: 'day' | 'tool' | 'user';
 }
 
+const VALID_STATUSES = ['success', 'error', 'rate_limited', 'unauthorized'] as const;
+type ValidStatus = (typeof VALID_STATUSES)[number];
+
 function parseArgs(argv: string[]): Args {
   const args: Args = { days: 14, status: null, groupBy: 'day' };
+  let groupByExplicit = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--days') {
@@ -43,14 +47,26 @@ function parseArgs(argv: string[]): Args {
       if (!Number.isFinite(n) || n < 1) throw new Error('--days must be a positive integer');
       args.days = n;
     } else if (a === '--status') {
-      args.status = argv[++i] ?? null;
+      const v = argv[++i] ?? '';
+      if (!VALID_STATUSES.includes(v as ValidStatus)) {
+        throw new Error(
+          `--status must be one of ${VALID_STATUSES.join('/')} (got "${v}"). Typos report "no rows" with exit 0, defeating the monitoring purpose.`,
+        );
+      }
+      args.status = v;
     } else if (a === '--tools') {
+      if (groupByExplicit) throw new Error('--tools and --users are mutually exclusive');
       args.groupBy = 'tool';
+      groupByExplicit = true;
     } else if (a === '--users') {
+      if (groupByExplicit) throw new Error('--tools and --users are mutually exclusive');
       args.groupBy = 'user';
+      groupByExplicit = true;
     } else if (a === '--help' || a === '-h') {
       process.stdout.write(HELP);
       process.exit(0);
+    } else {
+      throw new Error(`Unknown argument: ${a}. See --help for usage.`);
     }
   }
   return args;
@@ -59,10 +75,12 @@ function parseArgs(argv: string[]): Args {
 const HELP = `Usage: pnpm mcp:audit [options]
 
 Options:
-  --days N         Window size in days (default 14)
-  --status S       Filter to a single resultStatus (success/error/rate_limited/unauthorized)
+  --days N         Window size in days (default 14, must be >= 1)
+  --status S       Filter to a single resultStatus
+                   (success | error | rate_limited | unauthorized)
   --tools          Group by toolName instead of day
   --users          Group by userId instead of day
+                   (--tools and --users are mutually exclusive)
   --help, -h       Show this help
 
 Examples:
@@ -70,6 +88,10 @@ Examples:
   pnpm mcp:audit --days 30 --status error
   pnpm mcp:audit --tools
   pnpm mcp:audit --users
+
+Exit codes:
+  0  Success (including "no rows in window" — informational)
+  1  Argument error or DB error (message on stderr)
 `;
 
 async function main(): Promise<void> {

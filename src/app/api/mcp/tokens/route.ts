@@ -25,10 +25,28 @@ const NO_STORE: HeadersInit = {
   Vary: 'Cookie',
 };
 
-const PostBodySchema = z.object({
-  label: z.string().min(1).max(120),
-  expiresAt: z.string().datetime().optional(),
-});
+// Five years is the practical ceiling — long enough for any real
+// long-lived integration, short enough that a leaked token has an
+// outer-bound revocation date even if the user forgets it exists.
+const MAX_EXPIRY_MS = 5 * 365 * 24 * 60 * 60 * 1000;
+
+const PostBodySchema = z
+  .object({
+    label: z.string().min(1).max(120),
+    expiresAt: z.string().datetime().optional(),
+  })
+  .refine(
+    (v) => {
+      if (!v.expiresAt) return true;
+      const t = new Date(v.expiresAt).getTime();
+      if (!Number.isFinite(t)) return false;
+      // Past-dated → DOA token (raw shown once, immediately invalid).
+      // Year-9999 → effectively immortal. Reject both.
+      const now = Date.now();
+      return t > now && t <= now + MAX_EXPIRY_MS;
+    },
+    { message: 'expiresAt must be in the future and within 5 years.' },
+  );
 
 export async function GET(): Promise<NextResponse> {
   const user = await getCurrentUser();
