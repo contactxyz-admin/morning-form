@@ -306,7 +306,11 @@ function JustIssuedDialog({
     2,
   );
 
-  const codeOneLiner = `npx @morningform/mcp connect ${issued.rawToken}`;
+  // Pass the token via env (not argv) so it doesn't appear in `ps` /
+  // process listings on multi-user hosts. `claude mcp add --env` is the
+  // Claude Code path; the JSON config form above embeds it in the
+  // headers object directly.
+  const codeOneLiner = `claude mcp add morningform --env MORNINGFORM_TOKEN=${issued.rawToken} -- npx -y @morningform/mcp`;
 
   const copy = async (text: string, kind: 'token' | 'desktop' | 'code') => {
     try {

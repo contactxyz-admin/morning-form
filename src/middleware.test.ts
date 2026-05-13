@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NextRequest } from 'next/server';
-import { middleware } from './middleware';
+import { middleware, config } from './middleware';
 
 interface RequestOptions {
   cookie?: string;
@@ -216,6 +216,26 @@ describe('middleware', () => {
       const res = middleware(makeRequest('/uk/fatigue-in-men'));
       expect(res.status).toBe(200);
       expect(res.headers.get('WWW-Authenticate')).toBeNull();
+    });
+  });
+
+  describe('matcher invariants — MCP auth boundary', () => {
+    // The bearer-only `/api/mcp` endpoint must NOT be cookie-session-gated.
+    // A regression that widens the matcher to include it would 401 every
+    // valid MCP request and break every Claude Desktop / Claude Code /
+    // Cursor installation. Lock the invariant.
+    it('matcher includes /api/mcp/tokens/:path* (cookie-session-authed)', () => {
+      expect(config.matcher).toContain('/api/mcp/tokens/:path*');
+    });
+
+    it('matcher does NOT include /api/mcp itself (bearer-only)', () => {
+      // Critical: the bearer-only endpoint must escape the session gate.
+      // Any string containing '/api/mcp' that does NOT explicitly scope to
+      // '/api/mcp/tokens' would silently catch the root MCP route.
+      const badMatches = config.matcher.filter(
+        (m) => typeof m === 'string' && m.startsWith('/api/mcp') && !m.startsWith('/api/mcp/tokens'),
+      );
+      expect(badMatches).toEqual([]);
     });
   });
 });

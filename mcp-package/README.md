@@ -16,14 +16,17 @@ Visit https://morning-form.vercel.app/settings/integrations/claude → **New tok
 
 ### 2. Add to Claude Code
 
-In your project root (or `~/.claude.json`), add the MCP server entry:
+Pass the token via `MORNINGFORM_TOKEN` (recommended) so it doesn't appear in `ps` / process listings on multi-user hosts.
+
+In your project root (or `~/.claude.json`):
 
 ```json
 {
   "mcpServers": {
     "morningform": {
       "command": "npx",
-      "args": ["-y", "@morningform/mcp", "<your-token-here>"]
+      "args": ["-y", "@morningform/mcp"],
+      "env": { "MORNINGFORM_TOKEN": "<your-token-here>" }
     }
   }
 }
@@ -32,8 +35,10 @@ In your project root (or `~/.claude.json`), add the MCP server entry:
 Or via the Claude Code CLI:
 
 ```bash
-claude mcp add morningform -- npx -y @morningform/mcp <your-token-here>
+claude mcp add morningform --env MORNINGFORM_TOKEN=<your-token-here> -- npx -y @morningform/mcp
 ```
+
+Passing the token as `argv[1]` (`npx -y @morningform/mcp <token>`) still works for backward compatibility but is discouraged — the token is visible to anyone who can list local processes.
 
 ### 3. Use it
 
@@ -56,10 +61,12 @@ No write tools. The MCP surface is intentionally read-only.
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `MORNINGFORM_TOKEN` | — | Bearer token (alternative to passing as argv) |
+| `MORNINGFORM_TOKEN` | — | Bearer token (recommended path) |
 | `MORNINGFORM_URL` | `https://morning-form.vercel.app/api/mcp` | Server endpoint (override for local dev) |
 
-Token resolution order: `argv[1]` first, then `MORNINGFORM_TOKEN`. Exits non-zero if neither is set.
+Token resolution order: `argv[1]` first (legacy), then `MORNINGFORM_TOKEN`. Exits non-zero if neither is set. Pass via env in any setup script you share — `argv[1]` exposes the secret to `ps`.
+
+**`MORNINGFORM_URL` is sensitive.** It controls where your bearer token is sent. A malicious `.envrc`, project `.claude.json`, or shell rc edit could silently redirect it to an attacker. Only override for local dev, and audit any project that ships its own `MORNINGFORM_URL` before installing this MCP server in it.
 
 ## Security
 
