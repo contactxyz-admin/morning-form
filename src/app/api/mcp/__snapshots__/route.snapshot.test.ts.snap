@@ -1,0 +1,211 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`POST /api/mcp — tools/list wire contract > returns the canonical tools/list payload (snapshot) 1`] = `
+[
+  {
+    "description": "Classify a biomarker's latest captured value against its reference range. Returns structured data (below/in-range/above) so the scribe can compose the sentence; the scribe still cites the biomarker node.",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "canonicalKey": {
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string",
+        },
+        "topicKey": {
+          "description": "Topic to scope the query to (e.g. "iron", "sleep-recovery").",
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "canonicalKey",
+        "topicKey",
+      ],
+      "type": "object",
+    },
+    "name": "compare_to_reference_range",
+  },
+  {
+    "description": "Fetch the full record for a graph node by id. Returns \`found: false\` when the node does not exist or does not belong to the current user.",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "nodeId",
+      ],
+      "type": "object",
+    },
+    "name": "get_node_detail",
+  },
+  {
+    "description": "Return the source-document excerpts that support a graph node. Every scribe judgment should resolve to one of these citations.",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "nodeId": {
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "nodeId",
+      ],
+      "type": "object",
+    },
+    "name": "get_node_provenance",
+  },
+  {
+    "description": "Return the status row for a single topic — status (stub/full/error), nodeCount, sourceCount, hasEvidence, updatedAt. Returns \`{ found: false, knownTopics: [...] }\` when the topicKey is not in the registry, so the agent can discover the valid set.",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "topicKey": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "topicKey",
+      ],
+      "type": "object",
+    },
+    "name": "get_topic_overview",
+  },
+  {
+    "description": "Return the user's whole-graph index: topics with status, recent activity, importance-scored nodes (top 200), edges, and per-type counts. Call this first to discover what's in the vault before drilling into specific topics or nodes.",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "list_graph_index",
+  },
+  {
+    "description": "Summarise the user's own recent data (check-ins + wearable data points) for the given metrics over a bounded window. Returns counts and first/last/average so the scribe can reason about direction against the user's own baseline.",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "metrics": {
+          "items": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string",
+          },
+          "maxItems": 12,
+          "minItems": 1,
+          "type": "array",
+        },
+        "topicKey": {
+          "description": "Topic to scope the query to (e.g. "iron", "sleep-recovery").",
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string",
+        },
+        "windowDays": {
+          "maximum": 180,
+          "minimum": 1,
+          "type": "integer",
+        },
+      },
+      "required": [
+        "metrics",
+        "topicKey",
+      ],
+      "type": "object",
+    },
+    "name": "recognize_pattern_in_history",
+  },
+  {
+    "description": "Look up a graph node by its canonical key (e.g. "ferritin", "fatigue", "creatine_monohydrate"). Returns the node id + display metadata when found, \`{ found: false }\` otherwise. Use after \`list_graph_index\` or \`search_graph_nodes\` to address an entity for follow-up calls like \`get_node_detail\`.",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "canonicalKey": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "canonicalKey",
+      ],
+      "type": "object",
+    },
+    "name": "resolve_entity",
+  },
+  {
+    "description": "Find graph nodes inside the current topic subgraph whose display name or canonical key contains the query. Returns at most \`limit\` results.",
+    "execution": {
+      "taskSupport": "forbidden",
+    },
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "query": {
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string",
+        },
+        "topicKey": {
+          "description": "Topic to scope the query to (e.g. "iron", "sleep-recovery").",
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "query",
+        "topicKey",
+      ],
+      "type": "object",
+    },
+    "name": "search_graph_nodes",
+  },
+]
+`;
