@@ -19,7 +19,8 @@
     "postinstall": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest",
-    "marketing:scaffold": "tsx scripts/marketing-scaffold.ts"
+    "marketing:scaffold": "tsx scripts/marketing-scaffold.ts",
+    "mcp:audit": "tsx scripts/metrics/mcp-audit.ts"
   },
   "engines": {
     "node": "20.x"
