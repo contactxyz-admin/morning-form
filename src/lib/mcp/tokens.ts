@@ -127,7 +127,12 @@ export async function markMcpTokenUsed(
   id: string,
   now: Date = new Date(),
 ): Promise<void> {
-  await db.mCPToken.update({
+  // `updateMany` rather than `update` so a cascade-deleted row in the
+  // race window between auth resolution and this call returns
+  // { count: 0 } instead of throwing P2025 → HTTP 500. Use-count tick is
+  // best-effort accounting; losing it because the user simultaneously
+  // deleted their account is acceptable, a 500 is not (review correctness-2).
+  await db.mCPToken.updateMany({
     where: { id },
     data: {
       lastUsedAt: now,
@@ -160,6 +165,13 @@ export async function revokeMcpToken(
   return false;
 }
 
+/**
+ * List EVERY token for the user — including revoked and expired ones — so
+ * the settings UI can render audit history. **Do not use for authz**: a
+ * caller that wires this into a permission check would honor dead
+ * credentials. For live-credential lookups, use `findMcpTokenByRaw` (which
+ * filters revoked + expired).
+ */
 export async function listMcpTokensForUser(
   db: PrismaClient,
   userId: string,
