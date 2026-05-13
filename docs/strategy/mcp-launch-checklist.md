@@ -41,35 +41,46 @@ Issue a token via the production settings UI; configure Claude Desktop:
 
 Restart Claude Desktop. Verify the 8 tools appear in the tool picker. Ask "what's in my MorningForm vault?" — Claude should call `list_graph_index` and render a response.
 
-### 2. Publish `@morningform/mcp` to npm
+### 2. Publish `@morningform/mcp` to npm + MCP Registry
+
+The MCP discoverability story changed mid-launch — Anthropic retired the README list in favour of a dedicated **MCP Server Registry**. Cursor and VS Code marketplaces converge on this registry, so it's the **single canonical submission**, not three separate ones. Full detail in [mcp-directory-submission.md](mcp-directory-submission.md).
 
 ```bash
 cd mcp-package
 npm pack                              # produce a tarball; inspect contents
-# verify: package.json, index.js (executable), README.md present
-# verify: no .git, no node_modules, no source-map files
+# verify: package.json, server.json, index.js (executable), README.md present
 
-npm login                              # one-time
-npm publish --access public            # name is @morningform/mcp (scoped public)
+# Step 1 — publish to npm
+npm login                              # one-time, interactive
+npm publish --access public            # publishes @morningform/mcp
+
+# Step 2 — install mcp-publisher (Anthropic's registry CLI)
+brew install mcp-publisher             # or curl-install per registry quickstart
+
+# Step 3 — authenticate to the registry
+mcp-publisher login github             # opens GitHub device-flow
+
+# Step 4 — publish server.json metadata to the registry
+mcp-publisher publish                  # reads ./server.json
 ```
 
-Verify install path:
+Verify both:
 
 ```bash
-npx @morningform/mcp --help            # should fail with the missing-token message
+npx @morningform/mcp --version         # should print 0.1.0
+curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.contactxyz-admin/morningform"
 ```
 
 Add the Claude Code instructions to the just-issued dialog after the package is live (a follow-up commit to `claude-tokens-client.tsx` toggling the "Once the package publishes…" warning).
 
 ### 3. Submit to MCP directories
 
-Ready-to-submit copy for all three registries lives in [mcp-directory-submission.md](mcp-directory-submission.md):
+**Step 2 above already submits to the canonical registry.** Cursor and VS Code's marketplaces source from `registry.modelcontextprotocol.io` (or are converging on it), so a single `mcp-publisher publish` covers all three at once.
 
-- **Anthropic** — PR against https://github.com/modelcontextprotocol/servers (README entry to Community Servers section + PR description)
-- **Cursor** — MCP marketplace JSON entry (process TBD, check https://docs.cursor.com/context/model-context-protocol)
-- **VS Code MCP extension** — YAML catalog entry
-
-All three can be submitted in parallel — none has a hard dependency on the others.
+After Path 1 lands and propagates (~24h):
+- Search `@mcp` in VS Code Extensions panel to confirm pickup
+- Search "MorningForm" on cursor.directory to confirm community visibility
+- Fall back to per-platform submissions only if pickup doesn't happen (see [mcp-directory-submission.md](mcp-directory-submission.md) Path 2 + Path 3)
 
 ### 4. Post-launch monitoring
 
