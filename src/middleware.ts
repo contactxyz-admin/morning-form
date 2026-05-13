@@ -133,6 +133,11 @@ export const config = {
     '/api/health/callback/:path*',
     '/api/insights/:path*',
     '/api/intake/:path*',
+    // /api/mcp itself is intentionally NOT in the matcher — that route is
+    // bearer-auth only (Authorization header), the middleware's session-
+    // cookie gate would reject every valid MCP request. The token-
+    // management subroute IS cookie-authed and DOES belong here.
+    '/api/mcp/tokens/:path*',
     '/api/scribe/:path*',
     '/api/share/:path*',
     '/api/suggestions',
