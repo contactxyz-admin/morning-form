@@ -1,11 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { SectionLabel } from '@/components/ui/section-label';
 import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
+import { track } from '@/lib/funnel/track';
+import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 const stagger = {
   hidden: { opacity: 0 },
@@ -20,10 +22,18 @@ const fadeUp = {
 export default function ProfileRevealPage() {
   const router = useRouter();
   const state = useAssessmentData();
+  const trackedRef = useRef(false);
 
   useEffect(() => {
     if (state.kind === 'not-onboarded') router.replace('/assessment');
     if (state.kind === 'unauthenticated') router.replace('/sign-in');
+    // Fire reveal_viewed exactly once, only when we actually show the
+    // user their profile — guards against firing during the loading or
+    // redirect states.
+    if (state.kind === 'ready' && !trackedRef.current) {
+      trackedRef.current = true;
+      track(FUNNEL_EVENTS.REVEAL_VIEWED);
+    }
   }, [state.kind, router]);
 
   if (state.kind !== 'ready') {

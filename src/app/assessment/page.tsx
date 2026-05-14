@@ -14,6 +14,8 @@ import { SectionLabel } from '@/components/ui/section-label';
 import { Icon } from '@/components/ui/icon';
 import type { AssessmentResponses } from '@/types';
 import { loadDraft, saveDraft } from '@/lib/assessment-draft';
+import { track } from '@/lib/funnel/track';
+import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 export default function AssessmentPage() {
   const router = useRouter();
@@ -22,19 +24,31 @@ export default function AssessmentPage() {
   const [showGroupIntro, setShowGroupIntro] = useState(true);
   const [lastGroup, setLastGroup] = useState('');
   const hydratedRef = useRef(false);
+  const startedAtRef = useRef<number | null>(null);
 
   const question = assessmentQuestions[currentIndex];
   const progress = (currentIndex + 1) / assessmentQuestions.length;
 
   // Rehydrate from draft on mount. Runs exactly once — guarded by ref so
   // a later state update can't trigger a re-hydrate and clobber answers.
+  // Also fires assessment_started for the funnel: "resumed_from_draft"
+  // tagged separately so we can compute true-start drop-off from
+  // resumed-session drop-off.
   useEffect(() => {
     if (hydratedRef.current) return;
     hydratedRef.current = true;
+    startedAtRef.current = Date.now();
     const draft = loadDraft();
-    if (!draft) return;
+    if (!draft) {
+      track(FUNNEL_EVENTS.ASSESSMENT_STARTED, { resumed: false });
+      return;
+    }
     setResponses(draft.responses);
     setCurrentIndex(draft.currentIndex);
+    track(FUNNEL_EVENTS.ASSESSMENT_STARTED, {
+      resumed: true,
+      resumeIndex: draft.currentIndex,
+    });
   }, []);
 
   // Autosave on every meaningful change. Skips the empty initial state
@@ -83,6 +97,10 @@ export default function AssessmentPage() {
       // navigates back to /assessment, the draft rehydrate brings them
       // right back to the last question they answered.
       localStorage.setItem('mf_assessment', JSON.stringify(responses));
+      track(FUNNEL_EVENTS.ASSESSMENT_COMPLETED, {
+        questionCount: assessmentQuestions.length,
+        durationMs: startedAtRef.current ? Date.now() - startedAtRef.current : null,
+      });
       router.push('/processing');
     }
   };

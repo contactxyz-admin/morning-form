@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { VaultLayout } from '@/components/record/vault-layout';
+import { SignedInTracker } from '@/lib/funnel/signed-in-tracker';
 
 /**
  * `/record` is the unified vault surface — the merged `/record` + `/graph`
@@ -18,6 +19,7 @@ import { VaultLayout } from '@/components/record/vault-layout';
 export default function RecordPage() {
   return (
     <Suspense fallback={null}>
+      <SignedInTracker />
       <VaultLayout />
     </Suspense>
   );

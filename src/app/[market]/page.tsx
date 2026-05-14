@@ -6,6 +6,8 @@ import { ReadIllustration } from '@/components/marketing/illustrations/read-illu
 import { TrendIllustration } from '@/components/marketing/illustrations/trend-illustration';
 import { isMarket } from '@/lib/marketing/market';
 import { type Market } from '@/lib/marketing/constants';
+import { TrackMount } from '@/lib/funnel/track-mount';
+import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 type CardKey = 'Trend' | 'Read' | 'Action';
 
@@ -45,6 +47,7 @@ export default function LandingPage({ params }: MarketHomeProps) {
 
   return (
     <div className="min-h-screen bg-bg">
+      <TrackMount event={FUNNEL_EVENTS.LANDING_VIEWED} properties={{ market }} />
       {/* Header — text-only wordmark + mono-uppercase tabs, matching the
           /demo branding voice. */}
       <header className="px-6 sm:px-10 lg:px-16 pt-7 pb-4 flex items-center justify-between max-w-[1400px] mx-auto">
