@@ -7,7 +7,7 @@
  *   concurrent first calls via upsert + P2002 recovery.
  * - `modelVersion` is captured once at creation (D9). Subsequent calls do not
  *   mutate the stored version even if the caller passes a newer value.
- * - `ScribeAudit` is append-only (D6, D11). The only write path is an
+ * - `ScribeAudit` is append-only (D6, D11). The only wrie path is an
  *   idempotent upsert keyed by `(scribeId, requestId)`. No update or delete
  *   path is exposed — this is a structural guarantee, enforced by a test.
  */
@@ -17,7 +17,7 @@ import type { SafetyClassification } from './policy/types';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export const DEFAULT_SCRIBE_MODEL = 'openrouter/openai/gpt-4.1';
+export const DEFAULT_SCRIBE_MODEL = 'claude-sonnet-4-6';
 
 export const DEFAULT_SCRIBE_TEMPERATURE = 0.3;
 
