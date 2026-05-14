@@ -82,6 +82,34 @@ model LandingPageVisit {
   @@index([email])
 }
 
+// Activation funnel events. One row per meaningful step transition so we
+// can compute drop-off rates between conceptual stages — landing,
+// onboarding, assessment, reveal, sign-in, first-engagement. Distinct
+// from LandingPageVisit (which is dedupe-per-minute and only covers
+// marketing pages) and DiagnosticEvent (daily aggregate, no per-user
+// path). Closes A7 of the activation audit (docs/strategy).
+//
+// `funnelId` is a client-generated stable id stored in localStorage —
+// survives across pre-signin and post-signin so a user's full path
+// stitches without requiring middleware-set cookies on every route.
+//
+// `properties` is intentionally Json — events have heterogeneous data
+// (assessment_completed has questionCount + durationMs; sign_in_shown
+// has nothing). Capped at 2KB at the API layer.
+model FunnelEvent {
+  id         String   @id @default(cuid())
+  funnelId   String
+  userId     String?
+  event      String
+  path       String?
+  properties Json?
+  createdAt  DateTime @default(now())
+
+  @@index([funnelId, createdAt])
+  @@index([userId, createdAt])
+  @@index([event, createdAt])
+}
+
 // Single-table diagnostic counter with daily rotation. Each emit is an
 // INSERT ... ON CONFLICT (key, day) DO UPDATE SET count = count + 1. Caps
 // row growth at O(N_keys * N_days) — closes the silent-fallback DoS

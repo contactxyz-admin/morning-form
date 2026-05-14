@@ -60,7 +60,11 @@ export async function GET(request: Request) {
   }
 
   const onboarded = Boolean(user.assessment && user.stateProfile);
-  const redirectTo = onboarded ? '/record' : '/assessment';
+  // `?signed_in=1` is a one-shot flag the destination page reads on mount
+  // to fire the sign_in_completed funnel event, then strips via
+  // history.replaceState. Anything else stitches via userId once the page
+  // has loaded and the session cookie is present.
+  const redirectTo = `${onboarded ? '/record' : '/assessment'}?signed_in=1`;
   // Redirect relative to the inbound request so the user stays on the same
   // host they clicked the magic link from (preview subdomain vs prod).
   return NextResponse.redirect(new URL(redirectTo, request.url), { status: 303 });

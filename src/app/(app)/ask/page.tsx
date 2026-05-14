@@ -26,6 +26,8 @@ import type {
   BubbleModel,
   UserBubbleModel,
 } from '@/components/chat/message-bubble';
+import { track } from '@/lib/funnel/track';
+import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 interface HistoryResponse {
   messages: Array<{
@@ -149,6 +151,14 @@ function AskPageInner() {
       setPendingUser(optimistic);
       setHistory((prev) => {
         if (prev.kind !== 'ready') return prev;
+        // first_ask_sent fires only on the user's very first ask of all
+        // time — detected by zero prior user-role messages in history.
+        // History was rehydrated from /api/chat/history on mount, so
+        // returning users with any past chat won't refire.
+        const isFirst = prev.messages.every((m) => m.role !== 'user');
+        if (isFirst) {
+          track(FUNNEL_EVENTS.FIRST_ASK_SENT, { messageLength: trimmed.length });
+        }
         return {
           kind: 'ready',
           messages: [...prev.messages, optimistic],
