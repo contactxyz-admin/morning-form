@@ -72,7 +72,10 @@ describe('GET /api/auth/verify', () => {
 
     const res = await GET(makeGet(issued.rawToken));
     expect(res.status).toBe(303);
-    expect(res.headers.get('location')).toMatch(/\/(record|assessment)$/);
+    // ?signed_in=1 is appended by the route so /record (and /assessment)
+    // can fire the sign_in_completed funnel event on first paint. Match
+    // either route plus that param.
+    expect(res.headers.get('location')).toMatch(/\/(record|assessment)\?signed_in=1$/);
     expect(cookieJar.get(SESSION_COOKIE)).toBeTypeOf('string');
 
     // Token is marked consumed.
@@ -105,7 +108,7 @@ describe('GET /api/auth/verify', () => {
 
     const res = await GET(makeGet(issued.rawToken));
     expect(res.status).toBe(303);
-    expect(res.headers.get('location')).toMatch(/\/record$/);
+    expect(res.headers.get('location')).toMatch(/\/record\?signed_in=1$/);
   });
 
   it('redirects non-onboarded users to /assessment', async () => {
@@ -116,7 +119,7 @@ describe('GET /api/auth/verify', () => {
     // No assessment / stateProfile created — user is fresh.
     const res = await GET(makeGet(issued.rawToken));
     expect(res.status).toBe(303);
-    expect(res.headers.get('location')).toMatch(/\/assessment$/);
+    expect(res.headers.get('location')).toMatch(/\/assessment\?signed_in=1$/);
   });
 
   it('returns 410 when the token has already been consumed', async () => {
