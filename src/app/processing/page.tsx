@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { clearDraft } from '@/lib/assessment-draft';
 
 const steps = [
   'Analysing your state patterns',
@@ -62,6 +63,12 @@ export default function ProcessingPage() {
         }
         return;
       }
+
+      // POST succeeded — the assessment is durably persisted server-side.
+      // Clear the in-progress draft so a future visit to /assessment
+      // doesn't rehydrate stale answers. Leave `mf_assessment` in place
+      // so a refresh of this page during MIN_DWELL_MS works.
+      clearDraft();
 
       const elapsed = Date.now() - startedAt;
       const remaining = Math.max(0, MIN_DWELL_MS - elapsed);

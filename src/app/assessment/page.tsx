@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { assessmentQuestions, questionGroups } from '@/lib/assessment-questions';
@@ -13,6 +13,7 @@ import { ProgressBar } from '@/components/ui/progress-bar';
 import { SectionLabel } from '@/components/ui/section-label';
 import { Icon } from '@/components/ui/icon';
 import type { AssessmentResponses } from '@/types';
+import { loadDraft, saveDraft } from '@/lib/assessment-draft';
 
 export default function AssessmentPage() {
   const router = useRouter();
@@ -20,9 +21,30 @@ export default function AssessmentPage() {
   const [responses, setResponses] = useState<AssessmentResponses>({});
   const [showGroupIntro, setShowGroupIntro] = useState(true);
   const [lastGroup, setLastGroup] = useState('');
+  const hydratedRef = useRef(false);
 
   const question = assessmentQuestions[currentIndex];
   const progress = (currentIndex + 1) / assessmentQuestions.length;
+
+  // Rehydrate from draft on mount. Runs exactly once — guarded by ref so
+  // a later state update can't trigger a re-hydrate and clobber answers.
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    const draft = loadDraft();
+    if (!draft) return;
+    setResponses(draft.responses);
+    setCurrentIndex(draft.currentIndex);
+  }, []);
+
+  // Autosave on every meaningful change. Skips the empty initial state
+  // (don't wipe a real draft with the default {} during the brief window
+  // before rehydration completes).
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (Object.keys(responses).length === 0 && currentIndex === 0) return;
+    saveDraft(responses, currentIndex);
+  }, [responses, currentIndex]);
 
   // Check if we're entering a new group
   useEffect(() => {
@@ -55,7 +77,11 @@ export default function AssessmentPage() {
     if (currentIndex < assessmentQuestions.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      // Save to localStorage and navigate
+      // Final step: hand the completed answers to /processing via the
+      // canonical key. The draft is intentionally NOT cleared here —
+      // /processing clears it on POST success. If POST fails and the user
+      // navigates back to /assessment, the draft rehydrate brings them
+      // right back to the last question they answered.
       localStorage.setItem('mf_assessment', JSON.stringify(responses));
       router.push('/processing');
     }
