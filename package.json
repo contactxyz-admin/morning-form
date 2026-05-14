@@ -20,7 +20,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "marketing:scaffold": "tsx scripts/marketing-scaffold.ts",
-    "mcp:audit": "tsx scripts/metrics/mcp-audit.ts"
+    "mcp:audit": "tsx scripts/metrics/mcp-audit.ts",
+    "scribe:fix-model": "tsx scripts/fix-scribe-model.ts"
   },
   "engines": {
     "node": "20.x"

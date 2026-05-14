@@ -6,6 +6,7 @@ import {
   DEFAULT_SCRIBE_MODEL,
   DEFAULT_SCRIBE_TOOLS,
   getOrCreateScribeForTopic,
+  isAcceptableModelForCurrentClient,
   recordAudit,
 } from './repo';
 
@@ -167,5 +168,47 @@ describe('repo surface is append-only', () => {
     expect(Object.keys(repoModule)).not.toContain('updateAudit');
     expect(Object.keys(repoModule)).not.toContain('deleteAudit');
     expect(Object.keys(repoModule)).not.toContain('purgeAudits');
+  });
+});
+
+describe('DEFAULT_SCRIBE_MODEL constant', () => {
+  it('points at a Claude-family id (Anthropic SDK rejects anything else with 404)', () => {
+    // Pins the constant against silent regression to another provider's
+    // string shape (e.g. `openrouter/...`, `openai/...`). If we ever
+    // genuinely want a non-Claude default, that's a deliberate change
+    // and the multi-provider plan
+    // (2026-05-14-002-feat-multi-provider-scribe-routing-plan.md) is the
+    // place to make it.
+    expect(DEFAULT_SCRIBE_MODEL.startsWith('claude-')).toBe(true);
+  });
+});
+
+describe('isAcceptableModelForCurrentClient', () => {
+  it('accepts the current default and other Claude-family ids', () => {
+    expect(isAcceptableModelForCurrentClient('claude-sonnet-4-6')).toBe(true);
+    expect(isAcceptableModelForCurrentClient('claude-opus-4-7')).toBe(true);
+    expect(isAcceptableModelForCurrentClient('claude-haiku-4-5-20251001')).toBe(true);
+    expect(isAcceptableModelForCurrentClient(DEFAULT_SCRIBE_MODEL)).toBe(true);
+  });
+
+  it('rejects the stale OpenRouter prefix (the actual bug being fixed)', () => {
+    expect(isAcceptableModelForCurrentClient('openrouter/openai/gpt-4.1')).toBe(false);
+    expect(isAcceptableModelForCurrentClient('openrouter/anthropic/claude-3-sonnet')).toBe(
+      false,
+    );
+  });
+
+  it('rejects unknown future provider prefixes (allowlist, not denylist)', () => {
+    // Pins the allowlist semantics — denylisting only `openrouter/` would
+    // let these through silently. The Anthropic SDK would 404 on them.
+    expect(isAcceptableModelForCurrentClient('gemini/pro')).toBe(false);
+    expect(isAcceptableModelForCurrentClient('openai/gpt-4o')).toBe(false);
+    expect(isAcceptableModelForCurrentClient('anthropic/claude-sonnet-4-6')).toBe(false);
+  });
+
+  it('rejects empty, null, undefined, and non-string inputs', () => {
+    expect(isAcceptableModelForCurrentClient('')).toBe(false);
+    expect(isAcceptableModelForCurrentClient(null)).toBe(false);
+    expect(isAcceptableModelForCurrentClient(undefined)).toBe(false);
   });
 });
