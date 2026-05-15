@@ -91,21 +91,21 @@ export default function SignInPage() {
 
       <div className="flex-1 flex flex-col items-center justify-center px-5 sm:px-8">
         <form onSubmit={handleSubmit} className="w-full max-w-md">
-          <p className="text-label uppercase text-text-tertiary mb-4">Sign in</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary mb-5">
+            Sign in · Create your account
+          </p>
           <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.035em] leading-[1.05]">
-            See your <span className="italic font-light">record</span>.
+            Sign in or create your <span className="italic font-light">account</span>.
           </h1>
 
           {sent ? (
             <>
-              <p className="mt-5 text-body-lg text-text-secondary">
-                We sent a sign-in link to <span className="text-text-primary">{email}</span>. Open
-                it on this device to continue.
+              <p className="mt-6 text-body-lg text-text-secondary leading-relaxed max-w-prose -tracking-[0.005em]">
+                Check your inbox. We&rsquo;ve sent a one-time link to{' '}
+                <span className="text-text-primary">{email}</span> — open it on
+                this device to continue. Links expire after 15 minutes.
               </p>
-              <p className="mt-5 text-caption text-text-tertiary">
-                Links expire after 15 minutes. You can request another one if yours expires.
-              </p>
-              <div className="mt-8">
+              <div className="mt-10">
                 <Button
                   type="button"
                   variant="ghost"
@@ -119,9 +119,10 @@ export default function SignInPage() {
             </>
           ) : (
             <>
-              <p className="mt-5 text-body-lg text-text-secondary">
-                Enter your email and we&rsquo;ll send a one-time link. New
-                or returning — same door.
+              <p className="mt-6 text-body-lg text-text-secondary leading-relaxed max-w-prose -tracking-[0.005em]">
+                Your full record — labs, wearables, and what they mean — ready
+                in minutes. Magic link, no password; works whether you&rsquo;re
+                new or returning.
               </p>
 
               <div className="mt-10">
@@ -139,17 +140,34 @@ export default function SignInPage() {
 
               <div className="mt-8">
                 <Button type="submit" fullWidth size="lg" loading={loading} disabled={loading}>
-                  {loading ? 'Sending link…' : 'Send sign-in link →'}
+                  {loading ? 'Sending link…' : 'Continue with email →'}
                 </Button>
               </div>
 
-              <p className="mt-8 text-caption text-text-tertiary text-center">
-                New here?{' '}
+              {/*
+               * Phase B: SSO providers (Google, Apple) slot in here, wired
+               * when OAuth credentials are provisioned. Today the rule
+               * stands alone to reserve the visual rhythm so the eventual
+               * additions don't force a re-layout.
+               */}
+              <div
+                className="mt-10 mb-8 flex items-center gap-4"
+                aria-hidden="true"
+              >
+                <span className="flex-1 border-t border-border" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+                  or
+                </span>
+                <span className="flex-1 border-t border-border" />
+              </div>
+
+              <p className="text-body text-text-secondary">
+                Want to look around first?{' '}
                 <Link
                   href="/demo"
-                  className="text-text-secondary hover:text-text-primary transition-colors underline-offset-4 hover:underline"
+                  className="text-text-primary underline-offset-4 hover:underline transition-colors duration-300 ease-spring"
                 >
-                  See a sample record
+                  See a sample record →
                 </Link>
               </p>
             </>
