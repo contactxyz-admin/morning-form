@@ -45,11 +45,11 @@ Three small UI/data changes that together turn `/record?mode=map` from "list wit
 
 ### Relevant code and patterns
 
-- [src/components/record/vault-layout.tsx:24,186-232](../../src/components/record/vault-layout.tsx) — the gate site, canvas wrapper, and where the new copy will sit
-- [src/components/graph/graph-canvas.tsx](../../src/components/graph/graph-canvas.tsx) — pure consumer of `nodes` + `edges`; nothing to change
-- [src/lib/graph/visual-encoding.ts:49-79](../../src/lib/graph/visual-encoding.ts) — `source_document` is already a registered `NodeType` mapped to the `data` visual class (`fill-text-tertiary/10` / `stroke-text-tertiary/60`). The canvas will style source-doc pseudo-nodes correctly with zero additional work.
-- [src/lib/record/types.ts:66-71](../../src/lib/record/types.ts) — `AggregateSourceRow` shape: `{ id, kind, capturedAt, createdAt }`
-- [src/types/graph.ts:12-26](../../src/types/graph.ts) — `GraphNodeWire` shape we need to synthesise to
+- [src/components/record/vault-layout.tsx:24,186-232](src/components/record/vault-layout.tsx) — the gate site, canvas wrapper, and where the new copy will sit
+- [src/components/graph/graph-canvas.tsx](src/components/graph/graph-canvas.tsx) — pure consumer of `nodes` + `edges`; nothing to change
+- [src/lib/graph/visual-encoding.ts:49-79](src/lib/graph/visual-encoding.ts) — `source_document` is already a registered `NodeType` mapped to the `data` visual class (`fill-text-tertiary/10` / `stroke-text-tertiary/60`). The canvas will style source-doc pseudo-nodes correctly with zero additional work.
+- [src/lib/record/types.ts:66-71](src/lib/record/types.ts) — `AggregateSourceRow` shape: `{ id, kind, capturedAt, createdAt }`
+- [src/types/graph.ts:12-26](src/types/graph.ts) — `GraphNodeWire` shape we need to synthesise to
 
 ### Existing pattern that proves this works (`/demo/record`)
 
@@ -95,7 +95,7 @@ The demo route already renders `<GraphCanvas>` with fixture data, ungated, inclu
   **Dependencies:** None.
 
   **Files:**
-  - Modify: [src/components/record/vault-layout.tsx](../../src/components/record/vault-layout.tsx) — delete `MIN_EDGE_DENSITY` (line 24), delete `nonSupportsEdgeRatio` + `showCanvas` in `VaultMapMode`, replace the `{showCanvas && ...}` JSX with `{isDesktop && ...}`
+  - Modify: [src/components/record/vault-layout.tsx](src/components/record/vault-layout.tsx) — delete `MIN_EDGE_DENSITY` (line 24), delete `nonSupportsEdgeRatio` + `showCanvas` in `VaultMapMode`, replace the `{showCanvas && ...}` JSX with `{isDesktop && ...}`
 
   **Approach:**
   - Drop two lines (constant + ratio calc) and rewire one JSX gate. No other changes.
@@ -117,7 +117,7 @@ The demo route already renders `<GraphCanvas>` with fixture data, ungated, inclu
   **Dependencies:** Unit 1 (or independently — they can land in either order, but Unit 2's value is only visible once the canvas shows).
 
   **Files:**
-  - Modify: [src/components/record/vault-layout.tsx](../../src/components/record/vault-layout.tsx) — inside `VaultMapMode`, derive `canvasNodes = [...data.nodes, ...synthesizeSourceNodes(data.sources)]`. Pass `canvasNodes` (not `data.nodes`) to `<GraphCanvas>`. `<GraphListView>` continues to receive `data.nodes` only.
+  - Modify: [src/components/record/vault-layout.tsx](src/components/record/vault-layout.tsx) — inside `VaultMapMode`, derive `canvasNodes = [...data.nodes, ...synthesizeSourceNodes(data.sources)]`. Pass `canvasNodes` (not `data.nodes`) to `<GraphCanvas>`. `<GraphListView>` continues to receive `data.nodes` only.
 
   **Approach:**
   - Add a small local helper `synthesizeSourceNodes(sources: AggregateSourceRow[]): GraphNodeWire[]` either inline or near the top of the file.
@@ -143,7 +143,7 @@ The demo route already renders `<GraphCanvas>` with fixture data, ungated, inclu
   ```
 
   **Patterns to follow:**
-  - `visualForNode('source_document')` in [src/lib/graph/visual-encoding.ts](../../src/lib/graph/visual-encoding.ts) returns the soft-grey style — already mapped; no styling work needed
+  - `visualForNode('source_document')` in [src/lib/graph/visual-encoding.ts](src/lib/graph/visual-encoding.ts) returns the soft-grey style — already mapped; no styling work needed
   - `date-fns` is already a dependency (see `package.json`); use `format(date, 'MMM yyyy')`
 
   **Test scenarios:**
@@ -164,7 +164,7 @@ The demo route already renders `<GraphCanvas>` with fixture data, ungated, inclu
   **Dependencies:** Unit 1 (the copy lives in the canvas block that Unit 1 ungates).
 
   **Files:**
-  - Modify: [src/components/record/vault-layout.tsx](../../src/components/record/vault-layout.tsx) — inside the `{isDesktop && <div>...</div>}` block introduced by Unit 1, add a `<p>` above `<GraphCanvas>`
+  - Modify: [src/components/record/vault-layout.tsx](src/components/record/vault-layout.tsx) — inside the `{isDesktop && <div>...</div>}` block introduced by Unit 1, add a `<p>` above `<GraphCanvas>`
 
   **Approach:**
   - Place the copy inside the canvas wrapper `<div>`, above `<GraphCanvas>`, so it visually pairs with the canvas
@@ -221,5 +221,5 @@ The demo route already renders `<GraphCanvas>` with fixture data, ungated, inclu
 
 - **Direct request:** in-session decision to include source-doc nodes + add evolving copy
 - **Original plan (this file's earlier version):** density gate alone, with these two pieces deferred to v2
-- **Code:** [src/components/record/vault-layout.tsx](../../src/components/record/vault-layout.tsx), [src/lib/graph/visual-encoding.ts](../../src/lib/graph/visual-encoding.ts)
+- **Code:** [src/components/record/vault-layout.tsx](src/components/record/vault-layout.tsx), [src/lib/graph/visual-encoding.ts](src/lib/graph/visual-encoding.ts)
 - **Pattern reference:** `/demo/record` (ungated canvas with fixture data)

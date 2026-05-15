@@ -10,21 +10,11 @@ import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-vie
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useRecordIndex } from '@/lib/hooks/use-record-index';
-import type { GraphNodeWire } from '@/types/graph';
+import { kindLabel } from '@/lib/record/source-view';
+import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { VaultIndex } from './vault-index';
 import { VaultModeToggle, parseVaultMode, type VaultMode } from './vault-mode-toggle';
 import type { SourceDocumentWire, RecordIndex as RecordIndexData } from '@/lib/record/types';
-import type { GraphEdgeWire } from '@/types/graph';
-
-/**
- * Render `kind` (a snake_case enum like `blood_panel`, `clinic_note`) as a
- * single capitalised phrase for use in node display labels.
- */
-function humaniseKind(kind: string): string {
-  const words = kind.split('_').filter(Boolean);
-  if (words.length === 0) return 'Document';
-  return [words[0][0].toUpperCase() + words[0].slice(1), ...words.slice(1)].join(' ');
-}
 
 /**
  * Synthesise canvas-only `GraphNodeWire`-shaped entries for each source
@@ -49,7 +39,13 @@ function synthesizeSourceNodes(
     userId,
     type: 'source_document',
     canonicalKey: s.id,
-    displayName: `${humaniseKind(s.kind)} · ${format(new Date(s.capturedAt), 'MMM yyyy')}`,
+    // Reuse the canonical kind→label map from `source-view.ts` so the
+    // canvas hub label matches the source-card label for the same
+    // document. Falls back to a snake_case-stripped version for unknown
+    // kinds. (Full 3-surface consolidation — including the separate
+    // DOC_KIND_LABELS in node-detail-sheet.tsx — is queued as a
+    // separate cleanup; this PR fixes the canvas/source-card pair.)
+    displayName: `${kindLabel(s.kind)} · ${format(new Date(s.capturedAt), 'MMM yyyy')}`,
     attributes: {},
     confidence: 1,
     promoted: false,
@@ -278,16 +274,23 @@ function VaultMapMode({ data, isDesktop, onNodeClick }: VaultMapModeProps) {
   // at least one exists.
   const userId = data.nodes[0].userId;
   const scoreCeiling = data.nodes.reduce((max, n) => Math.max(max, n.score), 0);
-  const sourceNodes = synthesizeSourceNodes(data.sources, userId, scoreCeiling);
+  // `data.sources ?? []` defends against the Vercel deploy-skew window
+  // where a fresh client lands against a pre-deploy server response.
+  const sourceNodes = synthesizeSourceNodes(data.sources ?? [], userId, scoreCeiling);
   const canvasNodes: GraphNodeWire[] = [...data.nodes, ...sourceNodes];
 
   // Synthesise visible biomarker → source-doc edges from the existing
-  // self-SUPPORTS edges' `fromDocumentId` provenance. Without this the
-  // source-doc pseudo-nodes would appear as disconnected islands.
+  // self-SUPPORTS edges' `fromDocumentId` provenance. The real
+  // SUPPORTS edges are filtered out of the canvas-side spread because
+  // they're self-loops (fromNodeId === toNodeId — see
+  // src/lib/graph/mutations.ts) and D3 renders them as degenerate
+  // zero-length lines that also inflate the aria-label edge count.
+  // The synthesised biomarker → source-doc edges cover the same
+  // provenance signal, visibly.
   const graphNodeIds = new Set(data.nodes.map((n) => n.id));
   const sourceIds = new Set(sourceNodes.map((n) => n.id));
   const canvasEdges: GraphEdgeWire[] = [
-    ...data.edges,
+    ...data.edges.filter((e) => e.type !== 'SUPPORTS'),
     ...synthesizeSourceEdges(data.edges, graphNodeIds, sourceIds),
   ];
 
