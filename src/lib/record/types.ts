@@ -30,6 +30,15 @@ export interface GraphSummary {
   topicCount: number;
 }
 
+/** Wire-shape source-document summary. Date fields are ISO strings so the
+ *  response JSON-serialises cleanly without adapter shims at the client. */
+export interface SourceDocumentWire {
+  id: string;
+  kind: string;
+  capturedAt: string;
+  createdAt: string;
+}
+
 export interface RecordIndex {
   topics: TopicStatus[];
   recentActivity: LogEntry[];
@@ -44,6 +53,14 @@ export interface RecordIndex {
   nodes: GraphNodeWire[];
   /** Edges restricted to the kept-nodes set. SUPPORTS edges retained. */
   edges: GraphEdgeWire[];
+  /**
+   * All source documents in the user's vault (no truncation — sources are
+   * low-cardinality compared to graph nodes). The canvas renders these as
+   * hub nodes alongside the graph nodes so the SUPPORTS edges (carried as
+   * `fromDocumentId` on existing edges) have visible targets; the list
+   * view ignores them.
+   */
+  sources: SourceDocumentWire[];
   /** Counts per node type across the kept-nodes set. */
   nodeTypeCounts: Partial<Record<NodeType, number>>;
   /** True when the importance-ranked node count exceeded `nodeCap`. */

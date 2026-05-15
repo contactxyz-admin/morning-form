@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { format } from 'date-fns';
 import { Card } from '@/components/ui/card';
 import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-view';
@@ -12,16 +13,91 @@ import { useRecordIndex } from '@/lib/hooks/use-record-index';
 import type { GraphNodeWire } from '@/types/graph';
 import { VaultIndex } from './vault-index';
 import { VaultModeToggle, parseVaultMode, type VaultMode } from './vault-mode-toggle';
-import type { RecordIndex as RecordIndexData } from '@/lib/record/types';
+import type { SourceDocumentWire, RecordIndex as RecordIndexData } from '@/lib/record/types';
+import type { GraphEdgeWire } from '@/types/graph';
 
 /**
- * Minimum non-SUPPORTS-edges-per-node ratio before the desktop canvas
- * shows. Matches the previous `/api/graph` page — sparse graphs render as
- * a particle cloud and read worse than the grouped list. Importance scorer
- * at src/lib/graph/importance.ts excludes SUPPORTS edges for the same
- * reason.
+ * Render `kind` (a snake_case enum like `blood_panel`, `clinic_note`) as a
+ * single capitalised phrase for use in node display labels.
  */
-const MIN_EDGE_DENSITY = 0.4;
+function humaniseKind(kind: string): string {
+  const words = kind.split('_').filter(Boolean);
+  if (words.length === 0) return 'Document';
+  return [words[0][0].toUpperCase() + words[0].slice(1), ...words.slice(1)].join(' ');
+}
+
+/**
+ * Synthesise canvas-only `GraphNodeWire`-shaped entries for each source
+ * document so each biomarker has a visible "hub" to anchor to. Source
+ * docs use the `source_document` NodeType (already mapped to the `data`
+ * visual class in src/lib/graph/visual-encoding.ts — soft grey, distinct
+ * from the health-data node colours). Source nodes anchor as tier-1
+ * hubs: largest radius, always-on label, score above the biomarker
+ * ceiling so any future cap keeps them in.
+ *
+ * Pseudo-nodes do NOT flow through `<GraphListView>` — the list groups
+ * by health-data node type and would be noisy with per-document rows.
+ * This asymmetry between canvas and list is deliberate.
+ */
+function synthesizeSourceNodes(
+  sources: readonly SourceDocumentWire[],
+  userId: string,
+  scoreCeiling: number,
+): GraphNodeWire[] {
+  return sources.map((s) => ({
+    id: s.id,
+    userId,
+    type: 'source_document',
+    canonicalKey: s.id,
+    displayName: `${humaniseKind(s.kind)} · ${format(new Date(s.capturedAt), 'MMM yyyy')}`,
+    attributes: {},
+    confidence: 1,
+    promoted: false,
+    createdAt: s.createdAt,
+    updatedAt: s.capturedAt,
+    tier: 1,
+    score: scoreCeiling + 1,
+  }));
+}
+
+/**
+ * Synthesise canvas-only edges from each graph node to the source
+ * document(s) that support it. Reads provenance from the existing
+ * SUPPORTS edges (which are self-loops carrying the source doc on
+ * `fromDocumentId` — see src/lib/graph/mutations.ts:329 for the model)
+ * and re-shapes them into a visually-meaningful biomarker→source-doc
+ * line. Deduped by `(nodeId, documentId)` so a node supported by
+ * multiple chunks of the same document only gets one edge.
+ */
+function synthesizeSourceEdges(
+  edges: readonly GraphEdgeWire[],
+  graphNodeIds: ReadonlySet<string>,
+  sourceIds: ReadonlySet<string>,
+): GraphEdgeWire[] {
+  const seen = new Set<string>();
+  const synthesized: GraphEdgeWire[] = [];
+  for (const e of edges) {
+    if (!e.fromDocumentId) continue;
+    if (!sourceIds.has(e.fromDocumentId)) continue;
+    if (!graphNodeIds.has(e.toNodeId)) continue;
+    const key = `${e.toNodeId}::${e.fromDocumentId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    synthesized.push({
+      id: `synth-supports-${key}`,
+      userId: e.userId,
+      type: 'SUPPORTS',
+      fromNodeId: e.toNodeId,
+      toNodeId: e.fromDocumentId,
+      fromChunkId: null,
+      fromDocumentId: e.fromDocumentId,
+      weight: 1,
+      metadata: {},
+      createdAt: e.createdAt,
+    });
+  }
+  return synthesized;
+}
 
 /**
  * Top-level orchestrator for the unified vault surface (the merged
@@ -80,6 +156,13 @@ export function VaultLayout() {
 
   const handleNodeClick = useCallback(
     (node: GraphNodeWire) => {
+      // Source-document pseudo-nodes (synthesised client-side for the
+      // canvas) aren't in `state.data.nodes`, so opening the detail
+      // sheet for them would resolve to null and trigger the deep-link
+      // guard to immediately clear the URL — a visible flicker for no
+      // outcome. No source-doc detail surface exists yet; ignore the
+      // click. (If we add one later, drop this guard and route on type.)
+      if (node.type === 'source_document') return;
       updateUrl({ entity: node.canonicalKey });
     },
     [updateUrl],
@@ -178,17 +261,35 @@ interface VaultMapModeProps {
 
 /**
  * Map-mode body — extracted block from the previous `/api/graph` page.
- * Density-gated canvas on desktop, grouped list as the read-friendly default
- * everywhere else. SUPPORTS-edges excluded from the density calc because
- * every node has at least one and they don't represent structural
- * centrality.
+ * Desktop renders the force-directed canvas at any density; mobile shows
+ * the grouped list only (the SVG labels become illegible at phone width
+ * and the list is the more useful read on a small screen anyway).
+ *
+ * The canvas receives synthesised source-document pseudo-nodes alongside
+ * real graph nodes so the SUPPORTS edges find visible targets; the list
+ * view is intentionally kept health-data-only.
  */
 function VaultMapMode({ data, isDesktop, onNodeClick }: VaultMapModeProps) {
   if (data.nodes.length === 0) return <GraphListEmpty />;
 
-  const nonSupportsEdgeRatio =
-    data.edges.filter((e) => e.type !== 'SUPPORTS').length / data.nodes.length;
-  const showCanvas = isDesktop && nonSupportsEdgeRatio >= MIN_EDGE_DENSITY;
+  // Borrow the userId from a real graph node — every node in `data.nodes`
+  // belongs to the current user (R/W is server-scoped by session) so
+  // either of them is the same answer. The early-return above guarantees
+  // at least one exists.
+  const userId = data.nodes[0].userId;
+  const scoreCeiling = data.nodes.reduce((max, n) => Math.max(max, n.score), 0);
+  const sourceNodes = synthesizeSourceNodes(data.sources, userId, scoreCeiling);
+  const canvasNodes: GraphNodeWire[] = [...data.nodes, ...sourceNodes];
+
+  // Synthesise visible biomarker → source-doc edges from the existing
+  // self-SUPPORTS edges' `fromDocumentId` provenance. Without this the
+  // source-doc pseudo-nodes would appear as disconnected islands.
+  const graphNodeIds = new Set(data.nodes.map((n) => n.id));
+  const sourceIds = new Set(sourceNodes.map((n) => n.id));
+  const canvasEdges: GraphEdgeWire[] = [
+    ...data.edges,
+    ...synthesizeSourceEdges(data.edges, graphNodeIds, sourceIds),
+  ];
 
   return (
     <>
@@ -211,16 +312,19 @@ function VaultMapMode({ data, isDesktop, onNodeClick }: VaultMapModeProps) {
         )}
       </div>
 
-      {showCanvas && (
+      {isDesktop && (
         <div className="mb-10 rounded-card border border-border bg-surface-warm/40 p-4">
+          <p className="mb-3 italic text-caption text-text-tertiary">
+            Your health graph evolves as you add data.
+          </p>
           <GraphCanvas
-            nodes={data.nodes}
-            edges={data.edges}
+            nodes={canvasNodes}
+            edges={canvasEdges}
             width={720}
             height={480}
             onNodeClick={onNodeClick}
             className="w-full h-auto"
-            ariaLabel={`Your health graph — ${data.nodes.length} nodes, ${data.edges.length} edges. Tap any node to see its sources.`}
+            ariaLabel={`Your health graph — ${canvasNodes.length} nodes, ${canvasEdges.length} edges. Tap any node to see its sources.`}
           />
           <p className="mt-3 text-caption text-text-tertiary">
             Tap a node to see what grounds it. The structured list below shows the same data, grouped.

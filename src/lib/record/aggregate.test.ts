@@ -114,9 +114,30 @@ describe('aggregateRecord', () => {
     // Graph fields are present but empty on a blank record.
     expect(result.nodes).toEqual([]);
     expect(result.edges).toEqual([]);
+    expect(result.sources).toEqual([]);
     expect(result.nodeTypeCounts).toEqual({});
     expect(result.truncated).toBe(false);
     expect(result.totalNodes).toBe(0);
+  });
+
+  it('serialises sources to the wire shape with ISO timestamps', () => {
+    const capturedAt = new Date('2026-04-09T10:00:00Z');
+    const createdAt = new Date('2026-04-09T11:00:00Z');
+    const result = aggregateRecord({
+      topics: [],
+      nodes: [],
+      sources: [{ id: 's-1', kind: 'blood_panel', capturedAt, createdAt }],
+      edges: [],
+    });
+
+    expect(result.sources).toEqual([
+      {
+        id: 's-1',
+        kind: 'blood_panel',
+        capturedAt: '2026-04-09T10:00:00.000Z',
+        createdAt: '2026-04-09T11:00:00.000Z',
+      },
+    ]);
   });
 
   it('activity is reverse-chronological across sources, topic compiles, and nodes', () => {

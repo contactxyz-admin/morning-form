@@ -159,6 +159,12 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
     },
     nodes,
     edges,
+    sources: input.sources.map((s) => ({
+      id: s.id,
+      kind: s.kind,
+      capturedAt: s.capturedAt.toISOString(),
+      createdAt: s.createdAt.toISOString(),
+    })),
     nodeTypeCounts,
     truncated,
     totalNodes,
