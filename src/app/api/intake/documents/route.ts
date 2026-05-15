@@ -117,18 +117,21 @@ export async function POST(req: Request) {
     );
   }
 
+  // Auth + consent BEFORE reading the full file buffer. The buffer can
+  // be up to MAX_PDF_BYTES (20 MB) — there's no point allocating + hashing
+  // it for an unauthenticated or unconsented caller. Matches the
+  // top-level gate ordering used in the other 6 LLM-bearing routes.
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
+  const consentResponse = llmConsentGateResponse(user);
+  if (consentResponse) return consentResponse;
+
   const buffer = Buffer.from(await file.arrayBuffer());
   const contentHash = createHash('sha256').update(buffer).digest('hex');
 
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-    }
-
-    const consentResponse = llmConsentGateResponse(user);
-    if (consentResponse) return consentResponse;
-
     // Dedup: if this exact content is already ingested for this user, return
     // the existing document id so the UI stays idempotent.
     const existing = await prisma.sourceDocument.findUnique({

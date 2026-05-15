@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -41,6 +41,7 @@ type LoadState =
 
 export default function TopicPage() {
   const params = useParams<{ topicKey: string }>();
+  const router = useRouter();
   const topicKey = params?.topicKey;
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [citedNode, setCitedNode] = useState<GraphNodeWire | null>(null);
@@ -77,13 +78,11 @@ export default function TopicPage() {
           return;
         }
         // 412 + requiresConsent: arm the modal and stop here. Accept
-        // re-fires the effect via reload; cancel leaves the page in
-        // its loading shimmer so the user can navigate back.
-        if (
-          await checkConsent(res, () =>
-            setReload((r) => ({ seq: r.seq + 1, force: r.force })),
-          )
-        ) {
+        // re-fires the effect via reload (handled below). Cancel is
+        // wired at the <LlmConsentModal /> render — routes back to
+        // /record so the user isn't trapped on a permanent loading
+        // shimmer.
+        if (await checkConsent(res, () => retry(reload.force))) {
           return;
         }
         if (!res.ok) {
@@ -259,7 +258,13 @@ export default function TopicPage() {
       <LlmConsentModal
         open={consentGate.open}
         onAccepted={consentGate.onAccepted}
-        onCancel={consentGate.onCancel}
+        onCancel={() => {
+          consentGate.onCancel();
+          // Topic compile is LLM-bearing; without consent there's nothing
+          // to render. Send the user back to /record so they have an
+          // obvious next step rather than a permanent loading shimmer.
+          router.push('/record');
+        }}
       />
     </div>
   );

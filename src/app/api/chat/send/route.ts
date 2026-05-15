@@ -20,7 +20,13 @@
  *                 it doesn't hit the scribe; the topic-key fallback path still
  *                 returns `assistantMessageId` so history replay joins work)
  *     - `error`:  { message }  (mid-stream or pre-routing)
- *   Failure before stream starts: JSON 4xx/5xx.
+ *   Failure before stream starts: JSON 4xx/5xx. Notable codes:
+ *     - 401 `{ error }` — unauthenticated.
+ *     - 412 `{ requiresConsent: true, error }` — caller is signed in but
+ *       has not accepted the LLM consent notice. `useChatStream` handles
+ *       this via `onRequiresConsent` so the client can raise the
+ *       `<LlmConsentModal>` and retry on accept. See `lib/llm/consent.ts`.
+ *     - 503 — scribe LLM client misconfigured.
  *
  * Invariants:
  *   - D10: `userId` comes from the session and is threaded into `runChatTurn`;

@@ -13,7 +13,7 @@
  * On accept: POSTs /api/user/consent, then calls onAccepted so the caller
  * can retry the original request.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -27,21 +27,64 @@ interface Props {
   onCancel: () => void;
 }
 
+// Wall-clock budget for the consent POST. Without this, an unresponsive
+// upstream leaves both modal buttons disabled and the user with no
+// escape short of refreshing the page.
+const CONSENT_POST_TIMEOUT_MS = 12_000;
+
 export function LlmConsentModal({ open, onAccepted, onCancel }: Props) {
   const [consented, setConsented] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset the checkbox + error state every time the modal is re-opened.
+  // Without this the component would render with stale state (e.g. a
+  // prior failure message, or the consent checkbox pre-checked from a
+  // previous attempt) since the parent keeps it mounted across opens.
+  useEffect(() => {
+    if (open) {
+      setConsented(false);
+      setSubmitting(false);
+      setError(null);
+    }
+  }, [open]);
+
   if (!open) return null;
+
+  const postConsent = async (): Promise<{ ok: boolean; status?: number }> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CONSENT_POST_TIMEOUT_MS);
+    try {
+      const res = await fetch('/api/user/consent', {
+        method: 'POST',
+        signal: controller.signal,
+      });
+      return { ok: res.ok, status: res.status };
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
   const handleAccept = async () => {
     if (!consented || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/user/consent', { method: 'POST' });
+      let res = await postConsent();
+      // Silent single retry — the endpoint is idempotent (updateMany on
+      // a null-only WHERE clause). Covers the lost-response case where
+      // the server actually committed but the response packet was lost,
+      // which otherwise leaves the user staring at a failure for a
+      // consent event that IS recorded.
       if (!res.ok) {
-        setError(`Could not save consent (HTTP ${res.status}). Try again.`);
+        res = await postConsent();
+      }
+      if (!res.ok) {
+        setError(
+          res.status
+            ? `Could not save consent (HTTP ${res.status}). Try again.`
+            : 'Could not save consent. Try again.',
+        );
         setSubmitting(false);
         return;
       }

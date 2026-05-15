@@ -22,7 +22,11 @@ export default function ProcessingPage() {
   const router = useRouter();
   const [visibleSteps, setVisibleSteps] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [retrying, setRetrying] = useState(false);
+  // Monotonic counter (not a boolean toggle) so two onAccepted fires in
+  // rapid succession still produce a fresh dep value — boolean !x can
+  // self-cancel under React batching. Mirrors the pattern in
+  // /topics/[topicKey]/page.tsx.
+  const [retrySeq, setRetrySeq] = useState(0);
   const consentGate = useLlmConsentGate();
   const { checkResponse: checkConsent } = consentGate;
 
@@ -62,7 +66,7 @@ export default function ProcessingPage() {
         // — accept replays the run by flipping `retrying`; cancel routes
         // back to /assessment so the user isn't stuck on a screen with
         // no obvious next step.
-        if (await checkConsent(res, () => setRetrying((r) => !r))) {
+        if (await checkConsent(res, () => setRetrySeq((n) => n + 1))) {
           return;
         }
         if (!res.ok) {
@@ -94,7 +98,7 @@ export default function ProcessingPage() {
       cancelled = true;
       stepTimers.forEach(clearTimeout);
     };
-  }, [router, retrying, checkConsent]);
+  }, [router, retrySeq, checkConsent]);
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-8 relative overflow-hidden">
@@ -138,7 +142,7 @@ export default function ProcessingPage() {
               onClick={() => {
                 setError(null);
                 setVisibleSteps(0);
-                setRetrying((r) => !r);
+                setRetrySeq((n) => n + 1);
               }}
               className="text-caption text-surface-warm underline underline-offset-4 hover:opacity-80"
             >

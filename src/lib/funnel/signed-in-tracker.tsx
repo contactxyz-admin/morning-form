@@ -16,7 +16,7 @@
  */
 import { useEffect } from 'react';
 import { track } from './track';
-import { FUNNEL_EVENTS } from './event';
+import { FUNNEL_EVENTS, type AuthProvider } from './event';
 
 export function SignedInTracker(): null {
   useEffect(() => {
@@ -29,7 +29,8 @@ export function SignedInTracker(): null {
       // Provider 'magic_link' until Phase B adds SSO; the verify route
       // doesn't currently distinguish providers beyond the auth path
       // taken (which today is magic-link only).
-      track(FUNNEL_EVENTS.SIGNUP_COMPLETED, { provider: 'magic_link' });
+      const provider: AuthProvider = 'magic_link';
+      track(FUNNEL_EVENTS.SIGNUP_COMPLETED, { provider });
     }
 
     // Strip both params so a reload or share-URL doesn't refire.

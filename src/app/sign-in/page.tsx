@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { track } from '@/lib/funnel/track';
-import { FUNNEL_EVENTS } from '@/lib/funnel/event';
+import { FUNNEL_EVENTS, type AuthProvider } from '@/lib/funnel/event';
 
 type Status =
   | { kind: 'idle' }
@@ -26,9 +26,14 @@ export default function SignInPage() {
 
     setStatus({ kind: 'loading' });
 
-    // Funnel event — fires on every submit, deduped on the analytics
-    // side by funnelId. Provider 'magic_link' until Phase B adds SSO.
-    track(FUNNEL_EVENTS.SIGNUP_INITIATED, { provider: 'magic_link' });
+    // Funnel event — fires on every submit, including returning users
+    // re-authenticating. Use the AuthProvider union so Phase B SSO
+    // additions can't introduce typos that break analytics queries.
+    // Returning-user inflation is acknowledged: dedup on (userId,
+    // eventName) at the analytics consumer side; SIGNUP_COMPLETED is
+    // the load-bearing conversion event and is server-side gated.
+    const provider: AuthProvider = 'magic_link';
+    track(FUNNEL_EVENTS.SIGNUP_INITIATED, { provider });
 
     try {
       const res = await fetch('/api/auth/request-link', {

@@ -17,15 +17,17 @@
  * modal; this hook only handles the retry side.
  */
 import { useCallback, useState } from 'react';
-
-interface ConsentBody {
-  requiresConsent?: unknown;
-}
+import type { RequiresConsentBody } from '@/lib/llm/consent';
 
 export interface LlmConsentGate {
   open: boolean;
   armRetry: (retry: () => void) => void;
   checkResponse: (res: Response, retry: () => void) => Promise<boolean>;
+  /**
+   * Identity changes whenever a retry is armed or cleared. Pass directly
+   * to `<LlmConsentModal onAccepted={...} />` — do not include in a
+   * `useEffect` dep array or you will get spurious re-runs.
+   */
   onAccepted: () => void;
   onCancel: () => void;
 }
@@ -41,7 +43,7 @@ export function useLlmConsentGate(): LlmConsentGate {
     async (res: Response, retry: () => void): Promise<boolean> => {
       if (res.status !== 412) return false;
       try {
-        const body = (await res.clone().json()) as ConsentBody;
+        const body = (await res.clone().json()) as Partial<RequiresConsentBody>;
         if (body?.requiresConsent === true) {
           setPendingRetry(() => retry);
           return true;

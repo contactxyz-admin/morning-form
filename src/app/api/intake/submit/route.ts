@@ -76,15 +76,17 @@ export async function POST(req: Request) {
     );
   }
 
+  // Auth + consent at the top level so a misbehaving helper doesn't
+  // turn a 401/412 into a 500 via the outer catch. Matches the gate
+  // ordering used in the other 6 LLM-bearing routes.
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
+  const consentResponse = llmConsentGateResponse(user);
+  if (consentResponse) return consentResponse;
+
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-    }
-
-    const consentResponse = llmConsentGateResponse(user);
-    if (consentResponse) return consentResponse;
-
     const client = new LLMClient();
 
     const { ingestInput, tentativeTopicStubs } = await extractFromIntake(

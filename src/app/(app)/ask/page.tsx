@@ -13,7 +13,7 @@
  * seeds are ignored so malformed share links don't fire spurious
  * turns.
  */
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
@@ -101,11 +101,16 @@ function AskPageInner() {
         return { kind: 'ready', messages: [...prev.messages, assistant] };
       });
       setPendingUser(null);
+      pendingOptimisticIdRef.current = null;
     },
     [],
   );
 
   const consentGate = useLlmConsentGate();
+  // Track the optimistic user bubble id pinned to a pending consent turn.
+  // On cancel we splice it out so a declined consent doesn't leave a
+  // ghost user message with no assistant beneath it.
+  const pendingOptimisticIdRef = useRef<string | null>(null);
   const { state: turnState, start: startTurn } = useChatStream({
     onDone,
     onRequiresConsent: consentGate.armRetry,
@@ -149,6 +154,7 @@ function AskPageInner() {
       const trimmed = text.trim();
       if (trimmed.length === 0) return;
       const optimisticId = `pending-${Date.now()}`;
+      pendingOptimisticIdRef.current = optimisticId;
       const optimistic: UserBubbleModel = {
         role: 'user',
         id: optimisticId,
@@ -242,7 +248,26 @@ function AskPageInner() {
       <LlmConsentModal
         open={consentGate.open}
         onAccepted={consentGate.onAccepted}
-        onCancel={consentGate.onCancel}
+        onCancel={() => {
+          consentGate.onCancel();
+          // Roll back the optimistic user bubble pinned to this turn so
+          // declined consent doesn't leave an unanswered question in the
+          // conversation. The ref is set in handleSubmit and cleared in
+          // onDone, so it only fires here when we know the turn never
+          // reached the assistant.
+          const orphanId = pendingOptimisticIdRef.current;
+          pendingOptimisticIdRef.current = null;
+          setPendingUser(null);
+          if (orphanId) {
+            setHistory((prev) => {
+              if (prev.kind !== 'ready') return prev;
+              return {
+                kind: 'ready',
+                messages: prev.messages.filter((m) => m.id !== orphanId),
+              };
+            });
+          }
+        }}
       />
     </div>
   );

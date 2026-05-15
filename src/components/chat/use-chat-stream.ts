@@ -123,10 +123,7 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
 
         if (!res.ok || !res.body) {
           const detail = await safeReadJson(res);
-          if (
-            res.status === 412 &&
-            (detail as { requiresConsent?: unknown } | null)?.requiresConsent === true
-          ) {
+          if (res.status === 412 && detail?.requiresConsent === true) {
             // Hand the retry up to the page so it can show the modal.
             // Reset to idle so the composer is interactive again while
             // the user reads the consent prose.
@@ -234,9 +231,9 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
 
 async function safeReadJson(
   res: Response,
-): Promise<{ error?: string } | null> {
+): Promise<{ error?: string; requiresConsent?: unknown } | null> {
   try {
-    return (await res.json()) as { error?: string };
+    return (await res.json()) as { error?: string; requiresConsent?: unknown };
   } catch {
     return null;
   }

@@ -7,7 +7,10 @@
  *     - `meta`:  { requestId, scribeId, modelVersion }
  *     - `token`: { text }         (one or more; the visible streamed output)
  *     - `done`:  { classification, output, citations }
- *   Failure before stream starts: JSON 4xx/5xx.
+ *   Failure before stream starts: JSON 4xx/5xx. Notable codes:
+ *     - 401 — unauthenticated.
+ *     - 412 `{ requiresConsent: true, error }` — caller is signed in but
+ *       has not accepted the LLM consent notice. See `lib/llm/consent.ts`.
  *   Failure during stream: `event: error\ndata: {"error": "..."}` on the stream.
  *
  * Invariants:
