@@ -120,24 +120,48 @@ describe('aggregateRecord', () => {
     expect(result.totalNodes).toBe(0);
   });
 
-  it('serialises sources to the wire shape with ISO timestamps', () => {
+  it('serialises sources to the wire shape with ISO timestamps + canonical kind', () => {
     const capturedAt = new Date('2026-04-09T10:00:00Z');
     const createdAt = new Date('2026-04-09T11:00:00Z');
     const result = aggregateRecord({
       topics: [],
       nodes: [],
-      sources: [{ id: 's-1', kind: 'blood_panel', capturedAt, createdAt }],
+      sources: [{ id: 's-1', kind: 'lab_pdf', capturedAt, createdAt }],
       edges: [],
     });
 
     expect(result.sources).toEqual([
       {
         id: 's-1',
-        kind: 'blood_panel',
+        kind: 'lab_pdf',
         capturedAt: '2026-04-09T10:00:00.000Z',
         createdAt: '2026-04-09T11:00:00.000Z',
       },
     ]);
+  });
+
+  it('normalises legacy / unknown source kinds to lab_pdf at the wire boundary', () => {
+    // SourceDocument.kind is a free `String` in Prisma so legacy rows
+    // (or future renames) may hold values that are not in the current
+    // `SOURCE_DOCUMENT_KINDS` enum. The wire shape MUST stay typed to
+    // the enum so external MCP agents can exhaustive-switch — so we
+    // normalise unknowns to `lab_pdf` (the most common kind, safe
+    // visual default). This test pins that normalisation.
+    const result = aggregateRecord({
+      topics: [],
+      nodes: [],
+      sources: [
+        {
+          id: 's-legacy',
+          kind: 'legacy_kind_not_in_enum',
+          capturedAt: new Date('2026-04-09T10:00:00Z'),
+          createdAt: new Date('2026-04-09T11:00:00Z'),
+        },
+      ],
+      edges: [],
+    });
+
+    expect(result.sources[0].kind).toBe('lab_pdf');
   });
 
   it('activity is reverse-chronological across sources, topic compiles, and nodes', () => {
