@@ -195,18 +195,3 @@ export interface HealthSummary {
 
 export type NavTab = 'home' | 'record' | 'ask' | 'you';
 
-// ── Onboarding ──
-
-export type OnboardingStep = 0 | 1 | 2;
-
-export type AppPhase =
-  | 'landing'
-  | 'onboarding'
-  | 'assessment'
-  | 'processing'
-  | 'reveal-profile'
-  | 'reveal-priorities'
-  | 'reveal-rationale'
-  | 'reveal-expectations'
-  | 'reveal-begin'
-  | 'app';

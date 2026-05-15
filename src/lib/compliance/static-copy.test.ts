@@ -40,7 +40,9 @@ const ALLOWLIST = new Set<string>([
   'src/components/ui/disclaimer.tsx',
   'src/components/ui/sub-processor-list.tsx',
   'src/app/(app)/settings/privacy/page.tsx',
-  'src/app/onboarding/page.tsx',
+  // Lifted from the deleted /onboarding ConsentStep on 2026-05-15 —
+  // carries the UK GDPR sub-processor + UK-US Data Bridge disclosure.
+  'src/components/auth/llm-consent-modal.tsx',
   'docs/compliance/sub-processor-register.md',
   'docs/compliance/dpia.md',
 ]);
@@ -158,7 +160,7 @@ describe('static copy guardrail', () => {
       throw new Error(
         `Static copy guardrail failed. ${hits.length} forbidden pattern(s) found:\n${report}\n\n` +
           'Compliance copy lives in the allowlist (sub-processor list, disclaimer, ' +
-          'privacy page, onboarding). Everything else must not name drugs, doses, ' +
+          'privacy page, consent modal). Everything else must not name drugs, doses, ' +
           'or issue clinical directives. LLM-generated output is covered separately ' +
           'by the linter at src/lib/llm/linter.ts.',
       );

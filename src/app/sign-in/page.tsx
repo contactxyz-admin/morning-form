@@ -14,7 +14,11 @@ type Status =
   | { kind: 'error'; message: string };
 
 export default function SignInPage() {
-  const [email, setEmail] = useState('demo@morningform.com');
+  // Empty default — pre-filling demo@morningform.com would let an
+  // unattentive new visitor on a preview env with ALLOW_DEMO_BYPASS=1
+  // click "Send sign-in link" and get a one-click session as the demo
+  // user via the verifyUrl bypass in /api/auth/request-link.
+  const [email, setEmail] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,9 +91,9 @@ export default function SignInPage() {
 
       <div className="flex-1 flex flex-col items-center justify-center px-5 sm:px-8">
         <form onSubmit={handleSubmit} className="w-full max-w-md">
-          <p className="text-label uppercase text-text-tertiary mb-4">Return</p>
+          <p className="text-label uppercase text-text-tertiary mb-4">Sign in</p>
           <h1 className="font-display font-light text-display-sm sm:text-display text-text-primary -tracking-[0.035em] leading-[1.05]">
-            Welcome <span className="italic font-light">back</span>.
+            See your <span className="italic font-light">record</span>.
           </h1>
 
           {sent ? (
@@ -116,7 +120,8 @@ export default function SignInPage() {
           ) : (
             <>
               <p className="mt-5 text-body-lg text-text-secondary">
-                Enter your email and we&rsquo;ll send a one-time sign-in link.
+                Enter your email and we&rsquo;ll send a one-time link. New
+                or returning — same door.
               </p>
 
               <div className="mt-10">
@@ -141,10 +146,10 @@ export default function SignInPage() {
               <p className="mt-8 text-caption text-text-tertiary text-center">
                 New here?{' '}
                 <Link
-                  href="/onboarding"
+                  href="/demo"
                   className="text-text-secondary hover:text-text-primary transition-colors underline-offset-4 hover:underline"
                 >
-                  What is Morning Form?
+                  See a sample record
                 </Link>
               </p>
             </>
