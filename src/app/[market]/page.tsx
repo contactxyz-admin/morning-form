@@ -96,7 +96,7 @@ export default function LandingPage({ params }: MarketHomeProps) {
             <Button size="lg">See your record</Button>
           </Link>
           <p className="text-caption text-text-tertiary">
-            Free · sign in with email
+            Sign in or create your account · free
           </p>
         </div>
       </section>
@@ -255,8 +255,9 @@ export default function LandingPage({ params }: MarketHomeProps) {
           See what your numbers have been trying to tell you. Free.
         </h2>
         <p className="mt-8 text-body-lg text-text-secondary max-w-xl leading-relaxed">
-          Sign in with email, see your record. Link a wearable, upload a panel, take
-          the assessment — all optional, all when you&rsquo;re ready. No card required.
+          Sign in or create your account — magic link, no password. Link a
+          wearable, upload a panel, take the assessment when you&rsquo;re
+          ready. All optional. No card required.
         </p>
         <div className="mt-14 flex items-center gap-6 flex-wrap">
           <Link href="/sign-in">
