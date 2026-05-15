@@ -1,11 +1,19 @@
 ---
 title: "fix: Self-healing Scribe.model guard + DB cleanup for legacy OpenRouter strings"
 type: fix
-status: active
+status: complete
 date: 2026-05-14
+shipped: 2026-05-15
 ---
 
 # fix: Self-healing Scribe.model guard + DB cleanup for legacy OpenRouter strings
+
+> **Status: shipped 2026-05-15.** Three units landed in PR #117 (squash-merged via admin during a GitHub Actions partial outage; Vercel + local verification carried the signal). DB cleanup ran clean against prod — 1 stale row updated, re-run confirms idempotent. End-to-end `/ask` verified on prod (after follow-up #118 fixed an adjacent Next.js bundling issue for the specialty `.md` prompts — caught only by cold-walkthrough).
+>
+> Followups captured during ce:review on #117:
+> - Prisma `Scribe.model @default` was still pointing at the OpenRouter string. Schema-default + TS constant fixed together in the review-fix commit on #117.
+> - Loose assertions in `execute.test.ts` and `repo.test.ts` tightened to exact-string pinning in the same commit.
+> - Cleanup script TOCTOU concern auto-resolved when the schema default was fixed (dirty concurrent writer removed at the source).
 
 ## Overview
 
@@ -85,7 +93,7 @@ The Anthropic SDK rejects model strings it doesn't recognise with a 404. The `Sc
 
 ## Implementation Units
 
-- [ ] **Unit 1: Update `DEFAULT_SCRIBE_MODEL` to a valid Anthropic id**
+- [x] **Unit 1: Update `DEFAULT_SCRIBE_MODEL` to a valid Anthropic id**
 
 **Goal:** Seed all new Scribe rows with a model the Anthropic SDK actually accepts.
 
@@ -113,7 +121,7 @@ The Anthropic SDK rejects model strings it doesn't recognise with a 404. The `Sc
 
 ---
 
-- [ ] **Unit 2: Self-healing guard in `execute.ts`**
+- [x] **Unit 2: Self-healing guard in `execute.ts`**
 
 **Goal:** Reject model strings that the current `ScribeLLMClient` implementation can't handle, falling back to `DEFAULT_SCRIBE_MODEL`. This heals existing dirty rows at runtime AND keeps a single source of truth for "what models does the current client accept" so the future multi-provider migration is a one-line widening.
 
@@ -176,7 +184,7 @@ Use the same `llm` mock pattern existing tests in `execute.test.ts` use — asse
 
 ---
 
-- [ ] **Unit 3: One-off DB cleanup script**
+- [x] **Unit 3: One-off DB cleanup script**
 
 **Goal:** Update every Scribe row with a stale OpenRouter-prefixed model to the new default, so the guard becomes a defensive backstop rather than a daily-firing path.
 
