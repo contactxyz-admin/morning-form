@@ -5,7 +5,15 @@
  * The route layer handles auth, ownership, and hydration; this library is
  * responsible only for converting raw rows into the wire shape consumed by
  * the source-detail page.
+ *
+ * Also the canonical home of `KIND_LABELS` — the single source of truth for
+ * source-document display labels across every surface (source-card, source
+ * detail route, vault-layout canvas hub nodes, node-detail-sheet provenance
+ * lists). Pre-consolidation the project had three competing maps with
+ * conflicting labels for the same kind ("Lab pdf" vs "Lab report" vs "Lab
+ * result"); the cleanup queued by the PR #120 ce:review unifies them here.
  */
+import { decodeSourceDocumentKind, type SourceDocumentKind } from '@/lib/graph/types';
 
 export interface SourceViewChunkRow {
   id: string;
@@ -61,15 +69,52 @@ export interface SourceView {
   referencedNodes: SourceViewReferencedNode[];
 }
 
-const KIND_LABELS: Record<string, string> = {
+/**
+ * Single source of truth for source-document display labels.
+ *
+ * Exhaustive over `SOURCE_DOCUMENT_KINDS` (the enum in `lib/graph/types.ts`),
+ * so adding a new kind to the enum without a corresponding label here is a
+ * compile error rather than a silent fallback. Label choices:
+ *   - `lab_pdf` / `intake_text` keep their existing source-view labels
+ *     ("Lab report", "Intake notes") to avoid regressing the most-trafficked
+ *     surfaces (source-card, source-detail route).
+ *   - All other kinds lifted from the previous `DOC_KIND_LABELS` map in
+ *     `node-detail-sheet.tsx`, which was already curated for those rows.
+ *   - The pre-consolidation `KIND_LABELS` had two stale entries (`gp_export`,
+ *     `wearable`) that aren't in the enum — dropped.
+ */
+const KIND_LABELS: Record<SourceDocumentKind, string> = {
   lab_pdf: 'Lab report',
+  gp_record: 'GP record',
   intake_text: 'Intake notes',
-  gp_export: 'GP export',
-  wearable: 'Wearable metrics',
+  wearable_window: 'Wearable',
+  checkin: 'Check-in',
+  protocol: 'Protocol',
+  gp_letter: 'GP letter',
+  discharge_summary: 'Discharge summary',
+  referral_letter: 'Referral letter',
+  specialist_letter: 'Specialist letter',
+  imaging_report: 'Imaging report',
+  pathology_report: 'Pathology report',
+  at_home_test_result: 'At-home test',
+  microbiome_panel: 'Microbiome panel',
+  stool_panel: 'Stool panel',
+  genetics_report: 'Genetics report',
+  body_composition_scan: 'Body composition scan',
+  dexa_scan: 'DEXA scan',
+  longevity_panel: 'Longevity panel',
+  private_lab_panel: 'Private lab panel',
 };
 
+/**
+ * Human label for a source-document `kind`. Accepts a bare string (the DB
+ * column type) and falls back to a snake_case-stripped form for legacy /
+ * unknown kinds so old data doesn't crash the UI.
+ */
 export function kindLabel(kind: string): string {
-  return KIND_LABELS[kind] ?? kind.replace(/_/g, ' ');
+  const decoded = decodeSourceDocumentKind(kind);
+  if (decoded === 'unknown') return kind.replace(/_/g, ' ');
+  return KIND_LABELS[decoded];
 }
 
 function deriveDisplayTitle(input: Pick<SourceViewInput, 'kind' | 'sourceRef' | 'capturedAt'>): string {

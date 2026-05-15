@@ -1,6 +1,10 @@
 import { listTopicConfigs } from '@/lib/topics/registry';
 import { computeImportance } from '@/lib/graph/importance';
-import type { GraphNodeRecord, NodeType } from '@/lib/graph/types';
+import {
+  decodeSourceDocumentKind,
+  type GraphNodeRecord,
+  type NodeType,
+} from '@/lib/graph/types';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import {
   edgeRecordToWire,
@@ -159,6 +163,19 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
     },
     nodes,
     edges,
+    sources: input.sources.map((s) => {
+      // Normalise legacy / corrupted `kind` strings to the canonical
+      // enum at the wire boundary so external consumers (UI + MCP
+      // agents) can exhaustive-switch. Unknown values default to
+      // `lab_pdf` — the most common kind and a non-breaking display.
+      const decoded = decodeSourceDocumentKind(s.kind);
+      return {
+        id: s.id,
+        kind: decoded === 'unknown' ? 'lab_pdf' : decoded,
+        capturedAt: s.capturedAt.toISOString(),
+        createdAt: s.createdAt.toISOString(),
+      };
+    }),
     nodeTypeCounts,
     truncated,
     totalNodes,

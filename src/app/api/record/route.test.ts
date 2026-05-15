@@ -87,6 +87,7 @@ describe('GET /api/record', () => {
       graphSummary: { nodeCount: 0, sourceCount: 0, topicCount: expect.any(Number) },
       nodes: [],
       edges: [],
+      sources: [],
       nodeTypeCounts: {},
       truncated: false,
       totalNodes: 0,

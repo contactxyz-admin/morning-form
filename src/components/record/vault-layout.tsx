@@ -9,19 +9,15 @@ import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-vie
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useRecordIndex } from '@/lib/hooks/use-record-index';
-import type { GraphNodeWire } from '@/types/graph';
+import {
+  referencedSourceDocumentIds,
+  synthesizeSourceEdges,
+  synthesizeSourceNodes,
+} from '@/lib/record/canvas-synthesis';
+import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { VaultIndex } from './vault-index';
 import { VaultModeToggle, parseVaultMode, type VaultMode } from './vault-mode-toggle';
 import type { RecordIndex as RecordIndexData } from '@/lib/record/types';
-
-/**
- * Minimum non-SUPPORTS-edges-per-node ratio before the desktop canvas
- * shows. Matches the previous `/api/graph` page — sparse graphs render as
- * a particle cloud and read worse than the grouped list. Importance scorer
- * at src/lib/graph/importance.ts excludes SUPPORTS edges for the same
- * reason.
- */
-const MIN_EDGE_DENSITY = 0.4;
 
 /**
  * Top-level orchestrator for the unified vault surface (the merged
@@ -80,6 +76,13 @@ export function VaultLayout() {
 
   const handleNodeClick = useCallback(
     (node: GraphNodeWire) => {
+      // Source-document pseudo-nodes (synthesised client-side for the
+      // canvas) aren't in `state.data.nodes`, so opening the detail
+      // sheet for them would resolve to null and trigger the deep-link
+      // guard to immediately clear the URL — a visible flicker for no
+      // outcome. No source-doc detail surface exists yet; ignore the
+      // click. (If we add one later, drop this guard and route on type.)
+      if (node.type === 'source_document') return;
       updateUrl({ entity: node.canonicalKey });
     },
     [updateUrl],
@@ -178,17 +181,50 @@ interface VaultMapModeProps {
 
 /**
  * Map-mode body — extracted block from the previous `/api/graph` page.
- * Density-gated canvas on desktop, grouped list as the read-friendly default
- * everywhere else. SUPPORTS-edges excluded from the density calc because
- * every node has at least one and they don't represent structural
- * centrality.
+ * Desktop renders the force-directed canvas at any density; mobile shows
+ * the grouped list only (the SVG labels become illegible at phone width
+ * and the list is the more useful read on a small screen anyway).
+ *
+ * The canvas receives synthesised source-document pseudo-nodes alongside
+ * real graph nodes so the SUPPORTS edges find visible targets; the list
+ * view is intentionally kept health-data-only.
  */
 function VaultMapMode({ data, isDesktop, onNodeClick }: VaultMapModeProps) {
   if (data.nodes.length === 0) return <GraphListEmpty />;
 
-  const nonSupportsEdgeRatio =
-    data.edges.filter((e) => e.type !== 'SUPPORTS').length / data.nodes.length;
-  const showCanvas = isDesktop && nonSupportsEdgeRatio >= MIN_EDGE_DENSITY;
+  // Borrow the userId from a real graph node — every node in `data.nodes`
+  // belongs to the current user (R/W is server-scoped by session) so
+  // either of them is the same answer. The early-return above guarantees
+  // at least one exists.
+  const userId = data.nodes[0].userId;
+  const scoreCeiling = data.nodes.reduce((max, n) => Math.max(max, n.score), 0);
+
+  // Filter source documents to those actually referenced by surviving
+  // edges. The importance cap upstream can drop nodes whose only
+  // supporting provenance pointed at a given document — without this
+  // filter, the source-doc hub would render as a floating tier-1 island
+  // with no edges (PR #120 ce:review C1).
+  // `data.sources ?? []` also defends against the Vercel deploy-skew
+  // window where a fresh client lands against a pre-deploy response.
+  const referencedDocIds = referencedSourceDocumentIds(data.edges);
+  const visibleSources = (data.sources ?? []).filter((s) => referencedDocIds.has(s.id));
+  const sourceNodes = synthesizeSourceNodes(visibleSources, userId, scoreCeiling);
+  const canvasNodes: GraphNodeWire[] = [...data.nodes, ...sourceNodes];
+
+  // Synthesise visible biomarker → source-doc edges from the existing
+  // self-SUPPORTS edges' `fromDocumentId` provenance. The real
+  // SUPPORTS edges are filtered out of the canvas-side spread because
+  // they're self-loops (fromNodeId === toNodeId — see
+  // src/lib/graph/mutations.ts) and D3 renders them as degenerate
+  // zero-length lines that also inflate the aria-label edge count.
+  // The synthesised biomarker → source-doc edges cover the same
+  // provenance signal, visibly.
+  const graphNodeIds = new Set(data.nodes.map((n) => n.id));
+  const sourceIds = new Set(sourceNodes.map((n) => n.id));
+  const canvasEdges: GraphEdgeWire[] = [
+    ...data.edges.filter((e) => e.type !== 'SUPPORTS'),
+    ...synthesizeSourceEdges(data.edges, graphNodeIds, sourceIds),
+  ];
 
   return (
     <>
@@ -211,16 +247,19 @@ function VaultMapMode({ data, isDesktop, onNodeClick }: VaultMapModeProps) {
         )}
       </div>
 
-      {showCanvas && (
+      {isDesktop && (
         <div className="mb-10 rounded-card border border-border bg-surface-warm/40 p-4">
+          <p className="mb-3 italic text-caption text-text-tertiary">
+            Your health graph evolves as you add data.
+          </p>
           <GraphCanvas
-            nodes={data.nodes}
-            edges={data.edges}
+            nodes={canvasNodes}
+            edges={canvasEdges}
             width={720}
             height={480}
             onNodeClick={onNodeClick}
             className="w-full h-auto"
-            ariaLabel={`Your health graph — ${data.nodes.length} nodes, ${data.edges.length} edges. Tap any node to see its sources.`}
+            ariaLabel={`Your health graph — ${canvasNodes.length} nodes, ${canvasEdges.length} edges. Tap any node to see its sources.`}
           />
           <p className="mt-3 text-caption text-text-tertiary">
             Tap a node to see what grounds it. The structured list below shows the same data, grouped.

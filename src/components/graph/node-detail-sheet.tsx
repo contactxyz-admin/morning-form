@@ -8,6 +8,7 @@ import { SectionLabel } from '@/components/ui/section-label';
 import { cn } from '@/lib/utils';
 import type { GraphNodeWire, NodeType } from '@/types/graph';
 import type { SourceDocumentKind } from '@/lib/graph/types';
+import { kindLabel } from '@/lib/record/source-view';
 import type { TopicReference } from '@/lib/topics/node-topics';
 
 interface ProvenanceItemWire {
@@ -53,28 +54,10 @@ const NODE_TYPE_LABELS: Record<NodeType, string> = {
   source_document: 'Source',
 };
 
-const DOC_KIND_LABELS: Record<SourceDocumentKind, string> = {
-  lab_pdf: 'Lab result',
-  gp_record: 'GP record',
-  intake_text: 'Intake',
-  wearable_window: 'Wearable',
-  checkin: 'Check-in',
-  protocol: 'Protocol',
-  gp_letter: 'GP letter',
-  discharge_summary: 'Discharge summary',
-  referral_letter: 'Referral letter',
-  specialist_letter: 'Specialist letter',
-  imaging_report: 'Imaging report',
-  pathology_report: 'Pathology report',
-  at_home_test_result: 'At-home test',
-  microbiome_panel: 'Microbiome panel',
-  stool_panel: 'Stool panel',
-  genetics_report: 'Genetics report',
-  body_composition_scan: 'Body composition scan',
-  dexa_scan: 'DEXA scan',
-  longevity_panel: 'Longevity panel',
-  private_lab_panel: 'Private lab panel',
-};
+// Source-document kind→label lookup moved to `kindLabel` in
+// `lib/record/source-view.ts` as the single cross-surface source of
+// truth — pre-cleanup, three competing maps drifted ("Lab pdf" /
+// "Lab report" / "Lab result" for the same kind).
 
 interface Props {
   node: GraphNodeWire | null;
@@ -275,7 +258,7 @@ function Provenance({ state }: { state: LoadState }) {
               >
                 <div className="flex items-center justify-between gap-3 mb-2">
                   <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
-                    {DOC_KIND_LABELS[p.documentKind]}
+                    {kindLabel(p.documentKind)}
                     {p.pageNumber !== null ? ` · p.${p.pageNumber}` : ''}
                   </span>
                   <time className="font-mono text-[10px] text-text-tertiary">
