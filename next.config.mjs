@@ -21,6 +21,17 @@ const nextConfig = {
       '/api/intake/documents': [
         './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
       ],
+      // `loadSpecialtySystemPrompt` reads these at runtime via
+      // fs.readFileSync(process.cwd() + systemPromptPath). The path is
+      // dynamic (computed from the specialty registry, not a static
+      // import) so Next.js's tracer can't follow it, and the markdown
+      // files never ship to /var/task — prod 500s with ENOENT the
+      // moment any scribe call hits the general specialty.
+      // Force-include the full specialty prompt tree. See
+      // src/lib/scribe/specialties/load-prompt.ts.
+      '/api/**/*': [
+        './src/lib/scribe/specialties/**/system-prompt.md',
+      ],
     },
   },
   // Scope `next build` lint to the API surface. `.eslintrc.json` enforces
