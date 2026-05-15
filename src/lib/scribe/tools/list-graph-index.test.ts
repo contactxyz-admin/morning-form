@@ -53,9 +53,43 @@ describe('list_graph_index handler', () => {
     expect(result.totalNodes).toBe(0);
     expect(result.nodes).toEqual([]);
     expect(result.edges).toEqual([]);
+    expect(result.sources).toEqual([]);
     expect(result.truncated).toBe(false);
     // Topic stubs are present even for empty graphs (matches `aggregateRecord`).
     expect(result.topics.length).toBeGreaterThan(0);
+  });
+
+  it('exposes source documents on the wire (the agent-facing parity surface)', async () => {
+    // External MCP clients call list_graph_index and consume `result.sources`
+    // — this is the agent equivalent of the canvas hub-and-spoke. Pin the
+    // shape so a regression that drops the field is caught at the external
+    // wire contract layer, not just at the internal aggregator layer.
+    const userId = await makeTestUser(prisma, 'mcp-list-sources');
+    const doc = await prisma.sourceDocument.create({
+      data: {
+        userId,
+        kind: 'lab_pdf',
+        sourceRef: 'panel.pdf',
+        capturedAt: new Date('2026-05-01T00:00:00Z'),
+        contentHash: 'hash-mcp-list-sources',
+        storagePath: 'fixtures/mcp-list-sources.pdf',
+      },
+    });
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+    });
+
+    const result = await listGraphIndexHandler.execute(makeCtx(userId), {});
+
+    expect(result.sources).toHaveLength(1);
+    expect(result.sources[0]).toMatchObject({
+      id: doc.id,
+      kind: 'lab_pdf',
+      capturedAt: '2026-05-01T00:00:00.000Z',
+    });
+    expect(typeof result.sources[0].createdAt).toBe('string');
   });
 
   it('scopes by userId — never returns another user\'s nodes', async () => {

@@ -3,97 +3,21 @@
 import { useCallback, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { format } from 'date-fns';
 import { Card } from '@/components/ui/card';
 import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-view';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { useRecordIndex } from '@/lib/hooks/use-record-index';
-import { kindLabel } from '@/lib/record/source-view';
+import {
+  referencedSourceDocumentIds,
+  synthesizeSourceEdges,
+  synthesizeSourceNodes,
+} from '@/lib/record/canvas-synthesis';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { VaultIndex } from './vault-index';
 import { VaultModeToggle, parseVaultMode, type VaultMode } from './vault-mode-toggle';
-import type { SourceDocumentWire, RecordIndex as RecordIndexData } from '@/lib/record/types';
-
-/**
- * Synthesise canvas-only `GraphNodeWire`-shaped entries for each source
- * document so each biomarker has a visible "hub" to anchor to. Source
- * docs use the `source_document` NodeType (already mapped to the `data`
- * visual class in src/lib/graph/visual-encoding.ts — soft grey, distinct
- * from the health-data node colours). Source nodes anchor as tier-1
- * hubs: largest radius, always-on label, score above the biomarker
- * ceiling so any future cap keeps them in.
- *
- * Pseudo-nodes do NOT flow through `<GraphListView>` — the list groups
- * by health-data node type and would be noisy with per-document rows.
- * This asymmetry between canvas and list is deliberate.
- */
-function synthesizeSourceNodes(
-  sources: readonly SourceDocumentWire[],
-  userId: string,
-  scoreCeiling: number,
-): GraphNodeWire[] {
-  return sources.map((s) => ({
-    id: s.id,
-    userId,
-    type: 'source_document',
-    canonicalKey: s.id,
-    // Reuse the canonical kind→label map from `source-view.ts` so the
-    // canvas hub label matches the source-card label for the same
-    // document. Falls back to a snake_case-stripped version for unknown
-    // kinds. (Full 3-surface consolidation — including the separate
-    // DOC_KIND_LABELS in node-detail-sheet.tsx — is queued as a
-    // separate cleanup; this PR fixes the canvas/source-card pair.)
-    displayName: `${kindLabel(s.kind)} · ${format(new Date(s.capturedAt), 'MMM yyyy')}`,
-    attributes: {},
-    confidence: 1,
-    promoted: false,
-    createdAt: s.createdAt,
-    updatedAt: s.capturedAt,
-    tier: 1,
-    score: scoreCeiling + 1,
-  }));
-}
-
-/**
- * Synthesise canvas-only edges from each graph node to the source
- * document(s) that support it. Reads provenance from the existing
- * SUPPORTS edges (which are self-loops carrying the source doc on
- * `fromDocumentId` — see src/lib/graph/mutations.ts:329 for the model)
- * and re-shapes them into a visually-meaningful biomarker→source-doc
- * line. Deduped by `(nodeId, documentId)` so a node supported by
- * multiple chunks of the same document only gets one edge.
- */
-function synthesizeSourceEdges(
-  edges: readonly GraphEdgeWire[],
-  graphNodeIds: ReadonlySet<string>,
-  sourceIds: ReadonlySet<string>,
-): GraphEdgeWire[] {
-  const seen = new Set<string>();
-  const synthesized: GraphEdgeWire[] = [];
-  for (const e of edges) {
-    if (!e.fromDocumentId) continue;
-    if (!sourceIds.has(e.fromDocumentId)) continue;
-    if (!graphNodeIds.has(e.toNodeId)) continue;
-    const key = `${e.toNodeId}::${e.fromDocumentId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    synthesized.push({
-      id: `synth-supports-${key}`,
-      userId: e.userId,
-      type: 'SUPPORTS',
-      fromNodeId: e.toNodeId,
-      toNodeId: e.fromDocumentId,
-      fromChunkId: null,
-      fromDocumentId: e.fromDocumentId,
-      weight: 1,
-      metadata: {},
-      createdAt: e.createdAt,
-    });
-  }
-  return synthesized;
-}
+import type { RecordIndex as RecordIndexData } from '@/lib/record/types';
 
 /**
  * Top-level orchestrator for the unified vault surface (the merged
@@ -274,9 +198,17 @@ function VaultMapMode({ data, isDesktop, onNodeClick }: VaultMapModeProps) {
   // at least one exists.
   const userId = data.nodes[0].userId;
   const scoreCeiling = data.nodes.reduce((max, n) => Math.max(max, n.score), 0);
-  // `data.sources ?? []` defends against the Vercel deploy-skew window
-  // where a fresh client lands against a pre-deploy server response.
-  const sourceNodes = synthesizeSourceNodes(data.sources ?? [], userId, scoreCeiling);
+
+  // Filter source documents to those actually referenced by surviving
+  // edges. The importance cap upstream can drop nodes whose only
+  // supporting provenance pointed at a given document — without this
+  // filter, the source-doc hub would render as a floating tier-1 island
+  // with no edges (PR #120 ce:review C1).
+  // `data.sources ?? []` also defends against the Vercel deploy-skew
+  // window where a fresh client lands against a pre-deploy response.
+  const referencedDocIds = referencedSourceDocumentIds(data.edges);
+  const visibleSources = (data.sources ?? []).filter((s) => referencedDocIds.has(s.id));
+  const sourceNodes = synthesizeSourceNodes(visibleSources, userId, scoreCeiling);
   const canvasNodes: GraphNodeWire[] = [...data.nodes, ...sourceNodes];
 
   // Synthesise visible biomarker → source-doc edges from the existing
