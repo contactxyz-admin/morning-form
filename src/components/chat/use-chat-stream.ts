@@ -69,15 +69,25 @@ const INITIAL: ChatTurnState = {
 
 export interface UseChatStreamArgs {
   onDone?: (args: DoneCallbackArgs) => void;
+  /**
+   * Fired when `/api/chat/send` returns 412 `{ requiresConsent: true }`.
+   * The provided `retry` callback replays the original `start(...)` once
+   * the user accepts in `<LlmConsentModal>`. While pending, the hook
+   * stays in `idle` so the composer re-enables instead of showing a
+   * spurious error.
+   */
+  onRequiresConsent?: (retry: () => void) => void;
   fetchImpl?: typeof fetch;
 }
 
 export function useChatStream(args: UseChatStreamArgs = {}) {
-  const { onDone, fetchImpl } = args;
+  const { onDone, onRequiresConsent, fetchImpl } = args;
   const [state, setState] = useState<ChatTurnState>(INITIAL);
   const abortRef = useRef<AbortController | null>(null);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+  const onRequiresConsentRef = useRef(onRequiresConsent);
+  onRequiresConsentRef.current = onRequiresConsent;
 
   useEffect(() => {
     return () => {
@@ -113,6 +123,16 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
 
         if (!res.ok || !res.body) {
           const detail = await safeReadJson(res);
+          if (res.status === 412 && detail?.requiresConsent === true) {
+            // Hand the retry up to the page so it can show the modal.
+            // Reset to idle so the composer is interactive again while
+            // the user reads the consent prose.
+            setState(INITIAL);
+            onRequiresConsentRef.current?.(() => {
+              void start({ text: trimmed });
+            });
+            return;
+          }
           setState({
             ...INITIAL,
             status: 'error',
@@ -211,9 +231,9 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
 
 async function safeReadJson(
   res: Response,
-): Promise<{ error?: string } | null> {
+): Promise<{ error?: string; requiresConsent?: unknown } | null> {
   try {
-    return (await res.json()) as { error?: string };
+    return (await res.json()) as { error?: string; requiresConsent?: unknown };
   } catch {
     return null;
   }

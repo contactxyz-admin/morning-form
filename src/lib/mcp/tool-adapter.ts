@@ -42,6 +42,13 @@ import { writeMcpAuditEvent } from './audit';
  *     (audit row written, nothing user-visible). Will be re-exposed once
  *     a real `GpPrepQuestion` write path lands.
  */
+// Every tool listed here is intentionally LLM-free — DB reads + local
+// aggregation only. This is what justifies skipping the LLM-consent gate
+// (`lib/llm/consent.ts`) on the MCP transport: agents never trigger
+// data-sharing with the LLM sub-processor through these tools. If a
+// future MCP tool invokes an LLM (e.g. exposing scribe/compile), it MUST
+// be gated separately and the SERVER_INSTRUCTIONS below must surface
+// the consent-required failure mode to agents.
 export const READ_ALLOWED_TOOLS = [
   'search_graph_nodes',
   'get_node_detail',

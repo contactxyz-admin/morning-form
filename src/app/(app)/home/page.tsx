@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
@@ -12,6 +12,8 @@ import { deriveStatus } from '@/components/home/record-anchor-helpers';
 import { AskAnywhereCard } from '@/components/home/ask-anywhere-card';
 import { getGreeting, formatDate, getTimeOfDay, getDateKey } from '@/lib/utils';
 import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
+import { track } from '@/lib/funnel/track';
+import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 import type { HealthSummary, PriorityMarker } from '@/types';
 import type { RecordIndex } from '@/lib/record/types';
 
@@ -37,7 +39,19 @@ export default function HomePage() {
   const [healthSummary, setHealthSummary] = useState<HealthSummary>(EMPTY_HEALTH_SUMMARY);
   const [recordState, setRecordState] = useState<RecordAnchorState>({ status: 'loading' });
   const assessment = useAssessmentData();
+  const assessmentOfferedFiredRef = useRef(false);
   const timeOfDay = getTimeOfDay();
+
+  // Fire assessment_offered once per session when the "Personalise your
+  // record" CTA actually renders. The ref guards against re-fires from
+  // hook re-runs; cross-session dedup happens at the analytics layer via
+  // funnelId.
+  useEffect(() => {
+    if (assessment.kind === 'not-onboarded' && !assessmentOfferedFiredRef.current) {
+      assessmentOfferedFiredRef.current = true;
+      track(FUNNEL_EVENTS.ASSESSMENT_OFFERED);
+    }
+  }, [assessment.kind]);
 
   useEffect(() => {
     const dateKey = getDateKey();
@@ -201,8 +215,38 @@ export default function HomePage() {
         {/* Your record — anchor card, position 3 */}
         <RecordAnchorCard state={recordState} />
 
-        {/* Next priority — surfaces the user's top priority biomarker so the
-            home page nudges them toward upload, not toward consumption. */}
+        {/* Personalise your record — visible only when the user hasn't
+            taken the assessment yet. Replaces the forced /assessment
+            redirect from the pre-2026-05-15 flow; the assessment is now
+            optional personalisation rather than a gate. */}
+        {assessment.kind === 'not-onboarded' && (
+          <Card variant="default">
+            <div className="flex items-baseline gap-2.5 mb-2">
+              <span className="font-mono text-label uppercase text-text-tertiary">02</span>
+              <span className="text-label uppercase text-text-tertiary">Personalise your record</span>
+            </div>
+            <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
+              Tell us about your biology.
+            </h3>
+            <p className="mt-2 text-body text-text-secondary leading-relaxed">
+              An 8-minute assessment shapes your state profile, priority biomarkers,
+              and the lens your record is read through. Optional — take it whenever
+              you&rsquo;re ready.
+            </p>
+            <Link
+              href="/assessment"
+              className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group"
+            >
+              Take the assessment
+              <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+            </Link>
+          </Card>
+        )}
+
+        {/* Next priority — surfaces the user's top priority biomarker after
+            they've taken the assessment. Conditional on topPriorityMarker
+            (which requires StateProfile + Priorities, both populated by the
+            assessment flow). */}
         {topPriorityMarker && (
           <Card variant="default">
             <div className="flex items-baseline gap-2.5 mb-2">

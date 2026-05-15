@@ -72,10 +72,13 @@ describe('GET /api/auth/verify', () => {
 
     const res = await GET(makeGet(issued.rawToken));
     expect(res.status).toBe(303);
-    // ?signed_in=1 is appended by the route so /record (and /assessment)
-    // can fire the sign_in_completed funnel event on first paint. Match
-    // either route plus that param.
-    expect(res.headers.get('location')).toMatch(/\/(record|assessment)\?signed_in=1$/);
+    // Every signed-in user lands on /record, regardless of assessment
+    // state. The pre-2026-05 fork that routed un-assessed users into
+    // /assessment was removed when the assessment became optional
+    // personalisation rather than a forced onboarding gate. Fresh users
+    // (no prior session) additionally carry `&new=1` so signed-in-tracker
+    // fires SIGNUP_COMPLETED rather than SIGN_IN_COMPLETED.
+    expect(res.headers.get('location')).toMatch(/\/record\?signed_in=1&new=1$/);
     expect(cookieJar.get(SESSION_COOKIE)).toBeTypeOf('string');
 
     // Token is marked consumed.
@@ -84,12 +87,14 @@ describe('GET /api/auth/verify', () => {
     expect(token?.consumedAt).not.toBeNull();
   });
 
-  it('redirects onboarded users to /record', async () => {
-    const addr = `verify-onboarded-${Date.now()}@example.com`;
+  it('redirects users with completed assessment to /record (no behaviour change)', async () => {
+    const addr = `verify-assessed-${Date.now()}@example.com`;
     const issued = await issueMagicLink(prisma, { email: addr, requestIpHash: 'ip-h' });
     if (issued.outcome !== 'issued') throw new Error('unreachable');
 
-    // Simulate completed onboarding: user has both AssessmentResponse and StateProfile.
+    // Pre-existing assessment + stateProfile — these no longer affect
+    // routing, but the test confirms the user's data is left untouched
+    // and the redirect is the same as for fresh users.
     const user = await prisma.user.findUnique({ where: { email: addr } });
     await prisma.assessmentResponse.create({
       data: { userId: user!.id, responses: '{}' },
@@ -108,18 +113,42 @@ describe('GET /api/auth/verify', () => {
 
     const res = await GET(makeGet(issued.rawToken));
     expect(res.status).toBe(303);
-    expect(res.headers.get('location')).toMatch(/\/record\?signed_in=1$/);
+    // Assessment data exists but no prior session — still treated as first
+    // session because the SIGNUP_COMPLETED guard keys on session count,
+    // not on assessment completion.
+    expect(res.headers.get('location')).toMatch(/\/record\?signed_in=1&new=1$/);
   });
 
-  it('redirects non-onboarded users to /assessment', async () => {
-    const addr = `verify-new-${Date.now()}@example.com`;
+  it('redirects users with NO assessment to /record (the new universal destination)', async () => {
+    const addr = `verify-fresh-${Date.now()}@example.com`;
     const issued = await issueMagicLink(prisma, { email: addr, requestIpHash: 'ip-h' });
     if (issued.outcome !== 'issued') throw new Error('unreachable');
 
     // No assessment / stateProfile created — user is fresh.
+    // Pre-2026-05 this redirected to /assessment as a forced gate.
+    // Now /record is universal and surfaces a "Personalise" CTA instead.
     const res = await GET(makeGet(issued.rawToken));
     expect(res.status).toBe(303);
-    expect(res.headers.get('location')).toMatch(/\/assessment\?signed_in=1$/);
+    expect(res.headers.get('location')).toMatch(/\/record\?signed_in=1&new=1$/);
+  });
+
+  it('omits &new=1 for users with a prior session (returning sign-in)', async () => {
+    // Pre-create a session row before issuing the second magic link so
+    // priorSessionCount > 0 — the route must NOT append &new=1, otherwise
+    // SIGNUP_COMPLETED would fire twice for the same user.
+    const addr = `verify-returning-${Date.now()}@example.com`;
+    const firstLink = await issueMagicLink(prisma, { email: addr, requestIpHash: 'ip-h' });
+    if (firstLink.outcome !== 'issued') throw new Error('unreachable');
+    const firstRes = await GET(makeGet(firstLink.rawToken));
+    expect(firstRes.status).toBe(303);
+    expect(firstRes.headers.get('location')).toMatch(/\/record\?signed_in=1&new=1$/);
+    cookieJar.clear();
+
+    const secondLink = await issueMagicLink(prisma, { email: addr, requestIpHash: 'ip-h' });
+    if (secondLink.outcome !== 'issued') throw new Error('unreachable');
+    const secondRes = await GET(makeGet(secondLink.rawToken));
+    expect(secondRes.status).toBe(303);
+    expect(secondRes.headers.get('location')).toMatch(/\/record\?signed_in=1$/);
   });
 
   it('returns 410 when the token has already been consumed', async () => {

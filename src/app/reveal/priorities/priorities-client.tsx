@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
+import { RevealNotOnboardedCard } from '@/components/reveal/not-onboarded-card';
 import { trackIntakeClickAndRedirect } from './actions';
 
 const stagger = {
@@ -47,9 +48,13 @@ export function PrioritiesClient() {
   const state = useAssessmentData();
 
   useEffect(() => {
-    if (state.kind === 'not-onboarded') router.replace('/assessment');
     if (state.kind === 'unauthenticated') router.replace('/sign-in');
   }, [state.kind, router]);
+
+  // Soft fallback — assessment optional since 2026-05-15.
+  if (state.kind === 'not-onboarded') {
+    return <RevealNotOnboardedCard surface="priorities" />;
+  }
 
   if (state.kind !== 'ready') {
     return (

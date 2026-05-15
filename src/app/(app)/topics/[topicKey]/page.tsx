@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
@@ -16,6 +16,8 @@ import { Disclaimer } from '@/components/ui/disclaimer';
 import { SelectionPopover } from '@/components/scribe/selection-popover';
 import { InlineExplainCard } from '@/components/scribe/inline-explain-card';
 import { useExplainStream } from '@/components/scribe/use-explain-stream';
+import { LlmConsentModal } from '@/components/auth/llm-consent-modal';
+import { useLlmConsentGate } from '@/lib/hooks/use-llm-consent-gate';
 import type { TopicCompiledOutput } from '@/lib/topics/types';
 import type { GraphNodeWire } from '@/types/graph';
 
@@ -39,6 +41,7 @@ type LoadState =
 
 export default function TopicPage() {
   const params = useParams<{ topicKey: string }>();
+  const router = useRouter();
   const topicKey = params?.topicKey;
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [citedNode, setCitedNode] = useState<GraphNodeWire | null>(null);
@@ -50,6 +53,11 @@ export default function TopicPage() {
   // "bypass the compile cache" — used by the retry button when the last
   // compile errored and the error is pinned to the current graph revision.
   const [reload, setReload] = useState<{ seq: number; force: boolean }>({ seq: 0, force: false });
+  const consentGate = useLlmConsentGate();
+  const { checkResponse: checkConsent } = consentGate;
+
+  const retry = (force: boolean) =>
+    setReload((r) => ({ seq: r.seq + 1, force }));
 
   useEffect(() => {
     if (!topicKey) return;
@@ -67,6 +75,14 @@ export default function TopicPage() {
         }
         if (res.status === 404) {
           if (!cancelled) setState({ status: 'not-found' });
+          return;
+        }
+        // 412 + requiresConsent: arm the modal and stop here. Accept
+        // re-fires the effect via reload (handled below). Cancel is
+        // wired at the <LlmConsentModal /> render — routes back to
+        // /record so the user isn't trapped on a permanent loading
+        // shimmer.
+        if (await checkConsent(res, () => retry(reload.force))) {
           return;
         }
         if (!res.ok) {
@@ -87,10 +103,7 @@ export default function TopicPage() {
     return () => {
       cancelled = true;
     };
-  }, [topicKey, reload]);
-
-  const retry = (force: boolean) =>
-    setReload((r) => ({ seq: r.seq + 1, force }));
+  }, [topicKey, reload, checkConsent]);
 
   const handleCitationClick = async (nodeId: string) => {
     try {
@@ -241,6 +254,18 @@ export default function TopicPage() {
           }
         />
       )}
+
+      <LlmConsentModal
+        open={consentGate.open}
+        onAccepted={consentGate.onAccepted}
+        onCancel={() => {
+          consentGate.onCancel();
+          // Topic compile is LLM-bearing; without consent there's nothing
+          // to render. Send the user back to /record so they have an
+          // obvious next step rather than a permanent loading shimmer.
+          router.push('/record');
+        }}
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
+import { RevealNotOnboardedCard } from '@/components/reveal/not-onboarded-card';
 
 const CONFIDENCE_COPY: Record<'high' | 'moderate' | 'low', string> = {
   high: 'Your profile maps clearly to well-studied compounds with strong evidence for this state pattern.',
@@ -20,9 +21,13 @@ export default function RationalePage() {
   const state = useAssessmentData();
 
   useEffect(() => {
-    if (state.kind === 'not-onboarded') router.replace('/assessment');
     if (state.kind === 'unauthenticated') router.replace('/sign-in');
   }, [state.kind, router]);
+
+  // Soft fallback — assessment optional since 2026-05-15.
+  if (state.kind === 'not-onboarded') {
+    return <RevealNotOnboardedCard surface="rationale" />;
+  }
 
   if (state.kind !== 'ready') {
     return (

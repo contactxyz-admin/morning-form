@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { clearDraft } from '@/lib/assessment-draft';
+import { LlmConsentModal } from '@/components/auth/llm-consent-modal';
+import { useLlmConsentGate } from '@/lib/hooks/use-llm-consent-gate';
 
 const steps = [
   'Analysing your state patterns',
@@ -20,7 +22,13 @@ export default function ProcessingPage() {
   const router = useRouter();
   const [visibleSteps, setVisibleSteps] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [retrying, setRetrying] = useState(false);
+  // Monotonic counter (not a boolean toggle) so two onAccepted fires in
+  // rapid succession still produce a fresh dep value — boolean !x can
+  // self-cancel under React batching. Mirrors the pattern in
+  // /topics/[topicKey]/page.tsx.
+  const [retrySeq, setRetrySeq] = useState(0);
+  const consentGate = useLlmConsentGate();
+  const { checkResponse: checkConsent } = consentGate;
 
   useEffect(() => {
     const stepTimers = [
@@ -54,6 +62,13 @@ export default function ProcessingPage() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ responses }),
         });
+        // 412 + requiresConsent: armed the modal. Bail out of the run
+        // — accept replays the run by flipping `retrying`; cancel routes
+        // back to /assessment so the user isn't stuck on a screen with
+        // no obvious next step.
+        if (await checkConsent(res, () => setRetrySeq((n) => n + 1))) {
+          return;
+        }
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
@@ -83,7 +98,7 @@ export default function ProcessingPage() {
       cancelled = true;
       stepTimers.forEach(clearTimeout);
     };
-  }, [router, retrying]);
+  }, [router, retrySeq, checkConsent]);
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-8 relative overflow-hidden">
@@ -127,7 +142,7 @@ export default function ProcessingPage() {
               onClick={() => {
                 setError(null);
                 setVisibleSteps(0);
-                setRetrying((r) => !r);
+                setRetrySeq((n) => n + 1);
               }}
               className="text-caption text-surface-warm underline underline-offset-4 hover:opacity-80"
             >
@@ -136,6 +151,18 @@ export default function ProcessingPage() {
           </div>
         )}
       </div>
+
+      <LlmConsentModal
+        open={consentGate.open}
+        onAccepted={consentGate.onAccepted}
+        onCancel={() => {
+          consentGate.onCancel();
+          // Without consent the assessment can't be persisted. Bounce
+          // back to /assessment so the user has an obvious next step
+          // (re-open the modal by submitting again, or leave).
+          router.replace('/assessment');
+        }}
+      />
     </div>
   );
 }

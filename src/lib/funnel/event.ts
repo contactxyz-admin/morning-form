@@ -14,15 +14,33 @@ import type { PrismaClient } from '@prisma/client';
 
 export const FUNNEL_EVENTS = {
   LANDING_VIEWED: 'landing_viewed',
-  ONBOARDING_STARTED: 'onboarding_started',
+  // Signup events (2026-05-15 lead-gen pivot): SIGNUP_INITIATED fires
+  // when the user submits the email form (or clicks an SSO button in
+  // Phase B). SIGNUP_COMPLETED fires once, on the user's first session
+  // ever — distinct from SIGN_IN_COMPLETED which fires on every fresh
+  // sign-in (returning users included).
+  SIGNUP_INITIATED: 'signup_initiated',
+  SIGNUP_COMPLETED: 'signup_completed',
+  // Assessment events. Post-2026-05-15 these fire from the OPTIONAL
+  // personalisation flow; they are no longer core funnel gates.
+  // ASSESSMENT_OFFERED fires when the "Personalise your record" CTA
+  // renders on /home for an un-assessed user.
+  ASSESSMENT_OFFERED: 'assessment_offered',
   ASSESSMENT_STARTED: 'assessment_started',
   ASSESSMENT_COMPLETED: 'assessment_completed',
   REVEAL_VIEWED: 'reveal_viewed',
-  SIGN_IN_SHOWN: 'sign_in_shown',
   SIGN_IN_COMPLETED: 'sign_in_completed',
   FIRST_ASK_SENT: 'first_ask_sent',
-  FIRST_UPLOAD_STARTED: 'first_upload_started',
 } as const;
+
+/**
+ * Auth provider vocabulary used in the `provider` property of
+ * SIGNUP_INITIATED / SIGNUP_COMPLETED events. Pin the union here so
+ * Phase B SSO additions can't introduce typos ('Google' vs 'google',
+ * 'oauth_google', etc.) that break analytics queries keyed on this
+ * property.
+ */
+export type AuthProvider = 'magic_link' | 'google' | 'apple';
 
 export type FunnelEventName = (typeof FUNNEL_EVENTS)[keyof typeof FUNNEL_EVENTS];
 

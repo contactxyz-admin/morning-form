@@ -21,6 +21,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { llmConsentGateResponse } from '@/lib/llm/consent';
 import { LLMClient } from '@/lib/llm/client';
 import { compileTopic } from '@/lib/topics/compile';
 import { getTopicConfig } from '@/lib/topics/registry';
@@ -51,6 +52,9 @@ export async function POST(request: Request): Promise<Response> {
         { status: 401 },
       );
     }
+
+    const consentResponse = llmConsentGateResponse(user);
+    if (consentResponse) return consentResponse;
 
     const json = await safeJson(request);
     if (!json.ok) {

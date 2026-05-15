@@ -8,9 +8,25 @@ import { ANONYMOUS_COOKIE } from '@/lib/marketing/constants';
  * GET /api/auth/verify?token=<raw>
  *
  * Validates the magic-link token, marks it consumed, mints a session, then
- * redirects the user to `/record` (or `/assessment` if they haven't finished
- * onboarding). On any failure returns a small HTML page that nudges the user
- * to request a fresh link, avoiding existence leaks in the response.
+ * 303-redirects the user. On any failure returns a small HTML page that
+ * nudges the user to request a fresh link, avoiding existence leaks in
+ * the response.
+ *
+ * Redirect contract (post-2026-05-15):
+ *   - First-ever session (signup):    303 /record?signed_in=1&new=1
+ *   - Returning sign-in (Nth):        303 /record?signed_in=1
+ *
+ * The destination is unconditional `/record` — the pre-2026-05 fork that
+ * routed un-assessed users to `/assessment` was removed when the
+ * assessment became optional personalisation. Callers that previously
+ * inferred onboarding state from the Location header should now read
+ * `GET /api/assessment` (returns 404 for no assessment).
+ *
+ * The `&new=1` flag is consumed by `<SignedInTracker>` to fire
+ * `signup_completed` exactly once. `?signed_in=1` always fires
+ * `sign_in_completed`. Both params are stripped on first paint.
+ *
+ * Failure codes: 404 (invalid/unknown token), 410 (expired/consumed token).
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -27,7 +43,6 @@ export async function GET(request: Request) {
 
   const user = await prisma.user.findUnique({
     where: { id: result.userId },
-    include: { assessment: true, stateProfile: true },
   });
   if (!user) {
     return new NextResponse(failurePage('invalid'), {
@@ -35,6 +50,24 @@ export async function GET(request: Request) {
       headers: { 'content-type': 'text/html; charset=utf-8' },
     });
   }
+
+  // Count existing sessions BEFORE creating the new one — zero existing
+  // sessions means this is the user's first sign-in (signup), versus
+  // N+1th sign-in (return). The flag is forwarded via ?new=1 so the
+  // client-side SignedInTracker can fire `signup_completed` exactly once.
+  //
+  // Race bound: COUNT + INSERT here is not atomic at the DB level. The
+  // primary serialization point is `verifyMagicLink`'s atomic
+  // updateMany WHERE consumedAt IS NULL — each token consumes exactly
+  // once, so a single magic link can only reach this point once. A user
+  // would have to obtain TWO valid (un-expired, un-consumed) tokens AND
+  // verify them concurrently (~ms apart) to double-fire SIGNUP_COMPLETED.
+  // Acceptable for analytics; if multi-link signups become common, dedup
+  // FunnelEvent at the consumer side on (userId, eventName).
+  const priorSessionCount = await prisma.session.count({
+    where: { userId: user.id },
+  });
+  const isFirstSession = priorSessionCount === 0;
 
   await createSession(user.id, {
     userAgent: request.headers.get('user-agent'),
@@ -59,12 +92,19 @@ export async function GET(request: Request) {
     });
   }
 
-  const onboarded = Boolean(user.assessment && user.stateProfile);
+  // All signed-in users land on /record regardless of assessment state.
+  // The pre-2026-05 forked logic redirected un-assessed users into /assessment
+  // as a forced onboarding gate — that gate is removed in this plan
+  // (docs/plans/2026-05-15-002-feat-lead-gen-signup-and-optional-assessment-plan.md).
+  // /record renders cleanly for empty graphs via <GraphListEmpty />, and the
+  // home/record surfaces carry a "Personalise your record" CTA pointing
+  // back to /assessment for users who choose to take it.
   // `?signed_in=1` is a one-shot flag the destination page reads on mount
   // to fire the sign_in_completed funnel event, then strips via
-  // history.replaceState. Anything else stitches via userId once the page
-  // has loaded and the session cookie is present.
-  const redirectTo = `${onboarded ? '/record' : '/assessment'}?signed_in=1`;
+  // history.replaceState. `&new=1` additionally fires signup_completed
+  // when this is the user's first session ever (i.e. they just signed
+  // up vs returning).
+  const redirectTo = isFirstSession ? '/record?signed_in=1&new=1' : '/record?signed_in=1';
   // Redirect relative to the inbound request so the user stays on the same
   // host they clicked the magic link from (preview subdomain vs prod).
   return NextResponse.redirect(new URL(redirectTo, request.url), { status: 303 });

@@ -40,8 +40,14 @@ export async function teardownTestDb(): Promise<void> {
 }
 
 export async function makeTestUser(prisma: PrismaClient, suffix: string): Promise<string> {
+  // Tests pre-set `llmConsentAcceptedAt` so route tests aren't blocked by
+  // the consent gate (`lib/llm/consent.ts`). Tests that exercise the gate
+  // itself overwrite this to null.
   const user = await prisma.user.create({
-    data: { email: `test+${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com` },
+    data: {
+      email: `test+${suffix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`,
+      llmConsentAcceptedAt: new Date(),
+    },
   });
   return user.id;
 }

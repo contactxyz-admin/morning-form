@@ -20,6 +20,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { llmConsentGateResponse } from '@/lib/llm/consent';
 import { LLMClient } from '@/lib/llm/client';
 import {
   LLMAuthError,
@@ -75,11 +76,17 @@ export async function POST(req: Request) {
     );
   }
 
+  // Auth + consent at the top level so a misbehaving helper doesn't
+  // turn a 401/412 into a 500 via the outer catch. Matches the gate
+  // ordering used in the other 6 LLM-bearing routes.
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
+  const consentResponse = llmConsentGateResponse(user);
+  if (consentResponse) return consentResponse;
+
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
-    }
     const client = new LLMClient();
 
     const { ingestInput, tentativeTopicStubs } = await extractFromIntake(
