@@ -24,7 +24,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           '/api/',
           '/sign-in',
-          '/onboarding',
           '/assessment',
           '/processing',
           '/reveal',

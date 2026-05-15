@@ -98,8 +98,8 @@ export default defineMarketingPage({
 
   cta: {
     label: 'Upload your last blood panel',
-    href: '/onboarding',
-    caption: '8 minutes · free · no signup',
+    href: '/sign-in',
+    caption: 'Free · sign in with email',
   },
 
   publishedAt: '2026-05-09',

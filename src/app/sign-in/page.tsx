@@ -14,7 +14,11 @@ type Status =
   | { kind: 'error'; message: string };
 
 export default function SignInPage() {
-  const [email, setEmail] = useState('demo@morningform.com');
+  // Empty default — pre-filling demo@morningform.com would let an
+  // unattentive new visitor on a preview env with ALLOW_DEMO_BYPASS=1
+  // click "Send sign-in link" and get a one-click session as the demo
+  // user via the verifyUrl bypass in /api/auth/request-link.
+  const [email, setEmail] = useState('');
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
 
   const handleSubmit = async (e: React.FormEvent) => {
