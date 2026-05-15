@@ -13,8 +13,10 @@ const steps = [
 
 // Minimum dwell time on this page so the reveal feels considered even on a
 // fast network. The API call runs in parallel — we wait for the later of the
-// two before advancing.
-const MIN_DWELL_MS = 7500;
+// two before advancing. 3s is enough for the three-step animation to feel
+// deliberate; longer reads as theatre tax (was 7500 originally — cut after
+// the activation audit flagged "forced wait on fast networks" as A4).
+const MIN_DWELL_MS = 3000;
 
 export default function ProcessingPage() {
   const router = useRouter();
@@ -23,10 +25,13 @@ export default function ProcessingPage() {
   const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
+    // Step fade-ins paced so all three land before MIN_DWELL_MS expires —
+    // otherwise the third step would render after the redirect and never
+    // be seen on a fast network.
     const stepTimers = [
-      setTimeout(() => setVisibleSteps(1), 400),
-      setTimeout(() => setVisibleSteps(2), 2400),
-      setTimeout(() => setVisibleSteps(3), 4400),
+      setTimeout(() => setVisibleSteps(1), 200),
+      setTimeout(() => setVisibleSteps(2), 1100),
+      setTimeout(() => setVisibleSteps(3), 2000),
     ];
 
     let cancelled = false;
