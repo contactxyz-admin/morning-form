@@ -17,8 +17,12 @@ type LoadState =
  * the current user. Shared across /reveal/profile, /reveal/priorities, and
  * /reveal/rationale so each page renders real data rather than mock fixtures.
  *
- * Returns discriminated states so callers can route (e.g. not-onboarded →
- * /assessment) without re-deriving the response shape.
+ * Returns discriminated states so callers can render appropriately. Note:
+ * `not-onboarded` now means "user has not completed the assessment" — it
+ * does NOT mean "must be sent to /assessment." Since 2026-05-15, the
+ * assessment is optional personalisation rather than a forced onboarding
+ * gate; callers should render an inline "Personalise your record" CTA
+ * for this state, not auto-redirect.
  */
 export function useAssessmentData(): LoadState {
   const [state, setState] = useState<LoadState>({ kind: 'loading' });

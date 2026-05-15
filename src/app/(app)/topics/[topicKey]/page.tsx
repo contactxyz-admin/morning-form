@@ -16,6 +16,8 @@ import { Disclaimer } from '@/components/ui/disclaimer';
 import { SelectionPopover } from '@/components/scribe/selection-popover';
 import { InlineExplainCard } from '@/components/scribe/inline-explain-card';
 import { useExplainStream } from '@/components/scribe/use-explain-stream';
+import { LlmConsentModal } from '@/components/auth/llm-consent-modal';
+import { useLlmConsentGate } from '@/lib/hooks/use-llm-consent-gate';
 import type { TopicCompiledOutput } from '@/lib/topics/types';
 import type { GraphNodeWire } from '@/types/graph';
 
@@ -50,6 +52,11 @@ export default function TopicPage() {
   // "bypass the compile cache" — used by the retry button when the last
   // compile errored and the error is pinned to the current graph revision.
   const [reload, setReload] = useState<{ seq: number; force: boolean }>({ seq: 0, force: false });
+  const consentGate = useLlmConsentGate();
+  const { checkResponse: checkConsent } = consentGate;
+
+  const retry = (force: boolean) =>
+    setReload((r) => ({ seq: r.seq + 1, force }));
 
   useEffect(() => {
     if (!topicKey) return;
@@ -67,6 +74,16 @@ export default function TopicPage() {
         }
         if (res.status === 404) {
           if (!cancelled) setState({ status: 'not-found' });
+          return;
+        }
+        // 412 + requiresConsent: arm the modal and stop here. Accept
+        // re-fires the effect via reload; cancel leaves the page in
+        // its loading shimmer so the user can navigate back.
+        if (
+          await checkConsent(res, () =>
+            setReload((r) => ({ seq: r.seq + 1, force: r.force })),
+          )
+        ) {
           return;
         }
         if (!res.ok) {
@@ -87,10 +104,7 @@ export default function TopicPage() {
     return () => {
       cancelled = true;
     };
-  }, [topicKey, reload]);
-
-  const retry = (force: boolean) =>
-    setReload((r) => ({ seq: r.seq + 1, force }));
+  }, [topicKey, reload, checkConsent]);
 
   const handleCitationClick = async (nodeId: string) => {
     try {
@@ -241,6 +255,12 @@ export default function TopicPage() {
           }
         />
       )}
+
+      <LlmConsentModal
+        open={consentGate.open}
+        onAccepted={consentGate.onAccepted}
+        onCancel={consentGate.onCancel}
+      />
     </div>
   );
 }

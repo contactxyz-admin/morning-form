@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { llmConsentGateResponse } from '@/lib/llm/consent';
 import { generateStateProfile, buildPriorities } from '@/lib/priority-marker-engine';
 import type {
   AssessmentResponses,
@@ -16,10 +17,11 @@ import type {
  * POST /api/assessment — persist the answers and the derived state/priorities.
  *
  * Idempotent by userId: re-submitting the same (or corrected) responses upserts
- * all three rows in a single transaction. Onboarding-status is derived by the
- * auth verify route from `user.assessment && user.stateProfile`, so a partial
- * write here would leave the user stuck bouncing back to /assessment on every
- * sign-in. Everything lands atomically or nothing does.
+ * all three rows in a single transaction. Since 2026-05-15 the assessment is
+ * optional (not a forced onboarding gate), so a partial-write leaves the user
+ * in a coherent "no personalisation yet" state rather than stuck — but the
+ * transaction is still all-or-nothing so the derived StateProfile / Priorities
+ * never disagree with the AssessmentResponse that produced them.
  *
  * PriorityMarker rows are rewritten on every upsert — the engine can produce
  * a different marker set if the archetype changes (e.g. pregnancy flip), so we
@@ -30,6 +32,9 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
+
+  const consentResponse = llmConsentGateResponse(user);
+  if (consentResponse) return consentResponse;
 
   let responses: AssessmentResponses;
   try {

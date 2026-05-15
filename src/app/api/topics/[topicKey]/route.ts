@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { llmConsentGateResponse } from '@/lib/llm/consent';
 import { LLMClient } from '@/lib/llm/client';
 import { compileTopic } from '@/lib/topics/compile';
 import { getTopicConfig } from '@/lib/topics/registry';
@@ -42,6 +43,9 @@ export async function GET(
     if (!user) {
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     }
+
+    const consentResponse = llmConsentGateResponse(user);
+    if (consentResponse) return consentResponse;
 
     const topicKey = params.topicKey;
     const config = getTopicConfig(topicKey);

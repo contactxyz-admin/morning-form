@@ -30,6 +30,7 @@ import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { llmConsentGateResponse } from '@/lib/llm/consent';
 import { storePdf } from '@/lib/intake/storage';
 import { LLMClient } from '@/lib/llm/client';
 import {
@@ -124,6 +125,9 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     }
+
+    const consentResponse = llmConsentGateResponse(user);
+    if (consentResponse) return consentResponse;
 
     // Dedup: if this exact content is already ingested for this user, return
     // the existing document id so the UI stays idempotent.

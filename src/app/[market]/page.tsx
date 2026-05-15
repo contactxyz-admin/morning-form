@@ -92,11 +92,11 @@ export default function LandingPage({ params }: MarketHomeProps) {
         </p>
 
         <div className="mt-14 flex items-center gap-6 flex-wrap">
-          <Link href="/onboarding">
+          <Link href="/sign-in">
             <Button size="lg">See your record</Button>
           </Link>
           <p className="text-caption text-text-tertiary">
-            8 minutes · free · no signup
+            Free · sign in with email
           </p>
         </div>
       </section>
@@ -252,14 +252,14 @@ export default function LandingPage({ params }: MarketHomeProps) {
       {/* Final CTA — restate the value, ink only, low-commitment ask. */}
       <section className="px-6 sm:px-10 lg:px-16 py-32 sm:py-44 border-t border-border max-w-[1400px] mx-auto">
         <h2 className="font-display font-light text-display sm:text-display-xl lg:text-display-2xl text-text-primary max-w-4xl -tracking-[0.04em] leading-[0.98]">
-          See what your numbers have been trying to tell you. In eight minutes, free.
+          See what your numbers have been trying to tell you. Free.
         </h2>
         <p className="mt-8 text-body-lg text-text-secondary max-w-xl leading-relaxed">
-          Take the assessment, link one wearable, see your record. No card, no signup until
-          you decide to keep going.
+          Sign in with email, see your record. Link a wearable, upload a panel, take
+          the assessment — all optional, all when you&rsquo;re ready. No card required.
         </p>
         <div className="mt-14 flex items-center gap-6 flex-wrap">
-          <Link href="/onboarding">
+          <Link href="/sign-in">
             <Button size="lg">See your record</Button>
           </Link>
           <Link

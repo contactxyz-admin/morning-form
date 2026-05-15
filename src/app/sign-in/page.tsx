@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { track } from '@/lib/funnel/track';
+import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 type Status =
   | { kind: 'idle' }
@@ -23,6 +25,10 @@ export default function SignInPage() {
     }
 
     setStatus({ kind: 'loading' });
+
+    // Funnel event — fires on every submit, deduped on the analytics
+    // side by funnelId. Provider 'magic_link' until Phase B adds SSO.
+    track(FUNNEL_EVENTS.SIGNUP_INITIATED, { provider: 'magic_link' });
 
     try {
       const res = await fetch('/api/auth/request-link', {
@@ -133,7 +139,7 @@ export default function SignInPage() {
                   href="/onboarding"
                   className="text-text-secondary hover:text-text-primary transition-colors underline-offset-4 hover:underline"
                 >
-                  Begin assessment
+                  What is Morning Form?
                 </Link>
               </p>
             </>

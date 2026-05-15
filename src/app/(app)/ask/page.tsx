@@ -26,6 +26,8 @@ import type {
   BubbleModel,
   UserBubbleModel,
 } from '@/components/chat/message-bubble';
+import { LlmConsentModal } from '@/components/auth/llm-consent-modal';
+import { useLlmConsentGate } from '@/lib/hooks/use-llm-consent-gate';
 import { track } from '@/lib/funnel/track';
 import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
@@ -103,7 +105,11 @@ function AskPageInner() {
     [],
   );
 
-  const { state: turnState, start: startTurn } = useChatStream({ onDone });
+  const consentGate = useLlmConsentGate();
+  const { state: turnState, start: startTurn } = useChatStream({
+    onDone,
+    onRequiresConsent: consentGate.armRetry,
+  });
 
   // Fetch history on mount.
   useEffect(() => {
@@ -233,6 +239,11 @@ function AskPageInner() {
           onInitialSubmitted={handleSeedSubmitted}
         />
       </div>
+      <LlmConsentModal
+        open={consentGate.open}
+        onAccepted={consentGate.onAccepted}
+        onCancel={consentGate.onCancel}
+      />
     </div>
   );
 }

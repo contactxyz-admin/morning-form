@@ -21,6 +21,13 @@ model User {
   signupCohort String?
   signupSlug   String?
 
+  // LLM consent acceptance. Captured lazily at the moment of first LLM use
+  // (chat, assessment, topic compile) via the 412 + modal flow — not eagerly
+  // at signup. Null = not yet consented; LLM-bearing routes return 412 with
+  // { requiresConsent: true } until the user accepts via POST /api/user/consent.
+  // See docs/plans/2026-05-15-002-feat-lead-gen-signup-and-optional-assessment-plan.md.
+  llmConsentAcceptedAt DateTime?
+
   assessment        AssessmentResponse?
   stateProfile      StateProfile?
   priorities        Priorities?

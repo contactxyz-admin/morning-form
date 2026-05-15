@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { clearDraft } from '@/lib/assessment-draft';
+import { LlmConsentModal } from '@/components/auth/llm-consent-modal';
+import { useLlmConsentGate } from '@/lib/hooks/use-llm-consent-gate';
 
 const steps = [
   'Analysing your state patterns',
@@ -21,6 +23,8 @@ export default function ProcessingPage() {
   const [visibleSteps, setVisibleSteps] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const consentGate = useLlmConsentGate();
+  const { checkResponse: checkConsent } = consentGate;
 
   useEffect(() => {
     const stepTimers = [
@@ -54,6 +58,13 @@ export default function ProcessingPage() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ responses }),
         });
+        // 412 + requiresConsent: armed the modal. Bail out of the run
+        // — accept replays the run by flipping `retrying`; cancel routes
+        // back to /assessment so the user isn't stuck on a screen with
+        // no obvious next step.
+        if (await checkConsent(res, () => setRetrying((r) => !r))) {
+          return;
+        }
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
@@ -83,7 +94,7 @@ export default function ProcessingPage() {
       cancelled = true;
       stepTimers.forEach(clearTimeout);
     };
-  }, [router, retrying]);
+  }, [router, retrying, checkConsent]);
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-8 relative overflow-hidden">
@@ -136,6 +147,18 @@ export default function ProcessingPage() {
           </div>
         )}
       </div>
+
+      <LlmConsentModal
+        open={consentGate.open}
+        onAccepted={consentGate.onAccepted}
+        onCancel={() => {
+          consentGate.onCancel();
+          // Without consent the assessment can't be persisted. Bounce
+          // back to /assessment so the user has an obvious next step
+          // (re-open the modal by submitting again, or leave).
+          router.replace('/assessment');
+        }}
+      />
     </div>
   );
 }

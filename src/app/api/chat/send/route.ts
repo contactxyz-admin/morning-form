@@ -35,6 +35,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { llmConsentGateResponse } from '@/lib/llm/consent';
 import { getScribeLLMClient } from '@/lib/scribe/llm';
 import { runChatTurn } from '@/lib/chat/turn';
 import type { TurnEvent } from '@/lib/chat/types';
@@ -59,6 +60,9 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (!user) {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
+
+  const consentResponse = llmConsentGateResponse(user);
+  if (consentResponse) return consentResponse;
 
   let parsed: z.infer<typeof BodySchema>;
   try {

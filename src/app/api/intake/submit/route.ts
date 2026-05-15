@@ -20,6 +20,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { llmConsentGateResponse } from '@/lib/llm/consent';
 import { LLMClient } from '@/lib/llm/client';
 import {
   LLMAuthError,
@@ -80,6 +81,10 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     }
+
+    const consentResponse = llmConsentGateResponse(user);
+    if (consentResponse) return consentResponse;
+
     const client = new LLMClient();
 
     const { ingestInput, tentativeTopicStubs } = await extractFromIntake(
