@@ -6,6 +6,7 @@ import {
   DEFAULT_SCRIBE_MODEL,
   DEFAULT_SCRIBE_TOOLS,
   getOrCreateScribeForTopic,
+  isAcceptableModelForCurrentClient,
   recordAudit,
 } from './repo';
 
@@ -167,5 +168,57 @@ describe('repo surface is append-only', () => {
     expect(Object.keys(repoModule)).not.toContain('updateAudit');
     expect(Object.keys(repoModule)).not.toContain('deleteAudit');
     expect(Object.keys(repoModule)).not.toContain('purgeAudits');
+  });
+});
+
+describe('DEFAULT_SCRIBE_MODEL constant', () => {
+  it('points at the canonical Sonnet 4.6 id (Anthropic SDK rejects anything else with 404)', () => {
+    // Two pins:
+    //   1. Exact-string — catches drift to a typo'd or sunset Claude id.
+    //   2. Family prefix — readable statement of the invariant; will widen
+    //      when multi-provider routing lands (see plan
+    //      2026-05-14-002-feat-multi-provider-scribe-routing-plan.md).
+    expect(DEFAULT_SCRIBE_MODEL).toBe('claude-sonnet-4-6');
+    expect(DEFAULT_SCRIBE_MODEL.startsWith('claude-')).toBe(true);
+  });
+
+  it('matches the Prisma schema default for Scribe.model', () => {
+    // Schema-level @default and the TS constant are two independent
+    // write paths (DB-default fires when a direct prisma.scribe.create
+    // omits the field). They must stay in lockstep. See
+    // prisma/schema.prisma → model Scribe → `model` column @default.
+    // If this drifts, the bug-being-fixed reappears on any insert path
+    // that doesn't go through getOrCreateScribeForTopic.
+    expect(DEFAULT_SCRIBE_MODEL).toBe('claude-sonnet-4-6');
+  });
+});
+
+describe('isAcceptableModelForCurrentClient', () => {
+  it('accepts the current default and other Claude-family ids', () => {
+    expect(isAcceptableModelForCurrentClient('claude-sonnet-4-6')).toBe(true);
+    expect(isAcceptableModelForCurrentClient('claude-opus-4-7')).toBe(true);
+    expect(isAcceptableModelForCurrentClient('claude-haiku-4-5-20251001')).toBe(true);
+    expect(isAcceptableModelForCurrentClient(DEFAULT_SCRIBE_MODEL)).toBe(true);
+  });
+
+  it('rejects the stale OpenRouter prefix (the actual bug being fixed)', () => {
+    expect(isAcceptableModelForCurrentClient('openrouter/openai/gpt-4.1')).toBe(false);
+    expect(isAcceptableModelForCurrentClient('openrouter/anthropic/claude-3-sonnet')).toBe(
+      false,
+    );
+  });
+
+  it('rejects unknown future provider prefixes (allowlist, not denylist)', () => {
+    // Pins the allowlist semantics — denylisting only `openrouter/` would
+    // let these through silently. The Anthropic SDK would 404 on them.
+    expect(isAcceptableModelForCurrentClient('gemini/pro')).toBe(false);
+    expect(isAcceptableModelForCurrentClient('openai/gpt-4o')).toBe(false);
+    expect(isAcceptableModelForCurrentClient('anthropic/claude-sonnet-4-6')).toBe(false);
+  });
+
+  it('rejects empty, null, undefined, and non-string inputs', () => {
+    expect(isAcceptableModelForCurrentClient('')).toBe(false);
+    expect(isAcceptableModelForCurrentClient(null)).toBe(false);
+    expect(isAcceptableModelForCurrentClient(undefined)).toBe(false);
   });
 });

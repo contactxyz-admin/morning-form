@@ -28,6 +28,7 @@ import {
   DEFAULT_SCRIBE_MODEL,
   DEFAULT_SCRIBE_TEMPERATURE,
   getOrCreateScribeForTopic,
+  isAcceptableModelForCurrentClient,
   recordAudit,
   SCRIBE_MODEL_VERSION_PENDING,
   ScribeAuditWriteError,
@@ -208,7 +209,14 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
         system,
         messages,
         tools,
-        model: scribe.model ?? DEFAULT_SCRIBE_MODEL,
+        // Heals existing rows holding stale pre-Anthropic model ids
+        // (e.g. `openrouter/openai/gpt-4.1` from the multi-provider era,
+        // which the current Anthropic SDK rejects with a 404). The helper
+        // tracks the current ScribeLLMClient implementation's capability
+        // — widens at one site when multi-provider routing lands.
+        model: isAcceptableModelForCurrentClient(scribe.model)
+          ? scribe.model
+          : DEFAULT_SCRIBE_MODEL,
         temperature: scribe.temperature ?? DEFAULT_SCRIBE_TEMPERATURE,
         signal: req.signal,
       });

@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { addNode } from '@/lib/graph/mutations';
-import { getOrCreateScribeForTopic } from './repo';
+import { DEFAULT_SCRIBE_MODEL, getOrCreateScribeForTopic } from './repo';
 import {
   execute,
   type ScribeExecuteRequest,
@@ -33,13 +33,17 @@ afterAll(async () => {
  */
 function scriptedLLM(turns: ScribeLLMTurn[]): {
   client: ScribeLLMClient;
-  calls: Array<{ system: string; messages: unknown }>;
+  calls: Array<{ system: string; messages: unknown; model: string }>;
 } {
-  const calls: Array<{ system: string; messages: unknown }> = [];
+  const calls: Array<{ system: string; messages: unknown; model: string }> = [];
   const queue = [...turns];
   const client: ScribeLLMClient = {
     async turn(req) {
-      calls.push({ system: req.system, messages: structuredClone(req.messages) });
+      calls.push({
+        system: req.system,
+        messages: structuredClone(req.messages),
+        model: req.model,
+      });
       const next = queue.shift();
       if (!next) throw new Error('scriptedLLM: queue exhausted');
       return next;
@@ -355,5 +359,64 @@ describe('scribe executor — error surfaces', () => {
     await expect(
       execute(baseRequest({ userId, topicKey: 'nonsense-topic', llm: client })),
     ).rejects.toThrow(/no safety policy registered/);
+  });
+});
+
+describe('scribe executor — self-healing model guard', () => {
+  // Pins the fix for the P0 prod bug where Scribe rows seeded during the
+  // pre-Anthropic era (model = `openrouter/openai/gpt-4.1`) reached the
+  // Anthropic SDK and triggered a 404. See plan
+  // 2026-05-14-001-fix-scribe-model-anthropic-guard-plan.md.
+  it('passes a valid `claude-*` model through unchanged', async () => {
+    const userId = await makeTestUser(prisma, 'exec-model-claude');
+    const scribe = await getOrCreateScribeForTopic(prisma, userId, 'iron', {
+      modelVersion: 'v-pin',
+    });
+    // Force a known-good Claude model on the scribe row.
+    await prisma.scribe.update({
+      where: { id: scribe.id },
+      data: { model: 'claude-opus-4-7' },
+    });
+
+    const { client, calls } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v', toolCalls: [] },
+    ]);
+
+    await execute(baseRequest({
+      userId,
+      llm: client,
+      requestId: '55555555-5555-5555-8555-555555555555',
+    }));
+
+    expect(calls[0].model).toBe('claude-opus-4-7');
+  });
+
+  it('replaces stale `openrouter/...` model with DEFAULT_SCRIBE_MODEL (the actual bug fix)', async () => {
+    const userId = await makeTestUser(prisma, 'exec-model-openrouter');
+    const scribe = await getOrCreateScribeForTopic(prisma, userId, 'iron', {
+      modelVersion: 'v-pin',
+    });
+    // Simulate the exact stale value that triggered the prod 404.
+    await prisma.scribe.update({
+      where: { id: scribe.id },
+      data: { model: 'openrouter/openai/gpt-4.1' },
+    });
+
+    const { client, calls } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v', toolCalls: [] },
+    ]);
+
+    await execute(baseRequest({
+      userId,
+      llm: client,
+      requestId: '66666666-6666-6666-8666-666666666666',
+    }));
+
+    // The stale OpenRouter string MUST be replaced with EXACTLY
+    // DEFAULT_SCRIBE_MODEL (the fallback the guard substitutes). Pinning
+    // the exact value catches future fallback drift, not just the
+    // family. For exhaustive allowlist case coverage of
+    // isAcceptableModelForCurrentClient, see repo.test.ts.
+    expect(calls[0].model).toBe(DEFAULT_SCRIBE_MODEL);
   });
 });

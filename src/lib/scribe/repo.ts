@@ -22,6 +22,25 @@ export const DEFAULT_SCRIBE_MODEL = 'claude-sonnet-4-6';
 export const DEFAULT_SCRIBE_TEMPERATURE = 0.3;
 
 /**
+ * Tracks what the CURRENT `ScribeLLMClient` implementation can handle.
+ * Today: `AnthropicScribeLLMClient` → Anthropic SDK → `claude-*` only.
+ *
+ * Existing rows from the pre-Anthropic era hold `openrouter/openai/gpt-4.1`
+ * etc. — those reach the Anthropic SDK and trigger a 404, which is why
+ * this guard exists at `execute.ts`.
+ *
+ * Future: when `GatewayScribeLLMClient` lands (see plan
+ * `docs/plans/2026-05-14-002-feat-multi-provider-scribe-routing-plan.md`),
+ * widen this allowlist to accept `provider/model` shapes — that's the
+ * ONLY site that changes for multi-provider routing.
+ */
+export function isAcceptableModelForCurrentClient(
+  m: string | null | undefined,
+): m is string {
+  return typeof m === 'string' && m.startsWith('claude-');
+}
+
+/**
  * Sentinel written to `Scribe.modelVersion` when a lazy-create path has no
  * pinned upstream version. Shared across `execute.ts` (writer) and
  * `compile.ts` (drift-check reader) so a typo in one file cannot silently
