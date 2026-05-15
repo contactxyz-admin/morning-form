@@ -172,14 +172,24 @@ describe('repo surface is append-only', () => {
 });
 
 describe('DEFAULT_SCRIBE_MODEL constant', () => {
-  it('points at a Claude-family id (Anthropic SDK rejects anything else with 404)', () => {
-    // Pins the constant against silent regression to another provider's
-    // string shape (e.g. `openrouter/...`, `openai/...`). If we ever
-    // genuinely want a non-Claude default, that's a deliberate change
-    // and the multi-provider plan
-    // (2026-05-14-002-feat-multi-provider-scribe-routing-plan.md) is the
-    // place to make it.
+  it('points at the canonical Sonnet 4.6 id (Anthropic SDK rejects anything else with 404)', () => {
+    // Two pins:
+    //   1. Exact-string — catches drift to a typo'd or sunset Claude id.
+    //   2. Family prefix — readable statement of the invariant; will widen
+    //      when multi-provider routing lands (see plan
+    //      2026-05-14-002-feat-multi-provider-scribe-routing-plan.md).
+    expect(DEFAULT_SCRIBE_MODEL).toBe('claude-sonnet-4-6');
     expect(DEFAULT_SCRIBE_MODEL.startsWith('claude-')).toBe(true);
+  });
+
+  it('matches the Prisma schema default for Scribe.model', () => {
+    // Schema-level @default and the TS constant are two independent
+    // write paths (DB-default fires when a direct prisma.scribe.create
+    // omits the field). They must stay in lockstep. See
+    // prisma/schema.prisma → model Scribe → `model` column @default.
+    // If this drifts, the bug-being-fixed reappears on any insert path
+    // that doesn't go through getOrCreateScribeForTopic.
+    expect(DEFAULT_SCRIBE_MODEL).toBe('claude-sonnet-4-6');
   });
 });
 

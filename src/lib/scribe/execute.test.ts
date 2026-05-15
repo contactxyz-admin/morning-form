@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { addNode } from '@/lib/graph/mutations';
-import { getOrCreateScribeForTopic } from './repo';
+import { DEFAULT_SCRIBE_MODEL, getOrCreateScribeForTopic } from './repo';
 import {
   execute,
   type ScribeExecuteRequest,
@@ -412,8 +412,11 @@ describe('scribe executor — self-healing model guard', () => {
       requestId: '66666666-6666-6666-8666-666666666666',
     }));
 
-    // The stale OpenRouter string MUST be replaced, not passed through.
-    expect(calls[0].model).not.toBe('openrouter/openai/gpt-4.1');
-    expect(calls[0].model.startsWith('claude-')).toBe(true);
+    // The stale OpenRouter string MUST be replaced with EXACTLY
+    // DEFAULT_SCRIBE_MODEL (the fallback the guard substitutes). Pinning
+    // the exact value catches future fallback drift, not just the
+    // family. For exhaustive allowlist case coverage of
+    // isAcceptableModelForCurrentClient, see repo.test.ts.
+    expect(calls[0].model).toBe(DEFAULT_SCRIBE_MODEL);
   });
 });
