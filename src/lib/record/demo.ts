@@ -16,6 +16,7 @@
  */
 
 import { DEMO_NAVIGABLE_RECORD_SLUG } from '../../../prisma/fixtures/demo-navigable-record';
+import { DEMO_EMAIL } from '../../../prisma/fixtures/demo-ids';
 
 export { DEMO_NAVIGABLE_RECORD_SLUG };
 
@@ -29,7 +30,7 @@ export interface DemoSlugRecord {
 const DEMO_SLUGS: Readonly<Record<string, DemoSlugRecord>> = {
   [DEMO_NAVIGABLE_RECORD_SLUG]: {
     slug: DEMO_NAVIGABLE_RECORD_SLUG,
-    email: 'demo@morningform.com',
+    email: DEMO_EMAIL,
     enabled: true,
   },
 };

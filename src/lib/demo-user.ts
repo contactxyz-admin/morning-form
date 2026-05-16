@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { DEMO_EMAIL } from '../../prisma/fixtures/demo-ids';
 
 /**
  * Provision the seeded demo user for dev scripts, marketing previews, and
@@ -9,10 +10,10 @@ import { prisma } from '@/lib/db';
  */
 export async function getDemoUserForSeedOnly() {
   return prisma.user.upsert({
-    where: { email: 'demo@morningform.com' },
+    where: { email: DEMO_EMAIL },
     update: {},
     create: {
-      email: 'demo@morningform.com',
+      email: DEMO_EMAIL,
       name: 'Demo User',
     },
   });
