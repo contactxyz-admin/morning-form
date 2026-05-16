@@ -1,5 +1,5 @@
 /**
- * Fixture for the `/r/demo-navigable-record` seed.
+ * Fixture for the `demo@morningform.com` seed.
  *
  * A lived-in health record telling a plausible mid-30s-female
  * presentation: iron-deficiency anaemia with concurrent vitamin D
@@ -598,9 +598,3 @@ export const DEMO_NAVIGABLE_RECORD: DemoRecordFixture = {
     { type: 'ASSOCIATED_WITH', fromNodeKey: 'rhr-30d', toNodeKey: 'hrv-30d' },
   ],
 };
-
-/**
- * Canonical slug used by `/r/[slug]` to resolve this fixture.
- * Kept next to the fixture so changes move together.
- */
-export const DEMO_NAVIGABLE_RECORD_SLUG = 'demo-navigable-record';

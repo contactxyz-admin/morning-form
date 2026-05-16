@@ -5,17 +5,29 @@
  * NodeDetailSheet so the parent /demo/record RSC can stay a server
  * component (no auth fetches, no session reads).
  *
- * Mobile (<768px) renders nothing — the page already has the existing
- * specialty-surface text layout below. CSS gating (`hidden md:block`)
- * avoids the SSR/client hydration flash that `useMediaQuery` would
- * cause.
+ * Mobile (<768px) renders the canvas as `hidden md:block`. The detail
+ * sheet sits outside the canvas section, so a mobile visitor following a
+ * `?entity=` deep-link still gets the sheet — they just can't click new
+ * nodes (there's no visible canvas to click).
+ *
+ * Selection state lives in the URL as `?entity=<nodeId>` so shared links
+ * can deep-link to a specific node and browser back/forward toggles the
+ * sheet. See
+ * docs/plans/2026-05-16-001-feat-navigable-record-demo-plan.md (U5).
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useTransition } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { adaptDemoFixture, type AdaptedDemoFixture } from '@/lib/demo/graph-adapter';
-import type { GraphNodeWire } from '@/types/graph';
+import {
+  referencedSourceDocumentIds,
+  synthesizeSourceEdges,
+  synthesizeSourceNodes,
+} from '@/lib/record/canvas-synthesis';
+import type { SourceDocumentWire } from '@/lib/record/types';
+import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import type { DemoRecordFixture } from '../../../prisma/fixtures/demo-navigable-record';
 import type { SourceDocumentKind } from '@/lib/graph/types';
 
@@ -40,16 +52,117 @@ interface Props {
   readonly fixture: DemoRecordFixture;
 }
 
+// Loose canonical-key shape — fixture nodeKeys are kebab/underscore tokens
+// with prefixes like `cond-`, `biomarker-`, etc. Reject anything outside
+// this set to keep crafted `?entity=` values from polluting browser
+// history before the deep-link guard clears them.
+const ENTITY_PATTERN = /^[A-Za-z0-9\-_.:]+$/;
+const ENTITY_MAX_LEN = 200;
+
 export function DemoGraphSection({ fixture }: Props) {
-  const [openNodeId, setOpenNodeId] = useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
 
   // Adapt once per fixture identity. The fixture is a constant, so
   // this memo will fire exactly once per page mount.
   const adapted = useMemo<AdaptedDemoFixture>(() => adaptDemoFixture(fixture), [fixture]);
 
+  // Canvas-only source-document hub synthesis. The adapted graph carries
+  // each SUPPORTS edge's `fromDocumentId` (= `DemoSource.sourceKey`), so
+  // referencedSourceDocumentIds picks out which sources any edge actually
+  // points at. We then synthesise a `source_document`-typed pseudo-node
+  // per referenced source plus biomarker→source edges so the canvas reads
+  // as a citation graph rather than an entity blob.
+  //
+  // Differs from src/components/record/vault-layout.tsx (authed /record)
+  // in that we do NOT filter out SUPPORTS edges — the demo fixture's
+  // SUPPORTS edges are real biomarker→condition lines, not the self-loops
+  // the authed schema uses. Both edge sets coexist on the canvas.
+  const canvasNodes = useMemo<GraphNodeWire[]>(() => {
+    const referencedIds = referencedSourceDocumentIds(adapted.graph.edges);
+    const wireSources: SourceDocumentWire[] = fixture.sources
+      .filter((s) => referencedIds.has(s.sourceKey))
+      .map((s) => ({
+        id: s.sourceKey,
+        kind: s.kind as SourceDocumentKind,
+        capturedAt: s.capturedAt,
+        createdAt: s.capturedAt,
+      }));
+    const scoreCeiling = adapted.graph.nodes.reduce(
+      (max, n) => Math.max(max, n.score),
+      0,
+    );
+    const hubNodes = synthesizeSourceNodes(wireSources, 'demo', scoreCeiling);
+    return [...adapted.graph.nodes, ...hubNodes];
+  }, [adapted, fixture]);
+
+  const canvasEdges = useMemo<GraphEdgeWire[]>(() => {
+    const graphNodeIds = new Set(adapted.graph.nodes.map((n) => n.id));
+    const sourceIds = new Set(
+      canvasNodes.filter((n) => n.type === 'source_document').map((n) => n.id),
+    );
+    const synthesised = synthesizeSourceEdges(adapted.graph.edges, graphNodeIds, sourceIds);
+    return [...adapted.graph.edges, ...synthesised];
+  }, [adapted, canvasNodes]);
+
+  const rawEntity = searchParams.get('entity');
+  const validatedEntity =
+    rawEntity && rawEntity.length <= ENTITY_MAX_LEN && ENTITY_PATTERN.test(rawEntity)
+      ? rawEntity
+      : null;
+
+  const updateUrl = useCallback(
+    (nextEntity: string | null) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (nextEntity === null) params.delete('entity');
+      else params.set('entity', nextEntity);
+      const query = params.toString();
+      startTransition(() => {
+        router.replace(query ? `${pathname}?${query}` : pathname);
+      });
+    },
+    [pathname, router, searchParams],
+  );
+
+  // Deep-link truncation guard: if `?entity=` is set but no node matches
+  // (unknown key, validation-rejected, or stale link), clear the param so
+  // the URL truthfully reflects what's selected. Borrowed from
+  // src/components/record/vault-layout.tsx:106-110.
+  const openNode = useMemo<GraphNodeWire | null>(() => {
+    if (!validatedEntity) return null;
+    return adapted.provenanceByNodeId.get(validatedEntity)?.node ?? null;
+  }, [adapted, validatedEntity]);
+
+  useEffect(() => {
+    // Two clear-cases:
+    //   1. rawEntity present but failed validation → clear immediately
+    //   2. validatedEntity present but no matching node → clear
+    if (rawEntity && (!validatedEntity || !openNode)) {
+      updateUrl(null);
+    }
+  }, [rawEntity, validatedEntity, openNode, updateUrl]);
+
+  const handleNodeClick = useCallback(
+    (node: GraphNodeWire) => {
+      // Source-document pseudo-nodes (added in U6) aren't in
+      // `adapted.provenanceByNodeId`. Opening the sheet for them would
+      // resolve to null and trigger the deep-link guard to immediately
+      // clear the URL — a visible flicker for no outcome.
+      if (node.type === 'source_document') return;
+      updateUrl(node.id);
+    },
+    [updateUrl],
+  );
+
+  const handleSheetClose = useCallback(() => {
+    updateUrl(null);
+  }, [updateUrl]);
+
   const openProvenance = useMemo<ProvenanceResponse | undefined>(() => {
-    if (!openNodeId) return undefined;
-    const entry = adapted.provenanceByNodeId.get(openNodeId);
+    if (!openNode) return undefined;
+    const entry = adapted.provenanceByNodeId.get(openNode.id);
     if (!entry) return undefined;
     return {
       node: entry.node,
@@ -69,12 +182,7 @@ export function DemoGraphSection({ fixture }: Props) {
         };
       }),
     };
-  }, [adapted, openNodeId]);
-
-  const openNode = useMemo<GraphNodeWire | null>(() => {
-    if (!openNodeId) return null;
-    return adapted.provenanceByNodeId.get(openNodeId)?.node ?? null;
-  }, [adapted, openNodeId]);
+  }, [adapted, openNode]);
 
   return (
     <>
@@ -89,13 +197,13 @@ export function DemoGraphSection({ fixture }: Props) {
           The graph — interactive
         </p>
         <GraphCanvas
-          nodes={adapted.graph.nodes}
-          edges={adapted.graph.edges}
+          nodes={canvasNodes}
+          edges={canvasEdges}
           width={720}
           height={480}
-          onNodeClick={(node) => setOpenNodeId(node.id)}
+          onNodeClick={handleNodeClick}
           className="w-full h-auto"
-          ariaLabel={`Health graph — ${adapted.graph.nodes.length} nodes, ${adapted.graph.edges.length} edges. Tap any node to see its sources.`}
+          ariaLabel={`Health graph — ${canvasNodes.length} nodes, ${canvasEdges.length} edges. Tap any node to see its sources.`}
         />
         <p className="mt-3 text-caption text-text-tertiary">
           Tap a node to see what grounds it. Hover to highlight what it&apos;s connected to.
@@ -104,7 +212,7 @@ export function DemoGraphSection({ fixture }: Props) {
 
       <NodeDetailSheet
         node={openNode}
-        onClose={() => setOpenNodeId(null)}
+        onClose={handleSheetClose}
         hydratedProvenance={openProvenance}
         // Empty topics list — fixture has no compiled topic pages, so
         // suppressing the section avoids an unnecessary authed fetch.
