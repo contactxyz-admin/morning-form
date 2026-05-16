@@ -13,3 +13,4 @@ xcuserdata/
 .context/
 uploads/
 .vercel
+.env*.local

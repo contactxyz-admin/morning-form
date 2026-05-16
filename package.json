@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "prisma generate && prisma db push --skip-generate --accept-data-loss && ([ \"$SEED_DEMO\" = \"true\" ] && pnpm seed:demo || true) && next build",
+    "vercel-build": "prisma generate && prisma db push --skip-generate --accept-data-loss && pnpm seed:demo && next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
@@ -15,6 +15,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "seed:demo": "tsx prisma/seed.ts",
     "demo:seed": "tsx scripts/demo/seed-metabolic-persona.ts",
+    "demo:regenerate-topics": "tsx scripts/demo/regenerate-topic-fixture.ts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "test": "vitest run",

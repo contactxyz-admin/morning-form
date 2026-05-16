@@ -2,10 +2,9 @@ import { PrismaClient } from '@prisma/client';
 import { createHash } from 'crypto';
 import { DEMO_NAVIGABLE_RECORD } from './fixtures/demo-navigable-record';
 import type { DemoRecordFixture } from './fixtures/demo-navigable-record';
-import { compileTopic } from '../src/lib/topics/compile';
+import { loadDemoTopicFixture } from './fixtures/demo-navigable-record-topics';
+import { demoChunkId, demoNodeId, demoSourceId } from './fixtures/demo-ids';
 import { listTopicKeys } from '../src/lib/topics/registry';
-import { TopicCompileLintError } from '../src/lib/topics/types';
-import { LLMClient } from '../src/lib/llm/client';
 import { getOrCreateScribeForTopic } from '../src/lib/scribe/repo';
 
 const prisma = new PrismaClient();
@@ -142,11 +141,24 @@ async function main() {
     create: { userId: user.id, provider: 'oura', status: 'connected', lastSyncAt: new Date() },
   });
 
+  // Demo daily-data is wipe-and-recreate scoped to the demo user only.
+  // Prior versions used `create()` inside the date loop, which multiplied
+  // rows on every seed run — after N deploys the demo user accumulated
+  // 14N CheckIns and 14N HealthDataPoints. Now the seed is safely
+  // idempotent on every deploy.
+  await prisma.checkIn.deleteMany({ where: { userId: user.id } });
+  await prisma.healthDataPoint.deleteMany({ where: { userId: user.id } });
+
   const dates = Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
     date.setDate(date.getDate() - (6 - index));
     return date;
   });
+
+  // Deterministic PRNG so repeated runs produce the same demo dataset.
+  // Math.random() drifted demo content across deploys; pinning to a seed
+  // keeps fixture-derived screenshots / docs stable.
+  const rng = createSeededRng('morning-form-demo');
 
   for (const date of dates) {
     const dateKey = date.toISOString().split('T')[0];
@@ -156,8 +168,8 @@ async function main() {
         type: 'morning',
         date: dateKey,
         responses: JSON.stringify({
-          sleepQuality: ['ok', 'well', 'great'][Math.floor(Math.random() * 3)],
-          currentFeeling: ['flat', 'steady', 'sharp'][Math.floor(Math.random() * 3)],
+          sleepQuality: pick(['ok', 'well', 'great'], rng),
+          currentFeeling: pick(['flat', 'steady', 'sharp'], rng),
         }),
       },
     });
@@ -168,9 +180,9 @@ async function main() {
         type: 'evening',
         date: dateKey,
         responses: JSON.stringify({
-          focusQuality: ['variable', 'good', 'locked-in'][Math.floor(Math.random() * 3)],
-          afternoonEnergy: ['dipped', 'steady', 'strong'][Math.floor(Math.random() * 3)],
-          protocolAdherence: ['mostly', 'fully'][Math.floor(Math.random() * 2)],
+          focusQuality: pick(['variable', 'good', 'locked-in'], rng),
+          afternoonEnergy: pick(['dipped', 'steady', 'strong'], rng),
+          protocolAdherence: pick(['mostly', 'fully'], rng),
         }),
       },
     });
@@ -182,7 +194,7 @@ async function main() {
           provider: 'whoop',
           category: 'recovery',
           metric: 'hrv',
-          value: 58 + Math.round(Math.random() * 15),
+          value: 58 + Math.round(rng() * 15),
           unit: 'ms',
           timestamp: date,
         },
@@ -191,7 +203,7 @@ async function main() {
           provider: 'oura',
           category: 'sleep',
           metric: 'duration',
-          value: 6.8 + Math.random() * 1.2,
+          value: 6.8 + rng() * 1.2,
           unit: 'hours',
           timestamp: date,
         },
@@ -220,7 +232,7 @@ async function seedScribes(userId: string) {
 }
 
 /**
- * Seed the `/r/demo-navigable-record` graph.
+ * Seed the `/r/demo-navigable-record` graph + compiled topic pages.
  *
  * Wipe-and-recreate pattern: every SourceDocument and GraphNode owned by
  * the demo user is fixture-derived, so we nuke the lot before inserting.
@@ -229,11 +241,17 @@ async function seedScribes(userId: string) {
  * then violated `@@unique([userId, contentHash])` on re-seed and also
  * leaked stale chunks into later provenance queries.
  *
- * Compile is best-effort: if `ANTHROPIC_API_KEY` is missing and `MOCK_LLM`
- * isn't set (typical CI), we skip compile. The graph still lands, and the
- * `/r/demo-navigable-record` page falls back to the "Nothing here yet"
- * card — which is fine for CI environments where we're not trying to
- * render live topics.
+ * TopicPage rows are inserted directly from
+ * `prisma/fixtures/demo-navigable-record-topics.json` — no LLM compile
+ * at seed time. Demo content is deterministic, byte-identical across
+ * environments, free, and immune to LLM/network/lint failures at
+ * deploy time. To regenerate the fixture when topic content or the
+ * underlying graph changes, run:
+ *
+ *   pnpm tsx scripts/demo/regenerate-topic-fixture.ts
+ *
+ * That script runs `compileTopic` against any DB the developer owns,
+ * reads back the result, and writes the JSON fixture for commit.
  */
 async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixture) {
   // Wipe every fixture-owned row for this user.
@@ -241,13 +259,22 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
   await prisma.sourceDocument.deleteMany({ where: { userId } });
   await prisma.graphNode.deleteMany({ where: { userId } });
 
-  // Insert sources with deterministic contentHash so re-seeds don't churn.
+  // Deterministic IDs for the demo's graph + sources. Why: the topic
+  // fixture (`demo-navigable-record-topics.json`) baked into the repo
+  // references nodeIds in its citations. If those IDs changed on every
+  // re-seed, every deploy would render citations pointing at deleted
+  // rows. Stable IDs keep the fixture valid across infinite redeploys.
+  //
+  // Scoped to the demo user only — real-user graphs continue to use
+  // Prisma's @default(cuid()) at ingest time.
   const sourceIdBySourceKey = new Map<string, string>();
   const chunkIdByChunkKey = new Map<string, string>();
   for (const source of fixture.sources) {
     const contentHash = createHash('sha256').update(source.sourceKey).digest('hex');
+    const sourceId = demoSourceId(source.sourceKey);
     const created = await prisma.sourceDocument.create({
       data: {
+        id: sourceId,
         userId,
         kind: source.kind,
         sourceRef: source.sourceRef,
@@ -255,6 +282,7 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
         capturedAt: new Date(source.capturedAt),
         chunks: {
           create: source.chunks.map((c) => ({
+            id: demoChunkId(source.sourceKey, c.chunkKey),
             index: c.index,
             text: c.text,
             offsetStart: c.offsetStart,
@@ -274,9 +302,10 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
     }
   }
 
-  // Upsert nodes.
+  // Upsert nodes with deterministic IDs (see comment above).
   const nodeIdByNodeKey = new Map<string, string>();
   for (const node of fixture.nodes) {
+    const nodeId = demoNodeId(node.type, node.canonicalKey);
     const upserted = await prisma.graphNode.upsert({
       where: {
         userId_type_canonicalKey: {
@@ -290,6 +319,7 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
         attributes: node.attributes ? JSON.stringify(node.attributes) : null,
       },
       create: {
+        id: nodeId,
         userId,
         type: node.type,
         canonicalKey: node.canonicalKey,
@@ -326,50 +356,84 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
     });
   }
 
-  // Best-effort compile. Skip quietly if no LLM access in this environment.
-  const canCompile = Boolean(process.env.ANTHROPIC_API_KEY) || process.env.MOCK_LLM === 'true';
-  if (!canCompile) {
-    console.log(
-      '[seedDemoNavigableRecord] skipping topic compile — ANTHROPIC_API_KEY missing and MOCK_LLM not set.',
-    );
-    return;
+  // Insert TopicPage rows directly from the committed fixture. No LLM
+  // calls at seed time — the demo is deterministic by construction.
+  const topicFixture = loadDemoTopicFixture();
+  const registryKeys = new Set(listTopicKeys());
+
+  for (const entry of topicFixture.topics) {
+    if (!registryKeys.has(entry.topicKey)) {
+      console.warn(
+        `[seedDemoNavigableRecord] fixture has topicKey '${entry.topicKey}' that's not in the current registry — skipping.`,
+      );
+      continue;
+    }
+    await prisma.topicPage.upsert({
+      where: { userId_topicKey: { userId, topicKey: entry.topicKey } },
+      update: {
+        status: 'full',
+        rendered: JSON.stringify(entry.output),
+        graphRevisionHash: entry.graphRevisionHash,
+        compileError: null,
+      },
+      create: {
+        userId,
+        topicKey: entry.topicKey,
+        status: 'full',
+        rendered: JSON.stringify(entry.output),
+        graphRevisionHash: entry.graphRevisionHash,
+        compileError: null,
+      },
+    });
   }
 
-  const llm = new LLMClient();
-  const failures: Array<{ topicKey: string; error: string; violations?: unknown }> = [];
-  for (const topicKey of listTopicKeys()) {
-    try {
-      const result = await compileTopic({ db: prisma, llm, userId, topicKey });
-      console.log(
-        `[seedDemoNavigableRecord] compiled ${topicKey} → ${result.status}${result.cached ? ' (cached)' : ''}`,
+  console.log(
+    `[seedDemoNavigableRecord] seeded ${topicFixture.topics.length} TopicPage row(s) from fixture (generated ${topicFixture.generatedAt}).`,
+  );
+
+  // Coverage check: once the fixture has been populated (>= 1 topic),
+  // it must cover every key in the registry. A missing topic means the
+  // registry was extended without regenerating the fixture — warn but
+  // don't fail the seed; the demo still renders whatever is present.
+  //
+  // The empty-starter state (topics: []) is treated as a known-pending
+  // bootstrap, not a drift error. The optional /api/health/demo route
+  // surfaces this as `status: 'broken'` for monitoring.
+  if (topicFixture.topics.length > 0) {
+    const fixtureKeys = new Set(topicFixture.topics.map((t) => t.topicKey));
+    const missing = listTopicKeys().filter((k) => !fixtureKeys.has(k));
+    if (missing.length > 0) {
+      console.warn(
+        `[seedDemoNavigableRecord] registry/fixture drift — fixture missing: ${missing.join(', ')}. Run pnpm demo:regenerate-topics to refresh.`,
       );
-    } catch (error) {
-      if (error instanceof TopicCompileLintError) {
-        console.warn(
-          `[seedDemoNavigableRecord] compile failed for ${topicKey}: ${error.message}\n` +
-            `  violations: ${JSON.stringify(error.violations, null, 2)}`,
-        );
-        failures.push({ topicKey, error: error.message, violations: error.violations });
-      } else {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(`[seedDemoNavigableRecord] compile failed for ${topicKey}: ${message}`);
-        failures.push({ topicKey, error: message });
-      }
     }
   }
-  if (failures.length > 0) {
-    // Emit a structured summary so downstream readers (CI, scripts) can
-    // parse the outcome without scraping log prose. Exit non-zero so CI
-    // pipelines surface the failure instead of marking the seed green.
-    console.error(
-      `[seedDemoNavigableRecord] compile-summary ${JSON.stringify({
-        total: listTopicKeys().length,
-        failed: failures.length,
-        failures,
-      })}`,
-    );
-    process.exitCode = 1;
+}
+
+/**
+ * Tiny seedable PRNG (mulberry32) so demo data stays stable across runs.
+ * The seed string is hashed to a 32-bit int so any human-readable seed
+ * works. Demo content stability matters because screenshots, the live
+ * demo URL, and docs all reference the same dataset.
+ */
+function createSeededRng(seed: string): () => number {
+  let h = 1779033703 ^ seed.length;
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(h ^ seed.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
   }
+  let a = h >>> 0;
+  return function () {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function pick<T>(arr: readonly T[], rng: () => number): T {
+  return arr[Math.floor(rng() * arr.length)];
 }
 
 main()
