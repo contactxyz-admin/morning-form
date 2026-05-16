@@ -136,10 +136,13 @@ export function DemoGraphSection({ fixture }: Props) {
   }, [adapted, validatedEntity]);
 
   useEffect(() => {
-    // Two clear-cases:
-    //   1. rawEntity present but failed validation → clear immediately
-    //   2. validatedEntity present but no matching node → clear
-    if (rawEntity && (!validatedEntity || !openNode)) {
+    // Three clear-cases (use `!== null` instead of truthiness so the
+    // empty-string case `?entity=` also triggers a clear — `&&` would
+    // short-circuit on `''` and leave the dangling param in the URL):
+    //   1. rawEntity is '' (empty value, key present) → clear
+    //   2. rawEntity is non-empty but failed validation → clear
+    //   3. validatedEntity passes but no matching node → clear
+    if (rawEntity !== null && (!validatedEntity || !openNode)) {
       updateUrl(null);
     }
   }, [rawEntity, validatedEntity, openNode, updateUrl]);
@@ -208,6 +211,7 @@ export function DemoGraphSection({ fixture }: Props) {
         <p className="mt-3 text-caption text-text-tertiary">
           Tap a node to see what grounds it. Hover to highlight what it&apos;s connected to.
         </p>
+        <GraphLegend />
       </section>
 
       <NodeDetailSheet
@@ -219,5 +223,52 @@ export function DemoGraphSection({ fixture }: Props) {
         hydratedTopics={[]}
       />
     </>
+  );
+}
+
+/**
+ * Compact 4-swatch legend explaining the canvas's visual-class colours.
+ * Mirrors src/lib/graph/visual-encoding.ts → NODE_VISUAL_BY_CLASS so the
+ * legend never drifts from the encoding. The class strings inlined here
+ * also serve as a redundant signal to Tailwind's content scanner — they
+ * survive even if a future refactor moves visual-encoding.ts outside
+ * the scanned tree.
+ */
+function GraphLegend() {
+  const items: Array<{ label: string; fill: string; stroke: string }> = [
+    { label: 'Clinical', fill: 'fill-alert/15', stroke: 'stroke-alert/70' },
+    { label: 'Biomarker', fill: 'fill-accent/20', stroke: 'stroke-accent' },
+    { label: 'Intervention', fill: 'fill-positive/15', stroke: 'stroke-positive/80' },
+    { label: 'Source', fill: 'fill-text-tertiary/10', stroke: 'stroke-text-tertiary/60' },
+  ];
+  return (
+    <ul
+      aria-label="Graph node legend"
+      className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2"
+    >
+      {items.map((item) => (
+        <li
+          key={item.label}
+          className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary"
+        >
+          <svg
+            aria-hidden
+            viewBox="0 0 12 12"
+            width={12}
+            height={12}
+            className="shrink-0"
+          >
+            <circle
+              cx={6}
+              cy={6}
+              r={5}
+              className={`${item.fill} ${item.stroke}`}
+              strokeWidth={1.2}
+            />
+          </svg>
+          <span>{item.label}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
