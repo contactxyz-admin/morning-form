@@ -5,6 +5,33 @@ const config: Config = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    // The graph canvas's visual encoding stores its fill/stroke classes
+    // as string literals in src/lib/graph/visual-encoding.ts (so the
+    // encoding is a single source of truth shared by the canvas + every
+    // future consumer). Without scanning src/lib/, JIT silently drops
+    // these classes from the bundle and every <circle> renders
+    // fill:black / stroke:none — both /demo/record and authed
+    // /record?mode=map go invisible. Same applies to any future class
+    // strings that live in src/lib/.
+    './src/lib/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  // Belt-and-braces: even if the content scan misses a class string,
+  // the graph encoding ships. These mirror src/lib/graph/visual-encoding.ts.
+  safelist: [
+    // Node fills (4 visual classes)
+    'fill-alert/15',
+    'fill-accent/20',
+    'fill-positive/15',
+    'fill-text-tertiary/10',
+    // Node strokes (4 visual classes)
+    'stroke-alert/70',
+    'stroke-accent',
+    'stroke-positive/80',
+    'stroke-text-tertiary/60',
+    // Edge strokes (3 hierarchies)
+    'stroke-text-tertiary/50',
+    'stroke-text-secondary/70',
+    'stroke-alert/60',
   ],
   theme: {
     extend: {

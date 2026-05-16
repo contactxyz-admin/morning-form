@@ -265,7 +265,12 @@ async function seedScribes(userId: string) {
 }
 
 /**
- * Seed the `/r/demo-navigable-record` graph + compiled topic pages.
+ * Seed the `demo@morningform.com` user's graph + compiled topic pages.
+ *
+ * Used by dev/E2E so signing in as the demo user lands on a fully-
+ * populated authed `/record` + `/topics/[topicKey]` view. The public
+ * navigable-record demo at `/demo/record` is fixture-direct and does
+ * not depend on this seed.
  *
  * Wipe-and-recreate pattern: every SourceDocument and GraphNode owned by
  * the demo user is fixture-derived, so we nuke the lot before inserting.

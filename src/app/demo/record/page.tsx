@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { DemoGraphSection } from '@/components/demo/demo-graph-section';
 import { METABOLIC_PERSONA_GRAPH } from '../../../../prisma/fixtures/synthetic/graph-narrative';
@@ -77,7 +78,12 @@ export default function DemoRecordPage() {
         </p>
       </div>
 
-      <DemoGraphSection fixture={fixture} />
+      {/* Suspense lets DemoGraphSection use useSearchParams without
+          forcing the whole /demo/record page out of static rendering.
+          See docs/plans/2026-05-16-001-feat-navigable-record-demo-plan.md (U5). */}
+      <Suspense fallback={null}>
+        <DemoGraphSection fixture={fixture} />
+      </Suspense>
 
       <section className="mt-12 space-y-12">
         {SURFACES.map((surface) => (
