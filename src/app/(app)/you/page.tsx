@@ -21,7 +21,11 @@ export default function YouPage() {
   const state = useAssessmentData();
 
   useEffect(() => {
-    if (state.kind === 'not-onboarded') router.replace('/assessment');
+    // Don't bounce un-assessed users into /assessment. Post-2026-05-15 the
+    // assessment is optional personalisation, not a forced gate (see
+    // use-assessment-data docstring + the same pattern on /home).
+    // `not-onboarded` falls through to the placeholder branch below
+    // and renders an inline "Personalise your record" card.
     if (state.kind === 'unauthenticated') router.replace('/sign-in');
   }, [state.kind, router]);
 
@@ -42,6 +46,8 @@ export default function YouPage() {
       <div className="space-y-4 stagger">
         {state.kind === 'ready' ? (
           <ProfileCards stateProfile={state.data.stateProfile} />
+        ) : state.kind === 'not-onboarded' ? (
+          <PersonaliseCard />
         ) : (
           <ProfileCardsPlaceholder kind={state.kind} />
         )}
@@ -133,8 +139,9 @@ function ProfileCards({ stateProfile }: { stateProfile: StateProfile }) {
 }
 
 function ProfileCardsPlaceholder({ kind }: { kind: ReturnType<typeof useAssessmentData>['kind'] }) {
-  // loading / unauth / not-onboarded / error — all render the same quiet skeleton.
-  // Redirect effects handle unauth/not-onboarded; loading is the common case.
+  // loading / unauth / error — render the same quiet skeleton. The
+  // `not-onboarded` case is handled separately above by <PersonaliseCard />
+  // post-2026-05-15 (assessment optional, no auto-redirect).
   if (kind === 'error') {
     return (
       <Card variant="default">
@@ -147,6 +154,35 @@ function ProfileCardsPlaceholder({ kind }: { kind: ReturnType<typeof useAssessme
       <SectionLabel>State profile</SectionLabel>
       <div className="mt-3 h-4 w-40 bg-border/60 rounded" aria-hidden />
       <div className="mt-3 h-3 w-56 bg-border/40 rounded" aria-hidden />
+    </Card>
+  );
+}
+
+/**
+ * Soft-fallback for the not-onboarded state on /you. Mirrors the
+ * "Personalise your record" card on /home — same invitation, scoped to
+ * the profile surface. No auto-redirect; the user can stay on /you,
+ * tap the CTA when ready, or navigate elsewhere via the bottom nav.
+ */
+function PersonaliseCard() {
+  return (
+    <Card variant="default">
+      <SectionLabel>State profile</SectionLabel>
+      <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
+        Personalise your record.
+      </h3>
+      <p className="mt-2 text-body text-text-secondary leading-relaxed">
+        Your profile builds from an 8-minute assessment. Take it whenever
+        you&rsquo;re ready — it&rsquo;s optional and you can come back to
+        the rest of your record any time.
+      </p>
+      <Link
+        href="/assessment"
+        className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group"
+      >
+        Take the assessment
+        <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
+      </Link>
     </Card>
   );
 }
