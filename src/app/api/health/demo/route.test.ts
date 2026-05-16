@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import {
   getTestPrisma,
@@ -34,9 +34,11 @@ afterAll(async () => {
   await teardownTestDb();
 });
 
-afterEach(async () => {
-  // Demo user is global to this test file; wipe between tests so each
-  // case starts from a clean slate without interference.
+beforeEach(async () => {
+  // The test DB is shared across all test files; another test file
+  // may have created a demo user. Wipe BEFORE each test so we start
+  // from a guaranteed-clean slate. (Wiping in afterEach left tests
+  // exposed to whatever state preceded them in the worker.)
   await prisma.topicPage.deleteMany({});
   await prisma.user.deleteMany({ where: { email: DEMO_EMAIL } });
 });

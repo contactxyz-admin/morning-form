@@ -143,8 +143,21 @@ describe('GET /api/chat/history', () => {
   it('caps the response at 50 messages (newest 50 in chronological order)', async () => {
     const userId = await makeTestUser(prisma, 'history-cap');
     currentUserMock.mockResolvedValue({ id: userId });
+    // Insert with monotonic `createdAt` offsets so the chronological
+    // sort is deterministic. Sequential `createChatMessage` calls in
+    // a tight loop can land multiple inserts within the same ms;
+    // Postgres + Prisma's `orderBy: createdAt desc` then has a
+    // non-deterministic tiebreaker which made this assertion flaky.
+    const baseTime = Date.now();
     for (let i = 0; i < 60; i++) {
-      await createChatMessage(prisma, userId, i % 2 === 0 ? 'user' : 'assistant', `m-${i}`);
+      await prisma.chatMessage.create({
+        data: {
+          userId,
+          role: i % 2 === 0 ? 'user' : 'assistant',
+          content: `m-${i}`,
+          createdAt: new Date(baseTime + i),
+        },
+      });
     }
     const res = await GET();
     const body = (await res.json()) as {
