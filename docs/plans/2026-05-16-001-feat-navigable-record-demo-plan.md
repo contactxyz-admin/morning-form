@@ -1,7 +1,7 @@
 ---
 title: "feat: Consolidate public demo at /demo, retire /r/demo-navigable-record"
 type: refactor
-status: active
+status: done
 date: 2026-05-16
 ---
 
