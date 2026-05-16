@@ -127,6 +127,8 @@ async function main() {
   // forever — every editorial change to `buildPriorities()` (new
   // marker, reordered sortOrder, updated rationale) would never
   // surface on the demo user. Now the seed re-syncs on every run.
+  await prisma.priorityMarker.deleteMany({ where: { priorities: { userId: user.id } } });
+  await prisma.prioritiesAdjustment.deleteMany({ where: { priorities: { userId: user.id } } });
   await prisma.priorities
     .delete({ where: { userId: user.id } })
     .catch(() => null);
