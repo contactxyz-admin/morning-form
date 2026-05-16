@@ -26,11 +26,17 @@ import { listTopicKeys } from '@/lib/topics/registry';
 import { DEMO_EMAIL } from '../../../../../prisma/fixtures/demo-ids';
 import { loadDemoTopicFixture } from '../../../../../prisma/fixtures/demo-navigable-record-topics';
 
-// 30s edge cache — at typical monitor poll rates this collapses
-// thousands of hits into a single DB+disk read per region per 30s.
-// The fixture file doesn't change between deploys; the topicPage row
-// count only changes on seed (deploy) or manual DB intervention.
-export const revalidate = 30;
+// Dynamic route: the response depends on live DB state. We can't
+// pre-render it at build time (the build env has no DB). Caching is
+// done at the edge via Cache-Control headers on the response instead
+// of via `revalidate`, since revalidate would mark the route static
+// and trigger a build-time prerender attempt.
+export const dynamic = 'force-dynamic';
+
+/** 30-second CDN cache so monitor polling at high frequency doesn't
+ *  hammer the DB. `s-maxage` controls Vercel's edge cache; `max-age=0`
+ *  keeps the browser from caching past one request. */
+const CACHE_HEADER = 'public, s-maxage=30, max-age=0, stale-while-revalidate=60';
 
 export async function GET(): Promise<Response> {
   const user = await prisma.user.findUnique({
@@ -44,7 +50,7 @@ export async function GET(): Promise<Response> {
         status: 'broken',
         reason: 'demo user missing',
       },
-      { status: 503 },
+      { status: 503, headers: { 'Cache-Control': CACHE_HEADER } },
     );
   }
 
@@ -74,19 +80,25 @@ export async function GET(): Promise<Response> {
   }
 
   if (missing.length > 0) {
-    return NextResponse.json({
-      status: 'degraded',
-      reason: 'fewer topics than registry',
-      topicCount: pages.length,
-      registryCount: registryKeys.length,
-      missing,
-      fixtureGeneratedAt,
-    });
+    return NextResponse.json(
+      {
+        status: 'degraded',
+        reason: 'fewer topics than registry',
+        topicCount: pages.length,
+        registryCount: registryKeys.length,
+        missing,
+        fixtureGeneratedAt,
+      },
+      { headers: { 'Cache-Control': CACHE_HEADER } },
+    );
   }
 
-  return NextResponse.json({
-    status: 'healthy',
-    topicCount: pages.length,
-    fixtureGeneratedAt,
-  });
+  return NextResponse.json(
+    {
+      status: 'healthy',
+      topicCount: pages.length,
+      fixtureGeneratedAt,
+    },
+    { headers: { 'Cache-Control': CACHE_HEADER } },
+  );
 }
