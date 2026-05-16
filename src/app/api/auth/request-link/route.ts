@@ -5,6 +5,7 @@ import { env } from '@/lib/env';
 import { hashIp } from '@/lib/auth/ip-hash';
 import { issueMagicLink } from '@/lib/auth/magic-link';
 import { sendMagicLinkEmail } from '@/lib/auth/email';
+import { recordEmailSendFailure } from '@/lib/auth/email-health';
 import { COHORT_KEYS } from '@/lib/marketing/cohorts';
 import { MARKETS } from '@/lib/marketing/constants';
 
@@ -68,6 +69,10 @@ export async function POST(request: Request) {
     await sendMagicLinkEmail({ to: email, verifyUrl });
   } catch (err) {
     console.error('[auth] magic-link email send failed:', err);
+    // Record a per-error-class diagnostic counter so config drift (bad key,
+    // rate-limit spikes) surfaces to operators within minutes. Fire-and-forget:
+    // a secondary DB failure must not change the 200 response shape.
+    void recordEmailSendFailure(err);
     // Do not leak the failure mode to the caller — still return 200 so a
     // transient email outage does not collapse into an enumeration signal.
   }
