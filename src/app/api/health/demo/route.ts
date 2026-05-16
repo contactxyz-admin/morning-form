@@ -23,11 +23,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { listTopicKeys } from '@/lib/topics/registry';
+import { DEMO_EMAIL } from '../../../../../prisma/fixtures/demo-ids';
 import { loadDemoTopicFixture } from '../../../../../prisma/fixtures/demo-navigable-record-topics';
 
-const DEMO_EMAIL = 'demo@morningform.com';
-
-export const dynamic = 'force-dynamic';
+// 30s edge cache — at typical monitor poll rates this collapses
+// thousands of hits into a single DB+disk read per region per 30s.
+// The fixture file doesn't change between deploys; the topicPage row
+// count only changes on seed (deploy) or manual DB intervention.
+export const revalidate = 30;
 
 export async function GET(): Promise<Response> {
   const user = await prisma.user.findUnique({
@@ -54,11 +57,19 @@ export async function GET(): Promise<Response> {
   const missing = registryKeys.filter((k) => !presentKeys.has(k));
 
   // Fixture timestamp is informational — surfaces age + lets a watcher
-  // diff against the deployed fixture if needed.
+  // diff against the deployed fixture if needed. A load failure (most
+  // likely cause: the JSON wasn't traced into the Vercel Lambda — see
+  // next.config.mjs outputFileTracingIncludes) is logged rather than
+  // silently swallowed; the response degrades to `fixtureGeneratedAt:
+  // null` so the route stays available.
   let fixtureGeneratedAt: string | null = null;
   try {
     fixtureGeneratedAt = loadDemoTopicFixture().generatedAt;
-  } catch {
+  } catch (err) {
+    console.error(
+      '[health/demo] fixture load failed:',
+      err instanceof Error ? err.message : err,
+    );
     fixtureGeneratedAt = null;
   }
 

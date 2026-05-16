@@ -40,32 +40,26 @@ import { PrismaClient } from '@prisma/client';
 import { LLMClient } from '../../src/lib/llm/client';
 import { compileTopic } from '../../src/lib/topics/compile';
 import { listTopicKeys } from '../../src/lib/topics/registry';
-import {
-  TopicCompiledOutputSchema,
-  type TopicCompiledOutput,
-} from '../../src/lib/topics/types';
+import { TopicCompiledOutputSchema } from '../../src/lib/topics/types';
 import {
   DEMO_NAVIGABLE_RECORD,
   type DemoRecordFixture,
 } from '../../prisma/fixtures/demo-navigable-record';
-import { demoChunkId, demoNodeId, demoSourceId } from '../../prisma/fixtures/demo-ids';
+import {
+  DEMO_EMAIL,
+  demoChunkId,
+  demoNodeId,
+  demoSourceId,
+} from '../../prisma/fixtures/demo-ids';
+import type {
+  DemoTopicFixture,
+  DemoTopicFixtureRow,
+} from '../../prisma/fixtures/demo-navigable-record-topics';
 
-const DEMO_EMAIL = 'demo@morningform.com';
 const FIXTURE_PATH = join(
   process.cwd(),
   'prisma/fixtures/demo-navigable-record-topics.json',
 );
-
-interface TopicFixtureRow {
-  topicKey: string;
-  graphRevisionHash: string | null;
-  output: TopicCompiledOutput;
-}
-
-interface TopicFixture {
-  generatedAt: string;
-  topics: TopicFixtureRow[];
-}
 
 async function main() {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -89,7 +83,7 @@ async function main() {
   // Compile every topic in the registry. `force: true` bypasses the
   // compile cache so prior stale rows don't short-circuit.
   const llm = new LLMClient();
-  const rows: TopicFixtureRow[] = [];
+  const rows: DemoTopicFixtureRow[] = [];
   const registryKeys = listTopicKeys();
 
   for (const topicKey of registryKeys) {
@@ -127,7 +121,7 @@ async function main() {
     }
   }
 
-  const fixture: TopicFixture = {
+  const fixture: DemoTopicFixture = {
     generatedAt: new Date().toISOString(),
     topics: rows,
   };

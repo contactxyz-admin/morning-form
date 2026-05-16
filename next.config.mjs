@@ -31,6 +31,13 @@ const nextConfig = {
       // src/lib/scribe/specialties/load-prompt.ts.
       '/api/**/*': [
         './src/lib/scribe/specialties/**/system-prompt.md',
+        // /api/health/demo reads the demo topic fixture via
+        // loadDemoTopicFixture() (process.cwd()-rooted readFileSync).
+        // Without explicit tracing the JSON would not ship to /var/task
+        // and the health route's try/catch would silently lose the
+        // fixtureGeneratedAt signal in prod. Same pattern as the
+        // specialty-prompt loader above.
+        './prisma/fixtures/demo-navigable-record-topics.json',
       ],
     },
   },

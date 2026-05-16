@@ -3,18 +3,43 @@ import { createHash } from 'crypto';
 import { DEMO_NAVIGABLE_RECORD } from './fixtures/demo-navigable-record';
 import type { DemoRecordFixture } from './fixtures/demo-navigable-record';
 import { loadDemoTopicFixture } from './fixtures/demo-navigable-record-topics';
-import { demoChunkId, demoNodeId, demoSourceId } from './fixtures/demo-ids';
+import { DEMO_EMAIL, demoChunkId, demoNodeId, demoSourceId } from './fixtures/demo-ids';
 import { listTopicKeys } from '../src/lib/topics/registry';
 import { getOrCreateScribeForTopic } from '../src/lib/scribe/repo';
 
 const prisma = new PrismaClient();
 
+/**
+ * Per-attempt wall-clock budget for `runSeed()`. Bounds a Neon
+ * cold-start or any hung connection so a single transient DB blip
+ * can't hold an entire Vercel build for the platform-level timeout
+ * (45-60 min). Retries on transient Prisma errors, see `runSeed`.
+ */
+const SEED_ATTEMPT_TIMEOUT_MS = 120_000;
+const SEED_MAX_ATTEMPTS = 3;
+const SEED_BACKOFF_MS = [2_000, 5_000];
+
+/** Prisma error codes we treat as transient and retry on. P1001 =
+ *  can't reach DB server (Neon cold start). P2024 = connection pool
+ *  timeout. P1008 = operation timeout. */
+const TRANSIENT_PRISMA_CODES = new Set(['P1001', 'P2024', 'P1008']);
+
 async function main() {
+  // Preview deploys share env vars with production by default in
+  // Vercel, including DATABASE_URL pointing at the prod Neon branch.
+  // Without this gate, every feature-branch preview deploy would
+  // wipe-and-recreate demo-user rows in prod during its build.
+  // Skipping the seed on preview leaves the demo content stable.
+  if (process.env.VERCEL_ENV === 'preview') {
+    console.log('[seed] skipping demo seed on preview deploy (VERCEL_ENV=preview).');
+    return;
+  }
+
   const user = await prisma.user.upsert({
-    where: { email: 'demo@morningform.com' },
+    where: { email: DEMO_EMAIL },
     update: {},
     create: {
-      email: 'demo@morningform.com',
+      email: DEMO_EMAIL,
       name: 'Demo User',
     },
   });
@@ -97,10 +122,16 @@ async function main() {
     night_waking: 'rare',
     pregnancy: 'no',
   });
-  await prisma.priorities.upsert({
-    where: { userId: user.id },
-    update: {},
-    create: {
+  // Priorities + nested PriorityMarker items: delete-then-create
+  // rather than upsert. `update: {}` would preserve a stale items[]
+  // forever — every editorial change to `buildPriorities()` (new
+  // marker, reordered sortOrder, updated rationale) would never
+  // surface on the demo user. Now the seed re-syncs on every run.
+  await prisma.priorities
+    .delete({ where: { userId: user.id } })
+    .catch(() => null);
+  await prisma.priorities.create({
+    data: {
       userId: user.id,
       version: 1,
       status: 'active',
@@ -254,8 +285,20 @@ async function seedScribes(userId: string) {
  * reads back the result, and writes the JSON fixture for commit.
  */
 async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixture) {
+  // Validate the topic fixture FIRST, before any destructive operation.
+  // The fixture loader throws on JSON-parse failure, envelope-schema
+  // failure, or per-row schema drift. Loading early means a malformed
+  // fixture fails the seed without leaving the demo user with half-
+  // wiped graph + missing topics (which would persist until the next
+  // successful seed). Cheap operation — disk read + zod parse, no DB.
+  const topicFixture = loadDemoTopicFixture();
+
   // Wipe every fixture-owned row for this user.
-  // SourceChunks cascade from SourceDocument; GraphEdges cascade from GraphNode.
+  // SourceChunks cascade from SourceDocument; GraphEdges cascade from
+  // GraphNode. GraphNodeLayout.nodeId has no FK relation declared in
+  // schema.prisma, so its rows would dangle pointing at the old cuids
+  // after the GraphNode wipe — we delete the layout rows first.
+  await prisma.graphNodeLayout.deleteMany({ where: { userId } });
   await prisma.sourceDocument.deleteMany({ where: { userId } });
   await prisma.graphNode.deleteMany({ where: { userId } });
 
@@ -272,7 +315,14 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
   for (const source of fixture.sources) {
     const contentHash = createHash('sha256').update(source.sourceKey).digest('hex');
     const sourceId = demoSourceId(source.sourceKey);
-    const created = await prisma.sourceDocument.create({
+    // Build the chunkKey → id map directly from the deterministic
+    // helper (no DB roundtrip). The prior pattern read chunks back via
+    // `include: { chunks: true }` and remapped by chunk.index, which
+    // silently mis-mapped if two chunks shared an index value.
+    for (const c of source.chunks) {
+      chunkIdByChunkKey.set(c.chunkKey, demoChunkId(source.sourceKey, c.chunkKey));
+    }
+    await prisma.sourceDocument.create({
       data: {
         id: sourceId,
         userId,
@@ -291,15 +341,8 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
           })),
         },
       },
-      include: { chunks: true },
     });
-    sourceIdBySourceKey.set(source.sourceKey, created.id);
-    for (const chunk of created.chunks) {
-      const fixtureChunk = source.chunks.find((c) => c.index === chunk.index);
-      if (fixtureChunk) {
-        chunkIdByChunkKey.set(fixtureChunk.chunkKey, chunk.id);
-      }
-    }
+    sourceIdBySourceKey.set(source.sourceKey, sourceId);
   }
 
   // Upsert nodes with deterministic IDs (see comment above).
@@ -356,10 +399,11 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
     });
   }
 
-  // Insert TopicPage rows directly from the committed fixture. No LLM
-  // calls at seed time — the demo is deterministic by construction.
-  const topicFixture = loadDemoTopicFixture();
+  // Insert TopicPage rows directly from the (already validated, see
+  // top of function) committed fixture. No LLM calls at seed time —
+  // the demo is deterministic by construction.
   const registryKeys = new Set(listTopicKeys());
+  const insertedKeys: string[] = [];
 
   for (const entry of topicFixture.topics) {
     if (!registryKeys.has(entry.topicKey)) {
@@ -385,20 +429,38 @@ async function seedDemoNavigableRecord(userId: string, fixture: DemoRecordFixtur
         compileError: null,
       },
     });
+    insertedKeys.push(entry.topicKey);
   }
+
+  // Sweep stale TopicPage rows: any row for this demo user whose
+  // topicKey is no longer in the fixture (e.g. a registry shrinkage or
+  // a stale `status: 'error'` row from an old failed seed) is removed
+  // so the health endpoint and the demo page only ever reflect the
+  // current fixture. Scoped to userId so real-user TopicPage rows are
+  // never touched.
+  if (insertedKeys.length > 0) {
+    await prisma.topicPage.deleteMany({
+      where: { userId, topicKey: { notIn: insertedKeys } },
+    });
+  }
+  // In the empty-starter state (insertedKeys.length === 0) we
+  // intentionally don't sweep — leaving any stale 'error' rows for the
+  // health endpoint to surface as 'degraded' rather than masking the
+  // pending-bootstrap signal.
 
   console.log(
     `[seedDemoNavigableRecord] seeded ${topicFixture.topics.length} TopicPage row(s) from fixture (generated ${topicFixture.generatedAt}).`,
   );
 
-  // Coverage check: once the fixture has been populated (>= 1 topic),
+  // Coverage check: once the fixture has been populated (≥ 1 topic),
   // it must cover every key in the registry. A missing topic means the
   // registry was extended without regenerating the fixture — warn but
   // don't fail the seed; the demo still renders whatever is present.
   //
   // The empty-starter state (topics: []) is treated as a known-pending
   // bootstrap, not a drift error. The optional /api/health/demo route
-  // surfaces this as `status: 'broken'` for monitoring.
+  // surfaces this as `status: 'degraded'` (HTTP 200, missing[] listing
+  // every registry key) for monitoring.
   if (topicFixture.topics.length > 0) {
     const fixtureKeys = new Set(topicFixture.topics.map((t) => t.topicKey));
     const missing = listTopicKeys().filter((k) => !fixtureKeys.has(k));
@@ -433,10 +495,67 @@ function createSeededRng(seed: string): () => number {
 }
 
 function pick<T>(arr: readonly T[], rng: () => number): T {
-  return arr[Math.floor(rng() * arr.length)];
+  // Runtime guard against an empty array (declared return is `T`, but
+  // `arr[i]` on an empty array is `undefined`). All call sites today
+  // pass non-empty literals — the guard is defensive.
+  if (arr.length === 0) {
+    throw new Error('pick: empty array');
+  }
+  // Mulberry32 is bounded strictly below 1.0 so the index is always
+  // in [0, arr.length).
+  return arr[Math.floor(rng() * arr.length)] as T;
 }
 
-main()
+/**
+ * Run `main()` with a per-attempt timeout and retry on transient
+ * Prisma connection errors. The seed runs in `vercel-build`; without
+ * this wrapper, a single Neon cold-start or pool timeout permanently
+ * fails the deploy and requires a manual re-trigger.
+ *
+ * Non-transient errors (malformed fixture, constraint violation,
+ * schema mismatch) fail-fast on the first attempt — those represent
+ * real bugs that no amount of retry will fix.
+ */
+async function runSeed(): Promise<void> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= SEED_MAX_ATTEMPTS; attempt++) {
+    try {
+      await Promise.race([
+        main(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `[seed] attempt ${attempt} timed out after ${SEED_ATTEMPT_TIMEOUT_MS}ms`,
+                ),
+              ),
+            SEED_ATTEMPT_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+      return;
+    } catch (error) {
+      lastError = error;
+      const code = (error as { code?: string })?.code;
+      const isTimeout =
+        error instanceof Error && error.message.includes('timed out after');
+      const isTransient = isTimeout || (code !== undefined && TRANSIENT_PRISMA_CODES.has(code));
+
+      if (!isTransient || attempt === SEED_MAX_ATTEMPTS) {
+        throw error;
+      }
+      const backoff = SEED_BACKOFF_MS[attempt - 1] ?? 5_000;
+      console.warn(
+        `[seed] attempt ${attempt}/${SEED_MAX_ATTEMPTS} failed (${code ?? 'timeout'}); retrying in ${backoff}ms...`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, backoff));
+    }
+  }
+  throw lastError;
+}
+
+runSeed()
   .then(async () => {
     await prisma.$disconnect();
   })
