@@ -56,8 +56,21 @@ describe('updateChatMessageMetadata', () => {
 describe('loadRecentMessages', () => {
   it('returns messages in chronological order, capped at the limit', async () => {
     const userId = await makeTestUser(prisma, 'chat-repo-load');
+    // Monotonic explicit timestamps so the sort tiebreak is
+    // deterministic. Sequential createChatMessage in a tight loop can
+    // land two inserts in the same ms; Postgres + Prisma's
+    // `orderBy: createdAt desc` has a non-deterministic secondary
+    // ordering, which made this test flaky in CI.
+    const baseTime = Date.now();
     for (let i = 0; i < 5; i++) {
-      await createChatMessage(prisma, userId, i % 2 === 0 ? 'user' : 'assistant', `msg-${i}`);
+      await prisma.chatMessage.create({
+        data: {
+          userId,
+          role: i % 2 === 0 ? 'user' : 'assistant',
+          content: `msg-${i}`,
+          createdAt: new Date(baseTime + i),
+        },
+      });
     }
     const rows = await loadRecentMessages(prisma, userId, 3);
     expect(rows).toHaveLength(3);
