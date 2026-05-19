@@ -1,4 +1,814 @@
 {
-  "generatedAt": "1970-01-01T00:00:00.000Z",
-  "topics": []
+  "generatedAt": "2026-05-16T12:33:47.894Z",
+  "topics": [
+    {
+      "topicKey": "iron",
+      "graphRevisionHash": "855bf4cbc4415f07",
+      "output": {
+        "understanding": {
+          "heading": "Understanding your iron-related results",
+          "bodyMarkdown": "Your recent blood tests show a pattern of depleted iron stores alongside borderline haemoglobin. Here is what each marker tells us:\n\n**Ferritin — 18 ng/mL (reference range 30–150)**\nFerritin reflects how much iron your body has in reserve. Your level sits below the reference range, which means your stored iron is low. This is the earliest marker to drop when iron intake or absorption is not keeping pace with demand.\n\n**Haemoglobin — 12.2 g/dL (reference range 12.0–15.5)**\nHaemoglobin is the protein in red blood cells that carries oxygen. Yours is just inside the lower boundary of the reference range — sometimes described as borderline low. When haemoglobin dips, tissues receive less oxygen, which can show up as fatigue and breathlessness on exertion.\n\n**Transferrin saturation — 14% (reference range 20–50)**\nTransferrin is the transport protein that shuttles iron through the bloodstream. A saturation of 14% means a smaller-than-expected share of that transport capacity is being used, consistent with limited iron availability for red-cell production.\n\n**MCV — 81 fL (reference range 80–100)**\nMean corpuscular volume measures the average size of your red blood cells. Yours sits at the low end of normal. In iron-limited states, red cells can gradually shrink; a further fall would indicate microcytosis.\n\n**How your symptoms fit the picture**\nYou have described gradual-onset fatigue over roughly three months, breathlessness on mild exertion, poor concentration that worsens in the afternoon, and persistently cold hands and feet. Each of these symptoms is commonly associated with the pattern of low iron stores and borderline haemoglobin seen in your results. Your wearable data adds context: your 30-day median HRV has dropped to 38 ms against a baseline of 52 ms, and your median sleep duration is 6.2 hours — both of which can compound fatigue independently of iron status.\n\n**Other markers worth noting**\nYour vitamin B12 (220 pg/mL, reference 200–900) is within range but sits near the lower boundary. Your 25-hydroxyvitamin D (20 ng/mL, reference 30–100) is below the reference range. Both of these can contribute to fatigue and are worth discussing with your clinician alongside your iron results.",
+          "citations": [
+            {
+              "nodeId": "demo-node-biomarker-ferritin",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-ferritin-value",
+              "excerpt": "Ferritin: 18 ng/mL (reference range 30–150). Flagged LOW by the lab."
+            },
+            {
+              "nodeId": "demo-node-biomarker-haemoglobin",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-haemoglobin-value",
+              "excerpt": "Haemoglobin: 12.2 g/dL (reference range 12.0–15.5). Borderline low for adult female."
+            },
+            {
+              "nodeId": "demo-node-biomarker-transferrin_saturation",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-transferrin-value",
+              "excerpt": "Transferrin saturation: 14% (reference range 20–50). Consistent with iron-restricted erythropoiesis."
+            },
+            {
+              "nodeId": "demo-node-biomarker-mcv",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-mcv-value",
+              "excerpt": "MCV: 81 fL (reference range 80–100). At the low end — a further drop would indicate microcytosis."
+            },
+            {
+              "nodeId": "demo-node-symptom-fatigue",
+              "chunkId": "demo-chunk-intake-2026-02__intake-story",
+              "excerpt": "I've been flat for the last few months. Not depressed — just heavy."
+            },
+            {
+              "nodeId": "demo-node-metric_window-hrv_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-hrv",
+              "excerpt": "HRV 30-day median: 38 ms (rolling baseline 52 ms). Twelve of the last thirty nights scored below baseline."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_b12",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-b12-value",
+              "excerpt": "Vitamin B12: 220 pg/mL (reference range 200–900). In range but at the low end — worth monitoring."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_d_25_oh",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-vitamin-d-value",
+              "excerpt": "25-hydroxyvitamin D: 20 ng/mL (reference range 30–100). Flagged LOW."
+            }
+          ],
+          "scribeAnnotations": [
+            {
+              "spanAnchor": "Ferritin — 18 ng/mL (reference range 30–150)",
+              "judgmentKind": "reference-range-comparison",
+              "content": "Your ferritin of 18 ng/mL falls below the laboratory reference range of 30–150 ng/mL. The lab flagged this as low. Ferritin is the most sensitive early marker of iron depletion — it tends to fall before haemoglobin does.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-biomarker-ferritin",
+                  "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-ferritin-value",
+                  "excerpt": "Ferritin: 18 ng/mL (reference range 30–150). Flagged LOW by the lab."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "Haemoglobin — 12.2 g/dL (reference range 12.0–15.5)",
+              "judgmentKind": "reference-range-comparison",
+              "content": "Your haemoglobin of 12.2 g/dL is technically within the reference range (12.0–15.5) but sits very close to the lower boundary. The lab noted it as borderline low for an adult female.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-biomarker-haemoglobin",
+                  "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-haemoglobin-value",
+                  "excerpt": "Haemoglobin: 12.2 g/dL (reference range 12.0–15.5). Borderline low for adult female."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "Transferrin saturation — 14% (reference range 20–50)",
+              "judgmentKind": "reference-range-comparison",
+              "content": "Your transferrin saturation of 14% is below the reference range of 20–50%. This indicates that a smaller proportion of your iron-transport protein is carrying iron, which the lab described as consistent with iron-restricted red-cell production.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-biomarker-transferrin_saturation",
+                  "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-transferrin-value",
+                  "excerpt": "Transferrin saturation: 14% (reference range 20–50). Consistent with iron-restricted erythropoiesis."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "30-day median HRV has dropped to 38 ms against a baseline of 52 ms",
+              "judgmentKind": "pattern-vs-own-history",
+              "content": "Your HRV has fallen roughly 27% from your own rolling baseline of 52 ms to a current 30-day median of 38 ms. Twelve of the last thirty nights scored below baseline, and your recovery trend has been declining since week two. This suggests your body is under increased physiological strain, which may reflect the combined effect of low iron stores and insufficient sleep.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-metric_window-hrv_30d_median",
+                  "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-hrv",
+                  "excerpt": "HRV 30-day median: 38 ms (rolling baseline 52 ms). Recovery score trending down from week 2 onwards."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "MCV — 81 fL (reference range 80–100)",
+              "judgmentKind": "definition-lookup",
+              "content": "Mean corpuscular volume (MCV) measures the average size of your red blood cells. An MCV at the low end of normal can be an early sign that iron supply is limiting red-cell production. If iron stores remain low, MCV may fall further into the microcytic range (below 80 fL).",
+              "citations": [
+                {
+                  "nodeId": "demo-node-biomarker-mcv",
+                  "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-mcv-value",
+                  "excerpt": "MCV: 81 fL (reference range 80–100). At the low end — a further drop would indicate microcytosis."
+                }
+              ]
+            }
+          ]
+        },
+        "whatYouCanDoNow": {
+          "heading": "What you can do now",
+          "bodyMarkdown": "These are practical steps you can take on your own, alongside whatever your clinician has already put in place.\n\n**Prioritise iron-rich foods at meals**\nInclude haem-iron sources such as red meat, liver, mussels, and sardines where possible — haem iron is more readily absorbed than plant-based (non-haem) iron. Good plant sources include lentils, chickpeas, dark leafy greens (spinach, kale), tofu, and fortified cereals.\n\n**Pair iron-rich foods with vitamin-C-rich foods**\nEating a source of vitamin C at the same meal — such as peppers, tomatoes, broccoli, citrus fruit, or kiwi — helps your body absorb non-haem iron more effectively. This is a simple change that can make a meaningful difference over time.\n\n**Separate tea and coffee from iron-rich meals**\nTannins in tea and polyphenols in coffee can reduce iron absorption. Try to leave a gap of at least an hour either side of an iron-rich meal before drinking tea or coffee.\n\n**Keep a brief food and symptom diary**\nTracking what you eat alongside how you feel — energy levels, concentration, breathlessness — can help you and your clinician spot patterns. Note your afternoon energy dip in particular, since your concentration tends to be worst between 3 pm and 5 pm.\n\n**Work on sleep duration**\nYour 30-day median sleep is 6.2 hours against a target of 7.5–8.5 hours, and your bedtimes have been drifting later. Fatigue from short sleep compounds fatigue from low iron. Practical steps include setting a consistent wind-down time, reducing caffeine after midday (your wearable data notes late caffeine timing), and keeping screens out of the bedroom.\n\n**Monitor your symptoms week to week**\nYour check-in from mid-March showed energy creeping up from 3/10 to 4/10 and breathlessness on stairs improving. Continuing to track these gives you and your clinician a clearer picture of whether things are moving in the right direction.",
+          "citations": [
+            {
+              "nodeId": "demo-node-symptom-fatigue",
+              "chunkId": "demo-chunk-checkin-2026-03-week2__checkin-energy",
+              "excerpt": "Energy: 4/10 on average this week, creeping up from 3/10 the week before. Afternoon slump still present but less severe."
+            },
+            {
+              "nodeId": "demo-node-symptom-poor_concentration",
+              "chunkId": "demo-chunk-checkin-2026-03-week2__checkin-concentration",
+              "excerpt": "Concentration: still patchy. Better in the morning, worst between 3pm and 5pm."
+            },
+            {
+              "nodeId": "demo-node-metric_window-sleep_duration_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-sleep-duration",
+              "excerpt": "Sleep duration 30-day median: 6.2 hours (target 7.5–8.5). Bedtimes drifted later, consistent with late caffeine timing."
+            },
+            {
+              "nodeId": "demo-node-symptom-exertional_breathlessness",
+              "chunkId": "demo-chunk-checkin-2026-03-week2__checkin-breathless",
+              "excerpt": "Exertional breathlessness: slightly improved. Stairs at work no longer make me stop on the landing."
+            }
+          ],
+          "scribeAnnotations": [
+            {
+              "spanAnchor": "Your 30-day median sleep is 6.2 hours against a target of 7.5–8.5 hours",
+              "judgmentKind": "pattern-vs-own-history",
+              "content": "Your wearable data shows only four nights out of thirty exceeded 7 hours, and bedtimes drifted progressively later across the window. The data also flags late caffeine timing as a likely contributor. Addressing sleep duration may help reduce the overall fatigue burden independently of iron status.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-metric_window-sleep_duration_30d_median",
+                  "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-sleep-duration",
+                  "excerpt": "Only four nights exceeded 7 hours. Bedtimes drifted later across the window, consistent with late caffeine timing."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "energy creeping up from 3/10 to 4/10 and breathlessness on stairs improving",
+              "judgmentKind": "pattern-vs-own-history",
+              "content": "Your mid-March check-in recorded a small but consistent improvement: energy rose from 3/10 to 4/10, and you noted that stairs at work no longer required you to stop on the landing. These are early positive signals worth continuing to track.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-symptom-fatigue",
+                  "chunkId": "demo-chunk-checkin-2026-03-week2__checkin-energy",
+                  "excerpt": "Energy: 4/10 on average this week, creeping up from 3/10 the week before."
+                },
+                {
+                  "nodeId": "demo-node-symptom-exertional_breathlessness",
+                  "chunkId": "demo-chunk-checkin-2026-03-week2__checkin-breathless",
+                  "excerpt": "Stairs at work no longer make me stop on the landing, but a gentle jog still leaves me winded."
+                }
+              ]
+            }
+          ]
+        },
+        "discussWithClinician": {
+          "heading": "Things to discuss with your clinician",
+          "bodyMarkdown": "The following are areas where your clinician's input is needed. These are not actions you can take on your own.\n\n**Repeat blood tests to assess progress**\nYour GP's plan from February noted a recheck of ferritin and haemoglobin after eight weeks. That window is approaching. A repeat set of bloods will show whether your iron stores are recovering and whether haemoglobin has moved away from the borderline.\n\n**Review whether current management is sufficient**\nYour ferritin was 18 ng/mL and transferrin saturation was 14% — both below their reference ranges. Your clinician can assess whether the current approach is producing an adequate response or whether adjustments are needed.\n\n**Investigate the underlying cause of iron depletion**\nLow iron stores can result from inadequate dietary intake, poor absorption (e.g. coeliac disease), or increased losses (e.g. heavy menstrual periods, gastrointestinal bleeding). If the cause has not yet been established, your clinician may wish to explore this — particularly if iron stores do not recover as expected.\n\n**Address low vitamin D and borderline B12**\nYour 25-hydroxyvitamin D is below the reference range at 20 ng/mL, and your B12 sits near the lower boundary at 220 pg/mL. Both can contribute to fatigue. Your clinician can advise whether these need specific attention and whether any further testing is warranted.\n\n**Consider whether symptoms warrant further assessment**\nYou have described moderate fatigue, exertional breathlessness, poor afternoon concentration, and cold extremities. While these are commonly associated with low iron, your clinician can determine whether any additional investigation is appropriate — for example, thyroid function or other causes of fatigue.",
+          "citations": [
+            {
+              "nodeId": "demo-node-medication-ferrous_fumarate_210mg",
+              "chunkId": "demo-chunk-gp-note-2026-02__gp-note-plan",
+              "excerpt": "Recheck ferritin and haemoglobin in 8 weeks."
+            },
+            {
+              "nodeId": "demo-node-biomarker-ferritin",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-ferritin-value",
+              "excerpt": "Ferritin: 18 ng/mL (reference range 30–150). Flagged LOW by the lab."
+            },
+            {
+              "nodeId": "demo-node-biomarker-transferrin_saturation",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-transferrin-value",
+              "excerpt": "Transferrin saturation: 14% (reference range 20–50)."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_d_25_oh",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-vitamin-d-value",
+              "excerpt": "25-hydroxyvitamin D: 20 ng/mL (reference range 30–100). Flagged LOW."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_b12",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-b12-value",
+              "excerpt": "Vitamin B12: 220 pg/mL (reference range 200–900). In range but at the low end."
+            },
+            {
+              "nodeId": "demo-node-condition-iron_deficiency_anaemia",
+              "chunkId": "demo-chunk-gp-note-2026-02__gp-note-diagnosis",
+              "excerpt": "Impression: iron-deficiency anaemia, mild. Likely contributing to the fatigue, exertional breathlessness, and poor concentration."
+            }
+          ],
+          "scribeAnnotations": [
+            {
+              "spanAnchor": "Your GP's plan from February noted a recheck of ferritin and haemoglobin after eight weeks",
+              "judgmentKind": "citation-surfacing",
+              "content": "Your GP's notes from 20 February documented a plan to recheck ferritin and haemoglobin at the eight-week mark. Based on the start date, that recheck window falls around mid-April 2026.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-medication-ferrous_fumarate_210mg",
+                  "chunkId": "demo-chunk-gp-note-2026-02__gp-note-plan",
+                  "excerpt": "Recheck ferritin and haemoglobin in 8 weeks."
+                }
+              ],
+              "outOfScopeRoute": "gpPrep"
+            },
+            {
+              "spanAnchor": "Your clinician can assess whether the current approach is producing an adequate response",
+              "judgmentKind": "citation-surfacing",
+              "content": "At the four-week follow-up in March, your GP noted you were tolerating the current management well, with mild constipation managed by hydration and a subtle lift in morning energy. Whether this trajectory is sufficient will depend on the repeat blood results.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-medication-ferrous_fumarate_210mg",
+                  "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-tolerance",
+                  "excerpt": "Tolerating well — mild constipation managed with hydration. Reports a subtle lift in morning energy over the past week."
+                }
+              ],
+              "outOfScopeRoute": "gpPrep"
+            }
+          ]
+        },
+        "gpPrep": {
+          "questionsToAsk": [
+            "My ferritin was 18 ng/mL in February — I'd like to understand whether my iron stores have improved since then and whether a repeat blood test is due.",
+            "My transferrin saturation was 14%, which is below the reference range. Could you explain what this means for how my body is using iron, and whether further investigation is needed?",
+            "My vitamin D was flagged as low at 20 ng/mL and my B12 was near the bottom of the range at 220 pg/mL. Could these be contributing to my fatigue alongside the iron picture, and do they need addressing?",
+            "I'm still experiencing afternoon concentration dips and some breathlessness on exertion. Is there anything else that should be investigated to rule out other causes?",
+            "Has the underlying reason for my iron depletion been identified? Would it be worth screening for coeliac disease or looking into whether I have significant menstrual or gastrointestinal losses?"
+          ],
+          "relevantHistory": [
+            "Ferritin 18 ng/mL (low), haemoglobin 12.2 g/dL (borderline low), transferrin saturation 14% (low), MCV 81 fL (low-normal) — all from February 2026 bloods.",
+            "GP impression from February 2026: mild iron-deficiency anaemia, likely contributing to fatigue, breathlessness, and poor concentration.",
+            "Currently on prescribed oral iron since 20 February 2026; tolerating well with mild constipation at four-week review.",
+            "25-hydroxyvitamin D 20 ng/mL (below reference range); vitamin B12 220 pg/mL (low-normal).",
+            "Gradual-onset fatigue over approximately three months, with moderate poor concentration worst in the afternoon and mild exertional breathlessness.",
+            "Wearable data: 30-day median HRV 38 ms (baseline 52 ms); 30-day median sleep 6.2 hours (target 7.5–8.5 hours)."
+          ],
+          "testsToConsiderRequesting": [
+            "Repeat ferritin and full blood count to assess response to current management (eight-week recheck was planned for mid-April).",
+            "Full iron studies including serum iron, transferrin, and transferrin saturation if not repeated recently.",
+            "Coeliac screen (tissue transglutaminase antibodies) to exclude malabsorption as a cause of iron depletion.",
+            "Repeat 25-hydroxyvitamin D to reassess vitamin D status.",
+            "Thyroid function tests (TSH, free T4) if not recently checked, given fatigue and cold extremities.",
+            "Faecal immunochemical test (FIT) if gastrointestinal blood loss is being considered as a cause."
+          ],
+          "printableMarkdown": "# GP Appointment Preparation — Iron Status\n\n## Questions to ask\n1. My ferritin was 18 ng/mL in February — I'd like to understand whether my iron stores have improved since then and whether a repeat blood test is due.\n2. My transferrin saturation was 14%, which is below the reference range. Could you explain what this means for how my body is using iron, and whether further investigation is needed?\n3. My vitamin D was flagged as low at 20 ng/mL and my B12 was near the bottom of the range at 220 pg/mL. Could these be contributing to my fatigue alongside the iron picture, and do they need addressing?\n4. I'm still experiencing afternoon concentration dips and some breathlessness on exertion. Is there anything else that should be investigated to rule out other causes?\n5. Has the underlying reason for my iron depletion been identified? Would it be worth screening for coeliac disease or looking into whether I have significant menstrual or gastrointestinal losses?\n\n## Relevant history to share\n- Ferritin 18 ng/mL (low), haemoglobin 12.2 g/dL (borderline low), transferrin saturation 14% (low), MCV 81 fL (low-normal) — all from February 2026 bloods.\n- GP impression from February 2026: mild iron-deficiency anaemia, likely contributing to fatigue, breathlessness, and poor concentration.\n- Currently on prescribed oral iron since 20 February 2026; tolerating well with mild constipation at four-week review.\n- 25-hydroxyvitamin D 20 ng/mL (below reference range); vitamin B12 220 pg/mL (low-normal).\n- Gradual-onset fatigue over approximately three months, with moderate poor concentration worst in the afternoon and mild exertional breathlessness.\n- Wearable data: 30-day median HRV 38 ms (baseline 52 ms); 30-day median sleep 6.2 hours (target 7.5–8.5 hours).\n\n## Tests to consider requesting\n- Repeat ferritin and full blood count to assess response to current management (eight-week recheck was planned for mid-April).\n- Full iron studies including serum iron, transferrin, and transferrin saturation if not repeated recently.\n- Coeliac screen (tissue transglutaminase antibodies) to exclude malabsorption as a cause of iron depletion.\n- Repeat 25-hydroxyvitamin D to reassess vitamin D status.\n- Thyroid function tests (TSH, free T4) if not recently checked, given fatigue and cold extremities.\n- Faecal immunochemical test (FIT) if gastrointestinal blood loss is being considered as a cause."
+        }
+      }
+    },
+    {
+      "topicKey": "sleep-recovery",
+      "graphRevisionHash": "855bf4cbc4415f07",
+      "output": {
+        "understanding": {
+          "heading": "What your wearable data and symptoms are showing",
+          "bodyMarkdown": "Over the past 30 days, your sleep and recovery picture has been consistently under pressure. Here is what the numbers and your own reports add up to.\n\n**Sleep is short and broken.** Your median sleep duration is 6.2 hours — well below the 7.5–8.5 hour range your wearable uses as a target. Only four nights in the last month exceeded 7 hours, and your bedtimes have been drifting later. On top of that, you are waking roughly three times per night (your baseline is one), with most of those wakes clustering between 02:30 and 04:00. That pattern lines up with what you described — falling asleep around 11 pm, then surfacing at 3 am and struggling to get back under.\n\n**Your body is not recovering overnight.** Your heart rate variability (HRV) — a marker of how well your nervous system recovers during sleep — has dropped to a 30-day median of 38 ms, down from a baseline of 52 ms. Twelve of the last thirty nights scored below baseline, and the trend has been worsening since week two. At the same time, your resting heart rate has crept up to 68 bpm from a baseline of 62 bpm. Together, these suggest your system is running slightly hot overnight rather than settling into deep recovery.\n\n**The daytime picture matches.** You have described a gradual, moderate fatigue that has been building for about three months — not depression, but a persistent heaviness, especially in the mornings. Your concentration is worst between 3 pm and 5 pm, and reading comprehension has not returned to where it was. These patterns are consistent with what shortened, fragmented sleep tends to produce: a slow erosion of energy and cognitive sharpness rather than a single dramatic crash.\n\n**Blood results add context.** Your ferritin is 18 ng/mL against a reference range of 30–150, and your haemoglobin sits at 12.2 g/dL — borderline low. Your GP has noted mild iron-deficiency anaemia, which can independently drive fatigue, breathlessness on exertion, and poor concentration. Your vitamin D is also low at 20 ng/mL (reference 30–100), and your B12, while technically in range at 220 pg/mL, sits at the lower end. These nutritional shortfalls may be compounding the effects of poor sleep, making recovery harder and daytime symptoms more noticeable.",
+          "citations": [
+            {
+              "nodeId": "demo-node-metric_window-sleep_duration_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-sleep-duration",
+              "excerpt": "Sleep duration 30-day median: 6.2 hours (target 7.5–8.5). Only four nights exceeded 7 hours."
+            },
+            {
+              "nodeId": "demo-node-metric_window-wake_events_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-wake-events",
+              "excerpt": "Wake events 30-day median: 3 per night (baseline 1). Most wakes clustered 02:30–04:00."
+            },
+            {
+              "nodeId": "demo-node-metric_window-hrv_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-hrv",
+              "excerpt": "HRV 30-day median: 38 ms (rolling baseline 52 ms). Twelve of the last thirty nights scored below baseline."
+            },
+            {
+              "nodeId": "demo-node-metric_window-rhr_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-rhr",
+              "excerpt": "Resting heart rate 30-day median: 68 bpm (rolling baseline 62 bpm)."
+            },
+            {
+              "nodeId": "demo-node-symptom-fatigue",
+              "chunkId": "demo-chunk-intake-2026-02__intake-story",
+              "excerpt": "I've been flat for the last few months. Not depressed — just heavy. Morning starts are hardest."
+            },
+            {
+              "nodeId": "demo-node-symptom-poor_concentration",
+              "chunkId": "demo-chunk-checkin-2026-03-week2__checkin-concentration",
+              "excerpt": "Concentration: still patchy. Better in the morning, worst between 3pm and 5pm."
+            },
+            {
+              "nodeId": "demo-node-biomarker-ferritin",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-ferritin-value",
+              "excerpt": "Ferritin: 18 ng/mL (reference range 30–150). Flagged LOW by the lab."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_d_25_oh",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-vitamin-d-value",
+              "excerpt": "25-hydroxyvitamin D: 20 ng/mL (reference range 30–100). Flagged LOW."
+            },
+            {
+              "nodeId": "demo-node-condition-iron_deficiency_anaemia",
+              "chunkId": "demo-chunk-gp-note-2026-02__gp-note-diagnosis",
+              "excerpt": "Impression: iron-deficiency anaemia, mild. Likely contributing to the fatigue, exertional breathlessness, and poor concentration."
+            }
+          ],
+          "scribeAnnotations": [
+            {
+              "spanAnchor": "heart rate variability (HRV) — a marker of how well your nervous system recovers during sleep — has dropped to a 30-day median of 38 ms",
+              "judgmentKind": "reference-range-comparison",
+              "content": "Your HRV has fallen roughly 27% below your own rolling baseline of 52 ms. While HRV varies widely between individuals (so absolute numbers matter less than personal trends), a sustained drop of this size over 30 days typically reflects reduced parasympathetic recovery overnight. Twelve of thirty nights below baseline confirms this is not a one-off dip.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-metric_window-hrv_30d_median",
+                  "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-hrv",
+                  "excerpt": "HRV 30-day median: 38 ms (rolling baseline 52 ms). Recovery score trending down from week 2 onwards."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "your resting heart rate has crept up to 68 bpm from a baseline of 62 bpm",
+              "judgmentKind": "pattern-vs-own-history",
+              "content": "A 6 bpm rise in resting heart rate, when sustained over a month, often tracks alongside reduced HRV. Both shifts point in the same direction: your autonomic nervous system is spending more of the night in a mildly activated state rather than settling into recovery. This is consistent with the fragmented sleep pattern you are experiencing.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-metric_window-rhr_30d_median",
+                  "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-rhr",
+                  "excerpt": "Resting heart rate 30-day median: 68 bpm (rolling baseline 62 bpm). Elevation consistent with a system running slightly hot overnight."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "Your ferritin is 18 ng/mL against a reference range of 30–150",
+              "judgmentKind": "reference-range-comparison",
+              "content": "Ferritin below 30 ng/mL is flagged as low by the lab and sits well below the bottom of the reference range. Low ferritin can independently contribute to fatigue, restless legs, and poor sleep quality — all of which overlap with the symptoms you have reported. Your GP has already identified this as part of a mild iron-deficiency anaemia picture.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-biomarker-ferritin",
+                  "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-ferritin-value",
+                  "excerpt": "Ferritin: 18 ng/mL (reference range 30–150). Flagged LOW by the lab."
+                },
+                {
+                  "nodeId": "demo-node-condition-iron_deficiency_anaemia",
+                  "chunkId": "demo-chunk-gp-note-2026-02__gp-note-diagnosis",
+                  "excerpt": "Impression: iron-deficiency anaemia, mild."
+                }
+              ]
+            }
+          ]
+        },
+        "whatYouCanDoNow": {
+          "heading": "What you can do now",
+          "bodyMarkdown": "These are changes you can make on your own, starting today. None of them require a prescription or a clinician visit — they target the modifiable habits that are most likely feeding into your current sleep pattern.\n\n### Move your last coffee earlier\n\nYou currently have a coffee at around 3 pm most days. Caffeine has a long half-life — it can take many hours for its stimulant effect to halve — and a mid-afternoon dose can still be active in your system at bedtime. Your GP has already suggested a cut-off by 2 pm. Shifting that second coffee to before midday, or replacing the afternoon one with a non-caffeinated drink, is the single most concrete change available to you right now. Your wearable data shows bedtimes drifting later across the month, which is consistent with late caffeine timing.\n\n### Anchor your bedtime\n\nYour bedtimes have been shifting later over the past 30 days. A consistent bedtime — even if it feels early at first — helps your body's internal clock consolidate sleep into fewer, longer blocks. Aim to be in bed at the same time each night, including weekends, within a window of about 30 minutes. This does not guarantee you will fall asleep faster, but it gives your circadian rhythm a stable anchor.\n\n### Get bright light in the morning\n\nYour GP mentioned a 30-minute morning daylight walk. Morning light exposure is one of the strongest signals your circadian clock uses to set its timing for the day. If a 30-minute walk is not realistic every day, even 10–15 minutes of outdoor light shortly after waking — before sunglasses — can help. This is especially relevant given your vitamin D level is low, though the primary benefit here is circadian rather than nutritional.\n\n### Wind down before bed\n\nYour 3 am waking pattern suggests your sleep architecture is fragmenting in the second half of the night. A consistent wind-down routine in the 60 minutes before bed — dimming lights, stepping away from screens, doing something low-stimulation — can help deepen the early sleep cycles and reduce the likelihood of surfacing later. This is not about relaxation for its own sake; it is about lowering your arousal level before sleep onset.\n\n### Watch alcohol timing\n\nIf you drink alcohol in the evenings, even moderate amounts can fragment sleep in the second half of the night — exactly the pattern your wearable is picking up. Keeping any alcohol to earlier in the evening, or having alcohol-free nights, may reduce those 02:30–04:00 wake events.\n\n### Keep the bedroom cool and dark\n\nA cool, dark room supports the drop in core body temperature that your body needs to maintain deep sleep. If your bedroom is warm or light is leaking in (streetlights, standby LEDs), addressing that is a low-effort change that can reduce overnight waking.",
+          "citations": [
+            {
+              "nodeId": "demo-node-lifestyle-caffeine_after_2pm",
+              "chunkId": "demo-chunk-intake-2026-02__intake-sleep",
+              "excerpt": "I drink two coffees — usually one around 10am and another at 3pm."
+            },
+            {
+              "nodeId": "demo-node-metric_window-sleep_duration_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-sleep-duration",
+              "excerpt": "Bedtimes drifted later across the window, consistent with late caffeine timing."
+            },
+            {
+              "nodeId": "demo-node-symptom-poor_sleep_quality",
+              "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-sleep",
+              "excerpt": "Suggested caffeine cut-off by 2pm and a 30-minute morning daylight walk."
+            },
+            {
+              "nodeId": "demo-node-metric_window-wake_events_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-wake-events",
+              "excerpt": "Most wakes clustered 02:30–04:00. Fragmented architecture plausibly amplifying the daytime fatigue picture."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_d_25_oh",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-vitamin-d-value",
+              "excerpt": "25-hydroxyvitamin D: 20 ng/mL (reference range 30–100). Flagged LOW."
+            }
+          ],
+          "scribeAnnotations": [
+            {
+              "spanAnchor": "Caffeine has a long half-life — it can take many hours for its stimulant effect to halve",
+              "judgmentKind": "citation-surfacing",
+              "content": "Your intake notes confirm a daily 3 pm coffee, and your GP follow-up specifically recommended a caffeine cut-off by 2 pm. The wearable data shows bedtimes drifting later across the 30-day window, which the wearable report itself flags as consistent with late caffeine timing.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-lifestyle-caffeine_after_2pm",
+                  "chunkId": "demo-chunk-intake-2026-02__intake-sleep",
+                  "excerpt": "I drink two coffees — usually one around 10am and another at 3pm."
+                },
+                {
+                  "nodeId": "demo-node-symptom-poor_sleep_quality",
+                  "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-sleep",
+                  "excerpt": "Suggested caffeine cut-off by 2pm and a 30-minute morning daylight walk."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "Your 3 am waking pattern suggests your sleep architecture is fragmenting in the second half of the night",
+              "judgmentKind": "pattern-vs-own-history",
+              "content": "Your wearable records a median of 3 wake events per night against a baseline of 1, with most wakes between 02:30 and 04:00. You described this yourself at intake: 'I go down around 11pm but wake at 3am most nights and struggle to drop back under.' This is a consistent, repeating pattern rather than an occasional bad night.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-metric_window-wake_events_30d_median",
+                  "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-wake-events",
+                  "excerpt": "Wake events 30-day median: 3 per night (baseline 1). Most wakes clustered 02:30–04:00."
+                },
+                {
+                  "nodeId": "demo-node-symptom-poor_sleep_quality",
+                  "chunkId": "demo-chunk-intake-2026-02__intake-sleep",
+                  "excerpt": "I go down around 11pm but wake at 3am most nights and struggle to drop back under."
+                }
+              ]
+            }
+          ]
+        },
+        "discussWithClinician": {
+          "heading": "What to discuss with a clinician",
+          "bodyMarkdown": "The following areas sit outside what you can address on your own and are worth raising with your GP or another clinician. Your GP has already begun looking at some of these — this section is about making sure the threads are followed up.\n\n### Follow up on iron status and related blood results\n\nYour ferritin was flagged low at 18 ng/mL (reference 30–150), and your GP identified mild iron-deficiency anaemia in February. Low iron stores can independently cause fatigue, poor concentration, and disrupted sleep — all of which you are experiencing. It is worth confirming whether a management plan is in place and when repeat bloods are scheduled. Your vitamin D (20 ng/mL, reference 30–100) and B12 (220 pg/mL, low end of 200–900) were also flagged; your GP noted they would revisit sleep quality once the vitamin D level normalises, so checking progress on that is relevant.\n\n### Investigate persistent fragmented sleep\n\nYou have a consistent pattern of waking between 02:30 and 04:00 most nights, with a median of 3 wake events per night against a baseline of 1. If this pattern persists after caffeine timing is adjusted and nutritional deficiencies are addressed, it may warrant further investigation. A clinician can assess whether screening for sleep-disordered breathing (such as obstructive sleep apnoea) is appropriate — particularly if there is any history of snoring, witnessed pauses in breathing, or waking with a dry mouth.\n\n### Review whether any current medications could be affecting sleep\n\nSome commonly prescribed medications can fragment sleep or suppress HRV. If you are taking anything regularly — including anything started around the time your sleep deteriorated three months ago — it is worth asking your GP whether any of those could be contributing.\n\n### Consider a formal sleep assessment if symptoms persist\n\nIf the lifestyle changes and nutritional corrections do not improve your sleep fragmentation and HRV over the next few months, a referral to a sleep service may be appropriate. A clinician can determine whether a formal sleep study or a structured behavioural programme for sleep would be useful next steps.\n\n### Reassess the fatigue picture as a whole\n\nYour fatigue has been building gradually over three months and involves morning heaviness, exertional breathlessness, and cognitive dulling. Some of this is likely explained by the combination of poor sleep and low iron, but if it does not improve as those are addressed, your GP may want to broaden the investigation — for example, checking thyroid function if it has not been tested recently.",
+          "citations": [
+            {
+              "nodeId": "demo-node-biomarker-ferritin",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-ferritin-value",
+              "excerpt": "Ferritin: 18 ng/mL (reference range 30–150). Flagged LOW by the lab."
+            },
+            {
+              "nodeId": "demo-node-biomarker-haemoglobin",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-haemoglobin-value",
+              "excerpt": "Haemoglobin: 12.2 g/dL (reference range 12.0–15.5). Borderline low for adult female."
+            },
+            {
+              "nodeId": "demo-node-condition-iron_deficiency_anaemia",
+              "chunkId": "demo-chunk-gp-note-2026-02__gp-note-diagnosis",
+              "excerpt": "Impression: iron-deficiency anaemia, mild. Likely contributing to the fatigue, exertional breathlessness, and poor concentration."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_d_25_oh",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-vitamin-d-value",
+              "excerpt": "25-hydroxyvitamin D: 20 ng/mL (reference range 30–100). Flagged LOW."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_b12",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-b12-value",
+              "excerpt": "Vitamin B12: 220 pg/mL (reference range 200–900). In range but at the low end — worth monitoring."
+            },
+            {
+              "nodeId": "demo-node-symptom-poor_sleep_quality",
+              "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-sleep",
+              "excerpt": "Suggested caffeine cut-off by 2pm and a 30-minute morning daylight walk; we will revisit if sleep quality has not improved after the vitamin D level normalises."
+            },
+            {
+              "nodeId": "demo-node-metric_window-wake_events_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-wake-events",
+              "excerpt": "Wake events 30-day median: 3 per night (baseline 1). Most wakes clustered 02:30–04:00."
+            },
+            {
+              "nodeId": "demo-node-symptom-fatigue",
+              "chunkId": "demo-chunk-intake-2026-02__intake-story",
+              "excerpt": "I've been flat for the last few months. Not depressed — just heavy. Morning starts are hardest."
+            }
+          ],
+          "scribeAnnotations": [
+            {
+              "spanAnchor": "Your ferritin was flagged low at 18 ng/mL (reference 30–150), and your GP identified mild iron-deficiency anaemia",
+              "judgmentKind": "reference-range-comparison",
+              "content": "Ferritin at 18 ng/mL is 40% below the bottom of the lab reference range (30–150). Your GP's February note explicitly links this to your fatigue, breathlessness, and concentration difficulties. Confirming whether repeat bloods have been scheduled — and whether the management plan is on track — is a priority for your next appointment.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-biomarker-ferritin",
+                  "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-ferritin-value",
+                  "excerpt": "Ferritin: 18 ng/mL (reference range 30–150). Flagged LOW by the lab."
+                },
+                {
+                  "nodeId": "demo-node-condition-iron_deficiency_anaemia",
+                  "chunkId": "demo-chunk-gp-note-2026-02__gp-note-diagnosis",
+                  "excerpt": "Impression: iron-deficiency anaemia, mild. Likely contributing to the fatigue, exertional breathlessness, and poor concentration."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "screening for sleep-disordered breathing (such as obstructive sleep apnoea) is appropriate",
+              "judgmentKind": "definition-lookup",
+              "content": "Sleep-disordered breathing refers to a group of conditions where breathing is repeatedly interrupted during sleep. The most common form involves the upper airway partially or fully collapsing, causing brief awakenings that the sleeper may not remember. Screening typically involves a questionnaire and may be followed by an overnight monitoring device. This is a clinician-led assessment — the GP prep section below includes a question you can bring to your appointment.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-metric_window-wake_events_30d_median",
+                  "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-wake-events",
+                  "excerpt": "Wake events 30-day median: 3 per night (baseline 1). Most wakes clustered 02:30–04:00."
+                }
+              ],
+              "outOfScopeRoute": "gpPrep"
+            }
+          ]
+        },
+        "gpPrep": {
+          "questionsToAsk": [
+            "My wearable shows a median of 3 wake events per night (my baseline is 1), mostly between 2:30 and 4 am. If this pattern continues after adjusting caffeine timing, would screening for sleep-disordered breathing be appropriate?",
+            "My ferritin was 18 ng/mL in February and you identified mild iron-deficiency anaemia — is there a plan for repeat bloods, and when would you expect to see improvement?",
+            "My vitamin D was 20 ng/mL and B12 was 220 pg/mL — are these being actively managed, and do they need rechecking?",
+            "My HRV has dropped from a baseline of 52 ms to 38 ms over the past month, and my resting heart rate has risen from 62 to 68 bpm. Could these shifts be partly explained by the anaemia, or is there something else worth investigating?",
+            "If my sleep fragmentation and fatigue do not improve over the next couple of months, would a referral to a sleep service or a broader investigation (e.g. thyroid function) be a reasonable next step?"
+          ],
+          "relevantHistory": [
+            "Gradual-onset fatigue over approximately 3 months; moderate severity; morning starts hardest; exertional breathlessness noted.",
+            "Fragmented sleep pattern: falling asleep around 11 pm, waking at approximately 3 am most nights, difficulty returning to sleep.",
+            "Wearable 30-day medians: HRV 38 ms (baseline 52), RHR 68 bpm (baseline 62), sleep duration 6.2 hours, wake events 3/night (baseline 1).",
+            "Daily caffeine at approximately 3 pm — GP previously suggested cut-off by 2 pm.",
+            "Lab results (February 2026): ferritin 18 ng/mL (low), haemoglobin 12.2 g/dL (borderline low), vitamin D 20 ng/mL (low), B12 220 pg/mL (low-normal).",
+            "GP impression (February 2026): mild iron-deficiency anaemia likely contributing to fatigue, breathlessness, and poor concentration."
+          ],
+          "testsToConsiderRequesting": [
+            "Repeat full blood count and ferritin to assess response to any iron management already in place.",
+            "Repeat 25-hydroxyvitamin D to check whether levels are normalising.",
+            "Thyroid function tests (TSH, free T4) if not recently checked, given persistent fatigue and poor concentration.",
+            "Screening questionnaire for obstructive sleep apnoea (e.g. STOP-BANG or Epworth Sleepiness Scale) if fragmented sleep persists after modifiable factors are addressed.",
+            "Repeat vitamin B12 if symptoms persist, given the low-normal baseline."
+          ],
+          "printableMarkdown": "# GP Appointment Preparation — Sleep & Recovery\n\n## Questions to ask\n\n1. My wearable shows a median of 3 wake events per night (my baseline is 1), mostly between 2:30 and 4 am. If this pattern continues after adjusting caffeine timing, would screening for sleep-disordered breathing be appropriate?\n2. My ferritin was 18 ng/mL in February and you identified mild iron-deficiency anaemia — is there a plan for repeat bloods, and when would you expect to see improvement?\n3. My vitamin D was 20 ng/mL and B12 was 220 pg/mL — are these being actively managed, and do they need rechecking?\n4. My HRV has dropped from a baseline of 52 ms to 38 ms over the past month, and my resting heart rate has risen from 62 to 68 bpm. Could these shifts be partly explained by the anaemia, or is there something else worth investigating?\n5. If my sleep fragmentation and fatigue do not improve over the next couple of months, would a referral to a sleep service or a broader investigation (e.g. thyroid function) be a reasonable next step?\n\n## Relevant history from my records\n\n- Gradual-onset fatigue over approximately 3 months; moderate severity; morning starts hardest; exertional breathlessness noted.\n- Fragmented sleep pattern: falling asleep around 11 pm, waking at approximately 3 am most nights, difficulty returning to sleep.\n- Wearable 30-day medians: HRV 38 ms (baseline 52), RHR 68 bpm (baseline 62), sleep duration 6.2 hours, wake events 3/night (baseline 1).\n- Daily caffeine at approximately 3 pm — GP previously suggested cut-off by 2 pm.\n- Lab results (February 2026): ferritin 18 ng/mL (low), haemoglobin 12.2 g/dL (borderline low), vitamin D 20 ng/mL (low), B12 220 pg/mL (low-normal).\n- GP impression (February 2026): mild iron-deficiency anaemia likely contributing to fatigue, breathlessness, and poor concentration.\n\n## Tests or assessments to consider requesting\n\n- Repeat full blood count and ferritin to assess response to any iron management already in place.\n- Repeat 25-hydroxyvitamin D to check whether levels are normalising.\n- Thyroid function tests (TSH, free T4) if not recently checked, given persistent fatigue and poor concentration.\n- Screening questionnaire for obstructive sleep apnoea (e.g. STOP-BANG or Epworth Sleepiness Scale) if fragmented sleep persists after modifiable factors are addressed.\n- Repeat vitamin B12 if symptoms persist, given the low-normal baseline.\n\n---\n*Prepared from wearable data, symptom check-ins, and lab results as of May 2026. This is not a clinical document — it is intended to support a conversation with your GP.*"
+        }
+      }
+    },
+    {
+      "topicKey": "energy-fatigue",
+      "graphRevisionHash": "855bf4cbc4415f07",
+      "output": {
+        "understanding": {
+          "heading": "What's contributing to your fatigue — the combined picture",
+          "bodyMarkdown": "Your fatigue has built gradually over about three months, and the data points to several overlapping contributors rather than a single cause. Here is how they fit together.\n\n### Iron status — the clearest driver\nYour ferritin is 18 ng/mL against a reference range of 30–150, and your transferrin saturation sits at 14% (reference 20–50%). Together these indicate that your body's iron stores are depleted and that less iron than expected is reaching your red blood cells. Your haemoglobin is 12.2 g/dL — technically inside the reference range but right at the lower boundary for an adult female. Your MCV (81 fL) is similarly at the low end. This pattern is consistent with the exertional breathlessness you've described, the cold hands and feet, and the afternoon concentration dip. Your GP noted a subtle lift in morning energy about four weeks into the current iron-support course, which is a reasonable early signal.\n\n### Vitamin D — a second low marker\nYour 25-hydroxyvitamin D came back at 20 ng/mL (reference 30–100), which is below the expected range. Low vitamin D can contribute to fatigue and muscle heaviness independently of iron status, so it is worth tracking as a separate thread. A course was started about two months after the iron course began, and a recheck is planned.\n\n### Vitamin B12 — low-normal, worth watching\nAt 220 pg/mL your B12 is inside the reference range (200–900) but sits near the floor. On its own this would not usually explain the degree of fatigue you're experiencing, but in the context of already-depleted iron it is a value worth monitoring over time.\n\n### Sleep debt and fragmented nights\nYour 30-day median sleep duration is 6.2 hours against a target window of 7.5–8.5 hours, and only four nights in the last month exceeded seven hours. More importantly, your wearable data shows a median of three wake events per night — triple your baseline of one — with most wakes clustering between 02:30 and 04:00. This fragmented sleep architecture is a plausible amplifier of daytime fatigue and the afternoon concentration trough you've noticed.\n\n### Autonomic recovery — running below baseline\nYour heart-rate variability (HRV) has dropped from a baseline of 52 ms to a 30-day median of 38 ms, and your resting heart rate has risen from 62 bpm to 68 bpm. These shifts suggest your nervous system is under greater-than-usual load overnight, consistent with both the sleep fragmentation and the physiological stress of low iron stores.\n\n### Strong rule-outs\nYour TSH is 1.8 mIU/L (reference 0.4–4.0) — comfortably normal — so thyroid function does not appear to be contributing. Your HbA1c is 5.3% (reference 4.0–5.6), ruling out blood-sugar dysregulation as a fatigue driver.",
+          "citations": [
+            {
+              "nodeId": "demo-node-biomarker-ferritin",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-ferritin-value",
+              "excerpt": "Ferritin: 18 ng/mL (reference range 30–150). Flagged LOW by the lab."
+            },
+            {
+              "nodeId": "demo-node-biomarker-transferrin_saturation",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-transferrin-value",
+              "excerpt": "Transferrin saturation: 14% (reference range 20–50). Consistent with iron-restricted erythropoiesis."
+            },
+            {
+              "nodeId": "demo-node-biomarker-haemoglobin",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-haemoglobin-value",
+              "excerpt": "Haemoglobin: 12.2 g/dL (reference range 12.0–15.5). Borderline low for adult female."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_d_25_oh",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-vitamin-d-value",
+              "excerpt": "25-hydroxyvitamin D: 20 ng/mL (reference range 30–100). Flagged LOW."
+            },
+            {
+              "nodeId": "demo-node-metric_window-sleep_duration_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-sleep-duration",
+              "excerpt": "Sleep duration 30-day median: 6.2 hours (target 7.5–8.5). Only four nights exceeded 7 hours."
+            },
+            {
+              "nodeId": "demo-node-metric_window-hrv_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-hrv",
+              "excerpt": "HRV 30-day median: 38 ms (rolling baseline 52 ms). Recovery score trending down from week 2 onwards."
+            },
+            {
+              "nodeId": "demo-node-biomarker-tsh",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-tsh-value",
+              "excerpt": "TSH: 1.8 mIU/L (reference range 0.4–4.0). Normal — thyroid function is not driving the fatigue picture."
+            },
+            {
+              "nodeId": "demo-node-biomarker-hba1c",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-hba1c-value",
+              "excerpt": "HbA1c: 5.3% (reference range 4.0–5.6). Normal; no dysglycaemia contributing to fatigue."
+            },
+            {
+              "nodeId": "demo-node-metric_window-wake_events_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-wake-events",
+              "excerpt": "Wake events 30-day median: 3 per night (baseline 1). Most wakes clustered 02:30–04:00."
+            }
+          ],
+          "scribeAnnotations": [
+            {
+              "spanAnchor": "ferritin is 18 ng/mL against a reference range of 30–150",
+              "judgmentKind": "reference-range-comparison",
+              "content": "Your ferritin of 18 ng/mL falls below the laboratory reference range of 30–150 ng/mL. This is the primary marker of depleted iron stores and was flagged as low on your lab report.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-biomarker-ferritin",
+                  "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-ferritin-value",
+                  "excerpt": "Ferritin: 18 ng/mL (reference range 30–150). Flagged LOW by the lab."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "HRV has dropped from a baseline of 52 ms to a 30-day median of 38 ms",
+              "judgmentKind": "pattern-vs-own-history",
+              "content": "Your HRV has fallen roughly 27% from your own rolling baseline of 52 ms to a current 30-day median of 38 ms. Twelve of the last thirty nights scored below baseline, and the recovery trend has been declining since week two of the window. This is a meaningful shift relative to your personal norm.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-metric_window-hrv_30d_median",
+                  "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-hrv",
+                  "excerpt": "HRV 30-day median: 38 ms (rolling baseline 52 ms). Twelve of the last thirty nights scored below baseline."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "resting heart rate has risen from 62 bpm to 68 bpm",
+              "judgmentKind": "pattern-vs-own-history",
+              "content": "A resting heart rate increase of 6 bpm above your personal baseline is notable. Overnight elevation is consistent with increased autonomic load — your system is working harder at rest than it typically does.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-metric_window-rhr_30d_median",
+                  "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-rhr",
+                  "excerpt": "Resting heart rate 30-day median: 68 bpm (rolling baseline 62 bpm). Elevation consistent with a system running slightly hot overnight."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "Vitamin B12 — low-normal, worth watching",
+              "judgmentKind": "reference-range-comparison",
+              "content": "Your B12 of 220 pg/mL is technically within the reference range of 200–900 pg/mL, but it sits in the lowest 3% of that range. In the context of depleted iron stores, a low-normal B12 is worth flagging for your clinician to monitor.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-biomarker-vitamin_b12",
+                  "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-b12-value",
+                  "excerpt": "Vitamin B12: 220 pg/mL (reference range 200–900). In range but at the low end — worth monitoring."
+                }
+              ]
+            }
+          ]
+        },
+        "whatYouCanDoNow": {
+          "heading": "What you can do now — actions in your own hands",
+          "bodyMarkdown": "These are things you can start or adjust yourself. None of them replace the clinical plan already in place — they sit alongside it.\n\n### Move your afternoon coffee earlier\nYour current pattern is a coffee around 3 pm, and your wearable data shows bedtimes drifting later and wake events tripling relative to baseline. Caffeine has a half-life of roughly five to six hours, so a 3 pm coffee still has meaningful levels circulating at 11 pm when you're trying to fall asleep. Shifting that second coffee to before midday — or replacing it with a non-caffeinated drink — is the single most direct lever you have over the 02:30–04:00 wake cluster.\n\n### Anchor your bedtime\nYour sleep duration median of 6.2 hours is more than an hour short of the 7.5–8.5 hour target window. Bedtimes have been drifting later across the month. Picking a consistent lights-out time — even if it's only 15 minutes earlier than your current average — and holding it seven days a week can help stabilise your sleep architecture over a few weeks.\n\n### Get morning daylight\nYour GP already suggested a 30-minute morning daylight walk. Morning light exposure helps set your circadian clock, which in turn supports both sleep onset and the quality of the first half of the night — exactly the period where your sleep currently holds up well before the 3 am fragmentation.\n\n### Pair iron-rich foods with vitamin C sources\nYour iron course is already underway, but dietary iron still matters. Including iron-rich foods (red meat, lentils, dark leafy greens, fortified cereals) alongside vitamin-C-rich foods (citrus, peppers, tomatoes) at meals supports absorption. Equally, keeping tea and coffee away from mealtimes reduces interference with iron uptake — your GP noted this at the outset.\n\n### Include vitamin-D-friendly foods\nWhile your clinical course is addressing the low vitamin D level, foods such as oily fish, eggs, and fortified dairy or plant milks contribute small but consistent amounts. Taking any fat-soluble support alongside a meal containing some fat aids absorption.\n\n### Pace your movement\nExertional breathlessness on mild effort is still present, though improving. Gentle, consistent movement — walking, light stretching — is more useful right now than pushing into higher-intensity exercise. As your iron markers recover, your exercise tolerance should gradually widen.\n\n### Track your symptoms week to week\nYour check-in data already shows a shift from 3/10 to 4/10 on energy. Continuing to log energy, concentration, breathlessness, and sleep quality each week gives both you and your clinician a clear trend line to assess whether the current plan is working.",
+          "citations": [
+            {
+              "nodeId": "demo-node-lifestyle-caffeine_after_2pm",
+              "chunkId": "demo-chunk-intake-2026-02__intake-sleep",
+              "excerpt": "I drink two coffees — usually one around 10am and another at 3pm."
+            },
+            {
+              "nodeId": "demo-node-metric_window-sleep_duration_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-sleep-duration",
+              "excerpt": "Bedtimes drifted later across the window, consistent with late caffeine timing."
+            },
+            {
+              "nodeId": "demo-node-metric_window-wake_events_30d_median",
+              "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-wake-events",
+              "excerpt": "Wake events 30-day median: 3 per night (baseline 1). Most wakes clustered 02:30–04:00."
+            },
+            {
+              "nodeId": "demo-node-symptom-poor_sleep_quality",
+              "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-sleep",
+              "excerpt": "Suggested caffeine cut-off by 2pm and a 30-minute morning daylight walk."
+            },
+            {
+              "nodeId": "demo-node-medication-ferrous_fumarate_210mg",
+              "chunkId": "demo-chunk-gp-note-2026-02__gp-note-plan",
+              "excerpt": "Advised to take away from tea, coffee, and calcium."
+            },
+            {
+              "nodeId": "demo-node-symptom-fatigue",
+              "chunkId": "demo-chunk-checkin-2026-03-week2__checkin-energy",
+              "excerpt": "Energy: 4/10 on average this week, creeping up from 3/10 the week before."
+            }
+          ],
+          "scribeAnnotations": [
+            {
+              "spanAnchor": "Caffeine has a half-life of roughly five to six hours",
+              "judgmentKind": "citation-surfacing",
+              "content": "Your own intake notes describe a 3 pm coffee and 3 am waking pattern. Your GP follow-up specifically recommended a caffeine cut-off by 2 pm. The wearable data corroborates this: bedtimes drifted later and wake events tripled across the same window.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-lifestyle-caffeine_after_2pm",
+                  "chunkId": "demo-chunk-intake-2026-02__intake-sleep",
+                  "excerpt": "I drink two coffees — usually one around 10am and another at 3pm."
+                },
+                {
+                  "nodeId": "demo-node-symptom-poor_sleep_quality",
+                  "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-sleep",
+                  "excerpt": "Suggested caffeine cut-off by 2pm and a 30-minute morning daylight walk."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "Exertional breathlessness on mild effort is still present, though improving",
+              "judgmentKind": "pattern-vs-own-history",
+              "content": "At intake you described any real exertion leaving you winded. By the week-two check-in, stairs at work no longer required stopping, though a gentle jog still triggered breathlessness sooner than expected. This is a measurable improvement worth continuing to track.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-symptom-exertional_breathlessness",
+                  "chunkId": "demo-chunk-checkin-2026-03-week2__checkin-breathless",
+                  "excerpt": "Stairs at work no longer make me stop on the landing, but a gentle jog still leaves me winded sooner than expected."
+                },
+                {
+                  "nodeId": "demo-node-symptom-exertional_breathlessness",
+                  "chunkId": "demo-chunk-intake-2026-02__intake-story",
+                  "excerpt": "Any real exertion leaves me winded in a way that used to feel normal."
+                }
+              ]
+            }
+          ]
+        },
+        "discussWithClinician": {
+          "heading": "Points to raise with your clinician",
+          "bodyMarkdown": "The items below sit outside what you can action on your own. They are reasonable topics for your next GP appointment or follow-up review.\n\n### Repeat iron studies at the planned 8-week mark\nYour GP planned a recheck of ferritin and haemoglobin roughly eight weeks after starting the current iron-support course (started late February 2026). That window is approaching. The repeat panel will show whether stores are repleting and whether haemoglobin has moved away from the borderline. It would be worth asking whether transferrin saturation and MCV should be included in the repeat to give a fuller picture, given that both were at the low end.\n\n### Review the vitamin D recheck alongside iron\nA vitamin D recheck was planned at the same eight-week point. Since the vitamin D course started about a month after the iron course, your clinician may want to note the shorter exposure window when interpreting the result.\n\n### Discuss the low-normal B12\nYour B12 of 220 pg/mL is inside the reference range but near the floor. In the context of depleted iron and low vitamin D, it may be worth asking your clinician whether further investigation (such as methylmalonic acid or homocysteine) or monitoring is warranted, particularly if fatigue does not resolve as iron and vitamin D normalise.\n\n### Assess ongoing sleep fragmentation\nIf the 02:30–04:00 wake pattern persists after caffeine timing has been addressed and iron stores have improved, it would be reasonable to discuss whether a formal sleep assessment is appropriate. Your GP noted at the March follow-up that sleep quality would be revisited once the vitamin D level normalises — this gives a natural checkpoint.\n\n### Review menstrual or GI history if iron repletion is slow\nIf ferritin has not risen meaningfully at the recheck, your clinician may want to explore ongoing iron losses — for example, heavy menstrual bleeding or GI absorption issues — as a reason stores are not rebuilding at the expected pace.\n\n### Consider whether the current support plan needs adjustment\nYou are tolerating the current iron course well, with mild constipation managed by hydration. If the repeat bloods show insufficient progress, your clinician can assess whether the current approach needs to be modified — that decision sits with them based on the lab trajectory.",
+          "citations": [
+            {
+              "nodeId": "demo-node-medication-ferrous_fumarate_210mg",
+              "chunkId": "demo-chunk-gp-note-2026-02__gp-note-plan",
+              "excerpt": "Recheck ferritin and haemoglobin in 8 weeks."
+            },
+            {
+              "nodeId": "demo-node-medication-ferrous_fumarate_210mg",
+              "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-tolerance",
+              "excerpt": "Four weeks into ferrous fumarate. Tolerating well — mild constipation managed with hydration."
+            },
+            {
+              "nodeId": "demo-node-medication-vitamin_d3_2000iu",
+              "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-vitd-plan",
+              "excerpt": "Recheck 25(OH)D alongside ferritin at the 8-week mark."
+            },
+            {
+              "nodeId": "demo-node-biomarker-vitamin_b12",
+              "chunkId": "demo-chunk-lab-broad-panel-2026-02__lab-b12-value",
+              "excerpt": "Vitamin B12: 220 pg/mL (reference range 200–900). In range but at the low end — worth monitoring."
+            },
+            {
+              "nodeId": "demo-node-symptom-poor_sleep_quality",
+              "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-sleep",
+              "excerpt": "We will revisit if sleep quality has not improved after the vitamin D level normalises."
+            },
+            {
+              "nodeId": "demo-node-biomarker-mcv",
+              "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-mcv-value",
+              "excerpt": "MCV: 81 fL (reference range 80–100). At the low end — a further drop would indicate microcytosis."
+            }
+          ],
+          "scribeAnnotations": [
+            {
+              "spanAnchor": "transferrin saturation and MCV should be included in the repeat",
+              "judgmentKind": "reference-range-comparison",
+              "content": "Transferrin saturation was 14% (reference 20–50%) and MCV was 81 fL (reference 80–100 fL) at baseline. Both sat at or below the lower boundary. Including them in the repeat panel would show whether iron delivery to red blood cells is improving alongside the ferritin level.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-biomarker-transferrin_saturation",
+                  "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-transferrin-value",
+                  "excerpt": "Transferrin saturation: 14% (reference range 20–50)."
+                },
+                {
+                  "nodeId": "demo-node-biomarker-mcv",
+                  "chunkId": "demo-chunk-lab-ferritin-2026-02__lab-mcv-value",
+                  "excerpt": "MCV: 81 fL (reference range 80–100). At the low end."
+                }
+              ]
+            },
+            {
+              "spanAnchor": "whether a formal sleep assessment is appropriate",
+              "judgmentKind": "citation-surfacing",
+              "content": "Your wearable data shows wake events have tripled from baseline, with a consistent 02:30–04:00 cluster. If this pattern persists after caffeine and nutritional factors are addressed, a formal sleep assessment could help identify whether there is an independent sleep disorder contributing. This is included in your GP prep sheet.",
+              "citations": [
+                {
+                  "nodeId": "demo-node-metric_window-wake_events_30d_median",
+                  "chunkId": "demo-chunk-wearable-30d-2026-03__wearable-wake-events",
+                  "excerpt": "Wake events 30-day median: 3 per night (baseline 1). Most wakes clustered 02:30–04:00."
+                },
+                {
+                  "nodeId": "demo-node-symptom-poor_sleep_quality",
+                  "chunkId": "demo-chunk-gp-followup-2026-03__gp-followup-sleep",
+                  "excerpt": "We will revisit if sleep quality has not improved after the vitamin D level normalises."
+                }
+              ],
+              "outOfScopeRoute": "gpPrep"
+            }
+          ]
+        },
+        "gpPrep": {
+          "questionsToAsk": [
+            "My ferritin was 18 ng/mL and transferrin saturation was 14% in February — I'd like to understand whether my iron stores are repleting on the current course, and whether the repeat panel should include transferrin saturation and MCV alongside ferritin and haemoglobin.",
+            "My vitamin D was 20 ng/mL and the course started about a month after the iron course — is the eight-week recheck still the right timeframe, given the later start?",
+            "My B12 was 220 pg/mL, which is technically in range but near the bottom. Given the low iron and low vitamin D, is it worth investigating B12 further or just monitoring it?",
+            "I'm still waking around 3 am most nights, and my wearable shows three wake events per night versus a baseline of one. If this doesn't improve once caffeine timing and nutritional levels are addressed, would a formal sleep assessment be reasonable?",
+            "If my ferritin hasn't risen much at the recheck, would it be worth looking into whether there's an ongoing source of iron loss — for example, menstrual or GI factors?"
+          ],
+          "relevantHistory": [
+            "Gradual-onset fatigue over approximately three months (since around February 2026), described as moderate severity with morning starts hardest.",
+            "Ferritin 18 ng/mL (low), haemoglobin 12.2 g/dL (borderline low), transferrin saturation 14% (low), MCV 81 fL (low-normal) — all from February 2026 bloods.",
+            "25-hydroxyvitamin D 20 ng/mL (low) and vitamin B12 220 pg/mL (low-normal) from the same panel. TSH and HbA1c both normal.",
+            "Iron-support course started late February 2026; tolerating well with mild constipation managed by hydration. Vitamin D course started late March 2026.",
+            "Fragmented sleep with consistent 3 am waking pattern; daily caffeine at 3 pm. Wearable data: sleep median 6.2 hours, wake events tripled from baseline, HRV dropped from 52 ms to 38 ms, resting heart rate up from 62 to 68 bpm.",
+            "Exertional breathlessness improving (stairs no longer require stopping) but still present on gentle jogging. Cold extremities reported since intake."
+          ],
+          "testsToConsiderRequesting": [
+            "Repeat full iron studies (ferritin, transferrin saturation, haemoglobin, MCV) — the planned 8-week recheck from the February baseline.",
+            "Repeat 25-hydroxyvitamin D alongside the iron recheck to assess response to the current course.",
+            "Repeat vitamin B12 — and consider methylmalonic acid or homocysteine if B12 remains low-normal and fatigue persists.",
+            "Full blood count to assess whether MCV has shifted or any other indices have changed.",
+            "Screening for obstructive sleep apnoea or formal sleep assessment if the 02:30–04:00 wake pattern persists after caffeine and nutritional factors are addressed.",
+            "If ferritin repletion is slower than expected, consider investigation for ongoing iron losses (e.g. menstrual history review, coeliac screen, or faecal occult blood)."
+          ],
+          "printableMarkdown": "# GP Appointment Prep — Energy & Fatigue Review\n\n**Prepared:** May 2026 | **Purpose:** Follow-up on iron and vitamin D courses; ongoing fatigue and sleep fragmentation.\n\n---\n\n## Questions I'd like to discuss\n\n1. My ferritin was 18 ng/mL and transferrin saturation was 14% in February — I'd like to understand whether my iron stores are repleting on the current course, and whether the repeat panel should include transferrin saturation and MCV alongside ferritin and haemoglobin.\n2. My vitamin D was 20 ng/mL and the course started about a month after the iron course — is the eight-week recheck still the right timeframe, given the later start?\n3. My B12 was 220 pg/mL, which is technically in range but near the bottom. Given the low iron and low vitamin D, is it worth investigating B12 further or just monitoring it?\n4. I'm still waking around 3 am most nights, and my wearable shows three wake events per night versus a baseline of one. If this doesn't improve once caffeine timing and nutritional levels are addressed, would a formal sleep assessment be reasonable?\n5. If my ferritin hasn't risen much at the recheck, would it be worth looking into whether there's an ongoing source of iron loss — for example, menstrual or GI factors?\n\n---\n\n## Relevant history summary\n\n- Gradual-onset fatigue over approximately three months (since around February 2026), moderate severity, morning starts hardest.\n- **February 2026 bloods:** Ferritin 18 ng/mL (low), Hb 12.2 g/dL (borderline low), transferrin saturation 14% (low), MCV 81 fL (low-normal), 25(OH)D 20 ng/mL (low), B12 220 pg/mL (low-normal). TSH 1.8 mIU/L and HbA1c 5.3% both normal.\n- Iron-support course started late February 2026; tolerating well, mild constipation managed with hydration. Vitamin D course started late March 2026.\n- Fragmented sleep: consistent 3 am waking, daily 3 pm caffeine. Wearable 30-day medians — sleep 6.2 hrs, wake events 3/night (baseline 1), HRV 38 ms (baseline 52 ms), RHR 68 bpm (baseline 62 bpm).\n- Exertional breathlessness improving but still present on gentle jogging. Cold extremities ongoing.\n\n---\n\n## Tests or assessments to consider requesting\n\n1. Repeat full iron studies (ferritin, transferrin saturation, Hb, MCV) — the planned 8-week recheck.\n2. Repeat 25-hydroxyvitamin D alongside the iron recheck.\n3. Repeat vitamin B12 — consider methylmalonic acid or homocysteine if B12 remains low-normal and fatigue persists.\n4. Full blood count to check for any shifts in MCV or other indices.\n5. Screening for obstructive sleep apnoea or formal sleep assessment if the 02:30–04:00 wake pattern persists after caffeine and nutritional factors are addressed.\n6. If ferritin repletion is slower than expected: investigation for ongoing iron losses (menstrual history review, coeliac screen, or faecal occult blood).\n\n---\n\n*This document was generated to support your GP conversation. It does not constitute medical advice or a diagnosis.*"
+        }
+      }
+    }
+  ]
 }
