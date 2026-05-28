@@ -220,6 +220,15 @@ export async function POST(req: Request) {
     };
 
     const persisted = await ingestExtraction(prisma, user.id, input);
+
+    // PR 3 minimal observability for embeddings integration (post-commit hook in mutations).
+    // Only logs when explicitly enabled; zero output / overhead on default paths.
+    if (process.env.HYBRID_RETRIEVAL_ENABLED === 'true') {
+      console.log(
+        `[API] intake/documents embeddings hook active (HYBRID_RETRIEVAL_ENABLED) chunks=${persisted.chunkIds.length} doc=${persisted.documentId}`,
+      );
+    }
+
     const promoted = await promoteTopics(user.id, validBiomarkers.map((b) => b.canonicalKey));
 
     return NextResponse.json({

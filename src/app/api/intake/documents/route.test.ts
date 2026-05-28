@@ -57,6 +57,23 @@ vi.mock('@/lib/intake/storage', () => ({
   ),
 }));
 
+// PR 3: mock for embeddings pipeline (post-commit hook). Hoisted so vi.mock
+// factory sees it. Real pipeline unit-tested separately; here we assert
+// fire-and-forget integration + dry-run (flag off) vs enabled paths.
+const { mockEmbedAndStoreChunk } = vi.hoisted(() => ({
+  mockEmbedAndStoreChunk: vi.fn().mockResolvedValue({
+    vector: Array(1536).fill(0.1),
+    tokens: 42,
+    costUsd: 0.00084,
+    model: 'mock-embedding',
+    dimensions: 1536,
+    sourceChunkId: 'chunk-mock',
+  }),
+}));
+vi.mock('@/lib/embeddings/pipeline', () => ({
+  embedAndStoreChunk: mockEmbedAndStoreChunk,
+}));
+
 import { POST } from './route';
 
 let prisma: PrismaClient;
@@ -77,6 +94,7 @@ beforeEach(() => {
 afterEach(() => {
   clearMockHandlers();
   currentUserMock.mockReset();
+  mockEmbedAndStoreChunk.mockClear();
 });
 
 // Enough plain text to clear the 200-non-whitespace-char 'no_text_layer' floor.
@@ -404,5 +422,68 @@ describe('POST /api/intake/documents', () => {
     expect(body.biomarkerCount).toBe(1);
     const nodes = await prisma.graphNode.findMany({ where: { userId } });
     expect(nodes.map((n) => n.canonicalKey)).toEqual(['ferritin']);
+  });
+
+  it('PR3 integration — embeddings wired into ingestExtraction post-commit (flag-gated, fire-and-forget, dry-run by default, no impact on success path)', async () => {
+    const userId = await makeTestUser(prisma, 'docs-pr3-embed-hook');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    mockGetText.mockResolvedValue({
+      pages: [{ num: 1, text: LAB_PAGE_TEXT }],
+      text: '',
+      total: 1,
+    });
+
+    setExtraction({
+      biomarkers: [
+        {
+          canonicalKey: 'ferritin',
+          displayName: 'Ferritin',
+          value: 18,
+          unit: 'ug/L',
+          referenceRangeLow: 30,
+          referenceRangeHigh: 400,
+          flaggedOutOfRange: true,
+          collectionDate: '2026-04-01',
+          supportingChunkIndices: [0],
+        },
+      ],
+      reportCollectionDate: '2026-04-01',
+      labProvider: 'Medichecks',
+    });
+
+    // Dry-run (flag default off): zero calls to hook, behavior identical to pre-PR3.
+    mockEmbedAndStoreChunk.mockClear();
+    const resDry = await POST(makeRequest({}));
+    expect(resDry.status).toBe(200);
+    expect(mockEmbedAndStoreChunk).not.toHaveBeenCalled();
+
+    // Enabled path: hook fires non-blocking for the produced chunks; ingest succeeds.
+    const originalFlag = process.env.HYBRID_RETRIEVAL_ENABLED;
+    process.env.HYBRID_RETRIEVAL_ENABLED = 'true';
+    try {
+      // Use fresh bytes to avoid the dedup short-circuit inside route (different contentHash).
+      const freshBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x01, 0x02, 0x03, 0x04]);
+      mockEmbedAndStoreChunk.mockClear();
+      const resEnabled = await POST(
+        makeRequest({ file: new Blob([freshBytes], { type: 'application/pdf' }) as unknown as File }),
+      );
+      expect(resEnabled.status).toBe(200);
+      const body = await resEnabled.json();
+      expect(body.chunkCount).toBeGreaterThan(0);
+
+      // Hook was invoked (at least once; real count matches chunks produced for this extraction).
+      expect(mockEmbedAndStoreChunk).toHaveBeenCalled();
+      const firstCall = mockEmbedAndStoreChunk.mock.calls[0]?.[0];
+      expect(firstCall?.text).toContain('Ferritin'); // from the LAB_PAGE_TEXT fixture
+      expect(firstCall?.sourceChunkId).toBeTypeOf('string');
+      expect(firstCall?.userId).toBe(userId);
+    } finally {
+      if (originalFlag === undefined) {
+        delete process.env.HYBRID_RETRIEVAL_ENABLED;
+      } else {
+        process.env.HYBRID_RETRIEVAL_ENABLED = originalFlag;
+      }
+    }
   });
 });
