@@ -77,6 +77,10 @@ vi.mock('@/lib/embeddings/pipeline', () => ({
 import { POST } from './route';
 
 let prisma: PrismaClient;
+const originalHybridFlag = process.env.HYBRID_RETRIEVAL_ENABLED;
+const originalEmbeddingProvider = process.env.EMBEDDING_PROVIDER;
+const originalOpenAiKey = process.env.OPENAI_API_KEY;
+const originalMockLlm = process.env.MOCK_LLM;
 
 beforeAll(async () => {
   prisma = await setupTestDb();
@@ -89,12 +93,20 @@ afterAll(async () => {
 beforeEach(() => {
   mockGetText.mockReset();
   mockDestroy.mockClear();
+  process.env.HYBRID_RETRIEVAL_ENABLED = 'false';
+  process.env.EMBEDDING_PROVIDER = 'openai';
+  process.env.OPENAI_API_KEY = '';
+  process.env.MOCK_LLM = '';
 });
 
 afterEach(() => {
   clearMockHandlers();
   currentUserMock.mockReset();
   mockEmbedAndStoreChunk.mockClear();
+  restoreEnv('HYBRID_RETRIEVAL_ENABLED', originalHybridFlag);
+  restoreEnv('EMBEDDING_PROVIDER', originalEmbeddingProvider);
+  restoreEnv('OPENAI_API_KEY', originalOpenAiKey);
+  restoreEnv('MOCK_LLM', originalMockLlm);
 });
 
 // Enough plain text to clear the 200-non-whitespace-char 'no_text_layer' floor.
@@ -424,7 +436,7 @@ describe('POST /api/intake/documents', () => {
     expect(nodes.map((n) => n.canonicalKey)).toEqual(['ferritin']);
   });
 
-  it('PR3 integration — embeddings wired into ingestExtraction post-commit (flag-gated, fire-and-forget, dry-run by default, no impact on success path)', async () => {
+  it('PR3/7 integration — embeddings wired into ingestExtraction post-commit (kill-switchable, fire-and-forget, no impact on success path)', async () => {
     const userId = await makeTestUser(prisma, 'docs-pr3-embed-hook');
     currentUserMock.mockResolvedValue({ id: userId });
 
@@ -452,15 +464,15 @@ describe('POST /api/intake/documents', () => {
       labProvider: 'Medichecks',
     });
 
-    // Dry-run (flag default off): zero calls to hook, behavior identical to pre-PR3.
+    // Kill-switch path: zero calls to hook, behavior identical to pre-PR3.
     mockEmbedAndStoreChunk.mockClear();
     const resDry = await POST(makeRequest({}));
     expect(resDry.status).toBe(200);
     expect(mockEmbedAndStoreChunk).not.toHaveBeenCalled();
 
     // Enabled path: hook fires non-blocking for the produced chunks; ingest succeeds.
-    const originalFlag = process.env.HYBRID_RETRIEVAL_ENABLED;
     process.env.HYBRID_RETRIEVAL_ENABLED = 'true';
+    process.env.EMBEDDING_PROVIDER = 'mock';
     try {
       // Use fresh bytes to avoid the dedup short-circuit inside route (different contentHash).
       const freshBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x01, 0x02, 0x03, 0x04]);
@@ -491,14 +503,19 @@ describe('POST /api/intake/documents', () => {
       expect(stored?.model).toBe('mock-embedding');
       expect(stored?.dimensions).toBe(1536);
     } finally {
-      if (originalFlag === undefined) {
-        delete process.env.HYBRID_RETRIEVAL_ENABLED;
-      } else {
-        process.env.HYBRID_RETRIEVAL_ENABLED = originalFlag;
-      }
+      process.env.HYBRID_RETRIEVAL_ENABLED = 'false';
+      process.env.EMBEDDING_PROVIDER = 'openai';
     }
   });
 });
+
+function restoreEnv(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
+}
 
 async function eventuallyVectorEmbedding(sourceChunkId: string) {
   for (let attempt = 0; attempt < 20; attempt++) {

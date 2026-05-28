@@ -2,6 +2,8 @@
 
 Use this runbook after the PR6 schema is deployed and before enabling hybrid retrieval broadly. The backfill embeds only `SourceChunk.text`; it must not embed generated scribe output, graph node names, diagnostic summaries, or topic pages.
 
+For the full production rollout and rollback sequence, see `docs/runbooks/hybrid-retrieval-production.md`.
+
 ## Prerequisites
 
 - `DATABASE_URL` points at the target Postgres database.

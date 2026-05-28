@@ -32,6 +32,7 @@ const optional = {
   // Supports OPENAI_BASE_URL for Vercel AI Gateway / future unified observability.
   OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? '',
   EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER ?? 'openai',
+  VECTOR_SEARCH_STRATEGY: process.env.VECTOR_SEARCH_STRATEGY ?? 'js-cosine',
   // Auth (U0a + U0b). SESSION_SECRET hashes cookie tokens and magic-link
   // tokens — rotating it invalidates every live session + unconsumed link.
   // RESEND_API_KEY sends magic-link emails (EU region, UK-GDPR posture).
@@ -51,8 +52,9 @@ const optional = {
   // the one-time SQL in docs/migrations/. Set to 'false'/'0' to force
   // lexical+graph fallback even on postgres (for tests/CI).
   PGVECTOR_ENABLED: process.env.PGVECTOR_ENABLED ?? '',
-  // Hybrid retrieval rollout flag. PR 3 uses this to keep ingest embeddings
-  // opt-in until the full retrieval path and backfill proof land.
+  // Hybrid retrieval rollout flag. PR7 defaults the feature on when an
+  // embedding provider is configured; set 'false'/'0' to force legacy
+  // lexical+graph retrieval and disable ingest-time embedding writes.
   HYBRID_RETRIEVAL_ENABLED: process.env.HYBRID_RETRIEVAL_ENABLED ?? '',
 };
 

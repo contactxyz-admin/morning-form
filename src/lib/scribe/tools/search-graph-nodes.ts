@@ -61,6 +61,7 @@ export const searchGraphNodesHandler: ToolHandler<
     const limit = args.limit ?? 10;
 
     if (isHybridRetrievalEnabled()) {
+      let loggedGroundingMetric = false;
       const existingVectors = await getRecentChunkVectors(ctx.db, ctx.userId, 1);
       if (existingVectors.length > 0) {
         try {
@@ -69,15 +70,16 @@ export const searchGraphNodesHandler: ToolHandler<
             limit: limit + 1,
             requireQueryArmMatch: true,
           });
+          logHybridRetrievalGroundingScore({
+            userId: ctx.userId,
+            topicKey: ctx.topicKey,
+            toolName: 'search_graph_nodes',
+            query: args.query,
+            results: hybrid.slice(0, limit),
+          });
+          loggedGroundingMetric = true;
           if (hybrid.length > 0) {
             const truncated = hybrid.length > limit;
-            logHybridRetrievalGroundingScore({
-              userId: ctx.userId,
-              topicKey: ctx.topicKey,
-              toolName: 'search_graph_nodes',
-              query: args.query,
-              results: hybrid.slice(0, limit),
-            });
             return {
               matches: toResultItems(hybrid.slice(0, limit).map((item) => item.node)),
               topicKey: ctx.topicKey,
@@ -89,6 +91,15 @@ export const searchGraphNodesHandler: ToolHandler<
           // query failures fall back to the legacy path so MCP/tool contracts
           // and existing scribe flows remain stable.
         }
+      }
+      if (!loggedGroundingMetric) {
+        logHybridRetrievalGroundingScore({
+          userId: ctx.userId,
+          topicKey: ctx.topicKey,
+          toolName: 'search_graph_nodes',
+          query: args.query,
+          results: [],
+        });
       }
     }
 

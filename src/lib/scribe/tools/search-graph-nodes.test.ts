@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { addEdge, addNode, addSourceChunks, addSourceDocument } from '@/lib/graph/mutations';
@@ -55,6 +55,14 @@ async function seedIronSubgraph(userId: string) {
 }
 
 describe('search_graph_nodes handler', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('returns iron-subgraph nodes matching the query (happy path)', async () => {
     const userId = await makeTestUser(prisma, 'search-happy');
     await seedIronSubgraph(userId);
@@ -182,5 +190,59 @@ describe('search_graph_nodes handler', () => {
     expect(result.truncated).toBe(false);
     expect(result.matches.map((m) => m.canonicalKey)).toEqual(['ferritin']);
     expect(mockEmbedQuery).toHaveBeenCalledWith('low iron stores');
+  });
+
+  it('logs a zero grounding score when hybrid retrieval runs but returns no query-arm matches', async () => {
+    const userId = await makeTestUser(prisma, 'search-zero-grounding');
+    const { id: documentId } = await addSourceDocument(prisma, userId, {
+      kind: 'lab_pdf',
+      capturedAt: new Date('2026-04-01T00:00:00Z'),
+      contentHash: 'semantic-zero-grounding',
+      sourceRef: 'lab.pdf',
+    });
+    const [chunkId] = await addSourceChunks(prisma, documentId, [
+      {
+        index: 0,
+        text: 'Ferritin in range at 82 ug/L.',
+        offsetStart: 0,
+        offsetEnd: 29,
+        pageNumber: 1,
+      },
+    ]);
+    const ferritin = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+    });
+    await addEdge(prisma, userId, {
+      type: 'SUPPORTS',
+      fromNodeId: ferritin.id,
+      toNodeId: ferritin.id,
+      fromChunkId: chunkId,
+      fromDocumentId: documentId,
+    });
+    await prisma.vectorEmbedding.create({
+      data: {
+        sourceChunkId: chunkId,
+        model: 'mock-embedding',
+        dimensions: 3,
+        vector: [-1, 0, 0],
+      },
+    });
+    mockEmbedQuery.mockResolvedValueOnce([1, 0, 0]);
+
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
+    const result = await searchGraphNodesHandler.execute(ctx, { query: 'low iron stores' });
+
+    expect(result.matches).toEqual([]);
+    expect(console.info).toHaveBeenCalledWith(
+      '[metrics] hybrid_retrieval_grounding_score',
+      expect.objectContaining({
+        total: 0,
+        grounded: 0,
+        score: 0,
+        toolName: 'search_graph_nodes',
+      }),
+    );
   });
 });

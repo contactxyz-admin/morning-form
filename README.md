@@ -53,3 +53,17 @@ Detailed provider setup lives in:
 
 - Activation funnel (signup → first grounded answer → retained): `npx tsx scripts/metrics/activation-funnel.ts --signup-since 2026-03-22 --signup-until 2026-04-21`. Prints CSV + human-readable summary. See [`docs/plans/2026-04-21-002-feat-activation-funnel-instrumentation-plan.md`](docs/plans/2026-04-21-002-feat-activation-funnel-instrumentation-plan.md).
 
+## Retrieval
+
+Hybrid retrieval is enabled when an embedding provider is configured. It embeds only `SourceChunk.text`, stores one `VectorEmbedding` per chunk, and keeps `search_graph_nodes` on the same public contract while ranking with vector + lexical + graph RRF. Set `HYBRID_RETRIEVAL_ENABLED=false` to roll back to legacy lexical/graph behavior.
+
+Production rollout:
+
+```bash
+npx prisma generate
+npx prisma db push
+npx tsx scripts/backfill-embeddings.ts --dry-run --estimate
+npx tsx scripts/backfill-embeddings.ts --batch 80
+```
+
+See [`docs/runbooks/hybrid-retrieval-production.md`](docs/runbooks/hybrid-retrieval-production.md) and [`docs/runbooks/backfill-embeddings.md`](docs/runbooks/backfill-embeddings.md).

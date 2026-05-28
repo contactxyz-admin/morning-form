@@ -1,7 +1,7 @@
 ---
 title: "feat: Hybrid Retrieval (pgvector + Graph Traversal + Reciprocal Rank Fusion) for the Health Graph"
 type: design
-status: proposed
+status: completed
 date: 2026-05-28
 origin: docs/strategy/cto-architecture-2026-05-12.md
 ---

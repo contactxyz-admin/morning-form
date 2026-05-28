@@ -57,6 +57,10 @@ export async function GET() {
           )
         : undefined;
 
+    // Hybrid retrieval now powers drill-down search (`search_graph_nodes`).
+    // Keep the vault index importance-first for PR7; a future semantic boost
+    // belongs here behind a separate rollout flag after grounding + latency
+    // canary gates are met.
     const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap });
 
     return NextResponse.json(index, { headers: { 'Cache-Control': 'no-store' } });

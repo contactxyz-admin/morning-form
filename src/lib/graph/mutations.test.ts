@@ -20,6 +20,7 @@ import { makeTestUser, setupTestDb, teardownTestDb } from './test-db';
 
 let prisma: PrismaClient;
 const originalHybridFlag = process.env.HYBRID_RETRIEVAL_ENABLED;
+const originalEmbeddingProvider = process.env.EMBEDDING_PROVIDER;
 
 beforeAll(async () => {
   prisma = await setupTestDb();
@@ -30,7 +31,8 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  delete process.env.HYBRID_RETRIEVAL_ENABLED;
+  process.env.HYBRID_RETRIEVAL_ENABLED = 'false';
+  process.env.EMBEDDING_PROVIDER = 'openai';
 });
 
 afterEach(() => {
@@ -39,6 +41,11 @@ afterEach(() => {
     delete process.env.HYBRID_RETRIEVAL_ENABLED;
   } else {
     process.env.HYBRID_RETRIEVAL_ENABLED = originalHybridFlag;
+  }
+  if (originalEmbeddingProvider === undefined) {
+    delete process.env.EMBEDDING_PROVIDER;
+  } else {
+    process.env.EMBEDDING_PROVIDER = originalEmbeddingProvider;
   }
 });
 
@@ -221,6 +228,7 @@ describe('ingestExtraction transactional write', () => {
 
   it('embeds and persists SourceChunk vectors after commit when hybrid retrieval is enabled', async () => {
     process.env.HYBRID_RETRIEVAL_ENABLED = 'true';
+    process.env.EMBEDDING_PROVIDER = 'mock';
     const userId = await makeTestUser(prisma, 'ingest-embed-store');
 
     const result = await ingestExtraction(prisma, userId, {

@@ -40,6 +40,7 @@ import {
   LLMValidationError,
 } from '@/lib/llm/errors';
 import { ingestExtraction } from '@/lib/graph/mutations';
+import { isHybridRetrievalEnabled } from '@/lib/embeddings/compat';
 import type { IngestExtractionInput } from '@/lib/graph/types';
 import { extractPdfText, chunkLabReport, PdfExtractionError } from '@/lib/intake/pdf-extract';
 import {
@@ -221,9 +222,9 @@ export async function POST(req: Request) {
 
     const persisted = await ingestExtraction(prisma, user.id, input);
 
-    // PR 3 minimal observability for embeddings integration (post-commit hook in mutations).
-    // Only logs when explicitly enabled; zero output / overhead on default paths.
-    if (process.env.HYBRID_RETRIEVAL_ENABLED === 'true') {
+    // PR7 observability for the ingest embedding hook. The hook itself lives
+    // in ingestExtraction; this confirms the production rollout path is active.
+    if (isHybridRetrievalEnabled()) {
       console.log(
         `[API] intake/documents embeddings hook active (HYBRID_RETRIEVAL_ENABLED) chunks=${persisted.chunkIds.length} doc=${persisted.documentId}`,
       );
