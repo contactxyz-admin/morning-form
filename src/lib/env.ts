@@ -27,6 +27,11 @@ const optional = {
   // responses in dev/test so callers don't need to stub the SDK.
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
   MOCK_LLM: process.env.MOCK_LLM ?? '',
+  // Embeddings (PR 2+). OPENAI_API_KEY follows the exact same optional + MOCK pattern
+  // as ANTHROPIC. EMBEDDING_PROVIDER selects the active provider (default openai).
+  // Supports OPENAI_BASE_URL for Vercel AI Gateway / future unified observability.
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? '',
+  EMBEDDING_PROVIDER: process.env.EMBEDDING_PROVIDER ?? 'openai',
   // Auth (U0a + U0b). SESSION_SECRET hashes cookie tokens and magic-link
   // tokens — rotating it invalidates every live session + unconsumed link.
   // RESEND_API_KEY sends magic-link emails (EU region, UK-GDPR posture).
