@@ -23,15 +23,18 @@ import { env } from '@/lib/env';
  */
 export type VectorSearchStrategy = 'js-cosine' | 'native-pgvector';
 
+const FALSEY_FLAGS = new Set(['false', '0', 'off', 'disabled', 'no']);
+
 /**
  * Returns whether the current DATABASE_URL is a Postgres that we expect has
  * the pgvector extension enabled (via the one-time SQL in PR1 migration).
  * False for sqlite/file: and for any non-postgres — forces js-cosine path.
  */
 export function isPgvectorAvailable(): boolean {
-  const url = (env.DATABASE_URL ?? '').toLowerCase();
+  const url = (process.env.DATABASE_URL ?? env.DATABASE_URL ?? '').toLowerCase();
   if (url.includes('file:') || url.includes('sqlite')) return false;
-  if (env.PGVECTOR_ENABLED === 'false' || env.PGVECTOR_ENABLED === '0') return false;
+  const pgvectorFlag = normalizeFlag(process.env.PGVECTOR_ENABLED ?? env.PGVECTOR_ENABLED);
+  if (FALSEY_FLAGS.has(pgvectorFlag)) return false;
   return url.startsWith('postgres') || url.startsWith('postgresql');
 }
 
@@ -46,24 +49,41 @@ export function getVectorSearchStrategy(): VectorSearchStrategy {
   }
   // Explicit env override reserved for post-PR6 experimentation.
   // Default remains the safe MVP path until native is hardened.
-  const override = (env as Record<string, unknown>).VECTOR_SEARCH_STRATEGY as string | undefined;
+  const override = process.env.VECTOR_SEARCH_STRATEGY ?? env.VECTOR_SEARCH_STRATEGY;
   if (override === 'native-pgvector') return 'native-pgvector';
   return 'js-cosine';
 }
 
 /** Which provider the embeddings lib will use (openai is only real one in PR2). */
 export function getEmbeddingProviderName(): string {
-  return env.EMBEDDING_PROVIDER || 'openai';
+  return process.env.EMBEDDING_PROVIDER || env.EMBEDDING_PROVIDER || 'openai';
 }
 
 /**
- * High-level kill switch for the whole hybrid feature.
- * In PR2 the library itself is always usable (mock friendly).
- * Real gating + ingest hook behind the flag lands in PR3.
+ * High-level rollout switch for the whole hybrid feature.
+ * Defaults on when an embedding provider is configured; explicit false values
+ * are the operational rollback path for retrieval and ingest-time writes.
  */
 export function isHybridRetrievalEnabled(): boolean {
-  // Not yet wired to a real env var in PR2 (HYBRID_RETRIEVAL_ENABLED added in PR3/7).
-  // For now: enabled as soon as we have a provider key or are in mock mode.
   const provider = getEmbeddingProviderName();
-  return provider !== 'disabled' && (provider === 'mock' || !!env.OPENAI_API_KEY || env.MOCK_LLM === 'true');
+  if (provider === 'disabled') return false;
+
+  const flag = normalizeFlag(
+    process.env.HYBRID_RETRIEVAL_ENABLED ?? env.HYBRID_RETRIEVAL_ENABLED,
+  );
+  if (FALSEY_FLAGS.has(flag)) return false;
+
+  // PR7 production default: once a real or mock embedding provider is
+  // configured, hybrid retrieval and ingest-time embedding writes are on.
+  const providerConfigured =
+    provider === 'mock' ||
+    process.env.MOCK_LLM === 'true' ||
+    env.MOCK_LLM === 'true' ||
+    Boolean(process.env.OPENAI_API_KEY || env.OPENAI_API_KEY);
+
+  return providerConfigured;
+}
+
+function normalizeFlag(value: string | undefined): string {
+  return (value ?? '').trim().toLowerCase();
 }

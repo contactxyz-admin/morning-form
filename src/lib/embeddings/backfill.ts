@@ -26,6 +26,17 @@ export function validateBackfillModel(model: string): EmbeddingModel {
   return DEFAULT_EMBEDDING_MODEL;
 }
 
+export function assertBackfillResultModel(
+  expectedModel: string,
+  actualModel: string,
+): void {
+  if (actualModel !== expectedModel) {
+    throw new Error(
+      `Backfill provider returned model "${actualModel}" while this run is pinned to "${expectedModel}". Refusing to persist incompatible vectors.`,
+    );
+  }
+}
+
 export function normalizeBackfillBatchSize(value: number): number {
   if (!Number.isInteger(value)) {
     throw new Error('--batch must be an integer');

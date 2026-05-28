@@ -29,6 +29,7 @@ import { ROLLING_ATTRIBUTE_FIELDS, validateAttributesForWrite } from './attribut
 import { assertEdgeEndpoints } from './edge-validation';
 import type { NodeType } from './types';
 import { embedAndStoreChunk } from '@/lib/embeddings/pipeline';
+import { isHybridRetrievalEnabled } from '@/lib/embeddings/compat';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -407,14 +408,13 @@ export async function ingestExtraction(
     timeout: 30_000,
   });
 
-  // PR 3 ingestion integration (post-commit hook):
+  // PR 3/7 ingestion integration (post-commit hook):
   // Fire embedAndStoreChunk (from PR 2 pipeline) and persist VectorEmbedding
-  // rows in a fire-and-forget manner. Gated behind HYBRID_RETRIEVAL_ENABLED
-  // (default off → zero impact on existing ingest paths, MCP clients, and
-  // tests). Transient embed/store failures are logged but never surface to the
-  // user or roll back the extraction. Dry-run when flag unset (no call at all).
-  // chunkIds order matches input.chunks.
-  if (process.env.HYBRID_RETRIEVAL_ENABLED === 'true') {
+  // rows in a fire-and-forget manner. PR7 enables this when an embedding
+  // provider is configured; HYBRID_RETRIEVAL_ENABLED=false remains the
+  // operational kill switch. Transient embed/store failures are logged but
+  // never surface to the user or roll back the extraction.
+  if (isHybridRetrievalEnabled()) {
     for (let i = 0; i < result.chunkIds.length; i++) {
       const sourceChunkId = result.chunkIds[i];
       const text = input.chunks[i]?.text;

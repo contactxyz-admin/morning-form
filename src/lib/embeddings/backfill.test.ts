@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertBackfillResultModel,
   DEFAULT_BACKFILL_BATCH_SIZE,
   estimateBackfillCandidates,
   estimateEmbeddingCostUsd,
@@ -51,5 +52,14 @@ describe('embedding backfill helpers', () => {
   it('pins backfill to the wired embedding model until another provider is implemented', () => {
     expect(validateBackfillModel(DEFAULT_EMBEDDING_MODEL)).toBe(DEFAULT_EMBEDDING_MODEL);
     expect(() => validateBackfillModel('voyage-3')).toThrow('Unsupported embedding model');
+  });
+
+  it('rejects provider results that do not match the requested persisted model', () => {
+    expect(() =>
+      assertBackfillResultModel(DEFAULT_EMBEDDING_MODEL, DEFAULT_EMBEDDING_MODEL),
+    ).not.toThrow();
+    expect(() =>
+      assertBackfillResultModel(DEFAULT_EMBEDDING_MODEL, 'mock-embedding'),
+    ).toThrow('Refusing to persist incompatible vectors');
   });
 });

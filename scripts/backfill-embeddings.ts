@@ -10,6 +10,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { embedMany } from '../src/lib/embeddings/pipeline';
 import {
+  assertBackfillResultModel,
   DEFAULT_BACKFILL_BATCH_SIZE,
   estimateBackfillCandidates,
   normalizeBackfillBatchSize,
@@ -305,12 +306,15 @@ async function main(): Promise<void> {
 
       const rows = embedded.results
         .filter((result) => result.sourceChunkId)
-        .map((result) => ({
-          sourceChunkId: result.sourceChunkId!,
-          model: result.model,
-          dimensions: result.dimensions,
-          vector: result.vector,
-        }));
+        .map((result) => {
+          assertBackfillResultModel(args.model, result.model);
+          return {
+            sourceChunkId: result.sourceChunkId!,
+            model: result.model,
+            dimensions: result.dimensions,
+            vector: result.vector,
+          };
+        });
 
       const write = await prisma.vectorEmbedding.createMany({
         data: rows,
