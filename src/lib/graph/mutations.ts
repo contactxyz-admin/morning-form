@@ -28,6 +28,7 @@ import {
 import { ROLLING_ATTRIBUTE_FIELDS, validateAttributesForWrite } from './attributes';
 import { assertEdgeEndpoints } from './edge-validation';
 import type { NodeType } from './types';
+import { embedAndStoreChunk } from '@/lib/embeddings/pipeline';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -308,7 +309,7 @@ export async function ingestExtraction(
   userId: string,
   input: IngestExtractionInput,
 ): Promise<IngestExtractionResult> {
-  return client.$transaction(async (tx) => {
+  const result = await client.$transaction(async (tx) => {
     let droppedEdges = 0;
     const { id: documentId, deduped } = await addSourceDocument(tx, userId, input.document);
     const chunkIds = deduped
@@ -404,6 +405,53 @@ export async function ingestExtraction(
     // Default Prisma timeout is 5s; lab PDF ingests with N>50 nodes hit 100+
     // sequential round trips and trip P2028. 30s leaves headroom.
     timeout: 30_000,
+  });
+
+  // PR 3 ingestion integration (post-commit hook):
+  // Fire embedAndStoreChunk (from PR 2 pipeline) and persist VectorEmbedding
+  // rows in a fire-and-forget manner. Gated behind HYBRID_RETRIEVAL_ENABLED
+  // (default off → zero impact on existing ingest paths, MCP clients, and
+  // tests). Transient embed/store failures are logged but never surface to the
+  // user or roll back the extraction. Dry-run when flag unset (no call at all).
+  // chunkIds order matches input.chunks.
+  if (process.env.HYBRID_RETRIEVAL_ENABLED === 'true') {
+    for (let i = 0; i < result.chunkIds.length; i++) {
+      const sourceChunkId = result.chunkIds[i];
+      const text = input.chunks[i]?.text;
+      if (text && text.trim().length > 0) {
+        embedAndPersistChunk(client, userId, sourceChunkId, text).catch((err) => {
+          console.error(
+            `[ingestExtraction] embeddings post-commit hook failed for chunk ${sourceChunkId} (user ${userId})`,
+            err,
+          );
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
+async function embedAndPersistChunk(
+  client: PrismaClient,
+  userId: string,
+  sourceChunkId: string,
+  text: string,
+): Promise<void> {
+  const embedding = await embedAndStoreChunk({ text, sourceChunkId, userId });
+  await client.vectorEmbedding.upsert({
+    where: { sourceChunkId },
+    create: {
+      sourceChunkId,
+      model: embedding.model,
+      dimensions: embedding.dimensions,
+      vector: embedding.vector,
+    },
+    update: {
+      model: embedding.model,
+      dimensions: embedding.dimensions,
+      vector: embedding.vector,
+    },
   });
 }
 

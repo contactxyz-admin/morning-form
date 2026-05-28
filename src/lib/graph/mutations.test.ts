@@ -1,9 +1,25 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
+
+const { mockEmbedAndStoreChunk } = vi.hoisted(() => ({
+  mockEmbedAndStoreChunk: vi.fn().mockResolvedValue({
+    vector: Array.from({ length: 1536 }, (_, i) => i / 1536),
+    tokens: 12,
+    costUsd: 0.00000024,
+    model: 'mock-embedding',
+    dimensions: 1536,
+  }),
+}));
+
+vi.mock('@/lib/embeddings/pipeline', () => ({
+  embedAndStoreChunk: mockEmbedAndStoreChunk,
+}));
+
 import { addEdge, addNode, addSourceChunks, addSourceDocument, ingestExtraction } from './mutations';
 import { makeTestUser, setupTestDb, teardownTestDb } from './test-db';
 
 let prisma: PrismaClient;
+const originalHybridFlag = process.env.HYBRID_RETRIEVAL_ENABLED;
 
 beforeAll(async () => {
   prisma = await setupTestDb();
@@ -11,6 +27,19 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await teardownTestDb();
+});
+
+beforeEach(() => {
+  delete process.env.HYBRID_RETRIEVAL_ENABLED;
+});
+
+afterEach(() => {
+  mockEmbedAndStoreChunk.mockClear();
+  if (originalHybridFlag === undefined) {
+    delete process.env.HYBRID_RETRIEVAL_ENABLED;
+  } else {
+    process.env.HYBRID_RETRIEVAL_ENABLED = originalHybridFlag;
+  }
 });
 
 describe('addNode dedup + merge', () => {
@@ -189,6 +218,44 @@ describe('ingestExtraction transactional write', () => {
     });
     expect(associativeCount).toBe(0);
   });
+
+  it('embeds and persists SourceChunk vectors after commit when hybrid retrieval is enabled', async () => {
+    process.env.HYBRID_RETRIEVAL_ENABLED = 'true';
+    const userId = await makeTestUser(prisma, 'ingest-embed-store');
+
+    const result = await ingestExtraction(prisma, userId, {
+      document: {
+        kind: 'lab_pdf',
+        capturedAt: new Date('2026-04-10T00:00:00Z'),
+        contentHash: 'hash-embed-store',
+        sourceRef: 'medichecks-embed.pdf',
+      },
+      chunks: [
+        { index: 0, text: 'Ferritin 18 ug/L (low)', offsetStart: 0, offsetEnd: 22, pageNumber: 1 },
+      ],
+      nodes: [
+        {
+          type: 'biomarker',
+          canonicalKey: 'ferritin',
+          displayName: 'Ferritin',
+          attributes: { latestValue: 18, unit: 'ug/L', flaggedOutOfRange: true },
+          supportingChunkIndices: [0],
+        },
+      ],
+      edges: [],
+    });
+
+    expect(mockEmbedAndStoreChunk).toHaveBeenCalledWith({
+      text: 'Ferritin 18 ug/L (low)',
+      sourceChunkId: result.chunkIds[0],
+      userId,
+    });
+
+    const row = await eventuallyVectorEmbedding(result.chunkIds[0]);
+    expect(row?.model).toBe('mock-embedding');
+    expect(row?.dimensions).toBe(1536);
+    expect(row?.vector).toHaveLength(1536);
+  });
 });
 
 describe('addSourceDocument dedup', () => {
@@ -212,3 +279,12 @@ describe('addSourceDocument dedup', () => {
     expect(second.id).toBe(first.id);
   });
 });
+
+async function eventuallyVectorEmbedding(sourceChunkId: string) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const row = await prisma.vectorEmbedding.findUnique({ where: { sourceChunkId } });
+    if (row) return row;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return prisma.vectorEmbedding.findUnique({ where: { sourceChunkId } });
+}
