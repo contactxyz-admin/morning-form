@@ -1,9 +1,8 @@
 /**
- * `search_graph_nodes` — return nodes in the topic subgraph whose displayName
- * or canonicalKey match the query. Thin adapter over
- * `src/lib/graph/queries.ts::getSubgraphForTopic` + a local case-insensitive
- * substring filter. Stays inside the topic subgraph by construction: we never
- * hand the LLM a node that isn't reachable from the topic's seed patterns.
+ * `search_graph_nodes` — return nodes in the topic subgraph matching the
+ * query. PR5 keeps the public wire shape stable while routing through hybrid
+ * retrieval when a user already has embeddings; otherwise it falls back to the
+ * legacy lexical-in-subgraph path.
  *
  * Scope:
  *   - User-scoping is enforced by `getSubgraphForTopic(..., userId, ...)`.
@@ -11,8 +10,11 @@
  *     returns an empty result, never a cross-topic leak.
  */
 import { z } from 'zod';
-import { getSubgraphForTopic } from '@/lib/graph/queries';
+import { getRecentChunkVectors, getSubgraphForTopic } from '@/lib/graph/queries';
+import { hybridRetrieveNodes } from '@/lib/graph/hybrid-retrieval';
+import { isHybridRetrievalEnabled } from '@/lib/embeddings/compat';
 import { getTopicConfig } from '@/lib/topics/registry';
+import type { GraphNodeRecord, TopicSubgraphSpec } from '@/lib/graph/types';
 import type { ToolContext, ToolHandler } from './types';
 
 export const searchGraphNodesSchema = z.object({
@@ -49,29 +51,67 @@ export const searchGraphNodesHandler: ToolHandler<
       return { matches: [], topicKey: ctx.topicKey, truncated: false };
     }
 
-    const subgraph = await getSubgraphForTopic(ctx.db, ctx.userId, {
+    const topicSpec: TopicSubgraphSpec = {
       types: topic.relevantNodeTypes,
       canonicalKeyPatterns: topic.canonicalKeyPatterns,
       depth: topic.depth,
-    });
-
-    const q = args.query.toLowerCase();
-    const filtered = subgraph.nodes.filter((n) => {
-      return (
-        n.displayName.toLowerCase().includes(q) ||
-        n.canonicalKey.toLowerCase().includes(q)
-      );
-    });
+    };
 
     const limit = args.limit ?? 10;
+
+    if (isHybridRetrievalEnabled()) {
+      const existingVectors = await getRecentChunkVectors(ctx.db, ctx.userId, 1);
+      if (existingVectors.length > 0) {
+        try {
+          const hybrid = await hybridRetrieveNodes(ctx.db, ctx.userId, args.query, {
+            topicKey: ctx.topicKey,
+            limit: limit + 1,
+            requireQueryArmMatch: true,
+          });
+          if (hybrid.length > 0) {
+            const truncated = hybrid.length > limit;
+            return {
+              matches: toResultItems(hybrid.slice(0, limit).map((item) => item.node)),
+              topicKey: ctx.topicKey,
+              truncated,
+            };
+          }
+        } catch {
+          // Hybrid retrieval is an implementation detail. Provider/network/raw
+          // query failures fall back to the legacy path so MCP/tool contracts
+          // and existing scribe flows remain stable.
+        }
+      }
+    }
+
+    const filtered = await legacyLexicalSearch(ctx, args.query, topicSpec);
     const truncated = filtered.length > limit;
-    const matches: SearchGraphNodesResultItem[] = filtered.slice(0, limit).map((n) => ({
-      id: n.id,
-      type: n.type,
-      canonicalKey: n.canonicalKey,
-      displayName: n.displayName,
-    }));
+    const matches = toResultItems(filtered.slice(0, limit));
 
     return { matches, topicKey: ctx.topicKey, truncated };
   },
 };
+
+async function legacyLexicalSearch(
+  ctx: ToolContext,
+  query: string,
+  topicSpec: TopicSubgraphSpec,
+): Promise<GraphNodeRecord[]> {
+  const subgraph = await getSubgraphForTopic(ctx.db, ctx.userId, topicSpec);
+  const q = query.toLowerCase();
+  return subgraph.nodes.filter((n) => {
+    return (
+      n.displayName.toLowerCase().includes(q) ||
+      n.canonicalKey.toLowerCase().includes(q)
+    );
+  });
+}
+
+function toResultItems(nodes: GraphNodeRecord[]): SearchGraphNodesResultItem[] {
+  return nodes.map((n) => ({
+    id: n.id,
+    type: n.type,
+    canonicalKey: n.canonicalKey,
+    displayName: n.displayName,
+  }));
+}

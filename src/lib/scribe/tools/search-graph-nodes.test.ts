@@ -1,7 +1,22 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
-import { addNode } from '@/lib/graph/mutations';
+import { addEdge, addNode, addSourceChunks, addSourceDocument } from '@/lib/graph/mutations';
+
+const { mockEmbedQuery } = vi.hoisted(() => ({
+  mockEmbedQuery: vi.fn(),
+}));
+
+vi.mock('@/lib/embeddings/pipeline', () => ({
+  embedQuery: mockEmbedQuery,
+}));
+
+vi.mock('@/lib/embeddings/compat', () => ({
+  getVectorSearchStrategy: vi.fn(() => 'js-cosine'),
+  isHybridRetrievalEnabled: vi.fn(() => true),
+  isPgvectorAvailable: vi.fn(() => true),
+}));
+
 import { searchGraphNodesHandler } from './search-graph-nodes';
 import type { ToolContext } from './types';
 
@@ -13,6 +28,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await teardownTestDb();
+});
+
+beforeEach(() => {
+  mockEmbedQuery.mockReset();
 });
 
 async function seedIronSubgraph(userId: string) {
@@ -110,5 +129,58 @@ describe('search_graph_nodes handler', () => {
     const ctx: ToolContext = { db: prisma, userId, topicKey: 'nonsense', requestId: 'test-req-id' };
     const result = await searchGraphNodesHandler.execute(ctx, { query: 'ferritin' });
     expect(result.matches).toHaveLength(0);
+  });
+
+  it('uses hybrid retrieval to return a semantically relevant node that lexical search misses', async () => {
+    const userId = await makeTestUser(prisma, 'search-semantic-hybrid');
+    const { id: documentId } = await addSourceDocument(prisma, userId, {
+      kind: 'lab_pdf',
+      capturedAt: new Date('2026-04-01T00:00:00Z'),
+      contentHash: 'semantic-hybrid-ferritin',
+      sourceRef: 'lab.pdf',
+    });
+    const [chunkId] = await addSourceChunks(prisma, documentId, [
+      {
+        index: 0,
+        text: 'Ferritin 18 ug/L (30-400). Iron stores are below the printed range.',
+        offsetStart: 0,
+        offsetEnd: 70,
+        pageNumber: 1,
+      },
+    ]);
+    const ferritin = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+    });
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'haemoglobin',
+      displayName: 'Haemoglobin',
+    });
+    await addEdge(prisma, userId, {
+      type: 'SUPPORTS',
+      fromNodeId: ferritin.id,
+      toNodeId: ferritin.id,
+      fromChunkId: chunkId,
+      fromDocumentId: documentId,
+    });
+    await prisma.vectorEmbedding.create({
+      data: {
+        sourceChunkId: chunkId,
+        model: 'mock-embedding',
+        dimensions: 3,
+        vector: [1, 0, 0],
+      },
+    });
+    mockEmbedQuery.mockResolvedValueOnce([1, 0, 0]);
+
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'test-req-id' };
+    const result = await searchGraphNodesHandler.execute(ctx, { query: 'low iron stores' });
+
+    expect(result.topicKey).toBe('iron');
+    expect(result.truncated).toBe(false);
+    expect(result.matches.map((m) => m.canonicalKey)).toEqual(['ferritin']);
+    expect(mockEmbedQuery).toHaveBeenCalledWith('low iron stores');
   });
 });
