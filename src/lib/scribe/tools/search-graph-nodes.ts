@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { getRecentChunkVectors, getSubgraphForTopic } from '@/lib/graph/queries';
 import { hybridRetrieveNodes } from '@/lib/graph/hybrid-retrieval';
 import { isHybridRetrievalEnabled } from '@/lib/embeddings/compat';
+import { logHybridRetrievalGroundingScore } from '@/lib/metrics/hybrid-retrieval-grounding';
 import { getTopicConfig } from '@/lib/topics/registry';
 import type { GraphNodeRecord, TopicSubgraphSpec } from '@/lib/graph/types';
 import type { ToolContext, ToolHandler } from './types';
@@ -70,6 +71,13 @@ export const searchGraphNodesHandler: ToolHandler<
           });
           if (hybrid.length > 0) {
             const truncated = hybrid.length > limit;
+            logHybridRetrievalGroundingScore({
+              userId: ctx.userId,
+              topicKey: ctx.topicKey,
+              toolName: 'search_graph_nodes',
+              query: args.query,
+              results: hybrid.slice(0, limit),
+            });
             return {
               matches: toResultItems(hybrid.slice(0, limit).map((item) => item.node)),
               topicKey: ctx.topicKey,

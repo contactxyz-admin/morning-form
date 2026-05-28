@@ -38,6 +38,7 @@ model User {
   suggestions       Suggestion[]
   preferences       UserPreferences?
   sourceDocuments   SourceDocument[]
+  embeddingBackfills EmbeddingBackfillState[]
   graphNodes        GraphNode[]
   graphEdges        GraphEdge[]
   graphNodeLayouts  GraphNodeLayout[]
@@ -259,6 +260,34 @@ model VectorEmbedding {
 
   @@index([sourceChunkId])
   @@index([model, createdAt])
+}
+
+model EmbeddingBackfillState {
+  id                          String    @id @default(cuid())
+  userId                      String?
+  user                        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  model                       String
+  status                      String    @default("running") // running | completed | failed
+  dryRun                      Boolean   @default(false)
+  estimateOnly                Boolean   @default(false)
+  batchSize                   Int       @default(80)
+  processedChunks             Int       @default(0)
+  embeddedChunks              Int       @default(0)
+  skippedChunks               Int       @default(0)
+  totalTokens                 Int       @default(0)
+  totalCostUsd                Float     @default(0)
+  estimatedPendingChunks      Int       @default(0)
+  estimatedPendingTokens      Int       @default(0)
+  estimatedPendingCostUsd     Float     @default(0)
+  lastProcessedChunkId        String?
+  lastProcessedChunkCreatedAt DateTime?
+  error                       String?
+  startedAt                   DateTime  @default(now())
+  completedAt                 DateTime?
+  updatedAt                   DateTime  @updatedAt
+
+  @@index([userId, model, status])
+  @@index([updatedAt])
 }
 
 model GraphNode {
