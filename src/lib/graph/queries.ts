@@ -15,7 +15,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import {
   type EdgeType,
   type GraphEdgeRecord,
@@ -333,4 +333,114 @@ export async function getGraphRevision(db: Db, userId: string): Promise<GraphRev
   const hashInput = `${nodeCount}|${edgeCount}|${maxUpdatedAt?.toISOString() ?? 'none'}`;
   const hash = createHash('sha256').update(hashInput).digest('hex').slice(0, 16);
   return { nodeCount, edgeCount, maxUpdatedAt, hash };
+}
+
+/**
+ * PR 4 additions for hybrid retrieval (vector arm + lexical/graph arm support).
+ * These are intentionally small, focused helpers. Vector access uses $queryRaw
+ * (VectorEmbedding model lands in PR 1; raw keeps PR 4 compilable on current
+ * base branch state and on sqlite dev/CI where the compat guard forces fallback).
+ */
+
+/** Row shape for vector arm candidate fetch. */
+export interface ChunkVectorRow {
+  chunkId: string;
+  vector: number[];
+}
+
+/**
+ * Fetches up to `limit` recent SourceChunks that have embeddings for the user.
+ * Returns [] on any DB error (no table yet, sqlite, extension absent, etc.).
+ * This enables the js-cosine path + graceful fallback when !isPgvectorAvailable().
+ */
+export async function getRecentChunkVectors(
+  db: Db,
+  userId: string,
+  limit = 400,
+): Promise<ChunkVectorRow[]> {
+  try {
+    const rows = await db.$queryRaw<ChunkVectorRow[]>(Prisma.sql`
+      SELECT
+        ve."sourceChunkId" AS "chunkId",
+        ve.vector
+      FROM "VectorEmbedding" ve
+      JOIN "SourceChunk" sc ON sc.id = ve."sourceChunkId"
+      JOIN "SourceDocument" sd ON sd.id = sc."sourceDocumentId"
+      WHERE sd."userId" = ${userId}
+      ORDER BY sc."createdAt" DESC
+      LIMIT ${limit}
+    `);
+    return (rows ?? []).map((r: any) => ({
+      chunkId: String(r.chunkId),
+      vector: Array.isArray(r.vector) ? r.vector.map((v: any) => Number(v)) : [],
+    }));
+  } catch {
+    // Missing table / sqlite / no pgvector / permissions → caller falls back
+    return [];
+  }
+}
+
+/**
+ * For a set of chunkIds, returns chunkId → [nodeId, ...] for all SUPPORTS edges
+ * originating from those chunks. Used to lift vector-matched chunks → nodes.
+ * Strictly user-scoped (defence-in-depth).
+ */
+export async function getNodeIdsForSupportChunks(
+  db: Db,
+  chunkIds: string[],
+  userId: string,
+): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+  for (const id of chunkIds) result.set(id, []);
+  if (chunkIds.length === 0) return result;
+
+  const edges = await db.graphEdge.findMany({
+    where: {
+      userId,
+      type: 'SUPPORTS',
+      fromChunkId: { in: chunkIds },
+    },
+    select: { fromChunkId: true, toNodeId: true },
+  });
+  for (const e of edges) {
+    if (e.fromChunkId) {
+      const arr = result.get(e.fromChunkId)!;
+      if (!arr.includes(e.toNodeId)) arr.push(e.toNodeId);
+    }
+  }
+  return result;
+}
+
+/**
+ * Bounded fetch of a user's nodes (lexical arm when no topicKey; also useful
+ * for future list_graph_index semantic slices). Caps at 2000 to stay safe.
+ */
+export async function getAllNodesForUser(
+  db: Db,
+  userId: string,
+  opts: { limit?: number } = {},
+): Promise<GraphNodeRecord[]> {
+  const limit = opts.limit ?? 2000;
+  const rows = await db.graphNode.findMany({
+    where: { userId },
+    orderBy: { updatedAt: 'desc' },
+    take: limit,
+  });
+  return rows.map(rowToNode);
+}
+
+/**
+ * Fetch GraphNodeRecords by id list (optional userId guard for safety).
+ * PR 4 helper for assembling hybrid results after RRF.
+ */
+export async function getNodesByIds(
+  db: Db,
+  ids: string[],
+  userId?: string,
+): Promise<GraphNodeRecord[]> {
+  if (ids.length === 0) return [];
+  const where: any = { id: { in: ids } };
+  if (userId) where.userId = userId;
+  const rows = await db.graphNode.findMany({ where });
+  return rows.map(rowToNode);
 }
