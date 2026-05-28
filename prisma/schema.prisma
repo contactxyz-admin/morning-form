@@ -237,10 +237,28 @@ model SourceChunk {
   pageNumber       Int?
   metadata         String?
   edges            GraphEdge[]    @relation("EdgeSourceChunk")
+  embeddings       VectorEmbedding[]
   createdAt        DateTime       @default(now())
 
   @@unique([sourceDocumentId, index])
   @@index([sourceDocumentId])
+}
+
+model VectorEmbedding {
+  id            String      @id @default(cuid())
+  sourceChunkId String      @unique(map: "VectorEmbedding_sourceChunkId_key")
+  sourceChunk   SourceChunk @relation(fields: [sourceChunkId], references: [id], onDelete: Cascade, map: "VectorEmbedding_sourceChunkId_fkey")
+  model         String      // "openai/text-embedding-3-small" | "voyage-3" etc.
+  dimensions    Int
+  // Float[] chosen for immediate Prisma compatibility + testability (MVP).
+  // Native pgvector (vector(1536)) + HNSW + <-> cosine operators enabled via ALTER in follow-up after PR 6 backfill.
+  // MVP query arm uses JS-side cosine (or raw unnest math) on bounded candidates while Float[] (see Hybrid Query Path).
+  vector        Float[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([sourceChunkId])
+  @@index([model, createdAt])
 }
 
 model GraphNode {
