@@ -408,19 +408,18 @@ export async function ingestExtraction(
   });
 
   // PR 3 ingestion integration (post-commit hook):
-  // Fire embedAndStoreChunk (from PR 2 pipeline) in a fire-and-forget manner.
-  // Gated behind HYBRID_RETRIEVAL_ENABLED (default off → zero impact on all
-  // existing ingest paths, MCP clients, and tests). Transient embed failures
-  // are logged but never surface to the user or roll back the extraction.
-  // Matches exact patterns from session.ts / pdf-extract.ts (silent .catch on
-  // side effects) and ingestExtraction's own console.warn style for diagnostics.
-  // Dry-run when flag unset (no call at all). chunkIds order matches input.chunks.
+  // Fire embedAndStoreChunk (from PR 2 pipeline) and persist VectorEmbedding
+  // rows in a fire-and-forget manner. Gated behind HYBRID_RETRIEVAL_ENABLED
+  // (default off → zero impact on existing ingest paths, MCP clients, and
+  // tests). Transient embed/store failures are logged but never surface to the
+  // user or roll back the extraction. Dry-run when flag unset (no call at all).
+  // chunkIds order matches input.chunks.
   if (process.env.HYBRID_RETRIEVAL_ENABLED === 'true') {
     for (let i = 0; i < result.chunkIds.length; i++) {
       const sourceChunkId = result.chunkIds[i];
       const text = input.chunks[i]?.text;
       if (text && text.trim().length > 0) {
-        embedAndStoreChunk({ text, sourceChunkId, userId }).catch((err) => {
+        embedAndPersistChunk(client, userId, sourceChunkId, text).catch((err) => {
           console.error(
             `[ingestExtraction] embeddings post-commit hook failed for chunk ${sourceChunkId} (user ${userId})`,
             err,
@@ -431,6 +430,29 @@ export async function ingestExtraction(
   }
 
   return result;
+}
+
+async function embedAndPersistChunk(
+  client: PrismaClient,
+  userId: string,
+  sourceChunkId: string,
+  text: string,
+): Promise<void> {
+  const embedding = await embedAndStoreChunk({ text, sourceChunkId, userId });
+  await client.vectorEmbedding.upsert({
+    where: { sourceChunkId },
+    create: {
+      sourceChunkId,
+      model: embedding.model,
+      dimensions: embedding.dimensions,
+      vector: embedding.vector,
+    },
+    update: {
+      model: embedding.model,
+      dimensions: embedding.dimensions,
+      vector: embedding.vector,
+    },
+  });
 }
 
 /**

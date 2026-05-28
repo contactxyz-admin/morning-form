@@ -51,6 +51,9 @@ const optional = {
   // the one-time SQL in docs/migrations/. Set to 'false'/'0' to force
   // lexical+graph fallback even on postgres (for tests/CI).
   PGVECTOR_ENABLED: process.env.PGVECTOR_ENABLED ?? '',
+  // Hybrid retrieval rollout flag. PR 3 uses this to keep ingest embeddings
+  // opt-in until the full retrieval path and backfill proof land.
+  HYBRID_RETRIEVAL_ENABLED: process.env.HYBRID_RETRIEVAL_ENABLED ?? '',
 };
 
 export const env = {

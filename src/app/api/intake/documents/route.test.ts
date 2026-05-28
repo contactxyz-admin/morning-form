@@ -475,9 +475,21 @@ describe('POST /api/intake/documents', () => {
       // Hook was invoked (at least once; real count matches chunks produced for this extraction).
       expect(mockEmbedAndStoreChunk).toHaveBeenCalled();
       const firstCall = mockEmbedAndStoreChunk.mock.calls[0]?.[0];
-      expect(firstCall?.text).toContain('Ferritin'); // from the LAB_PAGE_TEXT fixture
+      expect(firstCall?.text).toBeTypeOf('string');
+      expect(firstCall?.text.length).toBeGreaterThan(0);
       expect(firstCall?.sourceChunkId).toBeTypeOf('string');
       expect(firstCall?.userId).toBe(userId);
+      expect(mockEmbedAndStoreChunk.mock.calls.some(([arg]) => arg.text.includes('Ferritin'))).toBe(true);
+
+      const firstChunk = await prisma.sourceChunk.findFirst({
+        where: { sourceDocumentId: body.documentId },
+        orderBy: { index: 'asc' },
+      });
+      expect(firstChunk?.id).toBe(firstCall?.sourceChunkId);
+
+      const stored = await eventuallyVectorEmbedding(firstCall!.sourceChunkId);
+      expect(stored?.model).toBe('mock-embedding');
+      expect(stored?.dimensions).toBe(1536);
     } finally {
       if (originalFlag === undefined) {
         delete process.env.HYBRID_RETRIEVAL_ENABLED;
@@ -487,3 +499,12 @@ describe('POST /api/intake/documents', () => {
     }
   });
 });
+
+async function eventuallyVectorEmbedding(sourceChunkId: string) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const row = await prisma.vectorEmbedding.findUnique({ where: { sourceChunkId } });
+    if (row) return row;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return prisma.vectorEmbedding.findUnique({ where: { sourceChunkId } });
+}
