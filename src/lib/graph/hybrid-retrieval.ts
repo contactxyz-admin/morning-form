@@ -66,6 +66,12 @@ export interface HybridRetrieveOptions {
   lexicalK?: number; // top nodes from lexical arm (default 30)
   graphDepth?: number; // expansion depth for graph arm (default 2)
   rrfK?: number; // RRF constant (60 is literature standard)
+  /**
+   * When true, graph traversal can boost/rerank but cannot introduce
+   * graph-only results. This preserves search_graph_nodes semantics: results
+   * must match the user's query via lexical or vector evidence.
+   */
+  requireQueryArmMatch?: boolean;
 }
 
 /**
@@ -199,6 +205,7 @@ export async function hybridRetrieveNodes(
     lexicalK = 30,
     graphDepth = 2,
     rrfK = 60,
+    requireQueryArmMatch = false,
   } = options;
 
   // Resolve topic scoping (if any). Unknown topicKey → treat as no-topic
@@ -280,7 +287,10 @@ export async function hybridRetrieveNodes(
   }
 
   // --- RRF fusion ---
-  const fused = rrfFuse([vectorNodeIds, lexicalNodeIds, graphNodeIds], rrfK);
+  const queryArmIds = new Set([...vectorNodeIds, ...lexicalNodeIds]);
+  const fused = rrfFuse([vectorNodeIds, lexicalNodeIds, graphNodeIds], rrfK).filter(
+    (item) => !requireQueryArmMatch || queryArmIds.has(item.id),
+  );
   const topFused = fused.slice(0, limit);
   const topIds = topFused.map((f) => f.id);
 

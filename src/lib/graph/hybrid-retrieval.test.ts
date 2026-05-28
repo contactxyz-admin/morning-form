@@ -253,6 +253,29 @@ describe('hybridRetrieveNodes (mocked arms + RRF + fallback)', () => {
     expect(best.score).toBeGreaterThan(0.01);
   });
 
+  it('can require a lexical or vector match so graph traversal only boosts results', async () => {
+    vi.mocked(embedQuery).mockResolvedValue([1, 0, 0]);
+    vi.mocked(getRecentChunkVectors).mockResolvedValue([]);
+    vi.mocked(getAllNodesForUser).mockResolvedValue([
+      { id: 'node_other', canonicalKey: 'haemoglobin', displayName: 'Haemoglobin' } as any,
+    ]);
+    vi.mocked(getSubgraphForTopic).mockResolvedValue({
+      nodes: [{ id: 'node_graph_only', canonicalKey: 'ferritin', displayName: 'Ferritin' } as any],
+      edges: [],
+    });
+    vi.mocked(getNodesByIds).mockResolvedValue([
+      { id: 'node_graph_only', canonicalKey: 'ferritin', displayName: 'Ferritin', type: 'biomarker' } as any,
+    ]);
+    vi.mocked(getProvenanceForNodes).mockResolvedValue(new Map());
+
+    const results = await hybridRetrieveNodes(mockDb, userId, 'low iron stores', {
+      topicKey: 'iron',
+      requireQueryArmMatch: true,
+    });
+
+    expect(results).toEqual([]);
+  });
+
   it('respects topicKey scoping (unknown topic yields no graph arm leakage)', async () => {
     vi.mocked(getRecentChunkVectors).mockResolvedValue([]);
     vi.mocked(getAllNodesForUser).mockResolvedValue([
