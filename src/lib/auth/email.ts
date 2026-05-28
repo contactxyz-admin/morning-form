@@ -28,8 +28,8 @@ export class ResendRateLimitError extends Error {
   }
 }
 export class ResendTransientError extends Error {
-  constructor(public status: number) {
-    super(`resend transient error: ${status}`);
+  constructor(public status: number, public details?: string) {
+    super(`resend transient error: ${status}${details ? ` — ${details}` : ''}`);
     this.name = 'ResendTransientError';
   }
 }
@@ -52,6 +52,9 @@ export async function sendMagicLinkEmail({ to, verifyUrl }: SendMagicLinkArgs): 
     // Dev/test bypass — emit the link so a human or test can follow it.
     console.log(`[auth] dev magic-link for ${to}: ${verifyUrl}`);
     return { sent: false };
+  }
+  if (!env.RESEND_FROM) {
+    throw new ResendAuthError('RESEND_FROM required');
   }
 
   const subject = 'Sign in to MorningForm';
@@ -86,9 +89,15 @@ export async function sendMagicLinkEmail({ to, verifyUrl }: SendMagicLinkArgs): 
   }
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new ResendTransientError(response.status);
+    throw new ResendTransientError(response.status, summarizeResendError(body));
   }
   return { sent: true };
+}
+
+function summarizeResendError(body: string): string | undefined {
+  const trimmed = body.replace(/\s+/g, ' ').trim();
+  if (!trimmed) return undefined;
+  return trimmed.length > 500 ? `${trimmed.slice(0, 497)}...` : trimmed;
 }
 
 async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {

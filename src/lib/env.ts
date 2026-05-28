@@ -78,6 +78,7 @@ export function assertAuthEnv(): void {
   const missing: string[] = [];
   if (!env.SESSION_SECRET || env.SESSION_SECRET.length < 32) missing.push('SESSION_SECRET (>=32 chars)');
   if (!env.RESEND_API_KEY) missing.push('RESEND_API_KEY');
+  if (!env.RESEND_FROM) missing.push('RESEND_FROM');
   if (missing.length) {
     throw new Error(`[env] Missing required auth secrets in production: ${missing.join(', ')}`);
   }
