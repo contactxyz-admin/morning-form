@@ -52,6 +52,18 @@ class OpenAIEmbeddingProvider implements EmbeddingProvider {
 
   private client: OpenAI | null;
   private mock: boolean;
+  private gatewayRouting: boolean;
+
+  /**
+   * Model id to send on the wire. Gateways (Vercel AI Gateway / OpenRouter)
+   * use a "creator/model" id, but OpenAI's direct API rejects that and wants
+   * the bare model id. We only keep the "openai/" prefix when a gateway base
+   * URL is configured. The stored/labelled `this.model` is unchanged so vectors
+   * stay consistently tagged regardless of routing.
+   */
+  private get wireModel(): string {
+    return this.gatewayRouting ? this.model : this.model.replace(/^openai\//, '');
+  }
 
   constructor(deps: ProviderDeps = {}) {
     this.mock =
@@ -75,11 +87,14 @@ class OpenAIEmbeddingProvider implements EmbeddingProvider {
       console.warn('[OpenAIEmbeddingProvider] mock mode — OpenAI will not be called.');
     }
 
+    const baseURL = deps.baseURL ?? process.env.OPENAI_BASE_URL;
+    this.gatewayRouting = Boolean(baseURL);
+
     this.client = this.mock
       ? null
       : new OpenAI({
           apiKey: apiKey || 'missing-key',
-          baseURL: deps.baseURL ?? process.env.OPENAI_BASE_URL,
+          baseURL,
           maxRetries: 0, // we own retry + timeout
           timeout: PER_ATTEMPT_TIMEOUT_MS,
           fetch: deps.fetch,
@@ -100,7 +115,7 @@ class OpenAIEmbeddingProvider implements EmbeddingProvider {
     try {
       const res = await this.callWithRetry(() =>
         this.client!.embeddings.create({
-          model: this.model,
+          model: this.wireModel,
           input,
           // dimensions left default (1536) for 3-small; explicit only if future model needs
         }),

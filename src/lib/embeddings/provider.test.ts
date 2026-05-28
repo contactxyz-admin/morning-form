@@ -74,4 +74,45 @@ describe('createEmbeddingProvider + OpenAIEmbeddingProvider', () => {
     await expect(p.embed('transient')).rejects.toThrow(EmbeddingTransientError);
     expect(fakeFetch).toHaveBeenCalledTimes(3);
   });
+
+  // Regression: the gateway-style model id ("openai/text-embedding-3-small")
+  // was sent verbatim to OpenAI's direct API, which 400s on it. The wire model
+  // must drop the creator prefix unless a gateway baseURL is configured, while
+  // the stored/returned label stays canonical for vector consistency.
+  function makeCapturingFetch(capture: { url?: string; model?: unknown }) {
+    return (async (url: unknown, init?: { body?: unknown }) => {
+      capture.url = String(url);
+      capture.model = JSON.parse(String(init?.body ?? '{}')).model;
+      return new Response(
+        JSON.stringify({
+          object: 'list',
+          data: [{ object: 'embedding', index: 0, embedding: new Array(1536).fill(0) }],
+          usage: { prompt_tokens: 3, total_tokens: 3 },
+          model: 'text-embedding-3-small',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }) as unknown as typeof fetch;
+  }
+
+  it('sends the bare model id to OpenAI direct API when no gateway baseURL is set', async () => {
+    const capture: { url?: string; model?: unknown } = {};
+    const p = createEmbeddingProvider({ apiKey: MOCK_KEY, fetch: makeCapturingFetch(capture), mock: false });
+    const out = await p.embed('hello');
+    expect(capture.model).toBe('text-embedding-3-small');
+    // Stored/returned label stays canonical regardless of wire format.
+    expect(out.model).toBe('openai/text-embedding-3-small');
+  });
+
+  it('keeps the openai/ creator prefix on the wire when a gateway baseURL is configured', async () => {
+    const capture: { url?: string; model?: unknown } = {};
+    const p = createEmbeddingProvider({
+      apiKey: MOCK_KEY,
+      fetch: makeCapturingFetch(capture),
+      mock: false,
+      baseURL: 'https://gateway.example/v1',
+    });
+    await p.embed('hello');
+    expect(capture.model).toBe('openai/text-embedding-3-small');
+  });
 });
