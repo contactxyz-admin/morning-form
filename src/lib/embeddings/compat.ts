@@ -16,7 +16,7 @@ import { env } from '../env';
 export function isPgvectorAvailable(): boolean {
   const url = (env.DATABASE_URL || '').trim();
   if (url.startsWith('file:')) return false;
-  if (process.env.PGVECTOR_ENABLED === 'false' || process.env.PGVECTOR_ENABLED === '0') return false;
+  if (env.PGVECTOR_ENABLED === 'false' || env.PGVECTOR_ENABLED === '0') return false;
   // Postgres target (Neon or local docker): extension is a one-time manual step owned by this PR.
   return true;
 }

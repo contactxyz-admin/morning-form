@@ -42,6 +42,10 @@ const optional = {
   // run with NODE_ENV='production' on every Vercel environment (including
   // previews), and ambient-env semantics could change between runtimes.
   ALLOW_DEMO_BYPASS: process.env.ALLOW_DEMO_BYPASS ?? '',
+  // pgvector guard (PR 1+). ''/absent = available on postgres after running
+  // the one-time SQL in docs/migrations/. Set to 'false'/'0' to force
+  // lexical+graph fallback even on postgres (for tests/CI).
+  PGVECTOR_ENABLED: process.env.PGVECTOR_ENABLED ?? '',
 };
 
 export const env = {
