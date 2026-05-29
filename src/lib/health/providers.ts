@@ -60,7 +60,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     dataCategories: ['sleep', 'activity', 'heart', 'recovery', 'body'],
     oauthBaseUrl: 'https://cloud.ouraring.com/oauth/authorize',
     features: ['readiness_score', 'sleep_score', 'activity_score', 'hrv', 'temperature_deviation', 'respiratory_rate'],
-    scopes: ['daily', 'heartrate', 'personal', 'session', 'sleep', 'workout'],
+    scopes: ['daily', 'heartrate', 'personal', 'session', 'workout'],
     capabilities: PULL_WITH_NOTIFY_WEBHOOK,
   },
   fitbit: {

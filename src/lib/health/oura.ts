@@ -79,7 +79,7 @@ export class OuraClient implements HealthProviderStrategy {
       client_id: this.clientId,
       redirect_uri: redirectUri,
       response_type: 'code',
-      scope: 'daily heartrate personal session sleep workout',
+      scope: 'daily heartrate personal session workout',
     });
     return `https://cloud.ouraring.com/oauth/authorize?${params}`;
   }
