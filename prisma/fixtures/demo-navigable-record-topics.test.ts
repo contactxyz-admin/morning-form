@@ -6,10 +6,11 @@ import { TopicCompiledOutputSchema } from '../../src/lib/topics/types';
 /**
  * Guard rail for the demo-record topic fixture.
  *
- * The fixture is what seeds `/r/demo-navigable-record` on every deploy.
- * If it ever drifts — wrong shape, missing topics, clinical lint
- * violation — every deploy ships a broken demo. This test fails CI
- * loudly so the regenerate workflow runs before the broken fixture
+ * The fixture is what seeds the authed `demo@morningform.com` user on
+ * every deploy. If it ever drifts — wrong shape, missing topics,
+ * clinical lint violation — every deploy ships a broken authed demo
+ * user (and dev/E2E sign-in lands on a blank record). This test fails
+ * CI loudly so the regenerate workflow runs before the broken fixture
  * reaches prod.
  */
 

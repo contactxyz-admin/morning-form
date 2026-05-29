@@ -1,11 +1,17 @@
 /**
  * GET /api/health/demo
  *
- * Cheap operational health check for the public demo at
- * `/r/demo-navigable-record`. Returns the topic count + freshness so
- * external monitors (Vercel Checks, uptime probes, manual eyeballing)
- * can detect drift the moment it happens instead of waiting for a user
- * to load the page and report "the demo is empty."
+ * Cheap operational health check for the seeded `demo@morningform.com`
+ * user — its graph + compiled TopicPages back the authed `/record` and
+ * `/topics/[topicKey]` views in dev/E2E. Returns the topic count +
+ * freshness so external monitors (Vercel Checks, uptime probes, manual
+ * eyeballing) can detect drift before E2E tests trip over it.
+ *
+ * The public navigable-record demo now lives at `/demo/record` (fixture-
+ * direct, no DB) — see
+ * docs/plans/2026-05-16-001-feat-navigable-record-demo-plan.md. This
+ * route still watches the seed-backed data because that's where drift
+ * actually happens (fixture regen, schema changes, registry edits).
  *
  * Three outcomes:
  *   - 200 healthy: demo user exists, registry count == TopicPage count

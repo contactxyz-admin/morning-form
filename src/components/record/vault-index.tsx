@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SectionLabel } from '@/components/ui/section-label';
-import { DEMO_NAVIGABLE_RECORD_SLUG } from '@/lib/record/demo';
 import { ActivityFeed } from './activity-feed';
 import { AddDocumentsDialog } from './add-documents-dialog';
 import { TopicCard } from './topic-card';
@@ -71,7 +70,7 @@ function VaultIndex({ data, onDocumentsAdded }: VaultIndexProps) {
               <Button variant="primary">Add your first source</Button>
             </Link>
             <Link
-              href={`/r/${DEMO_NAVIGABLE_RECORD_SLUG}`}
+              href="/demo/record"
               className="text-caption text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring"
             >
               Or explore the demo record →

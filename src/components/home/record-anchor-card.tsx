@@ -50,7 +50,7 @@ export function RecordAnchorCard({ state }: { state: RecordAnchorState }) {
         <p className="mt-3 text-caption text-text-tertiary">
           or{' '}
           <Link
-            href="/r/demo-navigable-record"
+            href="/demo/record"
             className="underline decoration-text-tertiary/40 underline-offset-2 hover:decoration-text-tertiary"
           >
             explore the demo record

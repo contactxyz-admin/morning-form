@@ -1,6 +1,9 @@
 /**
  * Loader for the committed compiled-topic fixture used to seed the
- * `/r/demo-navigable-record` page.
+ * authed `demo@morningform.com` user's TopicPages (consumed by the
+ * authed `/record` and `/topics/[topicKey]` views in dev/E2E). The
+ * public-facing demo at `/demo/record` is fixture-direct and does not
+ * touch this loader.
  *
  * Why this exists: the demo's topic content used to be compiled at seed
  * time via the Anthropic API. That created a dependency on LLM

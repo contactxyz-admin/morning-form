@@ -49,6 +49,21 @@ const nextConfig = {
   eslint: {
     dirs: ['src/app/api'],
   },
+  async redirects() {
+    return [
+      // The public navigable-record demo used to live at /r/demo-navigable-record;
+      // it now lives at /demo/record alongside the rest of the metabolic-syndrome
+      // persona walkthrough (overview + record + ask). 308 preserves the request
+      // method and tells crawlers the move is permanent. Query strings carry
+      // through automatically. See
+      // docs/plans/2026-05-16-001-feat-navigable-record-demo-plan.md (U2).
+      {
+        source: '/r/demo-navigable-record',
+        destination: '/demo/record',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
