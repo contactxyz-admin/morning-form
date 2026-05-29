@@ -145,8 +145,7 @@ export interface ScribeExecuteResult {
   auditId: string;
 }
 
-function buildSystemPrompt(policy: SafetyPolicy, override?: string): string {
-  if (override) return override;
+export function buildDefaultScribeSystemPrompt(policy: SafetyPolicy): string {
   return [
     `You are the specialist scribe for topic "${policy.topicKey}".`,
     `You may only make judgments of these kinds: ${policy.allowedJudgmentKinds.join(', ')}.`,
@@ -154,6 +153,11 @@ function buildSystemPrompt(policy: SafetyPolicy, override?: string): string {
     `Never name medications or dosages. Never use imperative treatment verbs.`,
     `Every claim must resolve to a graph-node citation you surfaced with get_node_provenance.`,
   ].join(' ');
+}
+
+function buildSystemPrompt(policy: SafetyPolicy, override?: string): string {
+  if (override) return override;
+  return buildDefaultScribeSystemPrompt(policy);
 }
 
 export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteResult> {

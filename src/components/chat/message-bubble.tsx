@@ -18,6 +18,7 @@ import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
 import type { Referral } from '@/lib/chat/types';
 import { Mention } from '@/components/mention/mention';
+import { AnswerRenderer } from './answer-renderer';
 import { ReferralChips } from './referral-chip';
 import { SpecialistChip } from './specialist-chip';
 
@@ -116,11 +117,19 @@ function AssistantBubble({ message }: { message: AssistantBubbleModel }) {
       <div
         className={cn(
           'max-w-[85%] rounded-card border border-border bg-surface px-4 py-3',
-          'text-body text-text-primary leading-relaxed',
+          'text-body text-text-primary leading-relaxed overflow-hidden',
           message.pending && 'animate-pulse-subtle',
         )}
       >
-        {message.content || <span className="text-text-tertiary">…</span>}
+        {message.pending ? (
+          message.content ? (
+            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          ) : (
+            <span className="text-text-tertiary">...</span>
+          )
+        ) : (
+          <AnswerRenderer content={message.content} />
+        )}
       </div>
 
       {message.citations.length > 0 && (

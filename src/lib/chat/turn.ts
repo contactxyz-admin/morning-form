@@ -28,7 +28,13 @@ import type { Citation } from '@/lib/topics/types';
 import type { Db } from '@/lib/scribe/tools/types';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import { LLMClient } from '@/lib/llm/client';
-import { execute, type ScribeLLMClient } from '@/lib/scribe/execute';
+import {
+  buildDefaultScribeSystemPrompt,
+  execute,
+  type ScribeLLMClient,
+} from '@/lib/scribe/execute';
+import { appendAskAnswerStylePrompt } from '@/lib/chat/answer-style';
+import { getPolicy } from '@/lib/scribe/policy/registry';
 import { ScribeAuditWriteError } from '@/lib/scribe/repo';
 import { parseScribeAnnotations } from '@/lib/scribe/annotations';
 import { routeTurn, type RouteDecision } from '@/lib/scribe/router';
@@ -152,7 +158,7 @@ export async function* runChatTurn(
   //    router's null is resolved to the general scribe). execute() owns
   //    the D11 audit write so every turn writes a ScribeAudit row.
   const topicKey = resolveTopicKey(decision);
-  const systemPrompt = loadSpecialtySystemPrompt(topicKey);
+  const systemPrompt = buildAskRuntimeSystemPrompt(topicKey);
 
   let result;
   try {
@@ -240,6 +246,16 @@ export async function* runChatTurn(
     auditId: result.auditId,
     referrals,
   };
+}
+
+function buildAskRuntimeSystemPrompt(topicKey: string): string | undefined {
+  const specialtyPrompt = loadSpecialtySystemPrompt(topicKey);
+  if (specialtyPrompt) {
+    return appendAskAnswerStylePrompt(specialtyPrompt);
+  }
+  const policy = getPolicy(topicKey);
+  if (!policy) return undefined;
+  return appendAskAnswerStylePrompt(buildDefaultScribeSystemPrompt(policy));
 }
 
 /**

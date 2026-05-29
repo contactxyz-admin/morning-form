@@ -24,6 +24,7 @@ import {
 } from '@/lib/scribe/repo';
 import type {
   ScribeLLMClient,
+  ScribeLLMTurnRequest,
   ScribeLLMTurn,
 } from '@/lib/scribe/execute';
 import { __setReferralScribeLLMForTest } from '@/lib/scribe/tools/refer-to-specialist';
@@ -45,10 +46,14 @@ afterEach(() => {
   __setReferralScribeLLMForTest(null);
 });
 
-function scriptedScribe(turns: ScribeLLMTurn[]): ScribeLLMClient {
+function scriptedScribe(
+  turns: ScribeLLMTurn[],
+  calls: Array<Pick<ScribeLLMTurnRequest, 'system'>> = [],
+): ScribeLLMClient {
   const queue = [...turns];
   return {
-    async turn() {
+    async turn(req) {
+      calls.push({ system: req.system });
       const next = queue.shift();
       if (!next) throw new Error('scriptedScribe: queue exhausted');
       return next;
@@ -154,6 +159,40 @@ describe('runChatTurn — happy path (routed → scribe)', () => {
     expect(audits).toHaveLength(1);
     expect(audits[0].topicKey).toBe('iron');
     expect(audits[0].safetyClassification).toBe('clinical-safe');
+  });
+
+  it('appends the Ask answer style contract to legacy topic default prompts', async () => {
+    const userId = await makeTestUser(prisma, 'turn-style-default');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    mockRouter('iron', 0.95, 'mentions ferritin');
+
+    const calls: Array<Pick<ScribeLLMTurnRequest, 'system'>> = [];
+    const scribeLlm = scriptedScribe(
+      [
+        {
+          stopReason: 'end_turn',
+          text: 'I do not have iron results in your record yet.',
+          modelVersion: 'v1',
+          toolCalls: [],
+        },
+      ],
+      calls,
+    );
+
+    await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'what do you know about my iron?',
+        routerLlm: routerClient(),
+        scribeLlm,
+      }),
+    );
+
+    expect(calls[0].system).toContain('You are the specialist scribe for topic "iron".');
+    expect(calls[0].system).toContain('Ask answer style contract:');
+    expect(calls[0].system).toContain('Do not use Markdown tables');
+    expect(calls[0].system).toContain('no diagnosis');
   });
 
   it('works for the very first turn (no prior history)', async () => {
