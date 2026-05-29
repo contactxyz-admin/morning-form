@@ -28,9 +28,15 @@ vi.mock('@/lib/env', () => ({
   getSessionSecret: () => 'test-session-secret-at-least-thirty-two-characters-long',
 }));
 
-vi.mock('@/lib/auth/email', () => ({
-  sendMagicLinkEmail: (...args: unknown[]) => sendMock(...(args as [])),
-}));
+vi.mock('@/lib/auth/email', async (importOriginal) => {
+  // Preserve the real ResendAuthError / ResendTransientError exports so the
+  // email-health classifier's `instanceof` checks resolve; only the send fn is mocked.
+  const actual = await importOriginal<typeof import('@/lib/auth/email')>();
+  return {
+    ...actual,
+    sendMagicLinkEmail: (...args: unknown[]) => sendMock(...(args as [])),
+  };
+});
 
 import { POST } from './route';
 
