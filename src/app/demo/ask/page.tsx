@@ -50,8 +50,21 @@ const TURNS: readonly [CannedTurn, ...CannedTurn[]] = [
   {
     id: 'fatigue',
     question: 'Why am I tired in the afternoons?',
-    answer:
-      "A few things in your record line up with afternoon fatigue. Your ferritin has sat in the low-normal band, your 90-day sleep efficiency was running ~81% before the protocol, and your free testosterone was at the bottom of range. Each can pull energy down on its own — together they compound. The good news: ferritin and sleep efficiency are both moving in the right direction over the last three months.",
+    answer: [
+      'Afternoon fatigue looks multi-factorial in this record, not a single isolated lever.',
+      '',
+      'What I see:',
+      '- Ferritin: low-normal across recent panels',
+      '- Sleep efficiency: improving from the low 80s toward the mid 80s',
+      '- Free testosterone: previously near the bottom of range',
+      '',
+      'What that means:',
+      '- The pattern fits a compounded energy load: iron stores, recovery, and hormones all matter here.',
+      '- The encouraging part is direction: ferritin and sleep efficiency are both moving the right way.',
+      '',
+      'Next:',
+      '- The most useful follow-up is a combined view of iron status and sleep recovery rather than treating either one as the whole story.',
+    ].join('\n'),
     topicKey: 'general',
     referrals: [
       {
@@ -77,8 +90,18 @@ const TURNS: readonly [CannedTurn, ...CannedTurn[]] = [
   {
     id: 'hba1c',
     question: 'Has my HbA1c actually changed?',
-    answer:
-      'Yes, meaningfully. The April 2024 value was 5.85%, drifting up to 6.10% by mid-2025 — into the prediabetic band. Since the August 2025 protocol started, it has come back down to about 5.78% on the most recent panel. Direction matters here: a clean reversal across multiple quarters reads as the lifestyle changes biting, not noise.',
+    answer: [
+      'Yes. The direction changed enough to be meaningful across multiple quarters.',
+      '',
+      'What I see:',
+      '- April 2024: 5.85%',
+      '- Mid-2025 peak: 6.10%',
+      '- Latest panel: about 5.78%',
+      '',
+      'Interpretation:',
+      '- That is a reversal from the prediabetic band back toward the earlier baseline.',
+      '- Because the shift appears across quarters, it reads more like a real trajectory change than a one-off fluctuation.',
+    ].join('\n'),
     topicKey: 'cardiometabolic',
     referrals: [
       {
@@ -95,8 +118,18 @@ const TURNS: readonly [CannedTurn, ...CannedTurn[]] = [
   {
     id: 'sleep',
     question: 'How has my sleep been tracking?',
-    answer:
-      'Steadily improving. Across 720 nights of wearable data, your sleep efficiency has climbed from ~81% to ~85.5%, and HRV has lifted from 38 ms to 47 ms. The clearest break in the trend lines up with the August 2025 changes — caffeine cutoff at 14:00 and a consistent step target. Recovery is reading more reliably now than it did 18 months ago.',
+    answer: [
+      'Sleep is steadily improving, and the recovery signal is becoming more reliable.',
+      '',
+      'What I see:',
+      '- Sleep efficiency: about 81% to 85.5%',
+      '- HRV: 38 ms to 47 ms',
+      '- Short nights: less frequent than in the earlier window',
+      '',
+      'What that means:',
+      '- The trend points toward better recovery rather than just a few better nights.',
+      '- The clearest break lines up with the August 2025 routine changes.',
+    ].join('\n'),
     topicKey: 'sleep-recovery',
     referrals: [
       {
@@ -109,6 +142,24 @@ const TURNS: readonly [CannedTurn, ...CannedTurn[]] = [
         classification: 'clinical-safe',
       },
     ],
+  },
+  {
+    id: 'iron-empty',
+    question: 'What iron results are in my record?',
+    answer: [
+      "I don't have iron results in this record yet.",
+      '',
+      'Checked:',
+      '- Ferritin: not found',
+      '- Serum iron: not found',
+      '- Transferrin saturation: not found',
+      '- Haemoglobin: not found',
+      '',
+      'Next:',
+      '- The useful next step is adding a recent iron panel or lab report so the record has values to compare.',
+    ].join('\n'),
+    topicKey: 'cardiometabolic',
+    referrals: [],
   },
 ];
 

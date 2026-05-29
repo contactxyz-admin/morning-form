@@ -188,7 +188,16 @@ describe('POST /api/chat/send', () => {
     currentUserMock.mockResolvedValue({ id: userId });
     mockRouter('iron', 0.95, 'ferritin mention');
 
-    const safe = 'Your ferritin is below the typical reference range for adults.';
+    const safe = [
+      'I have iron results in your record.',
+      '',
+      'What I see:',
+      '- Ferritin: below range',
+      '- Haemoglobin: in range',
+      '',
+      'Next:',
+      '- Bring the result to your next GP appointment.',
+    ].join('\n');
     setScribeLLMForTest(scriptedScribe([endTurn(safe)]));
 
     const res = await callPost(makeRequest({ text: 'Why is my ferritin low?' }));
@@ -200,6 +209,11 @@ describe('POST /api/chat/send', () => {
     expect(kinds[0]).toBe('routed');
     expect(kinds[kinds.length - 1]).toBe('done');
     expect(kinds.filter((k) => k === 'token').length).toBeGreaterThan(0);
+    const tokenText = events
+      .filter((e) => e.event === 'token')
+      .map((e) => (e.data as { text: string }).text)
+      .join('');
+    expect(tokenText).toBe(safe);
 
     const routed = events[0].data as {
       topicKey: string;

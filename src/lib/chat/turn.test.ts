@@ -17,6 +17,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
+import {
+  addEdge,
+  addNode,
+  addSourceChunks,
+  addSourceDocument,
+} from '@/lib/graph/mutations';
 import { clearMockHandlers, LLMClient, setMockHandlers } from '@/lib/llm/client';
 import {
   getOrCreateScribeForTopic,
@@ -24,6 +30,7 @@ import {
 } from '@/lib/scribe/repo';
 import type {
   ScribeLLMClient,
+  ScribeLLMTurnRequest,
   ScribeLLMTurn,
 } from '@/lib/scribe/execute';
 import { __setReferralScribeLLMForTest } from '@/lib/scribe/tools/refer-to-specialist';
@@ -45,10 +52,14 @@ afterEach(() => {
   __setReferralScribeLLMForTest(null);
 });
 
-function scriptedScribe(turns: ScribeLLMTurn[]): ScribeLLMClient {
+function scriptedScribe(
+  turns: ScribeLLMTurn[],
+  calls: Array<Pick<ScribeLLMTurnRequest, 'system'>> = [],
+): ScribeLLMClient {
   const queue = [...turns];
   return {
-    async turn() {
+    async turn(req) {
+      calls.push({ system: req.system });
       const next = queue.shift();
       if (!next) throw new Error('scriptedScribe: queue exhausted');
       return next;
@@ -154,6 +165,146 @@ describe('runChatTurn — happy path (routed → scribe)', () => {
     expect(audits).toHaveLength(1);
     expect(audits[0].topicKey).toBe('iron');
     expect(audits[0].safetyClassification).toBe('clinical-safe');
+  });
+
+  it('appends the Ask answer style contract to legacy topic default prompts', async () => {
+    const userId = await makeTestUser(prisma, 'turn-style-default');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    mockRouter('iron', 0.95, 'mentions ferritin');
+
+    const calls: Array<Pick<ScribeLLMTurnRequest, 'system'>> = [];
+    const scribeLlm = scriptedScribe(
+      [
+        {
+          stopReason: 'end_turn',
+          text: 'I do not have iron results in your record yet.',
+          modelVersion: 'v1',
+          toolCalls: [],
+        },
+      ],
+      calls,
+    );
+
+    await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'what do you know about my iron?',
+        routerLlm: routerClient(),
+        scribeLlm,
+      }),
+    );
+
+    expect(calls[0].system).toContain('You are the specialist scribe for topic "iron".');
+    expect(calls[0].system).toContain('Ask answer style contract:');
+    expect(calls[0].system).toContain('Do not use Markdown tables');
+    expect(calls[0].system).toContain('no diagnosis');
+  });
+
+  it('appends the Ask answer style contract to core specialty prompts', async () => {
+    const userId = await makeTestUser(prisma, 'turn-style-core');
+    await getOrCreateScribeForTopic(prisma, userId, 'cardiometabolic', {
+      modelVersion: 'v1',
+    });
+    mockRouter('cardiometabolic', 0.95, 'mentions HbA1c');
+
+    const calls: Array<Pick<ScribeLLMTurnRequest, 'system'>> = [];
+    const scribeLlm = scriptedScribe(
+      [
+        {
+          stopReason: 'end_turn',
+          text: 'HbA1c is present in your record.',
+          modelVersion: 'v1',
+          toolCalls: [],
+        },
+      ],
+      calls,
+    );
+
+    await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'has my HbA1c changed?',
+        routerLlm: routerClient(),
+        scribeLlm,
+      }),
+    );
+
+    expect(calls[0].system).toContain('cardiometabolic specialist');
+    expect(calls[0].system).toContain('Ask answer style contract:');
+    expect(calls[0].system).toContain('Do not use Markdown tables');
+  });
+
+  it('surfaces citations from provenance tool calls when output has no annotation block', async () => {
+    const userId = await makeTestUser(prisma, 'turn-provenance-citations');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    const doc = await addSourceDocument(prisma, userId, {
+      kind: 'lab_pdf',
+      capturedAt: new Date('2026-05-01T00:00:00Z'),
+    });
+    const [chunkId] = await addSourceChunks(prisma, doc.id, [
+      {
+        index: 0,
+        text: 'Ferritin 18 ug/L from May lab report.',
+        offsetStart: 0,
+        offsetEnd: 38,
+      },
+    ]);
+    const ferritin = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: { latestValue: 18, unit: 'ug/L' },
+    });
+    await addEdge(prisma, userId, {
+      type: 'SUPPORTS',
+      fromNodeId: ferritin.id,
+      toNodeId: ferritin.id,
+      fromChunkId: chunkId,
+      fromDocumentId: doc.id,
+    });
+    mockRouter('iron', 0.95, 'mentions ferritin');
+
+    const scribeLlm = scriptedScribe([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          {
+            id: 'provenance-1',
+            name: 'get_node_provenance',
+            input: { nodeId: ferritin.id },
+          },
+        ],
+      },
+      {
+        stopReason: 'end_turn',
+        text: 'Ferritin is present in your record.',
+        modelVersion: 'v1',
+        toolCalls: [],
+      },
+    ]);
+
+    const events = await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'what iron results are in my record?',
+        routerLlm: routerClient(),
+        scribeLlm,
+      }),
+    );
+
+    const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
+    expect(done.citations).toEqual([
+      {
+        nodeId: ferritin.id,
+        chunkId,
+        excerpt: 'Ferritin 18 ug/L from May lab report.',
+      },
+    ]);
   });
 
   it('works for the very first turn (no prior history)', async () => {

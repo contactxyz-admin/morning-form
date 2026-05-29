@@ -48,7 +48,7 @@ type HistoryState =
 
 const EMPTY_STATE_COPY = 'Ask anything about your health.';
 const SUGGESTION_CHIPS = [
-  'Why is my ferritin low?',
+  'What iron results are in my record?',
   'How has my sleep been tracking?',
   'What could be driving my fatigue?',
 ];

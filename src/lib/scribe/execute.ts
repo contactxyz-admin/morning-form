@@ -140,13 +140,13 @@ export interface ScribeExecuteResult {
   requestId: string;
   output: string;
   classification: SafetyClassification;
+  citations: Citation[];
   toolCalls: Array<{ name: string; input: unknown; output: unknown; isError: boolean }>;
   modelVersion: string;
   auditId: string;
 }
 
-function buildSystemPrompt(policy: SafetyPolicy, override?: string): string {
-  if (override) return override;
+export function buildDefaultScribeSystemPrompt(policy: SafetyPolicy): string {
   return [
     `You are the specialist scribe for topic "${policy.topicKey}".`,
     `You may only make judgments of these kinds: ${policy.allowedJudgmentKinds.join(', ')}.`,
@@ -154,6 +154,11 @@ function buildSystemPrompt(policy: SafetyPolicy, override?: string): string {
     `Never name medications or dosages. Never use imperative treatment verbs.`,
     `Every claim must resolve to a graph-node citation you surfaced with get_node_provenance.`,
   ].join(' ');
+}
+
+function buildSystemPrompt(policy: SafetyPolicy, override?: string): string {
+  if (override) return override;
+  return buildDefaultScribeSystemPrompt(policy);
 }
 
 export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteResult> {
@@ -294,12 +299,11 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
 
   // D11: audit lands on every code path — success, throw, or rejection.
   // Upsert is idempotent on requestId so retries fold into the same row.
-  // Citations are extracted from the scribe's ANNOTATIONS_JSON block when
-  // present (compile-time pass); the runtime-scribe path emits no annotation
-  // block so citations stays empty and U5 will surface runtime citations
-  // through its own extraction. Parse failures degrade to `[]` rather than
-  // losing the audit row — the partial audit is still R19-compliant.
-  const citations = extractCitationsFromOutput(output);
+  // Citations are extracted from either an ANNOTATIONS_JSON block or
+  // successful get_node_provenance tool calls. Parse failures degrade to `[]`
+  // rather than losing the audit row — the partial audit is still
+  // R19-compliant.
+  const citations = extractCitations(output, collectedToolCalls);
   let audit: Awaited<ReturnType<typeof recordAudit>>;
   try {
     audit = await recordAudit(req.db, req.userId, scribe.id, {
@@ -333,6 +337,7 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     requestId,
     output,
     classification,
+    citations,
     toolCalls: collectedToolCalls,
     modelVersion,
     auditId: audit.id,
@@ -353,18 +358,52 @@ function abortErrorFor(signal: AbortSignal): Error {
  * R19 audit compliance requirement is "citations recorded when present",
  * not "reject the whole write when parsing fails".
  */
-function extractCitationsFromOutput(output: string): Citation[] {
+function extractCitations(
+  output: string,
+  toolCalls: ScribeExecuteResult['toolCalls'],
+): Citation[] {
   const { annotations } = parseScribeAnnotations(output);
-  if (annotations.length === 0) return [];
   const seen = new Set<string>();
   const out: Citation[] = [];
   for (const ann of annotations) {
     for (const citation of ann.citations) {
-      const key = `${citation.nodeId}:${citation.chunkId ?? ''}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(citation);
+      pushCitation(out, seen, citation);
+    }
+  }
+  for (const call of toolCalls) {
+    if (call.name !== 'get_node_provenance' || call.isError) continue;
+    const nodeId = readStringField(call.input, 'nodeId');
+    const citations = readArrayField(call.output, 'citations');
+    if (!nodeId || !citations) continue;
+    for (const citation of citations) {
+      const chunkId = readStringField(citation, 'chunkId');
+      const excerpt = readStringField(citation, 'excerpt');
+      if (!chunkId || !excerpt) continue;
+      pushCitation(out, seen, {
+        nodeId,
+        chunkId,
+        excerpt: excerpt.slice(0, 500),
+      });
     }
   }
   return out;
+}
+
+function pushCitation(out: Citation[], seen: Set<string>, citation: Citation): void {
+  const key = `${citation.nodeId}:${citation.chunkId ?? ''}`;
+  if (seen.has(key)) return;
+  seen.add(key);
+  out.push(citation);
+}
+
+function readStringField(value: unknown, key: string): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === 'string' && field.length > 0 ? field : null;
+}
+
+function readArrayField(value: unknown, key: string): unknown[] | null {
+  if (!value || typeof value !== 'object') return null;
+  const field = (value as Record<string, unknown>)[key];
+  return Array.isArray(field) ? field : null;
 }

@@ -28,9 +28,14 @@ import type { Citation } from '@/lib/topics/types';
 import type { Db } from '@/lib/scribe/tools/types';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import { LLMClient } from '@/lib/llm/client';
-import { execute, type ScribeLLMClient } from '@/lib/scribe/execute';
+import {
+  buildDefaultScribeSystemPrompt,
+  execute,
+  type ScribeLLMClient,
+} from '@/lib/scribe/execute';
+import { appendAskAnswerStylePrompt } from '@/lib/chat/answer-style';
+import { getPolicy } from '@/lib/scribe/policy/registry';
 import { ScribeAuditWriteError } from '@/lib/scribe/repo';
-import { parseScribeAnnotations } from '@/lib/scribe/annotations';
 import { routeTurn, type RouteDecision } from '@/lib/scribe/router';
 import { getSpecialty } from '@/lib/scribe/specialties/registry';
 import { loadSpecialtySystemPrompt } from '@/lib/scribe/specialties/load-prompt';
@@ -152,7 +157,7 @@ export async function* runChatTurn(
   //    router's null is resolved to the general scribe). execute() owns
   //    the D11 audit write so every turn writes a ScribeAudit row.
   const topicKey = resolveTopicKey(decision);
-  const systemPrompt = loadSpecialtySystemPrompt(topicKey);
+  const systemPrompt = buildAskRuntimeSystemPrompt(topicKey);
 
   let result;
   try {
@@ -195,7 +200,7 @@ export async function* runChatTurn(
   const visibleOutput =
     result.classification === 'clinical-safe' ? result.output : OUT_OF_SCOPE_FALLBACK;
   const visibleCitations: readonly Citation[] =
-    result.classification === 'clinical-safe' ? extractCitations(result.output) : [];
+    result.classification === 'clinical-safe' ? result.citations : [];
 
   // Referrals — derived from the orchestrating scribe's tool calls.
   // Only surface them when the parent turn was clinical-safe; if the
@@ -240,6 +245,16 @@ export async function* runChatTurn(
     auditId: result.auditId,
     referrals,
   };
+}
+
+function buildAskRuntimeSystemPrompt(topicKey: string): string | undefined {
+  const specialtyPrompt = loadSpecialtySystemPrompt(topicKey);
+  if (specialtyPrompt) {
+    return appendAskAnswerStylePrompt(specialtyPrompt);
+  }
+  const policy = getPolicy(topicKey);
+  if (!policy) return undefined;
+  return appendAskAnswerStylePrompt(buildDefaultScribeSystemPrompt(policy));
 }
 
 /**
@@ -317,21 +332,6 @@ function abortMessage(signal: AbortSignal): string {
   if (reason instanceof Error) return reason.message;
   if (typeof reason === 'string') return reason;
   return 'chat turn cancelled';
-}
-
-function extractCitations(output: string): Citation[] {
-  const { annotations } = parseScribeAnnotations(output);
-  const seen = new Set<string>();
-  const out: Citation[] = [];
-  for (const ann of annotations) {
-    for (const c of ann.citations) {
-      const key = `${c.nodeId}:${c.chunkId ?? ''}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(c);
-    }
-  }
-  return out;
 }
 
 function chunkForStream(text: string): string[] {

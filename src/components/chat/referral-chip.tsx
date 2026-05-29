@@ -20,6 +20,7 @@
  */
 import { cn } from '@/lib/utils';
 import type { Referral } from '@/lib/chat/types';
+import { AnswerRenderer } from './answer-renderer';
 
 interface Props {
   readonly referrals: readonly Referral[];
@@ -90,7 +91,7 @@ export function ReferralChip({ referral }: ChipProps) {
         </span>
       </summary>
       <div className="border-t border-border/60 px-3 py-2 text-body text-text-secondary leading-relaxed">
-        {referral.response}
+        <AnswerRenderer content={referral.response} />
       </div>
     </details>
   );

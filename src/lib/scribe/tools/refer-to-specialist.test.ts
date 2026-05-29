@@ -2,7 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { getOrCreateScribeForTopic } from '@/lib/scribe/repo';
-import type { ScribeLLMClient, ScribeLLMTurn } from '@/lib/scribe/execute';
+import type {
+  ScribeLLMClient,
+  ScribeLLMTurn,
+  ScribeLLMTurnRequest,
+} from '@/lib/scribe/execute';
 import {
   REFERRAL_DEPTH_VIOLATION,
   REFERRAL_TOPIC_VIOLATION,
@@ -21,10 +25,14 @@ afterAll(async () => {
   await teardownTestDb();
 });
 
-function scriptedScribe(turns: ScribeLLMTurn[]): ScribeLLMClient {
+function scriptedScribe(
+  turns: ScribeLLMTurn[],
+  calls: Array<Pick<ScribeLLMTurnRequest, 'system'>> = [],
+): ScribeLLMClient {
   const queue = [...turns];
   return {
-    async turn() {
+    async turn(req) {
+      calls.push({ system: req.system });
       const next = queue.shift();
       if (!next) throw new Error('scriptedScribe: queue exhausted');
       return next;
@@ -46,6 +54,7 @@ describe('refer_to_specialist — core specialty', () => {
       { modelVersion: 'v1' },
     );
 
+    const calls: Array<Pick<ScribeLLMTurnRequest, 'system'>> = [];
     __setReferralScribeLLMForTest(
       scriptedScribe([
         {
@@ -54,7 +63,7 @@ describe('refer_to_specialist — core specialty', () => {
           modelVersion: 'v1',
           toolCalls: [],
         },
-      ]),
+      ], calls),
     );
 
     const ctx: ToolContext = {
@@ -74,6 +83,9 @@ describe('refer_to_specialist — core specialty', () => {
     expect(result.response).toMatch(/From cardiometabolic/);
     expect(result.requestId).toBeTruthy();
     expect(result.classification).toBeDefined();
+    expect(calls[0].system).toContain('cardiometabolic specialist');
+    expect(calls[0].system).toContain('Ask answer style contract:');
+    expect(calls[0].system).toContain('Do not use Markdown tables');
 
     // The child audit row carries parentRequestId pointing at the caller.
     const audits = await prisma.scribeAudit.findMany({

@@ -3,6 +3,7 @@ import { CARDIOMETABOLIC_POLICY } from '@/lib/scribe/policy/cardiometabolic';
 import { HORMONAL_ENDOCRINE_POLICY } from '@/lib/scribe/policy/hormonal-endocrine';
 import { SLEEP_RECOVERY_POLICY } from '@/lib/scribe/policy/sleep-recovery';
 import { getPolicy, listTopicPolicyKeys } from '@/lib/scribe/policy/registry';
+import { ASK_ANSWER_STYLE_PROMPT } from '@/lib/chat/answer-style';
 import { getSpecialty, listCoreSpecialties } from './registry';
 import { clearSpecialtyPromptCache, loadSpecialtySystemPrompt } from './load-prompt';
 
@@ -109,6 +110,14 @@ describe('core specialists — system prompts', () => {
   it('the cardiometabolic prompt names the iron sub-domain it absorbs', () => {
     const prompt = loadSpecialtySystemPrompt('cardiometabolic')!;
     expect(prompt).toMatch(/ferritin/i);
+  });
+
+  it('keeps Ask answer formatting as a separate runtime appendix', () => {
+    for (const specialty of listCoreSpecialties()) {
+      const prompt = loadSpecialtySystemPrompt(specialty.key)!;
+      expect(prompt).not.toContain('Ask answer style contract:');
+    }
+    expect(ASK_ANSWER_STYLE_PROMPT).toContain('Ask answer style contract:');
   });
 });
 
