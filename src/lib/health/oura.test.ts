@@ -19,6 +19,12 @@ describe('OuraClient.getAuthUrl', () => {
     expect(scopes).not.toContain('sleep');
     expect(scopes).toEqual(['daily', 'heartrate', 'personal', 'session', 'workout']);
   });
+
+  it('derives the auth-URL scope from HEALTH_PROVIDERS.oura.scopes (single source of truth — no drift)', () => {
+    const client = new OuraClient('client-abc', 'secret');
+    const url = new URL(client.getAuthUrl('https://app.example.com/cb'));
+    expect(url.searchParams.get('scope')).toBe(HEALTH_PROVIDERS.oura.scopes.join(' '));
+  });
 });
 
 describe('HEALTH_PROVIDERS.oura scopes', () => {
