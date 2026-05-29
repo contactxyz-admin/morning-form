@@ -16,9 +16,15 @@ import { env } from '@/lib/env';
 const RESEND_URL = 'https://api.resend.com/emails';
 
 export class ResendAuthError extends Error {
-  constructor(message = 'resend api key invalid') {
-    super(message);
+  constructor(message = 'resend api key invalid', public details?: string) {
+    super(`${message}${details ? `: ${details}` : ''}`);
     this.name = 'ResendAuthError';
+  }
+}
+export class ResendSenderError extends Error {
+  constructor(public details?: string) {
+    super(`resend sender/domain not authorized${details ? `: ${details}` : ''}`);
+    this.name = 'ResendSenderError';
   }
 }
 export class ResendRateLimitError extends Error {
@@ -84,8 +90,13 @@ export async function sendMagicLinkEmail({ to, verifyUrl }: SendMagicLinkArgs): 
     }),
   });
 
-  if (response.status === 401 || response.status === 403) {
-    throw new ResendAuthError();
+  if (response.status === 401) {
+    const body = await response.text().catch(() => '');
+    throw new ResendAuthError('resend api key invalid', summarizeResendError(body));
+  }
+  if (response.status === 403) {
+    const body = await response.text().catch(() => '');
+    throw new ResendSenderError(summarizeResendError(body));
   }
   if (!response.ok) {
     const body = await response.text().catch(() => '');
