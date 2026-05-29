@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactElement } from 'react';
 import { cn } from '@/lib/utils';
 import { parseChatAnswer, type ChatAnswerBlock, type ChatAnswerCheckItem } from '@/lib/chat/answer-format';
 
@@ -21,7 +22,7 @@ export function AnswerRenderer({ content }: Props) {
   );
 }
 
-function AnswerBlockView({ block }: { block: ChatAnswerBlock }) {
+function AnswerBlockView({ block }: { block: ChatAnswerBlock }): ReactElement {
   switch (block.kind) {
     case 'paragraph':
       return <p>{block.text}</p>;
@@ -55,7 +56,13 @@ function AnswerBlockView({ block }: { block: ChatAnswerBlock }) {
           ))}
         </ul>
       );
+    default:
+      return assertNever(block);
   }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled answer block: ${JSON.stringify(value)}`);
 }
 
 function CheckRow({ item }: { item: ChatAnswerCheckItem }) {

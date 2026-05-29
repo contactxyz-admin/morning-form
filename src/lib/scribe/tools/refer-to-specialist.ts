@@ -35,6 +35,7 @@ import type { ScribeLLMClient } from '../execute';
 import { getSpecialty } from '../specialties/registry';
 import { loadSpecialtySystemPrompt } from '../specialties/load-prompt';
 import type { ToolContext, ToolHandler } from './types';
+import { appendAskAnswerStylePrompt } from '@/lib/chat/answer-style';
 
 export const REFERRAL_DEPTH_VIOLATION =
   'refer_to_specialist may only be called by the general scribe. Specialists answer directly within their own scope.';
@@ -127,6 +128,7 @@ export const referToSpecialistHandler: ToolHandler<ReferToSpecialistArgs, ReferT
     }
 
     const { execute } = await import('../execute');
+    const specialtyPrompt = loadSpecialtySystemPrompt(specialty.key);
     const result = await execute({
       db: ctx.db,
       userId: ctx.userId,
@@ -135,7 +137,11 @@ export const referToSpecialistHandler: ToolHandler<ReferToSpecialistArgs, ReferT
       userMessage: args.question,
       declaredJudgmentKind: null,
       llm: referralScribeLLM,
-      systemPrompt: loadSpecialtySystemPrompt(specialty.key),
+      // Referral responses are surfaced inside Ask referral chips, so child
+      // specialists need the same answer-shape contract as the parent turn.
+      systemPrompt: specialtyPrompt
+        ? appendAskAnswerStylePrompt(specialtyPrompt)
+        : specialtyPrompt,
       parentRequestId: ctx.requestId,
     });
 

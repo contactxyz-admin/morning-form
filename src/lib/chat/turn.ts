@@ -36,7 +36,6 @@ import {
 import { appendAskAnswerStylePrompt } from '@/lib/chat/answer-style';
 import { getPolicy } from '@/lib/scribe/policy/registry';
 import { ScribeAuditWriteError } from '@/lib/scribe/repo';
-import { parseScribeAnnotations } from '@/lib/scribe/annotations';
 import { routeTurn, type RouteDecision } from '@/lib/scribe/router';
 import { getSpecialty } from '@/lib/scribe/specialties/registry';
 import { loadSpecialtySystemPrompt } from '@/lib/scribe/specialties/load-prompt';
@@ -201,7 +200,7 @@ export async function* runChatTurn(
   const visibleOutput =
     result.classification === 'clinical-safe' ? result.output : OUT_OF_SCOPE_FALLBACK;
   const visibleCitations: readonly Citation[] =
-    result.classification === 'clinical-safe' ? extractCitations(result.output) : [];
+    result.classification === 'clinical-safe' ? result.citations : [];
 
   // Referrals — derived from the orchestrating scribe's tool calls.
   // Only surface them when the parent turn was clinical-safe; if the
@@ -333,21 +332,6 @@ function abortMessage(signal: AbortSignal): string {
   if (reason instanceof Error) return reason.message;
   if (typeof reason === 'string') return reason;
   return 'chat turn cancelled';
-}
-
-function extractCitations(output: string): Citation[] {
-  const { annotations } = parseScribeAnnotations(output);
-  const seen = new Set<string>();
-  const out: Citation[] = [];
-  for (const ann of annotations) {
-    for (const c of ann.citations) {
-      const key = `${c.nodeId}:${c.chunkId ?? ''}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(c);
-    }
-  }
-  return out;
 }
 
 function chunkForStream(text: string): string[] {

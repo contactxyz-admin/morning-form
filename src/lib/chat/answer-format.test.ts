@@ -73,6 +73,37 @@ describe('parseChatAnswer', () => {
     ]);
   });
 
+  it('turns unbordered Markdown tables into checklist rows', () => {
+    const blocks = parseChatAnswer(
+      [
+        'What I Checked | Result',
+        '--- | ---',
+        'Graph nodes | No entries found',
+        'Reference range comparisons | No values on record',
+      ].join('\n'),
+    );
+
+    expect(blocks).toEqual([
+      {
+        kind: 'checkList',
+        items: [
+          { label: 'Graph nodes', detail: 'No entries found', tone: 'missing' },
+          {
+            label: 'Reference range comparisons',
+            detail: 'No values on record',
+            tone: 'missing',
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('keeps malformed pipe content readable instead of dropping it', () => {
+    expect(parseChatAnswer('| Ferritin | below range |')).toEqual([
+      { kind: 'paragraph', text: '| Ferritin | below range |' },
+    ]);
+  });
+
   it('parses sparse-record bullets as missing-data rows', () => {
     const blocks = parseChatAnswer(
       [
@@ -101,10 +132,35 @@ describe('parseChatAnswer', () => {
     ]);
   });
 
+  it('strips a legacy process preamble without hiding same-paragraph findings', () => {
+    expect(
+      parseChatAnswer(
+        "I've done a thorough search across your iron topic and here's what I found: Ferritin is in your record.",
+      ),
+    ).toEqual([{ kind: 'paragraph', text: 'Ferritin is in your record.' }]);
+    expect(
+      parseChatAnswer(
+        "I've done a thorough search and found your ferritin is 18 ng/mL.",
+      ),
+    ).toEqual([{ kind: 'paragraph', text: 'your ferritin is 18 ng/mL.' }]);
+  });
+
   it('removes leading emoji decoration without stripping clinical symbols', () => {
     expect(parseChatAnswer('📋 What Your Record Shows:')[0]).toEqual({
       kind: 'heading',
       text: 'What Your Record Shows',
+    });
+    expect(parseChatAnswer('✅ What Your Record Shows:')[0]).toEqual({
+      kind: 'heading',
+      text: 'What Your Record Shows',
+    });
+    expect(parseChatAnswer('⚠️ What This Means:')[0]).toEqual({
+      kind: 'heading',
+      text: 'What This Means',
+    });
+    expect(parseChatAnswer('ℹ️ What You Can Do Next:')[0]).toEqual({
+      kind: 'heading',
+      text: 'What You Can Do Next',
     });
     expect(parseChatAnswer('β-hCG is not in this record yet.')[0]).toEqual({
       kind: 'paragraph',

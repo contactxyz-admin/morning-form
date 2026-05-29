@@ -17,9 +17,9 @@ export function parseChatAnswer(input: string): ChatAnswerBlock[] {
   let paragraph: string[] = [];
 
   const flushParagraph = () => {
-    const text = cleanInlineText(paragraph.join(' '));
+    const text = stripProcessPreamble(cleanInlineText(paragraph.join(' ')));
     paragraph = [];
-    if (!text || isProcessPreamble(text)) return;
+    if (!text) return;
     blocks.push({ kind: 'paragraph', text });
   };
 
@@ -31,16 +31,20 @@ export function parseChatAnswer(input: string): ChatAnswerBlock[] {
       continue;
     }
 
-    if (isPipeTableLine(line)) {
+    if (isPipeTableCandidateLine(line)) {
       flushParagraph();
       const tableLines: string[] = [];
-      while (i < lines.length && isPipeTableLine(lines[i].trim())) {
+      while (i < lines.length && isPipeTableCandidateLine(lines[i].trim())) {
         tableLines.push(lines[i].trim());
         i++;
       }
       i--;
       const block = parsePipeTable(tableLines);
       if (block) blocks.push(block);
+      else {
+        paragraph.push(...tableLines);
+        flushParagraph();
+      }
       continue;
     }
 
@@ -84,11 +88,11 @@ export function parseChatAnswer(input: string): ChatAnswerBlock[] {
 }
 
 function parsePipeTable(lines: string[]): ChatAnswerBlock | null {
-  const rows = lines
-    .map(parsePipeRow)
-    .filter((row) => row.length > 0 && !isSeparatorRow(row));
+  const parsedRows = lines.map(parsePipeRow).filter((row) => row.length > 0);
+  const hasSeparator = parsedRows.some(isSeparatorRow);
+  const rows = parsedRows.filter((row) => !isSeparatorRow(row));
 
-  if (rows.length < 2) return null;
+  if (!hasSeparator || rows.length < 2) return null;
 
   const dataRows = rows.slice(1);
   const items = dataRows
@@ -167,12 +171,27 @@ function stripLeadingDecoration(text: string): string {
     const point = next.codePointAt(0);
     if (point === undefined || !isDecorativeEmojiCodePoint(point)) return next;
     next = next.slice(point > 0xffff ? 2 : 1).trimStart();
+    next = stripEmojiSuffix(next);
   }
   return next;
 }
 
+function stripEmojiSuffix(text: string): string {
+  let next = text;
+  while (next.length > 0) {
+    const point = next.codePointAt(0);
+    if (point === undefined || !isEmojiSuffixCodePoint(point)) return next;
+    next = next.slice(point > 0xffff ? 2 : 1);
+  }
+  return next.trimStart();
+}
+
 function isDecorativeEmojiCodePoint(point: number): boolean {
   return (
+    point === 0x2139 ||
+    point === 0x26a0 ||
+    point === 0x2705 ||
+    point === 0x274c ||
     (point >= 0x1f300 && point <= 0x1f5ff) ||
     (point >= 0x1f600 && point <= 0x1f64f) ||
     (point >= 0x1f680 && point <= 0x1f6ff) ||
@@ -180,21 +199,37 @@ function isDecorativeEmojiCodePoint(point: number): boolean {
   );
 }
 
-function isProcessPreamble(text: string): boolean {
-  return /^i(?:'ve| have) done (?:a )?(?:thorough )?search\b/i.test(text);
+function isEmojiSuffixCodePoint(point: number): boolean {
+  return (
+    point === 0x200d ||
+    (point >= 0xfe00 && point <= 0xfe0f) ||
+    (point >= 0x1f3fb && point <= 0x1f3ff)
+  );
+}
+
+function stripProcessPreamble(text: string): string {
+  let next = text.replace(
+    /^i(?:'ve| have) done (?:a )?(?:thorough )?search\b(?: across [^:.\n]{1,120})?(?: and here(?:'s| is) what i found)?[:.]\s*/i,
+    '',
+  );
+  next = next.replace(
+    /^i(?:'ve| have) done (?:a )?(?:thorough )?search\b(?: across [^:.\n]{1,120})? and found\s+/i,
+    '',
+  );
+  return next.trim();
 }
 
 function isHorizontalRule(line: string): boolean {
   return /^([-*_])(?:\s*\1){2,}$/.test(line);
 }
 
-function isPipeTableLine(line: string): boolean {
-  return line.startsWith('|') && line.endsWith('|') && line.includes('|');
+function isPipeTableCandidateLine(line: string): boolean {
+  return parsePipeRow(line).length >= 2;
 }
 
 function isHeadingLine(line: string): boolean {
   if (/^#{1,6}\s+\S/.test(line)) return true;
-  if (isBulletLine(line) || isOrderedLine(line) || isPipeTableLine(line)) return false;
+  if (isBulletLine(line) || isOrderedLine(line) || isPipeTableCandidateLine(line)) return false;
   if (!line.endsWith(':')) return false;
   const withoutColon = line.replace(/:\s*$/, '').trim();
   return withoutColon.length <= 80 && withoutColon.split(/\s+/).length <= 8;
