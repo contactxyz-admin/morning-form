@@ -29,11 +29,19 @@ const PULL_WITH_NOTIFY_WEBHOOK: ProviderCapabilities = {
   webhookNotifyOnly: true,
 };
 
-const TERRA_AGGREGATED: ProviderCapabilities = {
-  supportsPull: true,
+const NATIVE_HEALTHKIT_UPLOAD: ProviderCapabilities = {
+  supportsPull: false,
   supportsPush: true,
   supportsSDK: true,
-  supportsXmlImport: true,
+  supportsXmlImport: false,
+  webhookNotifyOnly: false,
+};
+
+const DIRECT_PARTNER_ACCESS_PENDING: ProviderCapabilities = {
+  supportsPull: false,
+  supportsPush: false,
+  supportsSDK: false,
+  supportsXmlImport: false,
   webhookNotifyOnly: false,
 };
 
@@ -45,7 +53,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     oauthBaseUrl: '',
     features: ['sleep_duration', 'sleep_stages', 'heart_rate', 'hrv', 'steps', 'calories', 'active_minutes'],
     scopes: [],
-    capabilities: TERRA_AGGREGATED,
+    capabilities: NATIVE_HEALTHKIT_UPLOAD,
     accessStatus: 'native_required',
     accessMessage: 'Apple Health requires the Morning Form iPhone app and cannot be connected from the web.',
   },
@@ -86,7 +94,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     oauthBaseUrl: 'https://connect.garmin.com/oauthConfirm',
     features: ['training_load', 'body_battery', 'stress_level', 'sleep_score', 'heart_rate', 'steps'],
     scopes: [],
-    capabilities: TERRA_AGGREGATED,
+    capabilities: DIRECT_PARTNER_ACCESS_PENDING,
     accessStatus: 'application_required',
     accessMessage: 'Garmin direct access is pending Garmin Connect Developer Program approval.',
   },
@@ -125,4 +133,8 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
 
 export function canStartProviderConnection(provider: ProviderDefinition): boolean {
   return provider.accessStatus === 'available' || provider.accessStatus === 'deprecated';
+}
+
+export function canSyncProviderConnection(provider: ProviderDefinition): boolean {
+  return canStartProviderConnection(provider);
 }

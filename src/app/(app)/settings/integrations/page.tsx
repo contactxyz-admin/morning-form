@@ -382,6 +382,7 @@ export default function IntegrationsPage() {
           const isApplicationRequired = provider.accessStatus === 'application_required';
           const isDeprecated = provider.accessStatus === 'deprecated';
           const canConnect = canConnectFromWeb(provider.accessStatus);
+          const canSyncFromWeb = canConnectFromWeb(provider.accessStatus);
           const isConnectDisabled = !isConnected && !canConnect;
           const statusLabel = accessStatusLabel(provider.accessStatus);
           const nativeHealthKitSource = conn?.metadata?.source === 'native_healthkit';
@@ -492,10 +493,14 @@ export default function IntegrationsPage() {
                         variant="ghost"
                         size="sm"
                         loading={syncingProvider === key}
-                        disabled={requiresNativeApp}
+                        disabled={!canSyncFromWeb}
                         onClick={() => syncProvider(key)}
                       >
-                        {requiresNativeApp ? 'Sync in iPhone app' : 'Sync now'}
+                        {requiresNativeApp
+                          ? 'Sync in iPhone app'
+                          : canSyncFromWeb
+                            ? 'Sync now'
+                            : 'Sync unavailable'}
                       </Button>
                     )}
                     <Button

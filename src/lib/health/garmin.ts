@@ -1,10 +1,10 @@
 /**
  * Deferred direct Garmin client stub.
  *
- * Live Garmin support is routed through Terra. Do not import this from
- * production routes or sync paths; it remains only as a reminder that a future
- * direct-Garmin implementation would need its own partner approval, OAuth
- * lifecycle, and API parser work.
+ * Live Garmin support is blocked until Garmin Connect Developer Program
+ * approval. Do not import this from production routes or sync paths; it
+ * remains only as a reminder that a future direct-Garmin implementation needs
+ * its own partner approval, OAuth lifecycle, and API parser work.
  */
 
 export interface GarminSleep {

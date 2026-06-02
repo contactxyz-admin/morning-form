@@ -27,17 +27,17 @@ http://localhost:3000/api/health/callback
 
 ## Callback URLs
 
-Register these exact callback URLs with each provider:
+Register these exact callback URLs with each web OAuth provider:
 
 - Whoop: `http://localhost:3000/api/health/callback/whoop`
 - Oura: `http://localhost:3000/api/health/callback/oura`
 - Fitbit: `http://localhost:3000/api/health/callback/fitbit`
 - Google Fit: `http://localhost:3000/api/health/callback/google_fit`
 
-Terra-backed flows:
+No web callback is active today for:
 
-- Apple Health: routed through Terra widget session, then back into Morning Form
-- Garmin: routed through Terra's Garmin widget session, reconciled by signed Terra webhooks, then synced through Terra pull endpoints
+- Apple Health: native iPhone app / HealthKit upload path only
+- Garmin: direct Garmin access pending Garmin Connect Developer Program approval
 
 ## Support status by provider
 
@@ -133,62 +133,50 @@ Provider notes:
 Status:
 
 - cannot be completed from the current local web app
-- requires a native iOS app using Terra Mobile SDK / HealthKit
-- the current web product can store/display Apple Health-backed data later, but it cannot initiate the HealthKit permission flow itself
-- production Terra credentials and native app setup are required
+- requires a native iOS app using HealthKit
+- the current web product can store/display Apple Health-backed data from the native upload endpoint, but it cannot initiate the HealthKit permission flow itself
+- the web `Connect` action returns `provider_native_required`
 
 Env vars:
 
 ```env
-TERRA_API_KEY=""
-TERRA_DEV_ID=""
-TERRA_WEBHOOK_SECRET=""
+# No Apple Health web OAuth credentials are required.
 ```
 
 Provider notes:
 
 - Apple Health is not a web-widget integration
-- you need an iOS shell app with Terra's iOS / React Native / Flutter mobile SDK
-- configure Terra webhook to point to:
+- use the native upload endpoint after HealthKit authorization:
 
 ```txt
-http://localhost:3000/api/health/terra/webhook
+POST http://localhost:3000/api/health/apple-health
 ```
 
-- for remote environments, update both Terra callback and webhook URLs to the deployed origin
+- for remote environments, replace `http://localhost:3000` with the deployed `NEXT_PUBLIC_APP_URL`
+- do not provision Terra for Apple Health unless a future plan explicitly reopens aggregator evaluation
 
 ## Garmin
 
 Status:
 
-- live in-app path uses Terra rather than direct Garmin credentials
-- backend generates Garmin-only Terra widget sessions with explicit success/failure redirects
-- signed Terra auth/deauth webhooks reconcile `HealthConnection.terraUserId`
-- manual sync pulls Terra daily, sleep, and activity endpoints with that Terra user id
-- disconnect attempts Terra deauthentication before clearing local state
-- direct Garmin consumer key/secret fields are reserved for a future direct-Garmin pass and are not required
+- direct access is pending Garmin Connect Developer Program approval
+- the web `Connect` action returns `provider_application_required`
+- manual sync refuses connected Garmin rows with `provider_application_required`
+- old Terra-backed code remains as dormant scaffold only; do not configure it as the active product path
+- consumer scraping and private Garmin Connect endpoints are out of scope
 
 Env vars:
 
 ```env
-TERRA_API_KEY=""
-TERRA_DEV_ID=""
-TERRA_WEBHOOK_SECRET=""
+# No Garmin credentials are required until Garmin approves the application.
 ```
 
 Provider notes:
 
-- enable Garmin as a Terra source in the Terra dashboard
-- configure the Terra destination/webhook to point to:
-
-```txt
-http://localhost:3000/api/health/terra/webhook
-```
-
-- for deployed environments, replace `http://localhost:3000` with the deployed `NEXT_PUBLIC_APP_URL`
-- keep `TERRA_WEBHOOK_SECRET` in sync with the Terra dashboard secret; webhook requests fail closed when it is configured
-- do not set or depend on `GARMIN_CONSUMER_KEY` / `GARMIN_CONSUMER_SECRET` for this flow
-- if we move to direct Garmin later, we’ll need a separate Garmin approval, OAuth/token lifecycle, deauthorization, webhook, and parser implementation
+- prepare and submit the Garmin application packet in `docs/runbooks/garmin-connect-developer-program-application.md`
+- add Garmin credentials, callback URLs, deauthorization handling, webhook handling, token lifecycle, and parsers only after approval
+- keep the direct-provider plan in `docs/plans/2026-06-02-002-feat-direct-health-provider-platform-plan.md` as the source of truth
+- do not set `TERRA_API_KEY`, `TERRA_DEV_ID`, or `TERRA_WEBHOOK_SECRET` for Garmin rollout
 
 ## Recommended credential rollout order
 
@@ -197,9 +185,11 @@ To reduce debugging surface area, wire providers in this order:
 1. Whoop
 2. Oura
 3. Fitbit
-4. Google Fit
-5. Terra for Apple Health
-6. Terra for Garmin
+4. Dexcom
+5. FreeStyle Libre
+6. Google Fit only if legacy demand justifies it
+7. Apple Health native iPhone upload
+8. Garmin direct integration after approval
 
 ## How to test each provider locally
 
@@ -212,12 +202,16 @@ To reduce debugging surface area, wire providers in this order:
 7. Confirm the provider appears as connected in the UI
 8. Optionally hit `POST /api/health/sync` to validate the sync path
 
+For Apple Health, test through `POST /api/health/apple-health` or the native app wrapper rather than `/api/health/connect`.
+
+For Garmin, verify the web app shows `Access pending` and that `POST /api/health/sync` returns `provider_application_required` for any old connected Garmin row.
+
 ## Current limitations
 
 - tokens are persisted, but downstream live sync is still partly mock for some providers
-- Apple Health and Garmin remain Terra-mediated only
-- Apple Health still requires a native app for HealthKit authorization
-- direct Garmin remains deferred
+- Apple Health still requires a native app for HealthKit authorization and upload
+- Garmin direct access remains deferred until developer-program approval
+- Terra-backed Garmin/Apple scaffold is dormant and not part of the active rollout
 - no background refresh scheduler exists yet for expiring access tokens
 
 ## Recommended next implementation pass
@@ -225,5 +219,6 @@ To reduce debugging surface area, wire providers in this order:
 - add real live data fetch after successful OAuth exchange for each direct provider
 - add refresh-token rotation and expiry handling
 - add provider-specific sync status and error messages in the UI
-- build a native iOS wrapper if Apple Health is a true requirement
+- build and ship the native iOS wrapper if Apple Health is a true requirement
+- complete the Garmin developer-program application and implement the approved direct API path
 - add first-class workout/sleep entities and graph source documents for wearable windows

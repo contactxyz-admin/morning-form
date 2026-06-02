@@ -1,9 +1,10 @@
 /**
  * Terra API Client
  *
- * Terra is Morning Form's live aggregation layer for Garmin. Dev/test keep
- * deterministic mock returns, but production must fail loud when credentials
- * are missing so connected users never receive silent mock health data.
+ * Terra is retained as dormant integration scaffold from the aggregator pass.
+ * Dev/test keep deterministic mock returns, but production must fail loud when
+ * credentials are missing so connected users never receive silent mock health
+ * data if this client is explicitly re-enabled later.
  */
 
 import { z } from 'zod';
