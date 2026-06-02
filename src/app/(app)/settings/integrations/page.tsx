@@ -6,13 +6,16 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
-import type { HealthProvider, HealthSummary } from '@/types';
+import { HEALTH_PROVIDERS } from '@/lib/health/providers';
+import type { HealthProvider, HealthSummary, ProviderAccessStatus } from '@/types';
 
 interface ProviderConfig {
   name: string;
   description: string;
   icon: string;
   features: string[];
+  accessStatus: ProviderAccessStatus;
+  accessMessage?: string;
 }
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'syncing' | 'error' | 'needs_reauth';
@@ -26,15 +29,46 @@ interface ConnectionState {
 }
 
 const providers: Record<HealthProvider, ProviderConfig> = {
-  apple_health: { name: 'Apple Health', description: 'Connected through the Morning Form iPhone app', icon: '♥', features: ['sleep', 'activity', 'heart', 'hrv'] },
-  whoop: { name: 'Whoop', description: 'Recovery, strain, sleep stages, HRV', icon: 'W', features: ['recovery', 'strain', 'sleep', 'hrv'] },
-  oura: { name: 'Oura', description: 'Readiness, sleep quality, activity, temperature', icon: 'O', features: ['readiness', 'sleep', 'activity', 'temperature'] },
-  fitbit: { name: 'Fitbit', description: 'Sleep, heart rate, activity, SpO2', icon: 'F', features: ['sleep', 'heart', 'activity', 'spo2'] },
-  garmin: { name: 'Garmin', description: 'Training load, recovery, sleep, stress', icon: 'G', features: ['training', 'recovery', 'sleep', 'stress'] },
-  google_fit: { name: 'Google Fit', description: 'Activity, sleep, vitals', icon: '⊕', features: ['activity', 'sleep', 'vitals'] },
-  dexcom: { name: 'Dexcom', description: 'Continuous glucose monitoring (CGM)', icon: '◉', features: ['glucose'] },
-  libre: { name: 'FreeStyle Libre', description: 'CGM via LibreLinkUp — enter your Libre email and password', icon: '◎', features: ['glucose'] },
+  apple_health: providerConfig('apple_health', { icon: '♥' }),
+  whoop: providerConfig('whoop', { icon: 'W' }),
+  oura: providerConfig('oura', { icon: 'O' }),
+  fitbit: providerConfig('fitbit', { icon: 'F' }),
+  garmin: providerConfig('garmin', { icon: 'G' }),
+  google_fit: providerConfig('google_fit', { icon: '⊕' }),
+  dexcom: providerConfig('dexcom', { icon: '◉' }),
+  libre: providerConfig('libre', { icon: '◎' }),
 };
+
+function providerConfig(provider: HealthProvider, ui: { icon: string }): ProviderConfig {
+  const definition = HEALTH_PROVIDERS[provider];
+  return {
+    name: definition.name,
+    description: definition.description,
+    features: definition.features,
+    accessStatus: definition.accessStatus,
+    accessMessage: definition.accessMessage,
+    ...ui,
+  };
+}
+
+function canConnectFromWeb(accessStatus: ProviderAccessStatus): boolean {
+  return accessStatus === 'available' || accessStatus === 'deprecated';
+}
+
+function accessStatusLabel(accessStatus: ProviderAccessStatus): string | null {
+  switch (accessStatus) {
+    case 'application_required':
+      return 'Access pending';
+    case 'native_required':
+      return 'Native app';
+    case 'deprecated':
+      return 'Legacy';
+    case 'disabled':
+      return 'Unavailable';
+    default:
+      return null;
+  }
+}
 
 export default function IntegrationsPage() {
   const router = useRouter();
@@ -344,7 +378,12 @@ export default function IntegrationsPage() {
           const syncError = typeof conn?.metadata?.syncError === 'string' ? conn.metadata.syncError : null;
           const expiresAt = conn?.expiresAt ? new Date(conn.expiresAt) : null;
           const isExpired = expiresAt ? expiresAt.getTime() <= Date.now() : false;
-          const requiresNativeApp = key === 'apple_health';
+          const requiresNativeApp = provider.accessStatus === 'native_required';
+          const isApplicationRequired = provider.accessStatus === 'application_required';
+          const isDeprecated = provider.accessStatus === 'deprecated';
+          const canConnect = canConnectFromWeb(provider.accessStatus);
+          const isConnectDisabled = !isConnected && !canConnect;
+          const statusLabel = accessStatusLabel(provider.accessStatus);
           const nativeHealthKitSource = conn?.metadata?.source === 'native_healthkit';
 
           return (
@@ -366,9 +405,15 @@ export default function IntegrationsPage() {
                         {isConnected && <div className="w-2 h-2 rounded-full bg-positive shrink-0" />}
                         {isPending && <span className="text-[10px] uppercase tracking-wide text-accent">{key === 'garmin' ? 'Pending' : 'Syncing'}</span>}
                         {status === 'needs_reauth' && <span className="text-[10px] uppercase tracking-wide text-caution">Reconnect</span>}
-                        {status === 'error' && <span className="text-[10px] uppercase tracking-wide text-alert">Error</span>}
+                        {status === 'error' && !isConnectDisabled && <span className="text-[10px] uppercase tracking-wide text-alert">Error</span>}
+                        {statusLabel && <span className="text-[10px] uppercase tracking-wide text-caution">{statusLabel}</span>}
                       </div>
                       <p className="text-caption text-text-secondary mt-0.5">{provider.description}</p>
+                      {provider.accessMessage && (
+                        <p className={`text-caption mt-1 ${isDeprecated ? 'text-caution' : 'text-text-secondary'}`}>
+                          {provider.accessMessage}
+                        </p>
+                      )}
                       {requiresNativeApp && (
                         <p className="text-caption text-caution mt-1">
                           Apple Health sync is driven by the native iPhone app. Open the iOS wrapper, authorize Apple Health, then sync back into Morning Form.
@@ -381,7 +426,12 @@ export default function IntegrationsPage() {
                       )}
                       {key === 'garmin' && isPending && (
                         <p className="text-caption text-caution mt-1">
-                          Waiting for Terra to confirm Garmin.
+                          Waiting for provider confirmation.
+                        </p>
+                      )}
+                      {isApplicationRequired && conn?.status === 'error' && syncError && (
+                        <p className="text-caption text-text-tertiary mt-1">
+                          Existing connection error: {syncError}
                         </p>
                       )}
                       {isConnected && lastSync && (
@@ -392,7 +442,7 @@ export default function IntegrationsPage() {
                       {isExpired && (
                         <p className="text-caption text-caution mt-1">Access token expired. Morning Form will try to refresh it on next sync.</p>
                       )}
-                      {syncError && (
+                      {syncError && !isApplicationRequired && (
                         <p className="text-caption text-alert mt-1">{syncError}</p>
                       )}
                       {key === 'libre' && libreFormOpen && !isConnected && (
@@ -452,10 +502,18 @@ export default function IntegrationsPage() {
                       variant={isConnected ? 'secondary' : 'primary'}
                       size="sm"
                       loading={loadingProvider === key}
-                      disabled={requiresNativeApp}
+                      disabled={requiresNativeApp || isConnectDisabled}
                       onClick={() => (isConnected ? disconnectProvider(key) : connectProvider(key))}
                     >
-                      {requiresNativeApp ? (isConnected ? 'Connected on iPhone' : 'Use iPhone app') : isConnected ? 'Disconnect' : needsReconnect ? 'Reconnect' : 'Connect'}
+                      {requiresNativeApp
+                        ? (isConnected ? 'Connected on iPhone' : 'Use iPhone app')
+                        : isConnected
+                          ? 'Disconnect'
+                          : isApplicationRequired
+                            ? 'Access pending'
+                            : needsReconnect
+                              ? 'Reconnect'
+                              : 'Connect'}
                     </Button>
                   </div>
                 </div>

@@ -1,4 +1,4 @@
-import type { HealthProvider, HealthCategory } from '@/types';
+import type { HealthProvider, HealthCategory, ProviderAccessStatus } from '@/types';
 import type { ProviderCapabilities } from './strategy';
 
 export interface ProviderDefinition {
@@ -9,6 +9,8 @@ export interface ProviderDefinition {
   features: string[];
   scopes: string[];
   capabilities: ProviderCapabilities;
+  accessStatus: ProviderAccessStatus;
+  accessMessage?: string;
 }
 
 const PULL_ONLY: ProviderCapabilities = {
@@ -38,12 +40,14 @@ const TERRA_AGGREGATED: ProviderCapabilities = {
 export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
   apple_health: {
     name: 'Apple Health',
-    description: 'Sleep, activity, heart rate, HRV via Terra',
+    description: 'Sleep, activity, heart rate, HRV through the iPhone app',
     dataCategories: ['sleep', 'activity', 'heart', 'recovery'],
-    oauthBaseUrl: '', // Connected via Terra widget
+    oauthBaseUrl: '',
     features: ['sleep_duration', 'sleep_stages', 'heart_rate', 'hrv', 'steps', 'calories', 'active_minutes'],
     scopes: [],
     capabilities: TERRA_AGGREGATED,
+    accessStatus: 'native_required',
+    accessMessage: 'Apple Health requires the Morning Form iPhone app and cannot be connected from the web.',
   },
   whoop: {
     name: 'Whoop',
@@ -53,6 +57,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     features: ['recovery_score', 'strain', 'sleep_stages', 'hrv', 'resting_hr', 'respiratory_rate'],
     scopes: ['read:recovery', 'read:cycles', 'read:sleep', 'read:workout', 'read:profile', 'read:body_measurement'],
     capabilities: PULL_WITH_NOTIFY_WEBHOOK,
+    accessStatus: 'available',
   },
   oura: {
     name: 'Oura',
@@ -62,6 +67,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     features: ['readiness_score', 'sleep_score', 'activity_score', 'hrv', 'temperature_deviation', 'respiratory_rate'],
     scopes: ['daily', 'heartrate', 'personal', 'session', 'workout'],
     capabilities: PULL_WITH_NOTIFY_WEBHOOK,
+    accessStatus: 'available',
   },
   fitbit: {
     name: 'Fitbit',
@@ -71,6 +77,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     features: ['sleep_duration', 'sleep_stages', 'heart_rate', 'steps', 'calories', 'spo2'],
     scopes: ['activity', 'heartrate', 'sleep', 'oxygen_saturation', 'respiratory_rate'],
     capabilities: PULL_WITH_NOTIFY_WEBHOOK,
+    accessStatus: 'available',
   },
   garmin: {
     name: 'Garmin',
@@ -80,6 +87,8 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     features: ['training_load', 'body_battery', 'stress_level', 'sleep_score', 'heart_rate', 'steps'],
     scopes: [],
     capabilities: TERRA_AGGREGATED,
+    accessStatus: 'application_required',
+    accessMessage: 'Garmin direct access is pending Garmin Connect Developer Program approval.',
   },
   google_fit: {
     name: 'Google Fit',
@@ -89,6 +98,8 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     features: ['steps', 'calories', 'heart_rate', 'sleep_duration', 'active_minutes'],
     scopes: ['https://www.googleapis.com/auth/fitness.activity.read', 'https://www.googleapis.com/auth/fitness.sleep.read', 'https://www.googleapis.com/auth/fitness.heart_rate.read'],
     capabilities: PULL_ONLY,
+    accessStatus: 'deprecated',
+    accessMessage: 'Google Fit is a legacy path. New Android health work should use Health Connect.',
   },
   dexcom: {
     name: 'Dexcom',
@@ -98,6 +109,7 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     features: ['glucose', 'glucose_fasting'],
     scopes: ['offline_access'],
     capabilities: PULL_ONLY,
+    accessStatus: 'available',
   },
   libre: {
     name: 'FreeStyle Libre',
@@ -107,5 +119,10 @@ export const HEALTH_PROVIDERS: Record<HealthProvider, ProviderDefinition> = {
     features: ['glucose'],
     scopes: [],
     capabilities: PULL_ONLY,
+    accessStatus: 'available',
   },
 };
+
+export function canStartProviderConnection(provider: ProviderDefinition): boolean {
+  return provider.accessStatus === 'available' || provider.accessStatus === 'deprecated';
+}
