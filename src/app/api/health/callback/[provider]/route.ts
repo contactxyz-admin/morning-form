@@ -159,14 +159,13 @@ async function handleGarminTerraCallback(url: URL, userId: string) {
 
   const referenceMatches = referenceId === userId;
   let confirmedUser: TerraUserInfo | undefined;
+  let confirmationFailed = false;
   try {
     const users = await new TerraClient().getUserInfo({ userId: terraUserId });
     confirmedUser = users.find((candidate) => candidate.user_id === terraUserId) ?? users[0];
   } catch (confirmationError) {
-    if (!referenceMatches) {
-      console.warn('[API] Garmin Terra callback confirmation failed:', confirmationError);
-      return redirectToIntegrations('pending', 'garmin', 'awaiting_terra_webhook');
-    }
+    confirmationFailed = true;
+    console.warn('[API] Garmin Terra callback confirmation failed:', confirmationError);
   }
 
   if (confirmedUser?.reference_id && confirmedUser.reference_id !== userId) {
@@ -178,7 +177,8 @@ async function handleGarminTerraCallback(url: URL, userId: string) {
     return redirectToIntegrations('error', 'garmin', 'terra_provider_mismatch');
   }
 
-  if (!referenceMatches && !confirmedUser) {
+  const allowReferenceOnly = referenceMatches && process.env.NODE_ENV !== 'production' && !confirmationFailed;
+  if (!confirmedUser && !allowReferenceOnly) {
     return redirectToIntegrations('pending', 'garmin', 'awaiting_terra_webhook');
   }
 

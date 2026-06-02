@@ -63,6 +63,16 @@ describe('DELETE /api/health/connections', () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
+  it('rejects unknown providers without writing a disconnect row', async () => {
+    const res = await DELETE(deleteRequest('not-a-provider'));
+    const body = await res.json() as { error: string };
+
+    expect(res.status).toBe(400);
+    expect(body).toEqual({ error: 'Invalid provider' });
+    expect(deauthenticateUserMock).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
   it('deauthenticates a connected Garmin Terra user before clearing local state', async () => {
     findUniqueMock.mockResolvedValue({
       id: 'conn-1',

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const upsertMock = vi.fn().mockResolvedValue({});
 const getCurrentUserMock = vi.fn().mockResolvedValue({ id: 'demo-user-1' });
@@ -44,6 +44,8 @@ vi.mock('@/lib/health/sync', () => ({
 
 import { GET } from './route';
 
+const originalNodeEnv = process.env.NODE_ENV;
+
 beforeEach(() => {
   upsertMock.mockClear();
   getCurrentUserMock.mockReset().mockResolvedValue({ id: 'demo-user-1' });
@@ -54,6 +56,10 @@ beforeEach(() => {
     scopes: ['daily', 'sleep'],
   }]);
   syncConnectionMock.mockClear();
+});
+
+afterEach(() => {
+  process.env.NODE_ENV = originalNodeEnv;
 });
 
 function callbackRequest(query: string): Request {
@@ -118,6 +124,21 @@ describe('GET /api/health/callback/garmin', () => {
 
     const res = await GET(
       callbackRequest('terra_status=success&user_id=terra-user-1&resource=GARMIN'),
+      { params: { provider: 'garmin' } },
+    );
+    const redirect = locationOf(res);
+
+    expect(redirect.searchParams.get('status')).toBe('pending');
+    expect(redirect.searchParams.get('message')).toBe('awaiting_terra_webhook');
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it('does not trust reference-only Garmin redirects in production when Terra confirmation fails', async () => {
+    process.env.NODE_ENV = 'production';
+    getUserInfoMock.mockRejectedValue(new Error('terra unavailable'));
+
+    const res = await GET(
+      callbackRequest('terra_status=success&user_id=terra-user-1&resource=GARMIN&reference_id=demo-user-1'),
       { params: { provider: 'garmin' } },
     );
     const redirect = locationOf(res);

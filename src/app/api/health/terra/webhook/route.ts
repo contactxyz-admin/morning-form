@@ -62,11 +62,11 @@ export async function POST(request: Request) {
     || status === 'revoked'
     || status === 'deauth'
   ) {
-    return processGarminDeauth(event, payload);
+    return processGarminDeauth(event);
   }
 
   if (type === 'auth' && (status === 'failure' || status === 'failed')) {
-    return processGarminAuthFailure(event, payload);
+    return processGarminAuthFailure(event);
   }
 
   return NextResponse.json({ received: true, processed: false });
@@ -172,7 +172,7 @@ async function processGarminAuthSuccess(event: TerraWebhookEvent) {
   return NextResponse.json({ received: true, processed: true });
 }
 
-async function processGarminDeauth(event: TerraWebhookEvent, payload: unknown) {
+async function processGarminDeauth(event: TerraWebhookEvent) {
   if (!event.referenceId) {
     await incrementDiagnostic('terra-webhook-missing-reference');
     return NextResponse.json({ received: true, processed: false }, { status: 202 });
@@ -185,7 +185,6 @@ async function processGarminDeauth(event: TerraWebhookEvent, payload: unknown) {
     provider: 'garmin',
     resource: event.resource ?? 'GARMIN',
     disconnectedAt: new Date().toISOString(),
-    payload,
   });
 
   await prisma.healthConnection.updateMany({
@@ -203,7 +202,7 @@ async function processGarminDeauth(event: TerraWebhookEvent, payload: unknown) {
   return NextResponse.json({ received: true, processed: true });
 }
 
-async function processGarminAuthFailure(event: TerraWebhookEvent, payload: unknown) {
+async function processGarminAuthFailure(event: TerraWebhookEvent) {
   if (!event.referenceId) {
     await incrementDiagnostic('terra-webhook-missing-reference');
     return NextResponse.json({ received: true, processed: false }, { status: 202 });
@@ -217,7 +216,6 @@ async function processGarminAuthFailure(event: TerraWebhookEvent, payload: unkno
     resource: event.resource ?? 'GARMIN',
     syncError: 'terra_auth_failed',
     lastSyncFailedAt: new Date().toISOString(),
-    payload,
   });
 
   await prisma.healthConnection.updateMany({

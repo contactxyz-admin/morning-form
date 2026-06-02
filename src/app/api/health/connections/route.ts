@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { TerraClient } from '@/lib/health/terra';
 import { incrementDiagnostic } from '@/lib/marketing/diagnostic';
+import { HEALTH_PROVIDERS } from '@/lib/health/providers';
 
 export async function GET() {
   try {
@@ -38,6 +39,9 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     }
     const { provider } = (await request.json()) as { provider: HealthProvider };
+    if (!provider || !HEALTH_PROVIDERS[provider]) {
+      return NextResponse.json({ error: 'Invalid provider' }, { status: 400 });
+    }
 
     const disconnectMetadata = await externalDisconnectMetadata(user.id, provider);
 
