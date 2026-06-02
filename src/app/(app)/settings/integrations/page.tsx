@@ -15,6 +15,16 @@ interface ProviderConfig {
   features: string[];
 }
 
+type ConnectionStatus = 'connected' | 'disconnected' | 'syncing' | 'error' | 'needs_reauth';
+
+interface ConnectionState {
+  connected: boolean;
+  lastSync: string | null;
+  status?: ConnectionStatus | string;
+  expiresAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
 const providers: Record<HealthProvider, ProviderConfig> = {
   apple_health: { name: 'Apple Health', description: 'Connected through the Morning Form iPhone app', icon: '♥', features: ['sleep', 'activity', 'heart', 'hrv'] },
   whoop: { name: 'Whoop', description: 'Recovery, strain, sleep stages, HRV', icon: 'W', features: ['recovery', 'strain', 'sleep', 'hrv'] },
@@ -28,7 +38,7 @@ const providers: Record<HealthProvider, ProviderConfig> = {
 
 export default function IntegrationsPage() {
   const router = useRouter();
-  const [connections, setConnections] = useState<Record<string, { connected: boolean; lastSync: string | null; status?: string; expiresAt?: string | null; metadata?: Record<string, unknown> | null }>>({});
+  const [connections, setConnections] = useState<Record<string, ConnectionState>>({});
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [syncingProvider, setSyncingProvider] = useState<string | null>(null);
   const [healthSummary, setHealthSummary] = useState<HealthSummary | null>(null);
@@ -74,7 +84,7 @@ export default function IntegrationsPage() {
           };
           return acc;
         },
-        {} as Record<string, { connected: boolean; lastSync: string | null; status?: string; expiresAt?: string | null; metadata?: Record<string, unknown> | null }>
+        {} as Record<string, ConnectionState>
       );
       setConnections(normalized);
     }
@@ -305,10 +315,12 @@ export default function IntegrationsPage() {
       )}
 
       {callbackState.status && callbackState.provider && (
-        <Card variant={callbackState.status === 'connected' ? 'contextual' : 'action'} accentColor={callbackState.status === 'connected' ? undefined : 'amber'} className="mb-6">
+        <Card variant={callbackState.status === 'connected' || callbackState.status === 'pending' ? 'contextual' : 'action'} accentColor={callbackState.status === 'connected' ? undefined : 'amber'} className="mb-6">
           <p className="text-body text-text-primary">
             {callbackState.status === 'connected'
               ? `${providers[callbackState.provider as HealthProvider]?.name || callbackState.provider} connected successfully.`
+              : callbackState.status === 'pending'
+                ? `${providers[callbackState.provider as HealthProvider]?.name || callbackState.provider} connection pending.`
               : `Connection issue for ${providers[callbackState.provider as HealthProvider]?.name || callbackState.provider}.`}
           </p>
           {callbackState.message && <p className="mt-1 text-caption text-text-secondary">{callbackState.message}</p>}
@@ -326,6 +338,9 @@ export default function IntegrationsPage() {
           const conn = connections[key];
           const isConnected = conn?.connected || false;
           const lastSync = conn?.lastSync;
+          const status = conn?.status;
+          const isPending = status === 'syncing';
+          const needsReconnect = status === 'needs_reauth' || status === 'error';
           const syncError = typeof conn?.metadata?.syncError === 'string' ? conn.metadata.syncError : null;
           const expiresAt = conn?.expiresAt ? new Date(conn.expiresAt) : null;
           const isExpired = expiresAt ? expiresAt.getTime() <= Date.now() : false;
@@ -349,8 +364,9 @@ export default function IntegrationsPage() {
                       <div className="flex items-center gap-2">
                         <h3 className="text-body font-medium text-text-primary">{provider.name}</h3>
                         {isConnected && <div className="w-2 h-2 rounded-full bg-positive shrink-0" />}
-                        {conn?.status === 'syncing' && <span className="text-[10px] uppercase tracking-wide text-accent">Syncing</span>}
-                        {conn?.status === 'error' && <span className="text-[10px] uppercase tracking-wide text-alert">Error</span>}
+                        {isPending && <span className="text-[10px] uppercase tracking-wide text-accent">{key === 'garmin' ? 'Pending' : 'Syncing'}</span>}
+                        {status === 'needs_reauth' && <span className="text-[10px] uppercase tracking-wide text-caution">Reconnect</span>}
+                        {status === 'error' && <span className="text-[10px] uppercase tracking-wide text-alert">Error</span>}
                       </div>
                       <p className="text-caption text-text-secondary mt-0.5">{provider.description}</p>
                       {requiresNativeApp && (
@@ -361,6 +377,11 @@ export default function IntegrationsPage() {
                       {nativeHealthKitSource && (
                         <p className="text-caption text-positive mt-1">
                           Connected via native iPhone app.
+                        </p>
+                      )}
+                      {key === 'garmin' && isPending && (
+                        <p className="text-caption text-caution mt-1">
+                          Waiting for Terra to confirm Garmin.
                         </p>
                       )}
                       {isConnected && lastSync && (
@@ -434,7 +455,7 @@ export default function IntegrationsPage() {
                       disabled={requiresNativeApp}
                       onClick={() => (isConnected ? disconnectProvider(key) : connectProvider(key))}
                     >
-                      {requiresNativeApp ? (isConnected ? 'Connected on iPhone' : 'Use iPhone app') : isConnected ? 'Disconnect' : 'Connect'}
+                      {requiresNativeApp ? (isConnected ? 'Connected on iPhone' : 'Use iPhone app') : isConnected ? 'Disconnect' : needsReconnect ? 'Reconnect' : 'Connect'}
                     </Button>
                   </div>
                 </div>

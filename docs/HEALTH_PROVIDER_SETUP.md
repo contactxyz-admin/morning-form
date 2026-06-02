@@ -31,7 +31,7 @@ Register these exact callback URLs with each provider:
 Terra-backed flows:
 
 - Apple Health: routed through Terra widget session, then back into Morning Form
-- Garmin: currently routed through Terra widget session, then back into Morning Form
+- Garmin: routed through Terra's Garmin widget session, reconciled by signed Terra webhooks, then synced through Terra pull endpoints
 
 ## Support status by provider
 
@@ -155,8 +155,12 @@ http://localhost:3000/api/health/terra/webhook
 
 Status:
 
-- current in-app path uses Terra rather than a direct Garmin OAuth 1.0a implementation
-- direct Garmin consumer key/secret fields are reserved for a future pass
+- live in-app path uses Terra rather than direct Garmin credentials
+- backend generates Garmin-only Terra widget sessions with explicit success/failure redirects
+- signed Terra auth/deauth webhooks reconcile `HealthConnection.terraUserId`
+- manual sync pulls Terra daily, sleep, and activity endpoints with that Terra user id
+- disconnect attempts Terra deauthentication before clearing local state
+- direct Garmin consumer key/secret fields are reserved for a future direct-Garmin pass and are not required
 
 Env vars:
 
@@ -164,14 +168,21 @@ Env vars:
 TERRA_API_KEY=""
 TERRA_DEV_ID=""
 TERRA_WEBHOOK_SECRET=""
-GARMIN_CONSUMER_KEY=""
-GARMIN_CONSUMER_SECRET=""
 ```
 
 Provider notes:
 
-- if we stay with Terra, only Terra credentials matter for the live flow
-- if we move to direct Garmin later, we’ll need a separate OAuth 1.0a signing implementation
+- enable Garmin as a Terra source in the Terra dashboard
+- configure the Terra destination/webhook to point to:
+
+```txt
+http://localhost:3000/api/health/terra/webhook
+```
+
+- for deployed environments, replace `http://localhost:3000` with the deployed `NEXT_PUBLIC_APP_URL`
+- keep `TERRA_WEBHOOK_SECRET` in sync with the Terra dashboard secret; webhook requests fail closed when it is configured
+- do not set or depend on `GARMIN_CONSUMER_KEY` / `GARMIN_CONSUMER_SECRET` for this flow
+- if we move to direct Garmin later, we’ll need a separate Garmin approval, OAuth/token lifecycle, deauthorization, webhook, and parser implementation
 
 ## Recommended credential rollout order
 
@@ -198,9 +209,9 @@ To reduce debugging surface area, wire providers in this order:
 ## Current limitations
 
 - tokens are persisted, but downstream live sync is still partly mock for some providers
-- Terra callback handling is still simplified
 - Apple Health and Garmin remain Terra-mediated only
-- disconnect currently clears stored tokens but does not notify external providers
+- Apple Health still requires a native app for HealthKit authorization
+- direct Garmin remains deferred
 - no background refresh scheduler exists yet for expiring access tokens
 
 ## Recommended next implementation pass
@@ -208,6 +219,5 @@ To reduce debugging surface area, wire providers in this order:
 - add real live data fetch after successful OAuth exchange for each direct provider
 - add refresh-token rotation and expiry handling
 - add provider-specific sync status and error messages in the UI
-- add Terra user mapping from widget session to stored `terraUserId`
-- add webhook signature verification and event persistence beyond logging
 - build a native iOS wrapper if Apple Health is a true requirement
+- add first-class workout/sleep entities and graph source documents for wearable windows

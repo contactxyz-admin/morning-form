@@ -201,10 +201,11 @@ export class TerraClient {
     });
     const parsed = userInfoResponseSchema.safeParse(await response.json());
     if (!parsed.success) throw new TerraTransientError(response.status, 'terra user info malformed');
-    if (Array.isArray(parsed.data)) return parsed.data;
-    if ('users' in parsed.data) return parsed.data.users;
-    if ('user' in parsed.data) return [parsed.data.user];
-    return [parsed.data];
+    const data = parsed.data as TerraUserInfo | TerraUserInfo[] | { user: TerraUserInfo } | { users: TerraUserInfo[] };
+    if (Array.isArray(data)) return data;
+    if ('users' in data) return data.users;
+    if ('user' in data) return [data.user];
+    return [data];
   }
 
   async deauthenticateUser(terraUserId: string): Promise<{ status: string }> {

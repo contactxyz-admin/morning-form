@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import type { HealthProvider } from '@/types';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { TerraClient } from '@/lib/health/terra';
+import { incrementDiagnostic } from '@/lib/marketing/diagnostic';
 
 export async function GET() {
   try {
@@ -37,6 +39,8 @@ export async function DELETE(request: Request) {
     }
     const { provider } = (await request.json()) as { provider: HealthProvider };
 
+    const disconnectMetadata = await externalDisconnectMetadata(user.id, provider);
+
     await prisma.healthConnection.upsert({
       where: { userId_provider: { userId: user.id, provider } },
       update: {
@@ -46,12 +50,13 @@ export async function DELETE(request: Request) {
         expiresAt: null,
         terraUserId: null,
         lastSyncAt: null,
-        metadata: null,
+        metadata: disconnectMetadata,
       },
       create: {
         userId: user.id,
         provider,
         status: 'disconnected',
+        metadata: disconnectMetadata,
       },
     });
 
@@ -59,5 +64,35 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error('[API] Health disconnect error:', error);
     return NextResponse.json({ error: 'Failed to disconnect provider' }, { status: 500 });
+  }
+}
+
+async function externalDisconnectMetadata(userId: string, provider: HealthProvider): Promise<string | null> {
+  if (provider !== 'garmin') return null;
+
+  const existing = await prisma.healthConnection.findUnique({
+    where: { userId_provider: { userId, provider } },
+  });
+  if (!existing?.terraUserId) return null;
+
+  try {
+    await new TerraClient().deauthenticateUser(existing.terraUserId);
+    return null;
+  } catch (error) {
+    await incrementDiagnostic('terra-deauth-failed');
+    return JSON.stringify({
+      ...parseMetadata(existing.metadata),
+      terraDeauthError: error instanceof Error ? error.message : 'terra_deauth_failed',
+      disconnectedAt: new Date().toISOString(),
+    });
+  }
+}
+
+function parseMetadata(metadata?: string | null): Record<string, unknown> {
+  if (!metadata) return {};
+  try {
+    return JSON.parse(metadata) as Record<string, unknown>;
+  } catch {
+    return {};
   }
 }
