@@ -183,6 +183,56 @@ describe('POST /api/health/terra/webhook', () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
+  it('marks Garmin disconnected by Terra user id when deauth omits reference id', async () => {
+    const payload = {
+      type: 'deauth',
+      resource: 'GARMIN',
+      user: {
+        user_id: 'terra-user-1',
+        provider: 'GARMIN',
+      },
+    };
+
+    const res = await POST(signedRequest(payload));
+
+    expect(res.status).toBe(200);
+    expect(updateManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { terraUserId: 'terra-user-1', provider: 'garmin' },
+      data: expect.objectContaining({
+        status: 'disconnected',
+        terraUserId: null,
+      }),
+    }));
+    expect(incrementDiagnosticMock).not.toHaveBeenCalledWith('terra-webhook-missing-identifier');
+  });
+
+  it('marks Garmin auth failure by Terra user id when failure omits reference id', async () => {
+    const payload = {
+      type: 'auth',
+      status: 'failure',
+      resource: 'GARMIN',
+      user: {
+        user_id: 'terra-user-1',
+        provider: 'GARMIN',
+      },
+    };
+
+    const res = await POST(signedRequest(payload));
+
+    expect(res.status).toBe(200);
+    expect(updateManyMock).toHaveBeenCalledWith(expect.objectContaining({
+      where: { terraUserId: 'terra-user-1', provider: 'garmin' },
+      data: expect.objectContaining({
+        status: 'error',
+      }),
+    }));
+    const metadata = JSON.parse((updateManyMock.mock.calls[0][0] as { data: { metadata: string } }).data.metadata);
+    expect(metadata).toMatchObject({
+      syncError: 'terra_auth_failed',
+      provider: 'garmin',
+    });
+  });
+
   it('captures non-Garmin Terra data events without Garmin reconciliation', async () => {
     const payload = {
       type: 'daily',

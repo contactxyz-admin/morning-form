@@ -50,7 +50,8 @@ export async function GET(request: Request, { params }: RouteContext) {
   try {
     const callbackUrl = `${env.NEXT_PUBLIC_APP_URL}/api/health/callback/${provider}`;
 
-    if (mock || provider === 'apple_health') {
+    const allowMockCallback = Boolean(mock) && process.env.NODE_ENV !== 'production' && provider !== 'garmin';
+    if (allowMockCallback || provider === 'apple_health') {
       const syncService = new HealthSyncService();
       const connection = await prisma.healthConnection.upsert({
         where: { userId_provider: { userId: user.id, provider } },

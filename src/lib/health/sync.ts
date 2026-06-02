@@ -382,39 +382,60 @@ export class HealthSyncService {
         connection: refreshedConnection,
       });
       const dedupedPoints = this.deduplicateData(points);
+      const pointRows = dedupedPoints.map((point) => ({
+        userId,
+        provider: point.provider,
+        category: point.category,
+        metric: point.metric,
+        value: point.value,
+        unit: point.unit,
+        timestamp: new Date(point.timestamp),
+        metadata: JSON.stringify({ importedAt: new Date().toISOString() }),
+      }));
+      const successUpdate = {
+        status: 'connected' as const,
+        lastSyncAt: new Date(),
+        metadata: JSON.stringify({
+          ...(this.parseMetadata(refreshedConnection.metadata) || {}),
+          syncError: null,
+          lastSyncCount: dedupedPoints.length,
+          lastSuccessfulSyncAt: new Date().toISOString(),
+        }),
+      };
 
       if (provider === 'garmin') {
-        await this.deleteGarminSyncWindow(userId, startDate, endDate);
-      }
+        const { start, endExclusive } = syncWindowBounds(startDate, endDate);
+        await prisma.$transaction(async (tx) => {
+          await tx.healthDataPoint.deleteMany({
+            where: {
+              userId,
+              provider: 'garmin',
+              timestamp: {
+                gte: start,
+                lt: endExclusive,
+              },
+            },
+          });
 
-      if (dedupedPoints.length > 0) {
-        await prisma.healthDataPoint.createMany({
-          data: dedupedPoints.map((point) => ({
-            userId,
-            provider: point.provider,
-            category: point.category,
-            metric: point.metric,
-            value: point.value,
-            unit: point.unit,
-            timestamp: new Date(point.timestamp),
-            metadata: JSON.stringify({ importedAt: new Date().toISOString() }),
-          })),
+          if (pointRows.length > 0) {
+            await tx.healthDataPoint.createMany({ data: pointRows });
+          }
+
+          await tx.healthConnection.update({
+            where: { id: refreshedConnection.id },
+            data: successUpdate,
+          });
+        });
+      } else {
+        if (pointRows.length > 0) {
+          await prisma.healthDataPoint.createMany({ data: pointRows });
+        }
+
+        await prisma.healthConnection.update({
+          where: { id: refreshedConnection.id },
+          data: successUpdate,
         });
       }
-
-      await prisma.healthConnection.update({
-        where: { id: refreshedConnection.id },
-        data: {
-          status: 'connected',
-          lastSyncAt: new Date(),
-          metadata: JSON.stringify({
-            ...(this.parseMetadata(refreshedConnection.metadata) || {}),
-            syncError: null,
-            lastSyncCount: dedupedPoints.length,
-            lastSuccessfulSyncAt: new Date().toISOString(),
-          }),
-        },
-      });
 
       return { provider, ok: true, count: dedupedPoints.length, points: dedupedPoints };
     } catch (error) {
@@ -481,20 +502,6 @@ export class HealthSyncService {
     if (provider !== 'garmin') return null;
     if (!connection || connection.provider !== 'garmin') return null;
     return connection.terraUserId || null;
-  }
-
-  private async deleteGarminSyncWindow(userId: string, startDate: string, endDate: string): Promise<void> {
-    const { start, endExclusive } = syncWindowBounds(startDate, endDate);
-    await prisma.healthDataPoint.deleteMany({
-      where: {
-        userId,
-        provider: 'garmin',
-        timestamp: {
-          gte: start,
-          lt: endExclusive,
-        },
-      },
-    });
   }
 
   private syncErrorCode(provider: HealthProvider, error: unknown, fallback: string): string {

@@ -173,8 +173,9 @@ async function processGarminAuthSuccess(event: TerraWebhookEvent) {
 }
 
 async function processGarminDeauth(event: TerraWebhookEvent) {
-  if (!event.referenceId) {
-    await incrementDiagnostic('terra-webhook-missing-reference');
+  const where = garminConnectionWhere(event);
+  if (!where) {
+    await incrementDiagnostic('terra-webhook-missing-identifier');
     return NextResponse.json({ received: true, processed: false }, { status: 202 });
   }
 
@@ -188,7 +189,7 @@ async function processGarminDeauth(event: TerraWebhookEvent) {
   });
 
   await prisma.healthConnection.updateMany({
-    where: { userId: event.referenceId, provider: 'garmin' },
+    where,
     data: {
       status: 'disconnected',
       terraUserId: null,
@@ -203,8 +204,9 @@ async function processGarminDeauth(event: TerraWebhookEvent) {
 }
 
 async function processGarminAuthFailure(event: TerraWebhookEvent) {
-  if (!event.referenceId) {
-    await incrementDiagnostic('terra-webhook-missing-reference');
+  const where = garminConnectionWhere(event);
+  if (!where) {
+    await incrementDiagnostic('terra-webhook-missing-identifier');
     return NextResponse.json({ received: true, processed: false }, { status: 202 });
   }
 
@@ -219,7 +221,7 @@ async function processGarminAuthFailure(event: TerraWebhookEvent) {
   });
 
   await prisma.healthConnection.updateMany({
-    where: { userId: event.referenceId, provider: 'garmin' },
+    where,
     data: {
       status: 'error',
       metadata,
@@ -227,6 +229,16 @@ async function processGarminAuthFailure(event: TerraWebhookEvent) {
   });
 
   return NextResponse.json({ received: true, processed: true });
+}
+
+function garminConnectionWhere(event: TerraWebhookEvent) {
+  if (event.referenceId) {
+    return { userId: event.referenceId, provider: 'garmin' as const };
+  }
+  if (event.terraUserId) {
+    return { terraUserId: event.terraUserId, provider: 'garmin' as const };
+  }
+  return null;
 }
 
 function extractTerraWebhookEvent(payload: unknown): TerraWebhookEvent {

@@ -148,6 +148,22 @@ describe('GET /api/health/callback/garmin', () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
+  it('does not allow mock query parameters to connect Garmin in production', async () => {
+    process.env.NODE_ENV = 'production';
+
+    const res = await GET(
+      callbackRequest('mock=1'),
+      { params: { provider: 'garmin' } },
+    );
+    const redirect = locationOf(res);
+
+    expect(redirect.searchParams.get('status')).toBe('pending');
+    expect(redirect.searchParams.get('message')).toBe('awaiting_terra_webhook');
+    expect(getUserInfoMock).not.toHaveBeenCalled();
+    expect(upsertMock).not.toHaveBeenCalled();
+    expect(syncConnectionMock).not.toHaveBeenCalled();
+  });
+
   it('records a visible Garmin callback error for an authenticated user', async () => {
     const res = await GET(
       callbackRequest('error=access_denied'),

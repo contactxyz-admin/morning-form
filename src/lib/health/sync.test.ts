@@ -12,9 +12,25 @@ vi.mock('./raw-payload', () => ({
 const healthConnectionUpdateMock = vi.fn().mockResolvedValue({});
 const healthDataPointCreateManyMock = vi.fn().mockResolvedValue({ count: 0 });
 const healthDataPointDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+const transactionMock = vi.fn(async (callback: (tx: {
+  healthConnection: { update: typeof healthConnectionUpdateMock };
+  healthDataPoint: {
+    createMany: typeof healthDataPointCreateManyMock;
+    deleteMany: typeof healthDataPointDeleteManyMock;
+  };
+}) => unknown) => callback({
+  healthConnection: {
+    update: healthConnectionUpdateMock,
+  },
+  healthDataPoint: {
+    createMany: healthDataPointCreateManyMock,
+    deleteMany: healthDataPointDeleteManyMock,
+  },
+}));
 
 vi.mock('@/lib/db', () => ({
   prisma: {
+    $transaction: (callback: (tx: unknown) => unknown) => transactionMock(callback),
     healthConnection: {
       update: (args: unknown) => healthConnectionUpdateMock(args),
     },
@@ -50,6 +66,7 @@ beforeEach(() => {
   healthConnectionUpdateMock.mockClear();
   healthDataPointCreateManyMock.mockClear();
   healthDataPointDeleteManyMock.mockClear();
+  transactionMock.mockClear();
 });
 
 afterEach(() => {
@@ -522,6 +539,7 @@ describe('HealthSyncService.syncProvider — Garmin via Terra real path', () => 
     );
 
     expect(result).toMatchObject({ provider: 'garmin', ok: true, count: 15 });
+    expect(transactionMock).toHaveBeenCalledTimes(1);
     expect(healthDataPointDeleteManyMock).toHaveBeenCalledWith({
       where: {
         userId: 'u1',
@@ -534,6 +552,29 @@ describe('HealthSyncService.syncProvider — Garmin via Terra real path', () => 
     });
     expect(healthDataPointDeleteManyMock.mock.invocationCallOrder[0])
       .toBeLessThan(healthDataPointCreateManyMock.mock.invocationCallOrder[0]);
+  });
+
+  it('keeps Garmin window replacement inside a transaction when point insert fails', async () => {
+    healthDataPointCreateManyMock.mockRejectedValueOnce(new Error('insert failed'));
+    const sync = new HealthSyncService();
+    const result = await sync.syncConnection(
+      garminConnection() as never,
+      'u1',
+      '2026-06-01',
+      '2026-06-02',
+    );
+
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      provider: 'garmin',
+      ok: false,
+      count: 0,
+      error: 'insert failed',
+    });
+    expect(healthConnectionUpdateMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { id: 'conn-garmin-1' },
+      data: expect.objectContaining({ status: 'error' }),
+    }));
   });
 });
 
