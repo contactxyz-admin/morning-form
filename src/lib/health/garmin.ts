@@ -1,6 +1,10 @@
 /**
- * Garmin Connect API Client
- * Note: Garmin uses OAuth 1.0a (consumer key/secret), not OAuth 2.0.
+ * Deferred direct Garmin client stub.
+ *
+ * Live Garmin support is routed through Terra. Do not import this from
+ * production routes or sync paths; it remains only as a reminder that a future
+ * direct-Garmin implementation would need its own partner approval, OAuth
+ * lifecycle, and API parser work.
  */
 
 export interface GarminSleep {
