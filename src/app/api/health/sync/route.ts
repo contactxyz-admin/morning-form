@@ -1,8 +1,17 @@
 import { NextResponse } from 'next/server';
+import { HEALTH_PROVIDERS, canSyncProviderConnection } from '@/lib/health/providers';
 import { HealthSyncService } from '@/lib/health/sync';
 import type { HealthCategory, HealthDataPoint, HealthProvider } from '@/types';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+
+type SyncRouteResult = {
+  provider: HealthProvider;
+  ok: boolean;
+  count: number;
+  points: HealthDataPoint[];
+  error?: string | null;
+};
 
 export async function POST(request: Request) {
   try {
@@ -25,10 +34,22 @@ export async function POST(request: Request) {
     const today = new Date().toISOString().split('T')[0];
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
 
-    const results = await Promise.all(
-      targetConnections.map((connection) =>
-        syncService.syncConnection(connection, user.id, weekAgo, today)
-      )
+    const results: SyncRouteResult[] = await Promise.all(
+      targetConnections.map((connection) => {
+        const provider = connection.provider as HealthProvider;
+        const providerDefinition = HEALTH_PROVIDERS[provider];
+        if (canSyncProviderConnection(providerDefinition)) {
+          return syncService.syncConnection(connection, user.id, weekAgo, today);
+        }
+
+        return {
+          provider,
+          ok: false,
+          count: 0,
+          points: [],
+          error: `provider_${providerDefinition.accessStatus}`,
+        };
+      })
     );
 
     const allPoints = results.flatMap((result) => result.points);
