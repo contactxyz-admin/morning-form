@@ -6,7 +6,13 @@
 import type { HealthConnection as PrismaHealthConnection } from '@prisma/client';
 import type { HealthProvider, HealthDataPoint, HealthSummary } from '@/types';
 import { prisma } from '@/lib/db';
-import { TerraClient } from './terra';
+import {
+  TerraAuthError,
+  TerraClient,
+  TerraConfigError,
+  TerraRateLimitError,
+  TerraTransientError,
+} from './terra';
 import { WhoopClient } from './whoop';
 import { OuraClient } from './oura';
 import { FitbitClient } from './fitbit';
@@ -16,6 +22,13 @@ import { LibreClient, LibreAuthError } from './libre';
 import { decryptToken, isEncrypted } from './crypto';
 import { pointFromCanonical } from './normalize';
 import { captureRawPayload } from './raw-payload';
+
+class GarminTerraUserMissingError extends Error {
+  constructor() {
+    super('garmin_terra_user_missing');
+    this.name = 'GarminTerraUserMissingError';
+  }
+}
 
 export interface SyncProviderOptions {
   userId?: string;
@@ -213,9 +226,7 @@ export class HealthSyncService {
         });
         break;
       }
-      case 'apple_health':
-      case 'garmin': {
-        // These go through Terra
+      case 'apple_health': {
         const terraData = await capture('getDaily', () =>
           this.terra.getDaily('user', startDate, endDate)
         );
@@ -229,6 +240,52 @@ export class HealthSyncService {
           if (d.recovery_score) {
             points.push(pointFromCanonical('recovery_score', d.recovery_score, at));
           }
+        });
+        break;
+      }
+      case 'garmin': {
+        const terraUserId = this.resolveTerraUserId(provider, opts.connection);
+        if (!terraUserId) throw new GarminTerraUserMissingError();
+
+        const [daily, sleep, activity] = await Promise.all([
+          capture('getDaily', () => this.terra.getDaily(terraUserId, startDate, endDate)),
+          capture('getSleep', () => this.terra.getSleep(terraUserId, startDate, endDate)),
+          capture('getActivity', () => this.terra.getActivity(terraUserId, startDate, endDate)),
+        ]);
+
+        daily.forEach((d) => {
+          const at = { timestamp: `${d.date}T12:00:00Z`, provider: 'garmin' as const };
+          points.push(
+            pointFromCanonical('steps', d.steps, at),
+            pointFromCanonical('resting_hr', d.resting_hr, at),
+            pointFromCanonical('hrv', d.avg_hrv, at),
+          );
+          if (d.recovery_score !== null) {
+            points.push(pointFromCanonical('recovery_score', d.recovery_score, at));
+          }
+        });
+
+        sleep.forEach((s) => {
+          const at = { timestamp: s.start_time, provider: 'garmin' as const };
+          points.push(
+            pointFromCanonical('duration', s.duration_seconds / 3600, at),
+            pointFromCanonical('efficiency', s.sleep_efficiency, at),
+            pointFromCanonical('deep_sleep', s.deep_sleep_seconds / 3600, at),
+            pointFromCanonical('rem_sleep', s.rem_sleep_seconds / 3600, at),
+            pointFromCanonical('light_sleep', s.light_sleep_seconds / 3600, at),
+            pointFromCanonical('respiratory_rate', s.respiratory_rate, at),
+          );
+        });
+
+        activity.forEach((a) => {
+          const at = { timestamp: a.start_time, provider: 'garmin' as const };
+          points.push(
+            pointFromCanonical('steps', a.steps, at),
+            pointFromCanonical('calories', a.calories, at),
+            pointFromCanonical('active_minutes', a.active_duration_seconds / 60, at),
+            pointFromCanonical('avg_hr', a.avg_hr, at),
+            pointFromCanonical('max_hr', a.max_hr, at),
+          );
         });
         break;
       }
@@ -325,35 +382,60 @@ export class HealthSyncService {
         connection: refreshedConnection,
       });
       const dedupedPoints = this.deduplicateData(points);
+      const pointRows = dedupedPoints.map((point) => ({
+        userId,
+        provider: point.provider,
+        category: point.category,
+        metric: point.metric,
+        value: point.value,
+        unit: point.unit,
+        timestamp: new Date(point.timestamp),
+        metadata: JSON.stringify({ importedAt: new Date().toISOString() }),
+      }));
+      const successUpdate = {
+        status: 'connected' as const,
+        lastSyncAt: new Date(),
+        metadata: JSON.stringify({
+          ...(this.parseMetadata(refreshedConnection.metadata) || {}),
+          syncError: null,
+          lastSyncCount: dedupedPoints.length,
+          lastSuccessfulSyncAt: new Date().toISOString(),
+        }),
+      };
 
-      if (dedupedPoints.length > 0) {
-        await prisma.healthDataPoint.createMany({
-          data: dedupedPoints.map((point) => ({
-            userId,
-            provider: point.provider,
-            category: point.category,
-            metric: point.metric,
-            value: point.value,
-            unit: point.unit,
-            timestamp: new Date(point.timestamp),
-            metadata: JSON.stringify({ importedAt: new Date().toISOString() }),
-          })),
+      if (provider === 'garmin') {
+        const { start, endExclusive } = syncWindowBounds(startDate, endDate);
+        await prisma.$transaction(async (tx) => {
+          await tx.healthDataPoint.deleteMany({
+            where: {
+              userId,
+              provider: 'garmin',
+              timestamp: {
+                gte: start,
+                lt: endExclusive,
+              },
+            },
+          });
+
+          if (pointRows.length > 0) {
+            await tx.healthDataPoint.createMany({ data: pointRows });
+          }
+
+          await tx.healthConnection.update({
+            where: { id: refreshedConnection.id },
+            data: successUpdate,
+          });
+        });
+      } else {
+        if (pointRows.length > 0) {
+          await prisma.healthDataPoint.createMany({ data: pointRows });
+        }
+
+        await prisma.healthConnection.update({
+          where: { id: refreshedConnection.id },
+          data: successUpdate,
         });
       }
-
-      await prisma.healthConnection.update({
-        where: { id: refreshedConnection.id },
-        data: {
-          status: 'connected',
-          lastSyncAt: new Date(),
-          metadata: JSON.stringify({
-            ...(this.parseMetadata(refreshedConnection.metadata) || {}),
-            syncError: null,
-            lastSyncCount: dedupedPoints.length,
-            lastSuccessfulSyncAt: new Date().toISOString(),
-          }),
-        },
-      });
 
       return { provider, ok: true, count: dedupedPoints.length, points: dedupedPoints };
     } catch (error) {
@@ -364,12 +446,9 @@ export class HealthSyncService {
       // must re-OAuth.
       const isLibreAuthFailure = error instanceof LibreAuthError && connection.provider === 'libre';
       const isDexcomAuthFailure = error instanceof DexcomAuthError && connection.provider === 'dexcom';
-      const isAuthFailure = isLibreAuthFailure || isDexcomAuthFailure;
-      const syncErrorCode = isLibreAuthFailure
-        ? 'libre_session_expired_reconnect_required'
-        : isDexcomAuthFailure
-          ? 'dexcom_session_expired_reconnect_required'
-          : message;
+      const isGarminAuthFailure = error instanceof TerraAuthError && connection.provider === 'garmin';
+      const isAuthFailure = isLibreAuthFailure || isDexcomAuthFailure || isGarminAuthFailure;
+      const syncErrorCode = this.syncErrorCode(connection.provider as HealthProvider, error, message);
 
       await prisma.healthConnection.update({
         where: { id: connection.id },
@@ -417,6 +496,29 @@ export class HealthSyncService {
     }
     if (accessToken.startsWith('mock_')) return null;
     return accessToken;
+  }
+
+  private resolveTerraUserId(provider: HealthProvider, connection?: PrismaHealthConnection): string | null {
+    if (provider !== 'garmin') return null;
+    if (!connection || connection.provider !== 'garmin') return null;
+    return connection.terraUserId || null;
+  }
+
+  private syncErrorCode(provider: HealthProvider, error: unknown, fallback: string): string {
+    if (provider === 'libre' && error instanceof LibreAuthError) {
+      return 'libre_session_expired_reconnect_required';
+    }
+    if (provider === 'dexcom' && error instanceof DexcomAuthError) {
+      return 'dexcom_session_expired_reconnect_required';
+    }
+    if (provider === 'garmin') {
+      if (error instanceof GarminTerraUserMissingError) return 'garmin_terra_user_missing';
+      if (error instanceof TerraAuthError) return 'garmin_terra_reauth_required';
+      if (error instanceof TerraConfigError) return 'terra_config_error';
+      if (error instanceof TerraRateLimitError) return 'terra_rate_limited';
+      if (error instanceof TerraTransientError) return 'terra_unavailable';
+    }
+    return fallback;
   }
 
   // Returns { patientId, accessToken } only if the connection holds a
@@ -500,4 +602,11 @@ export class HealthSyncService {
       },
     };
   }
+}
+
+function syncWindowBounds(startDate: string, endDate: string): { start: Date; endExclusive: Date } {
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const endExclusive = new Date(`${endDate}T00:00:00.000Z`);
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  return { start, endExclusive };
 }

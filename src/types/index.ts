@@ -135,7 +135,7 @@ export type HealthProvider = 'apple_health' | 'whoop' | 'oura' | 'fitbit' | 'gar
 export interface HealthConnection {
   id: string;
   provider: HealthProvider;
-  status: 'connected' | 'disconnected' | 'syncing' | 'error';
+  status: 'connected' | 'disconnected' | 'syncing' | 'error' | 'needs_reauth';
   lastSyncAt: string | null;
 }
 
@@ -194,4 +194,3 @@ export interface HealthSummary {
 // ── Navigation ──
 
 export type NavTab = 'home' | 'record' | 'ask' | 'you';
-

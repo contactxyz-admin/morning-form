@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { HealthProvider } from '@/types';
 import { HEALTH_PROVIDERS } from '@/lib/health/providers';
-import { TerraClient } from '@/lib/health/terra';
+import {
+  TerraAuthError,
+  TerraClient,
+  TerraConfigError,
+  TerraRateLimitError,
+  TerraTransientError,
+} from '@/lib/health/terra';
 import { WhoopClient } from '@/lib/health/whoop';
 import { OuraClient } from '@/lib/health/oura';
 import { FitbitClient } from '@/lib/health/fitbit';
@@ -45,9 +51,54 @@ export async function POST(request: Request) {
       }
       case 'garmin': {
         const terra = new TerraClient();
-        const session = await terra.generateWidgetSession(user.id);
-        authUrl = session.url || `${callbackUrl}?mock=1&provider=${provider}`;
-        break;
+        let session;
+        try {
+          session = await terra.generateWidgetSession(user.id, {
+            providers: 'GARMIN',
+            successRedirectUrl: `${callbackUrl}?terra_status=success`,
+            failureRedirectUrl: `${callbackUrl}?terra_status=failure`,
+          });
+        } catch (connectError) {
+          const code = classifyTerraConnectError(connectError);
+          await markExistingConnectionError(user.id, provider, code, connectError);
+          return NextResponse.json(
+            { error: 'Failed to initiate Garmin connection', code, provider },
+            { status: 503 },
+          );
+        }
+
+        authUrl = session.url;
+        const attemptedAt = new Date().toISOString();
+        const metadata = JSON.stringify({
+          mode: 'terra',
+          provider: 'garmin',
+          resource: 'GARMIN',
+          terraWidgetSessionId: session.sessionId,
+          terraWidgetExpiresAt: session.expiresAt,
+          connectionAttemptedAt: attemptedAt,
+          callbackUrl,
+        });
+
+        await prisma.healthConnection.upsert({
+          where: { userId_provider: { userId: user.id, provider } },
+          update: {
+            status: 'syncing',
+            accessToken: null,
+            refreshToken: null,
+            expiresAt: null,
+            terraUserId: null,
+            metadata,
+          },
+          create: {
+            userId: user.id,
+            provider,
+            status: 'syncing',
+            terraUserId: null,
+            metadata,
+          },
+        });
+
+        return NextResponse.json({ authUrl, provider, callbackUrl });
       }
       case 'whoop': {
         const whoop = new WhoopClient();
@@ -135,5 +186,48 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('[API] Health connect error:', error);
     return NextResponse.json({ error: 'Failed to initiate connection' }, { status: 500 });
+  }
+}
+
+function classifyTerraConnectError(error: unknown): string {
+  if (error instanceof TerraConfigError) return 'terra_config_error';
+  if (error instanceof TerraAuthError) return 'terra_auth_error';
+  if (error instanceof TerraRateLimitError) return 'terra_rate_limited';
+  if (error instanceof TerraTransientError) return 'terra_unavailable';
+  return 'terra_connect_failed';
+}
+
+async function markExistingConnectionError(
+  userId: string,
+  provider: HealthProvider,
+  code: string,
+  error: unknown,
+) {
+  const existing = await prisma.healthConnection.findUnique({
+    where: { userId_provider: { userId, provider } },
+  });
+  if (!existing) return;
+
+  const metadata = parseMetadata(existing.metadata);
+  await prisma.healthConnection.update({
+    where: { id: existing.id },
+    data: {
+      status: 'error',
+      metadata: JSON.stringify({
+        ...metadata,
+        syncError: code,
+        syncErrorMessage: error instanceof Error ? error.message : code,
+        lastSyncFailedAt: new Date().toISOString(),
+      }),
+    },
+  });
+}
+
+function parseMetadata(metadata?: string | null): Record<string, unknown> {
+  if (!metadata) return {};
+  try {
+    return JSON.parse(metadata) as Record<string, unknown>;
+  } catch {
+    return {};
   }
 }
