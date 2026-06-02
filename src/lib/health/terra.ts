@@ -43,6 +43,7 @@ export interface TerraSleepData {
   min_hr: number;
   avg_hrv: number;
   respiratory_rate: number;
+  raw?: unknown;
 }
 
 export interface TerraActivityData {
@@ -54,6 +55,7 @@ export interface TerraActivityData {
   avg_hr: number;
   max_hr: number;
   distance_meters: number;
+  raw?: unknown;
 }
 
 export interface TerraBodyData {
@@ -61,6 +63,7 @@ export interface TerraBodyData {
   weight_kg: number | null;
   body_fat_percentage: number | null;
   temperature_delta: number | null;
+  raw?: unknown;
 }
 
 export interface TerraDailyData {
@@ -72,6 +75,7 @@ export interface TerraDailyData {
   avg_hrv: number;
   stress_level: number | null;
   recovery_score: number | null;
+  raw?: unknown;
 }
 
 export class TerraConfigError extends Error {
@@ -426,6 +430,7 @@ function mapDaily(raw: unknown, startDate: string): TerraDailyData {
     avg_hrv: numberFrom(firstNumber(row.avg_hrv, heartSummary.hrv_rmssd), 0),
     stress_level: nullableNumber(firstNumber(row.stress_level, stress.avg_stress_level)),
     recovery_score: nullableNumber(firstNumber(row.recovery_score, scores.recovery)),
+    raw,
   };
 }
 
@@ -454,6 +459,7 @@ function mapSleep(raw: unknown, startDate: string, endDate: string): TerraSleepD
     min_hr: numberFrom(firstNumber(row.min_hr, heartSummary.min_hr_bpm), 0),
     avg_hrv: numberFrom(firstNumber(row.avg_hrv, heartSummary.hrv_rmssd), 0),
     respiratory_rate: numberFrom(firstNumber(row.respiratory_rate, respiration.avg_breaths_per_min), 0),
+    raw,
   };
 }
 
@@ -474,6 +480,7 @@ function mapActivity(raw: unknown, startDate: string): TerraActivityData {
     avg_hr: numberFrom(firstNumber(row.avg_hr, heartSummary.avg_hr_bpm), 0),
     max_hr: numberFrom(firstNumber(row.max_hr, heartSummary.max_hr_bpm), 0),
     distance_meters: numberFrom(firstNumber(row.distance_meters, distance.distance_meters), 0),
+    raw,
   };
 }
 
@@ -486,6 +493,7 @@ function mapBody(raw: unknown, startDate: string): TerraBodyData {
     weight_kg: nullableNumber(firstNumber(row.weight_kg, measurements.weight_kg)),
     body_fat_percentage: nullableNumber(firstNumber(row.body_fat_percentage, measurements.bodyfat_percentage)),
     temperature_delta: nullableNumber(firstNumber(row.temperature_delta, measurements.temperature_delta)),
+    raw,
   };
 }
 

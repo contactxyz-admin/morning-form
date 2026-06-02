@@ -9,6 +9,22 @@ vi.mock('./raw-payload', () => ({
   captureRawPayload: (...args: unknown[]) => captureSpy(...args),
 }));
 
+const healthConnectionUpdateMock = vi.fn().mockResolvedValue({});
+const healthDataPointCreateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+const healthDataPointDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    healthConnection: {
+      update: (args: unknown) => healthConnectionUpdateMock(args),
+    },
+    healthDataPoint: {
+      createMany: (args: unknown) => healthDataPointCreateManyMock(args),
+      deleteMany: (args: unknown) => healthDataPointDeleteManyMock(args),
+    },
+  },
+}));
+
 import { HealthSyncService } from './sync';
 
 /**
@@ -31,6 +47,9 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(FROZEN_NOW));
   captureSpy.mockClear();
+  healthConnectionUpdateMock.mockClear();
+  healthDataPointCreateManyMock.mockClear();
+  healthDataPointDeleteManyMock.mockClear();
 });
 
 afterEach(() => {
@@ -39,6 +58,13 @@ afterEach(() => {
 
 function pointBy(points: HealthDataPoint[], metric: string): HealthDataPoint | undefined {
   return points.find((p) => p.metric === metric);
+}
+
+function jsonResponse(payload: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(payload), {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+  });
 }
 
 describe('HealthSyncService.syncProvider — Whoop characterization', () => {
@@ -311,6 +337,203 @@ describe('HealthSyncService.syncProvider — apple_health (via Terra) characteri
       unit: '%',
       value: 74,
     });
+  });
+});
+
+describe('HealthSyncService.syncProvider — Garmin via Terra real path', () => {
+  const fetchMock = vi.fn();
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.TERRA_API_KEY;
+  const originalDevId = process.env.TERRA_DEV_ID;
+
+  const dailyPayload = {
+    data: [{
+      date: '2026-06-01',
+      steps: 10000,
+      calories: 2200,
+      active_minutes: 55,
+      resting_hr: 51,
+      avg_hrv: 70,
+      stress_level: 32,
+      recovery_score: 80,
+    }],
+  };
+  const sleepPayload = {
+    data: [{
+      start_time: '2026-06-01T22:30:00Z',
+      end_time: '2026-06-02T06:30:00Z',
+      duration_seconds: 28800,
+      sleep_efficiency: 92,
+      deep_sleep_seconds: 5400,
+      rem_sleep_seconds: 7200,
+      light_sleep_seconds: 14400,
+      avg_hr: 54,
+      avg_hrv: 65,
+      respiratory_rate: 14,
+    }],
+  };
+  const activityPayload = {
+    data: [{
+      start_time: '2026-06-01T07:00:00Z',
+      end_time: '2026-06-01T08:00:00Z',
+      steps: 8000,
+      calories: 500,
+      active_duration_seconds: 3600,
+      avg_hr: 140,
+      max_hr: 175,
+    }],
+  };
+
+  beforeEach(() => {
+    process.env.TERRA_API_KEY = 'terra-key';
+    process.env.TERRA_DEV_ID = 'terra-dev';
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async (url: string | URL) => {
+      const path = new URL(url.toString()).pathname;
+      if (path.endsWith('/daily')) return jsonResponse(dailyPayload);
+      if (path.endsWith('/sleep')) return jsonResponse(sleepPayload);
+      if (path.endsWith('/activity')) return jsonResponse(activityPayload);
+      return new Response('', { status: 404 });
+    });
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.TERRA_API_KEY;
+    else process.env.TERRA_API_KEY = originalApiKey;
+    if (originalDevId === undefined) delete process.env.TERRA_DEV_ID;
+    else process.env.TERRA_DEV_ID = originalDevId;
+  });
+
+  function garminConnection(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'conn-garmin-1',
+      userId: 'u1',
+      provider: 'garmin',
+      status: 'connected',
+      accessToken: null,
+      refreshToken: null,
+      expiresAt: null,
+      terraUserId: 'terra-user-1',
+      metadata: null,
+      lastSyncAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  it('pulls daily, sleep, and activity data with the stored Terra user id', async () => {
+    const sync = new HealthSyncService();
+    const points = await sync.syncProvider('garmin', '2026-06-01', '2026-06-02', {
+      userId: 'u1',
+      connection: garminConnection() as never,
+      traceId: 'trace-garmin',
+    });
+
+    const urls = fetchMock.mock.calls.map((call) => new URL(call[0].toString()));
+    expect(urls.map((url) => url.pathname).sort()).toEqual([
+      '/v2/activity',
+      '/v2/daily',
+      '/v2/sleep',
+    ]);
+    for (const url of urls) {
+      expect(url.searchParams.get('user_id')).toBe('terra-user-1');
+      expect(url.searchParams.get('start_date')).toBe('2026-06-01');
+      expect(url.searchParams.get('end_date')).toBe('2026-06-02');
+      expect(url.searchParams.get('to_webhook')).toBe('false');
+    }
+
+    const metrics = points.map((point) => point.metric).sort();
+    expect(metrics).toEqual([
+      'active_minutes',
+      'avg_hr',
+      'calories',
+      'deep_sleep',
+      'duration',
+      'efficiency',
+      'hrv',
+      'light_sleep',
+      'max_hr',
+      'recovery_score',
+      'rem_sleep',
+      'respiratory_rate',
+      'resting_hr',
+      'steps',
+      'steps',
+    ].sort());
+    expect(pointBy(points, 'duration')).toMatchObject({ value: 8, unit: 'hours', provider: 'garmin' });
+    expect(pointBy(points, 'deep_sleep')).toMatchObject({ value: 1.5, unit: 'hours' });
+    expect(pointBy(points, 'rem_sleep')).toMatchObject({ value: 2, unit: 'hours' });
+    expect(pointBy(points, 'avg_hr')).toMatchObject({ value: 140, unit: 'bpm' });
+    expect(pointBy(points, 'max_hr')).toMatchObject({ value: 175, unit: 'bpm' });
+  });
+
+  it('captures every Terra pull response with raw payload context', async () => {
+    const sync = new HealthSyncService();
+    await sync.syncProvider('garmin', '2026-06-01', '2026-06-02', {
+      userId: 'u1',
+      connection: garminConnection() as never,
+      traceId: 'trace-garmin',
+    });
+
+    expect(captureSpy).toHaveBeenCalledTimes(3);
+    const dailyCapture = captureSpy.mock.calls.find((call) =>
+      (call[0] as { payload: { method: string } }).payload.method === 'getDaily',
+    )?.[0] as { provider: string; source: string; traceId: string; payload: { data: Array<{ raw?: unknown }> } };
+    expect(dailyCapture).toMatchObject({
+      provider: 'garmin',
+      source: 'pull',
+      traceId: 'trace-garmin',
+    });
+    expect(dailyCapture.payload.data[0].raw).toEqual(dailyPayload.data[0]);
+  });
+
+  it('marks Garmin sync as error instead of falling back to mock when terraUserId is missing', async () => {
+    const sync = new HealthSyncService();
+    const result = await sync.syncConnection(
+      garminConnection({ terraUserId: null }) as never,
+      'u1',
+      '2026-06-01',
+      '2026-06-02',
+    );
+
+    expect(result).toMatchObject({ provider: 'garmin', ok: false, count: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(healthDataPointCreateManyMock).not.toHaveBeenCalled();
+    const failedUpdate = healthConnectionUpdateMock.mock.calls.at(-1)?.[0] as {
+      data: { status: string; metadata: string };
+    };
+    expect(failedUpdate.data.status).toBe('error');
+    expect(JSON.parse(failedUpdate.data.metadata)).toMatchObject({
+      syncError: 'garmin_terra_user_missing',
+    });
+  });
+
+  it('replaces the Garmin sync window before inserting points', async () => {
+    healthDataPointCreateManyMock.mockResolvedValueOnce({ count: 15 });
+    const sync = new HealthSyncService();
+    const result = await sync.syncConnection(
+      garminConnection() as never,
+      'u1',
+      '2026-06-01',
+      '2026-06-02',
+    );
+
+    expect(result).toMatchObject({ provider: 'garmin', ok: true, count: 15 });
+    expect(healthDataPointDeleteManyMock).toHaveBeenCalledWith({
+      where: {
+        userId: 'u1',
+        provider: 'garmin',
+        timestamp: {
+          gte: new Date('2026-06-01T00:00:00.000Z'),
+          lt: new Date('2026-06-03T00:00:00.000Z'),
+        },
+      },
+    });
+    expect(healthDataPointDeleteManyMock.mock.invocationCallOrder[0])
+      .toBeLessThan(healthDataPointCreateManyMock.mock.invocationCallOrder[0]);
   });
 });
 
