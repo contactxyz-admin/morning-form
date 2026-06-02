@@ -2,6 +2,12 @@
 
 This document is the credential and callback setup checklist for Morning Form's live wearable integrations.
 
+## Strategic direction after Terra pricing review
+
+Morning Form is not provisioning Terra as the default long-term wearable aggregation layer. Terra-backed Garmin was merged as a functional scaffold, but new work should follow the direct-provider plan in `docs/plans/2026-06-02-002-feat-direct-health-provider-platform-plan.md`.
+
+For Garmin, prepare the official Garmin Connect Developer Program application in `docs/runbooks/garmin-connect-developer-program-application.md`. Do not build against private Garmin Connect endpoints or scrape consumer sessions.
+
 ## Base app configuration
 
 Set these locally first:
