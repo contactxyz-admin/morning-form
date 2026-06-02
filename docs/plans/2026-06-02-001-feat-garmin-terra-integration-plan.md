@@ -1,7 +1,7 @@
 ---
 title: "feat: Make Garmin work through Terra"
 type: feat
-status: active
+status: completed
 date: 2026-06-02
 ---
 
