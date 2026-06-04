@@ -47,10 +47,60 @@ function collapseCheckInsByDay(rows: StoredCheckIn[]): CheckInHistoryDay[] {
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** The minimal shape of each fetch arm the classifier needs (a subset of `Response`). */
+export type ArmStatus = { ok: boolean; status: number };
+
+/**
+ * Pure classification of the three /insights arms by HTTP status, before any
+ * body is read. Decides whether the page is unauthenticated, errored, or may
+ * proceed — and which arms it is safe to read.
+ *
+ * Arm policy:
+ * - weekly + check-in are REQUIRED: a non-ok response (other than 401) fails
+ *   the whole page.
+ * - health-history is OPTIONAL: it is plausible to fail (or be empty) for a
+ *   user with no wearable, so a non-ok response degrades that section to empty
+ *   rather than failing the page.
+ * - any 401 on any arm → unauthenticated (the session is gone for all arms).
+ *
+ * `healthHistoryOk` tells the caller whether to read the health-history body
+ * or substitute an empty array.
+ */
+export type ArmClassification =
+  | { kind: 'unauthenticated' }
+  | { kind: 'error'; message: string }
+  | { kind: 'proceed'; healthHistoryOk: boolean };
+
+export function classifyInsightsArms(
+  review: ArmStatus,
+  checkIn: ArmStatus,
+  history: ArmStatus,
+): ArmClassification {
+  if (review.status === 401 || checkIn.status === 401 || history.status === 401) {
+    return { kind: 'unauthenticated' };
+  }
+
+  // Required arms: a failure here fails the page.
+  if (!review.ok || !checkIn.ok) {
+    return {
+      kind: 'error',
+      message: `HTTP ${review.status}/${checkIn.status}/${history.status}`,
+    };
+  }
+
+  // Optional arm: health-history degrades to an empty section on failure.
+  return { kind: 'proceed', healthHistoryOk: history.ok };
+}
+
 /**
  * Loads the three /insights data surfaces (weekly review, check-in history,
- * health history) in parallel. One failed request degrades the whole view to
- * `{ kind: 'error' }` — the page does not render a partial.
+ * health history) in parallel.
+ *
+ * The weekly and check-in arms are required: a failed request degrades the
+ * whole view to `{ kind: 'error' }` — the page does not render a partial. The
+ * health-history arm is optional (plausible to fail or be empty for a user
+ * with no wearable) and degrades to an empty section instead of failing the
+ * page. See `classifyInsightsArms`.
  *
  * Empty data is not an error: a signed-in user with zero check-ins returns
  * `{ kind: 'ready' }` with zeroed review counts, which the UI renders as
@@ -72,28 +122,26 @@ export function useInsightsData(): InsightsState {
 
         if (cancelled) return;
 
-        if (reviewRes.status === 401 || checkInRes.status === 401 || historyRes.status === 401) {
+        const classification = classifyInsightsArms(reviewRes, checkInRes, historyRes);
+        if (classification.kind === 'unauthenticated') {
           setState({ kind: 'unauthenticated' });
           return;
         }
-
-        if (!reviewRes.ok || !checkInRes.ok || !historyRes.ok) {
-          setState({
-            kind: 'error',
-            message: `HTTP ${reviewRes.status}/${checkInRes.status}/${historyRes.status}`,
-          });
+        if (classification.kind === 'error') {
+          setState({ kind: 'error', message: classification.message });
           return;
         }
 
-        const [{ review }, { checkIns }, { history }] = (await Promise.all([
+        // Required arms are guaranteed ok here. The health-history body is only
+        // read when its arm succeeded; otherwise the section degrades to empty.
+        const [{ review }, { checkIns }] = (await Promise.all([
           reviewRes.json(),
           checkInRes.json(),
-          historyRes.json(),
-        ])) as [
-          { review: WeeklyReview },
-          { checkIns: StoredCheckIn[] },
-          { history: HealthHistoryDay[] },
-        ];
+        ])) as [{ review: WeeklyReview }, { checkIns: StoredCheckIn[] }];
+
+        const healthHistory: HealthHistoryDay[] = classification.healthHistoryOk
+          ? ((await historyRes.json()) as { history: HealthHistoryDay[] }).history
+          : [];
 
         if (cancelled) return;
         setState({
@@ -101,7 +149,7 @@ export function useInsightsData(): InsightsState {
           data: {
             review,
             checkInHistory: collapseCheckInsByDay(checkIns),
-            healthHistory: history,
+            healthHistory,
           },
         });
       } catch (err) {
