@@ -41,6 +41,12 @@ const TIME_FIELDS = ['wakeTime', 'windDownTime'] as const;
 /**
  * GET /api/user/preferences — return the current user's preferences, or the
  * defaults (matching the Settings UI) when no row exists yet.
+ *
+ * Also returns the authenticated user's `email` as a sibling field. The
+ * Settings page already fetches this endpoint on mount and needs the real
+ * session email to render the Account section; there is no other client-facing
+ * route that exposes user identity, so we surface it here rather than adding a
+ * dedicated `/api/user/me` endpoint. `email` is read-only (no PUT counterpart).
  */
 export async function GET() {
   const user = await getCurrentUser();
@@ -61,7 +67,7 @@ export async function GET() {
           notifyWeekly: row.notifyWeekly,
         }
       : { ...DEFAULTS };
-    return NextResponse.json({ preferences });
+    return NextResponse.json({ preferences, email: user.email ?? null });
   } catch (error) {
     console.error('[API] Preferences fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch preferences' }, { status: 500 });

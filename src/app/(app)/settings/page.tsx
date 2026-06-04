@@ -30,6 +30,49 @@ const PREF_DEFAULTS: Preferences = {
   notifyWeekly: true,
 };
 
+// Latest export request as surfaced by GET /api/account/export.
+type ExportRequest = {
+  id: string;
+  status: 'pending' | 'complete' | 'failed';
+  failureReason: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+};
+
+// Local view-state for the export control. `requesting` is the in-flight POST;
+// `pending` is a server-side pending row (assembly underway). A pending row
+// older than the route's maxDuration (300s) can never mark its own status (a
+// timeout kill can't update its own row), so we present it as stale/failed.
+type ExportView =
+  | { kind: 'idle' }
+  | { kind: 'requesting' }
+  | { kind: 'pending' }
+  | { kind: 'complete'; expiresAt: string | null }
+  | { kind: 'failed'; reason: string | null };
+
+// A pending row older than this is treated as stale (the route's maxDuration is
+// 300s; once past it the request can no longer complete or self-fail).
+const EXPORT_STALE_MS = 5 * 60 * 1000;
+
+function exportViewFromRequest(req: ExportRequest | null): ExportView {
+  if (!req) return { kind: 'idle' };
+  if (req.status === 'complete') return { kind: 'complete', expiresAt: req.expiresAt };
+  if (req.status === 'failed') return { kind: 'failed', reason: req.failureReason };
+  // pending: stale if older than the route could possibly still be running.
+  const age = Date.now() - new Date(req.createdAt).getTime();
+  if (age > EXPORT_STALE_MS) {
+    return { kind: 'failed', reason: 'The export timed out. Please try again.' };
+  }
+  return { kind: 'pending' };
+}
+
+// Local view-state for the delete control.
+type DeleteView =
+  | { kind: 'idle' }
+  | { kind: 'confirming'; value: string; error: string | null }
+  | { kind: 'requesting'; value: string }
+  | { kind: 'sent' };
+
 export default function SettingsPage() {
   const router = useRouter();
   const [wakeTime, setWakeTime] = useState(PREF_DEFAULTS.wakeTime);
@@ -43,6 +86,67 @@ export default function SettingsPage() {
   // Guards write-through during the initial load so hydrating state from the
   // server doesn't echo straight back as a PUT.
   const loadedRef = useRef(false);
+
+  // Account email — the real session user's email, loaded alongside preferences
+  // (GET /api/user/preferences returns it as a sibling field). Null until loaded.
+  const [email, setEmail] = useState<string | null>(null);
+
+  // Data section: export + delete view-state.
+  const [exportView, setExportView] = useState<ExportView>({ kind: 'idle' });
+  const [deleteView, setDeleteView] = useState<DeleteView>({ kind: 'idle' });
+
+  const requestExport = async () => {
+    setExportView({ kind: 'requesting' });
+    try {
+      const res = await fetch('/api/account/export', { method: 'POST' });
+      if (res.ok) {
+        // POST resolves only once the archive is built + emailed.
+        setExportView({ kind: 'complete', expiresAt: null });
+        return;
+      }
+      if (res.status === 429) {
+        setExportView({
+          kind: 'failed',
+          reason: "You've reached the export limit. Please try again later.",
+        });
+        return;
+      }
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      setExportView({ kind: 'failed', reason: json?.error ?? 'Export failed. Please try again.' });
+    } catch {
+      setExportView({ kind: 'failed', reason: 'Network error. Please try again.' });
+    }
+  };
+
+  const submitDeletion = async () => {
+    setDeleteView((prev) => ({
+      kind: 'requesting',
+      value: prev.kind === 'confirming' ? prev.value : 'DELETE',
+    }));
+    try {
+      const res = await fetch('/api/account/delete/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'DELETE' }),
+      });
+      if (res.ok) {
+        setDeleteView({ kind: 'sent' });
+        return;
+      }
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      setDeleteView({
+        kind: 'confirming',
+        value: 'DELETE',
+        error: json?.error ?? 'Could not start deletion. Please try again.',
+      });
+    } catch {
+      setDeleteView({
+        kind: 'confirming',
+        value: 'DELETE',
+        error: 'Network error. Please try again.',
+      });
+    }
+  };
 
   // Write the given fields through to the server. Local state is the optimistic
   // echo; this persists the change. Fire-and-forget — failures are non-fatal to
@@ -92,7 +196,8 @@ export default function SettingsPage() {
       try {
         const res = await fetch('/api/user/preferences');
         if (res.ok) {
-          const json = (await res.json()) as { preferences?: Preferences };
+          const json = (await res.json()) as { preferences?: Preferences; email?: string | null };
+          if (!cancelled && typeof json.email === 'string') setEmail(json.email);
           if (json.preferences) {
             serverPrefs = json.preferences;
             // The server returns defaults when no row exists; treat a value that
@@ -130,6 +235,26 @@ export default function SettingsPage() {
       loadedRef.current = true;
     })();
 
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load the latest export request so a returning user sees current state
+  // (e.g. "your export is ready") rather than a bare idle button.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/account/export');
+        if (!res.ok) return;
+        const json = (await res.json()) as { request?: ExportRequest | null };
+        if (cancelled) return;
+        setExportView(exportViewFromRequest(json.request ?? null));
+      } catch {
+        // Non-fatal: leave the control idle.
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -258,10 +383,7 @@ export default function SettingsPage() {
             <span className="text-label uppercase text-text-tertiary">Account</span>
           </div>
           <div className="space-y-3">
-            <p className="text-body text-text-secondary">demo@morningform.com</p>
-            <button className="text-caption text-accent hover:underline underline-offset-4">
-              Change password
-            </button>
+            <p className="text-body text-text-secondary">{email ?? '—'}</p>
             <button
               onClick={async () => {
                 await fetch('/api/auth/logout', { method: 'POST' });
@@ -283,13 +405,103 @@ export default function SettingsPage() {
             <span className="font-mono text-label uppercase text-text-tertiary">05</span>
             <span className="text-label uppercase text-text-tertiary">Data</span>
           </div>
-          <div className="space-y-3">
-            <button className="text-body text-text-primary hover:text-accent transition-colors duration-300 ease-spring block">
-              Export my data
-            </button>
-            <button className="text-body text-alert hover:opacity-80 transition-opacity block">
-              Delete account
-            </button>
+          <div className="space-y-6">
+            {/* Export my data */}
+            <div className="space-y-2">
+              {exportView.kind === 'requesting' ? (
+                <p className="text-body text-text-tertiary">Preparing your export…</p>
+              ) : exportView.kind === 'pending' ? (
+                <p className="text-body text-text-tertiary">
+                  Your export is being prepared. We&rsquo;ll email you when it&rsquo;s ready.
+                </p>
+              ) : exportView.kind === 'complete' ? (
+                <div className="space-y-1">
+                  <p className="text-body text-text-primary">
+                    Your export is ready — we&rsquo;ve emailed you a download link.
+                  </p>
+                  <p className="text-caption text-text-tertiary">
+                    The link expires in 24 hours and requires you to be signed in.
+                  </p>
+                </div>
+              ) : exportView.kind === 'failed' ? (
+                <div className="space-y-2">
+                  <p className="text-body text-alert">
+                    {exportView.reason ?? 'Export failed. Please try again.'}
+                  </p>
+                  <button
+                    onClick={requestExport}
+                    className="text-caption text-accent hover:underline underline-offset-4 block"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={requestExport}
+                  className="text-body text-text-primary hover:text-accent transition-colors duration-300 ease-spring block"
+                >
+                  Export my data
+                </button>
+              )}
+            </div>
+
+            {/* Delete account */}
+            <div className="space-y-2">
+              {deleteView.kind === 'sent' ? (
+                <p className="text-body text-text-secondary">
+                  Check your email to confirm deletion. The confirmation link expires in 15
+                  minutes.
+                </p>
+              ) : deleteView.kind === 'idle' ? (
+                <button
+                  onClick={() => setDeleteView({ kind: 'confirming', value: '', error: null })}
+                  className="text-body text-alert hover:opacity-80 transition-opacity block"
+                >
+                  Delete account
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-caption text-text-secondary">
+                    This permanently erases your account and all your data. Type{' '}
+                    <span className="font-mono text-text-primary">DELETE</span> to confirm.
+                  </p>
+                  <input
+                    type="text"
+                    value={deleteView.value}
+                    onChange={(e) =>
+                      setDeleteView({ kind: 'confirming', value: e.target.value, error: null })
+                    }
+                    disabled={deleteView.kind === 'requesting'}
+                    autoFocus
+                    aria-label="Type DELETE to confirm account deletion"
+                    placeholder="DELETE"
+                    className="w-full bg-transparent border-b border-border focus:border-alert outline-none text-body text-text-primary py-1.5 font-mono placeholder:text-text-tertiary placeholder:font-mono transition-colors duration-300 ease-spring"
+                  />
+                  {deleteView.kind === 'confirming' && deleteView.error && (
+                    <p className="text-caption text-alert">{deleteView.error}</p>
+                  )}
+                  <div className="flex items-center gap-5">
+                    <button
+                      onClick={submitDeletion}
+                      disabled={
+                        deleteView.kind === 'requesting' || deleteView.value !== 'DELETE'
+                      }
+                      className="text-body text-alert hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {deleteView.kind === 'requesting' ? 'Sending…' : 'Delete account'}
+                    </button>
+                    {deleteView.kind !== 'requesting' && (
+                      <button
+                        onClick={() => setDeleteView({ kind: 'idle' })}
+                        className="text-caption text-text-secondary hover:text-text-primary transition-colors duration-300 ease-spring"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
