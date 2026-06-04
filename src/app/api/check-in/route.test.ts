@@ -56,6 +56,13 @@ function getRequest(qs = ''): Request {
   return new Request(`https://app.test/api/check-in${qs}`);
 }
 
+// UTC "today" matching the route's plausibility logic (getDateKey/toISOString).
+function dateKeyOffset(days: number): string {
+  const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
+  today.setUTCDate(today.getUTCDate() + days);
+  return today.toISOString().slice(0, 10);
+}
+
 const MORNING_BODY = {
   type: 'morning',
   date: '2026-03-20',
@@ -119,6 +126,32 @@ describe('POST /api/check-in', () => {
       sleepQuality: 'great',
       currentFeeling: 'sharp',
     });
+  });
+
+  it('accepts a date exactly today+1 (UTC edge-of-day tolerance)', async () => {
+    const userId = await makeTestUser(prisma, 'ci-future-1');
+    currentUserMock.mockResolvedValue({ id: userId });
+    const res = await POST(postRequest({ ...MORNING_BODY, date: dateKeyOffset(1) }));
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects a date today+2 with 400', async () => {
+    currentUserMock.mockResolvedValue({ id: await makeTestUser(prisma, 'ci-future-2') });
+    const res = await POST(postRequest({ ...MORNING_BODY, date: dateKeyOffset(2) }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a date 366 days in the past with 400', async () => {
+    currentUserMock.mockResolvedValue({ id: await makeTestUser(prisma, 'ci-stale') });
+    const res = await POST(postRequest({ ...MORNING_BODY, date: dateKeyOffset(-366) }));
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a date exactly 365 days in the past', async () => {
+    const userId = await makeTestUser(prisma, 'ci-edge-past');
+    currentUserMock.mockResolvedValue({ id: userId });
+    const res = await POST(postRequest({ ...MORNING_BODY, date: dateKeyOffset(-365) }));
+    expect(res.status).toBe(200);
   });
 
   it('keeps morning and evening distinct on the same date', async () => {

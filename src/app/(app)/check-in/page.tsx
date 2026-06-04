@@ -58,6 +58,8 @@ export default function CheckInPage() {
   const dateKey = getDateKey();
 
   const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [sleepQuality, setSleepQuality] = useState<string | null>(null);
   const [currentFeeling, setCurrentFeeling] = useState<string | null>(null);
   const [focusQuality, setFocusQuality] = useState<string | null>(null);
@@ -69,18 +71,37 @@ export default function CheckInPage() {
     if (localStorage.getItem(key)) setDone(true);
   }, [isMorning, dateKey]);
 
-  const handleSubmit = () => {
-    if (isMorning) {
-      localStorage.setItem(
-        `mf_checkin_morning_${dateKey}`,
-        JSON.stringify({ sleepQuality, currentFeeling }),
-      );
-    } else {
-      localStorage.setItem(
-        `mf_checkin_evening_${dateKey}`,
-        JSON.stringify({ focusQuality, afternoonEnergy, protocolAdherence }),
-      );
+  // Server-first: persist to /api/check-in, then mirror the same type+date key to
+  // localStorage for the instant done-state on revisit. On failure, surface an
+  // inline error and do NOT mark done or write the local key. See plan Unit 1.
+  const handleSubmit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+
+    const type = isMorning ? 'morning' : 'evening';
+    const responses = isMorning
+      ? { sleepQuality, currentFeeling }
+      : { focusQuality, afternoonEnergy, protocolAdherence };
+
+    try {
+      const res = await fetch('/api/check-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, date: dateKey, responses }),
+      });
+      if (!res.ok) {
+        setError("We couldn't save this. Check your connection and try again.");
+        setSubmitting(false);
+        return;
+      }
+    } catch {
+      setError("We couldn't save this. Check your connection and try again.");
+      setSubmitting(false);
+      return;
     }
+
+    localStorage.setItem(`mf_checkin_${type}_${dateKey}`, JSON.stringify(responses));
     setDone(true);
     setTimeout(() => router.push('/home'), 1200);
   };
@@ -158,6 +179,12 @@ export default function CheckInPage() {
             </>
           )}
         </h1>
+
+        {error && (
+          <p className="mb-8 -mt-6 text-caption text-alert" role="alert">
+            {error}
+          </p>
+        )}
 
         <AnimatePresence mode="wait">
           {isMorning ? (
