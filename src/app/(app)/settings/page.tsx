@@ -1,32 +1,139 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/icon';
 import { Toggle } from '@/components/ui/toggle';
 import { TimePicker } from '@/components/ui/time-picker';
 import Link from 'next/link';
 
+// Server-backed preference fields (mirror of the UserPreferences model /
+// /api/user/preferences allowlist). Notification toggles use the model's
+// notify* names; the UI labels them morning/protocol/evening/weekly.
+type Preferences = {
+  wakeTime: string;
+  windDownTime: string;
+  timezone: string;
+  notifyMorning: boolean;
+  notifyProtocol: boolean;
+  notifyEvening: boolean;
+  notifyWeekly: boolean;
+};
+
+const PREF_DEFAULTS: Preferences = {
+  wakeTime: '07:00',
+  windDownTime: '22:00',
+  timezone: 'UTC',
+  notifyMorning: true,
+  notifyProtocol: true,
+  notifyEvening: true,
+  notifyWeekly: true,
+};
+
 export default function SettingsPage() {
   const router = useRouter();
-  const [wakeTime, setWakeTime] = useState('07:00');
-  const [windDownTime, setWindDownTime] = useState('22:00');
+  const [wakeTime, setWakeTime] = useState(PREF_DEFAULTS.wakeTime);
+  const [windDownTime, setWindDownTime] = useState(PREF_DEFAULTS.windDownTime);
   const [notifications, setNotifications] = useState({
-    morning: true, protocol: true, evening: true, weekly: true,
+    morning: PREF_DEFAULTS.notifyMorning,
+    protocol: PREF_DEFAULTS.notifyProtocol,
+    evening: PREF_DEFAULTS.notifyEvening,
+    weekly: PREF_DEFAULTS.notifyWeekly,
   });
+  // Guards write-through during the initial load so hydrating state from the
+  // server doesn't echo straight back as a PUT.
+  const loadedRef = useRef(false);
+
+  // Write the given fields through to the server. Local state is the optimistic
+  // echo; this persists the change. Fire-and-forget — failures are non-fatal to
+  // the local UI (a later unit can surface them if needed).
+  const persist = (patch: Partial<Preferences>) => {
+    if (!loadedRef.current) return;
+    void fetch('/api/user/preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+  };
+
+  const applyPrefs = (prefs: Preferences) => {
+    setWakeTime(prefs.wakeTime);
+    setWindDownTime(prefs.windDownTime);
+    setNotifications({
+      morning: prefs.notifyMorning,
+      protocol: prefs.notifyProtocol,
+      evening: prefs.notifyEvening,
+      weekly: prefs.notifyWeekly,
+    });
+  };
 
   useEffect(() => {
-    const prefs = localStorage.getItem('mf_preferences');
-    if (prefs) {
-      const parsed = JSON.parse(prefs);
-      if (parsed.wakeTime) setWakeTime(parsed.wakeTime);
-      if (parsed.windDownTime) setWindDownTime(parsed.windDownTime);
-    }
-  }, []);
+    let cancelled = false;
 
-  const savePrefs = () => {
-    localStorage.setItem('mf_preferences', JSON.stringify({ wakeTime, windDownTime }));
-  };
+    // Reads the legacy localStorage source-of-truth, if present. Only wake/
+    // wind-down were ever stored there.
+    const readLocalLegacy = (): Partial<Preferences> | null => {
+      try {
+        const raw = localStorage.getItem('mf_preferences');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const patch: Partial<Preferences> = {};
+        if (typeof parsed.wakeTime === 'string') patch.wakeTime = parsed.wakeTime;
+        if (typeof parsed.windDownTime === 'string') patch.windDownTime = parsed.windDownTime;
+        return Object.keys(patch).length > 0 ? patch : null;
+      } catch {
+        return null;
+      }
+    };
+
+    (async () => {
+      let serverPrefs: Preferences = PREF_DEFAULTS;
+      let hadRow = false;
+      try {
+        const res = await fetch('/api/user/preferences');
+        if (res.ok) {
+          const json = (await res.json()) as { preferences?: Preferences };
+          if (json.preferences) {
+            serverPrefs = json.preferences;
+            // The server returns defaults when no row exists; treat a value that
+            // differs from defaults as a real row. We can't distinguish a row
+            // that happens to equal defaults, but migrating defaults is a no-op.
+            hadRow =
+              JSON.stringify(json.preferences) !== JSON.stringify(PREF_DEFAULTS);
+          }
+        }
+      } catch {
+        // Network failure — fall back to defaults / local below.
+      }
+      if (cancelled) return;
+
+      // One-time migration: server has no row but a local mf_preferences exists
+      // → PUT it once to preserve the per-device value, then adopt it locally.
+      const localPatch = !hadRow ? readLocalLegacy() : null;
+      if (localPatch) {
+        const merged: Preferences = { ...serverPrefs, ...localPatch };
+        applyPrefs(merged);
+        loadedRef.current = true;
+        try {
+          await fetch('/api/user/preferences', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(localPatch),
+          });
+        } catch {
+          // Best-effort migration; local echo already applied.
+        }
+        return;
+      }
+
+      applyPrefs(serverPrefs);
+      loadedRef.current = true;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="px-5 pt-6 pb-8 grain-page">
@@ -64,7 +171,7 @@ export default function SettingsPage() {
                 value={wakeTime}
                 onChange={(v) => {
                   setWakeTime(v);
-                  savePrefs();
+                  persist({ wakeTime: v });
                 }}
               />
             </div>
@@ -74,7 +181,7 @@ export default function SettingsPage() {
                 value={windDownTime}
                 onChange={(v) => {
                   setWindDownTime(v);
-                  savePrefs();
+                  persist({ windDownTime: v });
                 }}
               />
             </div>
@@ -92,22 +199,34 @@ export default function SettingsPage() {
           <div className="space-y-5">
             <Toggle
               checked={notifications.morning}
-              onChange={(v) => setNotifications((prev) => ({ ...prev, morning: v }))}
+              onChange={(v) => {
+                setNotifications((prev) => ({ ...prev, morning: v }));
+                persist({ notifyMorning: v });
+              }}
               label="Morning check-in"
             />
             <Toggle
               checked={notifications.protocol}
-              onChange={(v) => setNotifications((prev) => ({ ...prev, protocol: v }))}
+              onChange={(v) => {
+                setNotifications((prev) => ({ ...prev, protocol: v }));
+                persist({ notifyProtocol: v });
+              }}
               label="Protocol reminders"
             />
             <Toggle
               checked={notifications.evening}
-              onChange={(v) => setNotifications((prev) => ({ ...prev, evening: v }))}
+              onChange={(v) => {
+                setNotifications((prev) => ({ ...prev, evening: v }));
+                persist({ notifyEvening: v });
+              }}
               label="Evening check-in"
             />
             <Toggle
               checked={notifications.weekly}
-              onChange={(v) => setNotifications((prev) => ({ ...prev, weekly: v }))}
+              onChange={(v) => {
+                setNotifications((prev) => ({ ...prev, weekly: v }));
+                persist({ notifyWeekly: v });
+              }}
               label="Weekly review"
             />
           </div>
