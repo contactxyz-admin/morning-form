@@ -57,6 +57,12 @@ model User {
   // docs/plans/2026-05-12-002-feat-external-mcp-server-plan.md.
   mcpTokens      MCPToken[]
   mcpAuditEvents MCPAuditEvent[]
+
+  // GDPR data rights. AccountDeletionTombstone deliberately has no relation
+  // here — it must survive user.delete(). See
+  // docs/plans/2026-06-04-001-feat-first-session-completeness-plan.md.
+  exportRequests        ExportRequest[]
+  accountDeletionTokens AccountDeletionToken[]
 }
 
 // ---------------------------------------------------------------------------
@@ -713,4 +719,75 @@ model MCPAuditEvent {
 
   @@index([userId, createdAt])
   @@index([tokenId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// GDPR data rights — export + deletion
+// (docs/plans/2026-06-04-001-feat-first-session-completeness-plan.md)
+// ---------------------------------------------------------------------------
+
+model ExportRequest {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 'pending' | 'complete' | 'failed'. Non-failed rows count toward the
+  // 2-per-24h rate-limit window — a failed attempt never locks a user out
+  // of an Article 15 right.
+  status String @default("pending")
+
+  // Blob pathname under uploads/<userId>/exports/. Non-null once
+  // status='complete' — the account-deletion sweep reads these
+  // pre-transaction to include export archives in the blob erasure.
+  blobPath      String?
+  failureReason String?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+model AccountDeletionToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+// Survives account erasure by construction — NO User FK. The audit record
+// that proves consent was held and erasure completed (UK GDPR Art. 5(2)),
+// holding only non-re-identifying salted hashes.
+model AccountDeletionTombstone {
+  id String @id @default(cuid())
+
+  // Salted one-way hash of the deleted account's email — duplicate-request
+  // detection only.
+  emailHash String
+
+  // Salted hash of the confirming request's IP (existing ipHash convention);
+  // abuse forensics, never the raw IP.
+  ipHash String?
+
+  // Snapshot of User.llmConsentAcceptedAt at erasure time.
+  consentHeldAt DateTime?
+
+  // 'pending' | 'completed'. Flips to completed as the LAST statement inside
+  // the erasure $transaction so erasure + audit commit atomically.
+  status String @default("pending")
+
+  // JSON of per-domain deleted-row counts, recorded at completion.
+  deletedCounts String?
+
+  requestedAt DateTime  @default(now())
+  confirmedAt DateTime?
+  completedAt DateTime?
+
+  @@index([emailHash])
 }
