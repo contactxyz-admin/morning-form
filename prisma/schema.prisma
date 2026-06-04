@@ -540,7 +540,9 @@ model HealthDataPoint {
 
 model RawProviderPayload {
   id         String   @id @default(cuid())
-  userId     String
+  // Nullable so GDPR erasure can scrub the owning userId to NULL (keeping the
+  // raw diagnostic row for debugging without retaining the PII link).
+  userId     String?
   provider   String
   source     String
   receivedAt DateTime @default(now())

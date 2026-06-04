@@ -7,7 +7,7 @@ import {
   teardownTestDb,
 } from '@/lib/graph/test-db';
 
-const currentUserMock = vi.fn<() => Promise<{ id: string } | null>>();
+const currentUserMock = vi.fn<() => Promise<{ id: string; email: string } | null>>();
 
 vi.mock('@/lib/db', () => ({
   get prisma() {
@@ -71,7 +71,7 @@ describe('PUT /api/user/preferences', () => {
 
   it('persists allowlisted fields and GET returns them', async () => {
     const userId = await makeTestUser(prisma, 'prefs-persist');
-    currentUserMock.mockResolvedValue({ id: userId });
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
 
     const putRes = await PUT(
       putRequest({
@@ -92,7 +92,7 @@ describe('PUT /api/user/preferences', () => {
     expect(putJson.preferences.notifyProtocol).toBe(true);
     expect(putJson.preferences.notifyWeekly).toBe(false);
 
-    currentUserMock.mockResolvedValue({ id: userId });
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
     const getRes = await GET();
     expect(getRes.status).toBe(200);
     const getJson = await getRes.json();
@@ -112,9 +112,9 @@ describe('PUT /api/user/preferences', () => {
 
   it('upserts on a second PUT (no duplicate row)', async () => {
     const userId = await makeTestUser(prisma, 'prefs-upsert');
-    currentUserMock.mockResolvedValue({ id: userId });
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
     await PUT(putRequest({ wakeTime: '06:00' }));
-    currentUserMock.mockResolvedValue({ id: userId });
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
     await PUT(putRequest({ wakeTime: '08:30', notifyEvening: false }));
 
     const rows = await prisma.userPreferences.findMany({ where: { userId } });
@@ -125,7 +125,7 @@ describe('PUT /api/user/preferences', () => {
 
   it('returns 400 on invalid time format', async () => {
     const userId = await makeTestUser(prisma, 'prefs-bad-time');
-    currentUserMock.mockResolvedValue({ id: userId });
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
     const res = await PUT(putRequest({ wakeTime: '25:00' }));
     expect(res.status).toBe(400);
     const res2 = await PUT(putRequest({ windDownTime: '7:5' }));
@@ -139,7 +139,7 @@ describe('PUT /api/user/preferences', () => {
 
   it('ignores unknown fields (allowlist holds)', async () => {
     const userId = await makeTestUser(prisma, 'prefs-unknown');
-    currentUserMock.mockResolvedValue({ id: userId });
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
     const res = await PUT(
       putRequest({
         wakeTime: '05:00',
@@ -159,9 +159,35 @@ describe('PUT /api/user/preferences', () => {
 
   it('returns 400 on a wrong-typed boolean field', async () => {
     const userId = await makeTestUser(prisma, 'prefs-bad-bool');
-    currentUserMock.mockResolvedValue({ id: userId });
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
     const res = await PUT(putRequest({ notifyMorning: 'yes' }));
     expect(res.status).toBe(400);
+  });
+
+  it('returns 400 on an empty / no-valid-field body', async () => {
+    const userId = await makeTestUser(prisma, 'prefs-empty');
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
+    // Empty object → nothing to write.
+    const empty = await PUT(putRequest({}));
+    expect(empty.status).toBe(400);
+    // Only unknown keys → still nothing writable.
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
+    const unknownOnly = await PUT(putRequest({ isAdmin: true, nope: 1 }));
+    expect(unknownOnly.status).toBe(400);
+    // No row created on a rejected no-op PUT.
+    expect(await prisma.userPreferences.count({ where: { userId } })).toBe(0);
+  });
+
+  it('returns 400 on an invalid IANA timezone', async () => {
+    const userId = await makeTestUser(prisma, 'prefs-bad-tz');
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
+    const res = await PUT(putRequest({ timezone: 'Mars/Phobos' }));
+    expect(res.status).toBe(400);
+    // A valid one passes.
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
+    const ok = await PUT(putRequest({ timezone: 'America/New_York' }));
+    expect(ok.status).toBe(200);
+    expect((await ok.json()).preferences.timezone).toBe('America/New_York');
   });
 });
 
@@ -174,10 +200,12 @@ describe('GET /api/user/preferences', () => {
 
   it('returns defaults when the user has no row', async () => {
     const userId = await makeTestUser(prisma, 'prefs-defaults');
-    currentUserMock.mockResolvedValue({ id: userId });
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
     const res = await GET();
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.preferences).toEqual(DEFAULTS);
+    // GET surfaces the authenticated user's email as a sibling field.
+    expect(json.email).toBe(`prefs-${userId}@example.com`);
   });
 });

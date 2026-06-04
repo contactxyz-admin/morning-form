@@ -3,8 +3,7 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { SESSION_COOKIE } from '@/lib/session-cookie';
 import { hashIp } from '@/lib/auth/ip-hash';
-import { eraseAccount, hashDeletionEmail } from '@/lib/account/delete';
-import { hashDeletionToken } from '../request/route';
+import { eraseAccount, hashDeletionEmail, hashDeletionToken } from '@/lib/account/delete';
 
 /**
  * POST /api/account/delete/confirm — step 2 of the dual-factor deletion flow
@@ -13,13 +12,17 @@ import { hashDeletionToken } from '../request/route';
  * explicit click).
  *
  * Requires BOTH an active session (getCurrentUser) AND the single-use token.
- * Atomic single-use consume mirrors verifyMagicLink's
- * `updateMany(... consumedAt: null, expiresAt > now)` so a raced double-POST
- * fires erasure exactly once. Confused-deputy guard: the token's userId must
- * match the session user's id (403 otherwise) — user A's token in user B's
- * session must not erase B. Idempotent: a completed tombstone for this email is
- * a no-op success. On success, clears the mf_session cookie (the Session row is
- * already gone via cascade) and returns a goodbye payload.
+ * The atomic single-use consume is ownership-bound — `updateMany(... userId:
+ * session.user.id, consumedAt: null, expiresAt > now)` — so a raced double-POST
+ * fires erasure exactly once AND user A's token can never be consumed inside
+ * user B's session (confused-deputy guard folded into the same statement, so a
+ * failed match leaves the real owner's token un-consumed). On a count-0 miss a
+ * read-only lookup classifies the response: a token owned by a different user →
+ * 403; otherwise → 400 (or 200 no-op when a completed tombstone already exists).
+ * If eraseAccount throws, the token's consumedAt is reset to null so the same
+ * emailed link is retryable and the caller gets a 503. On success, clears the
+ * mf_session cookie (the Session row is already gone via cascade) and returns a
+ * goodbye payload.
  *
  * maxDuration mirrors the deletion transaction's generous timeout (repo
  * precedent 300; src/app/api/account/export/route.ts).
@@ -41,15 +44,35 @@ export async function POST(request: Request) {
   const tokenHash = hashDeletionToken(rawToken);
   const now = new Date();
 
-  // Atomic single-use consume gated on (not consumed, not expired). The DB
+  // Atomic single-use consume gated on (belongs to this user, not consumed, not
+  // expired). Binding the consume to `userId: user.id` is the confused-deputy
+  // guard AND the single-use winner-selection in one statement: user A's token
+  // can never be consumed inside user B's session, so a failed match (count 0)
+  // leaves the real owner's token untouched (consumedAt still null). The DB
   // decides the winner under concurrent POSTs — exactly one gets count === 1.
   const consumed = await prisma.accountDeletionToken.updateMany({
-    where: { tokenHash, consumedAt: null, expiresAt: { gt: now } },
+    where: { tokenHash, userId: user.id, consumedAt: null, expiresAt: { gt: now } },
     data: { consumedAt: now },
   });
-  if (consumed.count !== 1) {
-    // Idempotency: an already-completed tombstone for this user is a no-op
-    // success even though the token is consumed/expired (double-click / retry).
+
+  if (consumed.count === 0) {
+    // Classify the miss with a read-only lookup (no mutation). A token that
+    // exists but belongs to a different user is a confused-deputy attempt →
+    // 403, and crucially the owner's token was NOT consumed above.
+    const existing = await prisma.accountDeletionToken.findUnique({
+      where: { tokenHash },
+      select: { userId: true },
+    });
+    if (existing && existing.userId !== user.id) {
+      return NextResponse.json(
+        { error: 'This confirmation does not match your account.' },
+        { status: 403 },
+      );
+    }
+
+    // Otherwise the token is missing, expired, or already consumed for THIS
+    // user. Idempotency: an already-completed tombstone for this user is a
+    // no-op success (double-click / retry of a finished erasure).
     const completed = await prisma.accountDeletionTombstone.findFirst({
       where: { emailHash: hashDeletionEmail(user.email), status: 'completed' },
       select: { id: true },
@@ -65,18 +88,36 @@ export async function POST(request: Request) {
     );
   }
 
-  // Confused-deputy guard: the consumed token must belong to the session user.
-  const token = await prisma.accountDeletionToken.findUnique({
-    where: { tokenHash },
-    select: { userId: true },
-  });
-  if (!token || token.userId !== user.id) {
-    return NextResponse.json({ error: 'This confirmation does not match your account.' }, { status: 403 });
-  }
-
   // Execute erasure. eraseAccount itself is idempotent (completed tombstone →
   // noop) and blob-first / retry-safe.
-  await eraseAccount(prisma, user.id, { ipHash: hashIp(request) });
+  try {
+    await eraseAccount(prisma, user.id, { ipHash: hashIp(request) });
+  } catch (error) {
+    // The erasure failed AFTER we consumed the token. If the user row is gone
+    // but a completed tombstone exists for their email (a race where another
+    // path finished the erasure), treat this as an idempotent success rather
+    // than stranding the caller.
+    const completed = await prisma.accountDeletionTombstone.findFirst({
+      where: { emailHash: hashDeletionEmail(user.email), status: 'completed' },
+      select: { id: true },
+    });
+    if (completed) {
+      const res = NextResponse.json({ ok: true, status: 'already-deleted' });
+      res.cookies.delete(SESSION_COOKIE);
+      return res;
+    }
+
+    // Genuine failure (e.g. blob deletion down). Reset the token so the same
+    // emailed link is retryable, and surface a 503 the client can retry.
+    console.error('[API] Account erasure failed:', error);
+    await prisma.accountDeletionToken
+      .updateMany({ where: { tokenHash, userId: user.id }, data: { consumedAt: null } })
+      .catch(() => {});
+    return NextResponse.json(
+      { error: 'Account deletion could not be completed. Please try again.' },
+      { status: 503 },
+    );
+  }
 
   // The Session row is gone via cascade; clear the now-dangling cookie. Do NOT
   // run any getCurrentUser()-dependent work after this point.

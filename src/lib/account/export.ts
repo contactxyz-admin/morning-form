@@ -34,6 +34,24 @@ import { createHash } from 'node:crypto';
 import { get } from '@vercel/blob';
 import type { PrismaClient } from '@prisma/client';
 
+/**
+ * Hard ceiling on the assembled archive's total uncompressed byte size (3 GB).
+ * The store-only ZIP buffer (and the upstream Buffer.concat) lives entirely in
+ * memory, and the 32-bit ZIP local/central headers cannot address offsets past
+ * 4 GB without ZIP64. We stop well short and surface a clear `failed` reason
+ * rather than producing a corrupt or OOM archive. Exported so tests can assert
+ * the guard with a small injected limit instead of allocating 3 GB.
+ */
+export const MAX_ARCHIVE_BYTES = 3 * 1024 ** 3;
+
+/** Error message thrown when the assembled archive exceeds MAX_ARCHIVE_BYTES. */
+export const ARCHIVE_LIMIT_MESSAGE = 'export exceeds the 3 GB archive limit';
+
+// Re-exported from a leaf module (no @vercel/blob / prisma imports) so the
+// client-side Settings page can import the constant without pulling this whole
+// assembler — and its runtime blob dependency — into the browser bundle.
+export { EXPORT_MAX_DURATION_S } from './export-constants';
+
 // ---------------------------------------------------------------------------
 // Domain coverage decisions (the completeness contract)
 // ---------------------------------------------------------------------------
@@ -102,7 +120,7 @@ export const EXCLUSIONS: readonly ExclusionEntry[] = [
   {
     model: 'MagicLinkRateLimit',
     reason:
-      'Internal abuse-prevention counters keyed by salted hashes; not personal data the subject can act on.',
+      'Internal abuse-prevention counters. Email-keyed buckets store the normalized email in plaintext (and IP-keyed buckets a salted IP hash); these are throttling counters, not portability data, and the email buckets are deleted on account erasure.',
   },
   {
     model: 'MCPToken',
@@ -146,6 +164,11 @@ export const EXCLUSIONS: readonly ExclusionEntry[] = [
     reason:
       'Internal marketing-attribution analytics (per-minute deduped page views). Pseudonymous telemetry, not substantive personal data.',
   },
+  {
+    model: 'AccountDeletionTombstone',
+    reason:
+      'Post-erasure audit tombstone; no User FK by design; contains only salted hashes, no raw PII.',
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -169,6 +192,8 @@ export interface Manifest {
   domains: ManifestDomain[];
   files: { pathname: string; sourceDocumentId: string; bytes: number }[];
   exclusions: ExclusionEntry[];
+  /** Operational notes documenting limits/constraints on the archive. */
+  notes: string[];
 }
 
 interface DomainResult {
@@ -238,12 +263,21 @@ async function assembleDomains(prisma: PrismaClient, userId: string): Promise<Do
   ]);
 
   // record domain: graph + source documents (chunk text included; embeddings
-  // excluded — see EXCLUSIONS). Strip credential-ish token fields from health
-  // connections (access/refresh tokens are not portability data).
-  const sanitizedConnections = healthConnections.map((c) => {
-    const { accessToken: _a, refreshToken: _r, ...rest } = c;
-    return rest;
-  });
+  // excluded — see EXCLUSIONS). Health connections use an explicit field
+  // ALLOWLIST rather than a token blocklist: only safe, intelligible fields are
+  // exported, so a future credential-ish column (e.g. a new token field) can
+  // never leak by default. accessToken/refreshToken are deliberately omitted.
+  const sanitizedConnections = healthConnections.map((c) => ({
+    id: c.id,
+    provider: c.provider,
+    status: c.status,
+    expiresAt: c.expiresAt,
+    terraUserId: c.terraUserId,
+    metadata: c.metadata,
+    lastSyncAt: c.lastSyncAt,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+  }));
 
   const recordPayload = {
     graphNodes,
@@ -386,6 +420,9 @@ export async function assembleExportArchive(
       bytes: f.bytes.length,
     })),
     exclusions: [...EXCLUSIONS],
+    notes: [
+      `Archive size limit: the total uncompressed payload may not exceed ${MAX_ARCHIVE_BYTES} bytes (3 GB). A request whose data exceeds this is marked failed ("${ARCHIVE_LIMIT_MESSAGE}") rather than producing a truncated archive.`,
+    ],
   };
 
   const entries: ZipEntry[] = [];
@@ -440,8 +477,19 @@ function crc32(buf: Buffer): number {
  * Build a ZIP archive with stored (uncompressed) entries. Returns the complete
  * archive as a Buffer. Sufficient and spec-correct for our needs; PDFs are
  * already compressed so store-only costs little.
+ *
+ * Throws ARCHIVE_LIMIT_MESSAGE when the summed entry byte length exceeds
+ * `maxBytes` (default MAX_ARCHIVE_BYTES) — the request is marked `failed` with
+ * that reason rather than building an oversized in-memory / non-ZIP64 archive.
+ * `maxBytes` is parameterised so tests can exercise the guard without
+ * allocating 3 GB.
  */
-export function buildStoreZip(entries: ZipEntry[]): Buffer {
+export function buildStoreZip(entries: ZipEntry[], maxBytes: number = MAX_ARCHIVE_BYTES): Buffer {
+  const totalBytes = entries.reduce((sum, e) => sum + e.data.length, 0);
+  if (totalBytes > maxBytes) {
+    throw new Error(ARCHIVE_LIMIT_MESSAGE);
+  }
+
   const localParts: Buffer[] = [];
   const centralParts: Buffer[] = [];
   let offset = 0;

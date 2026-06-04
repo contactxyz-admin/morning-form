@@ -76,10 +76,15 @@ async function makeUser(suffix: string): Promise<{ id: string; email: string }> 
   return { id, email: user.email };
 }
 
+/** The export POST takes a Request (for resolveAppOrigin's host fallback). */
+function postRequest(): Request {
+  return new Request('http://localhost/api/account/export', { method: 'POST' });
+}
+
 describe('POST /api/account/export', () => {
   it('returns 401 when unauthenticated', async () => {
     currentUserMock.mockResolvedValue(null);
-    const res = await POST();
+    const res = await POST(postRequest());
     expect(res.status).toBe(401);
   });
 
@@ -87,7 +92,7 @@ describe('POST /api/account/export', () => {
     const user = await makeUser('exp-happy');
     currentUserMock.mockResolvedValue(user);
 
-    const res = await POST();
+    const res = await POST(postRequest());
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.status).toBe('complete');
@@ -118,9 +123,9 @@ describe('POST /api/account/export', () => {
     const user = await makeUser('exp-rl');
     currentUserMock.mockResolvedValue(user);
 
-    await POST();
-    await POST();
-    const third = await POST();
+    await POST(postRequest());
+    await POST(postRequest());
+    const third = await POST(postRequest());
     expect(third.status).toBe(429);
     expect(third.headers.get('Retry-After')).toBeTruthy();
     expect(Number(third.headers.get('Retry-After'))).toBeGreaterThan(0);
@@ -132,16 +137,49 @@ describe('POST /api/account/export', () => {
 
     // First request fails (blob upload throws).
     putMock.mockRejectedValueOnce(new Error('blob down'));
-    const failed = await POST();
+    const failed = await POST(postRequest());
     expect(failed.status).toBe(500);
     const failedJson = await failed.json();
     const failedRow = await prisma.exportRequest.findUniqueOrThrow({ where: { id: failedJson.id } });
     expect(failedRow.status).toBe('failed');
 
     // Two more should still succeed (failed one not counted), third 429.
-    expect((await POST()).status).toBe(200);
-    expect((await POST()).status).toBe(200);
-    expect((await POST()).status).toBe(429);
+    expect((await POST(postRequest())).status).toBe(200);
+    expect((await POST(postRequest())).status).toBe(200);
+    expect((await POST(postRequest())).status).toBe(429);
+  });
+
+  it('notice email rejects: export still completes (row complete, download sent)', async () => {
+    const user = await makeUser('exp-noticefail');
+    currentUserMock.mockResolvedValue(user);
+    // First sendEmail call (the notice) rejects; the download email (2nd call)
+    // resolves. The export must still complete.
+    sendEmailMock.mockRejectedValueOnce(new Error('resend down'));
+
+    const res = await POST(postRequest());
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.status).toBe('complete');
+    const row = await prisma.exportRequest.findUniqueOrThrow({ where: { id: json.id } });
+    expect(row.status).toBe('complete');
+  });
+
+  it('download email rejects: response still success, row stays complete', async () => {
+    const user = await makeUser('exp-dlfail');
+    currentUserMock.mockResolvedValue(user);
+    // Notice email (1st call) resolves; download email (2nd call) rejects. The
+    // archive is already built + stored, so the row must stay complete and the
+    // response succeed — a mailer outage must not flip it to failed.
+    sendEmailMock
+      .mockResolvedValueOnce({ sent: true })
+      .mockRejectedValueOnce(new Error('resend down'));
+
+    const res = await POST(postRequest());
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.status).toBe('complete');
+    const row = await prisma.exportRequest.findUniqueOrThrow({ where: { id: json.id } });
+    expect(row.status).toBe('complete');
   });
 
   it('blob upload failure: row failed, notice email sent, no download email', async () => {
@@ -149,7 +187,7 @@ describe('POST /api/account/export', () => {
     currentUserMock.mockResolvedValue(user);
     putMock.mockRejectedValueOnce(new Error('upload boom'));
 
-    const res = await POST();
+    const res = await POST(postRequest());
     expect(res.status).toBe(500);
     const json = await res.json();
     const row = await prisma.exportRequest.findUniqueOrThrow({ where: { id: json.id } });
@@ -177,7 +215,7 @@ describe('GET /api/account/export', () => {
     expect((await empty.json()).request).toBeNull();
 
     currentUserMock.mockResolvedValue(user);
-    await POST();
+    await POST(postRequest());
     currentUserMock.mockResolvedValue(user);
     const after = await GET();
     const json = await after.json();

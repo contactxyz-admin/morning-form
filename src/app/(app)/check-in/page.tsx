@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,9 +16,10 @@ interface QuickSelectProps {
   options: { label: string; value: OptionValue }[];
   selected: OptionValue | null;
   onSelect: (value: OptionValue) => void;
+  disabled?: boolean;
 }
 
-function QuickSelect({ index, label, options, selected, onSelect }: QuickSelectProps) {
+function QuickSelect({ index, label, options, selected, onSelect, disabled }: QuickSelectProps) {
   return (
     <div className="mb-10">
       <div className="flex items-baseline gap-2.5 mb-4">
@@ -32,11 +33,13 @@ function QuickSelect({ index, label, options, selected, onSelect }: QuickSelectP
           <button
             key={opt.value}
             onClick={() => onSelect(opt.value)}
+            disabled={disabled}
             aria-pressed={selected === opt.value}
             className={cn(
               'py-3 px-2 rounded-card-sm text-caption font-medium border text-center',
               'transition-[transform,background-color,border-color,color] duration-450 ease-spring',
               'active:scale-[0.97] active:duration-150',
+              'disabled:cursor-not-allowed disabled:opacity-60',
               'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-button-focus',
               selected === opt.value
                 ? 'bg-accent text-[#FFFFFF] border-accent'
@@ -59,6 +62,10 @@ export default function CheckInPage() {
 
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Synchronous in-flight guard. State updates are async and batched, so two
+  // selections landing in the same render tick could both read submitting=false
+  // and double-POST. A ref flips synchronously, closing that window.
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [sleepQuality, setSleepQuality] = useState<string | null>(null);
   const [currentFeeling, setCurrentFeeling] = useState<string | null>(null);
@@ -74,8 +81,15 @@ export default function CheckInPage() {
   // Server-first: persist to /api/check-in, then mirror the same type+date key to
   // localStorage for the instant done-state on revisit. On failure, surface an
   // inline error and do NOT mark done or write the local key. See plan Unit 1.
-  const handleSubmit = async () => {
-    if (submitting) return;
+  //
+  // The submittingRef guard is synchronous: it closes the window where two
+  // selections in the same render tick both pass a state-based `submitting`
+  // check and double-POST. On the error path the ref is reset so the user can
+  // retry; on success it stays held (we navigate away) and the submitting UI
+  // state is cleared.
+  const handleSubmit = useCallback(async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
 
@@ -92,31 +106,43 @@ export default function CheckInPage() {
       });
       if (!res.ok) {
         setError("We couldn't save this. Check your connection and try again.");
+        submittingRef.current = false;
         setSubmitting(false);
         return;
       }
     } catch {
       setError("We couldn't save this. Check your connection and try again.");
+      submittingRef.current = false;
       setSubmitting(false);
       return;
     }
 
     localStorage.setItem(`mf_checkin_${type}_${dateKey}`, JSON.stringify(responses));
     setDone(true);
+    setSubmitting(false);
     setTimeout(() => router.push('/home'), 1200);
-  };
+  }, [
+    isMorning,
+    dateKey,
+    router,
+    sleepQuality,
+    currentFeeling,
+    focusQuality,
+    afternoonEnergy,
+    protocolAdherence,
+  ]);
 
   useEffect(() => {
     if (isMorning && sleepQuality && currentFeeling) {
       handleSubmit();
     }
-  }, [sleepQuality, currentFeeling]);
+  }, [isMorning, sleepQuality, currentFeeling, handleSubmit]);
 
   useEffect(() => {
     if (!isMorning && focusQuality && afternoonEnergy && protocolAdherence) {
       handleSubmit();
     }
-  }, [focusQuality, afternoonEnergy, protocolAdherence]);
+  }, [isMorning, focusQuality, afternoonEnergy, protocolAdherence, handleSubmit]);
 
   if (done) {
     return (
@@ -200,6 +226,7 @@ export default function CheckInPage() {
                 ]}
                 selected={sleepQuality}
                 onSelect={setSleepQuality}
+                disabled={submitting}
               />
               <QuickSelect
                 index={2}
@@ -212,6 +239,7 @@ export default function CheckInPage() {
                 ]}
                 selected={currentFeeling}
                 onSelect={setCurrentFeeling}
+                disabled={submitting}
               />
             </motion.div>
           ) : (
@@ -227,6 +255,7 @@ export default function CheckInPage() {
                 ]}
                 selected={focusQuality}
                 onSelect={setFocusQuality}
+                disabled={submitting}
               />
               <QuickSelect
                 index={2}
@@ -239,6 +268,7 @@ export default function CheckInPage() {
                 ]}
                 selected={afternoonEnergy}
                 onSelect={setAfternoonEnergy}
+                disabled={submitting}
               />
               <QuickSelect
                 index={3}
@@ -251,6 +281,7 @@ export default function CheckInPage() {
                 ]}
                 selected={protocolAdherence}
                 onSelect={setProtocolAdherence}
+                disabled={submitting}
               />
             </motion.div>
           )}

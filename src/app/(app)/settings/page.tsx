@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/icon';
 import { Toggle } from '@/components/ui/toggle';
 import { TimePicker } from '@/components/ui/time-picker';
 import Link from 'next/link';
+import { EXPORT_MAX_DURATION_S } from '@/lib/account/export-constants';
 
 // Server-backed preference fields (mirror of the UserPreferences model /
 // /api/user/preferences allowlist). Notification toggles use the model's
@@ -50,9 +51,11 @@ type ExportView =
   | { kind: 'complete'; expiresAt: string | null }
   | { kind: 'failed'; reason: string | null };
 
-// A pending row older than this is treated as stale (the route's maxDuration is
-// 300s; once past it the request can no longer complete or self-fail).
-const EXPORT_STALE_MS = 5 * 60 * 1000;
+// A pending row older than this is treated as stale. Derived from the route's
+// maxDuration (EXPORT_MAX_DURATION_S) plus a 5-minute grace margin so a request
+// still finishing right at the timeout edge isn't prematurely shown as failed.
+// Once past it the request can no longer complete or self-fail.
+const EXPORT_STALE_MS = (EXPORT_MAX_DURATION_S + 5 * 60) * 1000;
 
 function exportViewFromRequest(req: ExportRequest | null): ExportView {
   if (!req) return { kind: 'idle' };
@@ -119,10 +122,11 @@ export default function SettingsPage() {
   };
 
   const submitDeletion = async () => {
-    setDeleteView((prev) => ({
-      kind: 'requesting',
-      value: prev.kind === 'confirming' ? prev.value : 'DELETE',
-    }));
+    // Only ever fired from the confirming view (the Delete button is rendered
+    // there); guard on that rather than fabricating a 'DELETE' fallback value.
+    if (deleteView.kind !== 'confirming') return;
+    const value = deleteView.value;
+    setDeleteView({ kind: 'requesting', value });
     try {
       const res = await fetch('/api/account/delete/request', {
         method: 'POST',
@@ -180,10 +184,12 @@ export default function SettingsPage() {
       try {
         const raw = localStorage.getItem('mf_preferences');
         if (!raw) return null;
-        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const parsed: unknown = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        const obj = parsed as Record<string, unknown>;
         const patch: Partial<Preferences> = {};
-        if (typeof parsed.wakeTime === 'string') patch.wakeTime = parsed.wakeTime;
-        if (typeof parsed.windDownTime === 'string') patch.windDownTime = parsed.windDownTime;
+        if (typeof obj.wakeTime === 'string') patch.wakeTime = obj.wakeTime;
+        if (typeof obj.windDownTime === 'string') patch.windDownTime = obj.windDownTime;
         return Object.keys(patch).length > 0 ? patch : null;
       } catch {
         return null;

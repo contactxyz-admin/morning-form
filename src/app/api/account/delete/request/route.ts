@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { randomBytes, createHmac } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
-import { getSessionSecret, env } from '@/lib/env';
 import { sendEmail } from '@/lib/auth/email';
+import { hashDeletionToken } from '@/lib/account/delete';
+import { resolveAppOrigin } from '@/lib/urls';
 
 /**
  * POST /api/account/delete/request — step 1 of the dual-factor account-deletion
@@ -21,10 +22,6 @@ import { sendEmail } from '@/lib/auth/email';
 
 const DELETION_TOKEN_TTL_MS = 15 * 60 * 1000;
 const REQUIRED_CONFIRMATION = 'DELETE';
-
-export function hashDeletionToken(raw: string): string {
-  return createHmac('sha256', getSessionSecret()).update('account-deletion:').update(raw).digest('hex');
-}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -77,20 +74,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true });
-}
-
-function resolveAppOrigin(request: Request): string {
-  const configured = env.NEXT_PUBLIC_APP_URL;
-  if (configured && configured !== 'http://localhost:3000') {
-    return configured.replace(/\/$/, '');
-  }
-  const vercelEnv = process.env.VERCEL_ENV;
-  if (vercelEnv === 'production' && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  }
-  if (vercelEnv === 'preview') {
-    const previewHost = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
-    if (previewHost) return `https://${previewHost}`;
-  }
-  return new URL(request.url).origin;
 }

@@ -20,9 +20,11 @@
  *      with userId=NULL (no residual PII).
  *   4. PII scrub on the no-User-FK tables (FunnelEvent.userId,
  *      LandingPageVisit.email, RawProviderPayload.userId) — null the fields, keep
- *      the rows so analytics continuity survives. MUST be inside the transaction:
- *      if it ran post-commit and failed, the email needed to find LandingPageVisit
- *      rows would already be gone with the User row.
+ *      the rows so analytics continuity survives, plus a deleteMany of the
+ *      plaintext email MagicLinkRateLimit buckets (subject = normalized email).
+ *      MUST be inside the transaction: if it ran post-commit and failed, the
+ *      email needed to find LandingPageVisit / rate-limit rows would already be
+ *      gone with the User row.
  *   5. tombstone → status `completed` + completedAt + deletedCounts as the LAST
  *      statement, so erasure and its audit record commit atomically.
  *
@@ -41,6 +43,7 @@ import { createHmac } from 'node:crypto';
 import { del, list } from '@vercel/blob';
 import type { PrismaClient } from '@prisma/client';
 import { getSessionSecret } from '@/lib/env';
+import { EMAIL_RATE_LIMIT_SUBJECT_KINDS } from '@/lib/auth/magic-link';
 
 const TX_TIMEOUT_MS = 30_000;
 const TX_MAX_WAIT_MS = 10_000;
@@ -56,6 +59,18 @@ export function hashDeletionEmail(email: string): string {
     .update('account-deletion-email:')
     .update(email.trim().toLowerCase())
     .digest('hex');
+}
+
+/**
+ * Salted one-way hash of a raw deletion-confirmation token. Mirrors hashToken
+ * in src/lib/auth/magic-link.ts but with the distinct "account-deletion:"
+ * domain-separation prefix so deletion-token hashes never collide with
+ * magic-link / session / share hashes under the same HMAC key. Lives here
+ * (next to hashDeletionEmail) so both the request and confirm routes import a
+ * single shared implementation.
+ */
+export function hashDeletionToken(raw: string): string {
+  return createHmac('sha256', getSessionSecret()).update('account-deletion:').update(raw).digest('hex');
 }
 
 export interface EraseAccountOptions {
@@ -225,8 +240,23 @@ export async function eraseAccount(
       deletedCounts.landingPageVisitsScrubbed = (
         await tx.landingPageVisit.updateMany({ where: { email: user.email }, data: { email: null } })
       ).count;
+      // RawProviderPayload.userId is nullable — scrub to NULL (not '') so the
+      // residue scan finds zero rows owning the deleted id and the row survives
+      // for diagnostics with the PII link removed.
       deletedCounts.rawProviderPayloadsScrubbed = (
-        await tx.rawProviderPayload.updateMany({ where: { userId }, data: { userId: '' } })
+        await tx.rawProviderPayload.updateMany({ where: { userId }, data: { userId: null } })
+      ).count;
+
+      // MagicLinkRateLimit email buckets key `subject` on the user's normalized
+      // plaintext email — delete them so no plaintext email survives erasure.
+      // The ip-1h bucket keys on a salted IP hash and is left untouched.
+      deletedCounts.magicLinkRateLimitsDeleted = (
+        await tx.magicLinkRateLimit.deleteMany({
+          where: {
+            subject: user.email.trim().toLowerCase(),
+            subjectKind: { in: [...EMAIL_RATE_LIMIT_SUBJECT_KINDS] },
+          },
+        })
       ).count;
 
       // tombstone flip to completed — the LAST statement so erasure + audit
@@ -238,6 +268,26 @@ export async function eraseAccount(
     },
     { timeout: TX_TIMEOUT_MS, maxWait: TX_MAX_WAIT_MS },
   );
+
+  // (e) Belt-and-suspenders: an export that finished uploading *during* the
+  // erasure (after the pre-transaction enumeration ran) would leave an orphan
+  // blob under uploads/<userId>/. Do one final paginated prefix sweep and del()
+  // any straggler. Failures here are logged but never fail the already-committed
+  // erasure — the audit tombstone is already `completed`.
+  try {
+    const stragglers: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await list({ prefix: `uploads/${userId}/`, limit: LIST_PAGE_LIMIT, cursor });
+      for (const blob of page.blobs) stragglers.push(blob.pathname);
+      cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor);
+    if (stragglers.length > 0) {
+      await del(stragglers);
+    }
+  } catch (error) {
+    console.error(`[account/delete] post-erasure blob sweep failed for user ${userId}:`, error);
+  }
 
   return { outcome: 'completed', tombstoneId: tombstone.id, deletedCounts };
 }

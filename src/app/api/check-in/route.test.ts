@@ -63,15 +63,20 @@ function dateKeyOffset(days: number): string {
   return today.toISOString().slice(0, 10);
 }
 
+// Fixtures use today's UTC date key (dateKeyOffset(0)) rather than a hardcoded
+// calendar date so the route's plausibility window can never expire them as the
+// real clock advances past the once-valid fixed date.
+const TODAY = dateKeyOffset(0);
+
 const MORNING_BODY = {
   type: 'morning',
-  date: '2026-03-20',
+  date: TODAY,
   responses: { sleepQuality: 'well', currentFeeling: 'steady' },
 };
 
 const EVENING_BODY = {
   type: 'evening',
-  date: '2026-03-20',
+  date: TODAY,
   responses: { focusQuality: 'good', afternoonEnergy: 'steady', protocolAdherence: 'fully' },
 };
 
@@ -84,7 +89,7 @@ describe('POST /api/check-in', () => {
 
   it("returns 400 when 'type' is missing or invalid", async () => {
     currentUserMock.mockResolvedValue({ id: await makeTestUser(prisma, 'ci-bad-type') });
-    const missing = await POST(postRequest({ date: '2026-03-20', responses: {} }));
+    const missing = await POST(postRequest({ date: TODAY, responses: {} }));
     expect(missing.status).toBe(400);
     const wrong = await POST(postRequest({ ...MORNING_BODY, type: 'noon' }));
     expect(wrong.status).toBe(400);
@@ -105,7 +110,7 @@ describe('POST /api/check-in', () => {
     expect(res.status).toBe(200);
     const rows = await prisma.checkIn.findMany({ where: { userId } });
     expect(rows).toHaveLength(1);
-    expect(rows[0].date).toBe('2026-03-20');
+    expect(rows[0].date).toBe(TODAY);
     expect(rows[0].type).toBe('morning');
     expect(JSON.parse(rows[0].responses)).toEqual(MORNING_BODY.responses);
   });
@@ -211,6 +216,25 @@ describe('GET /api/check-in', () => {
     const res = await GET(getRequest('?start=2026-03-20&end=2026-03-26'));
     const json = await res.json();
     expect(json.checkIns).toHaveLength(1);
+    expect(json.checkIns[0].responses).toEqual(MORNING_BODY.responses);
+  });
+
+  it('round-trips a POSTed check-in through GET (today in window)', async () => {
+    const userId = await makeTestUser(prisma, 'ci-roundtrip');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    // POST a morning check-in for today.
+    const post = await POST(postRequest(MORNING_BODY));
+    expect(post.status).toBe(200);
+
+    // GET a window spanning yesterday..tomorrow (inclusive of today).
+    currentUserMock.mockResolvedValue({ id: userId });
+    const res = await GET(getRequest(`?start=${dateKeyOffset(-1)}&end=${dateKeyOffset(1)}`));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.checkIns).toHaveLength(1);
+    expect(json.checkIns[0].date).toBe(TODAY);
+    expect(json.checkIns[0].type).toBe('morning');
     expect(json.checkIns[0].responses).toEqual(MORNING_BODY.responses);
   });
 

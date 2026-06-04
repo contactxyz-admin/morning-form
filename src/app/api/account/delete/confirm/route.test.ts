@@ -131,7 +131,7 @@ describe('POST /api/account/delete/confirm', () => {
     expect(await prisma.user.findUnique({ where: { id: user.id } })).not.toBeNull();
   });
 
-  it("confused deputy: another user's valid token → 403, nothing deleted", async () => {
+  it("confused deputy: another user's valid token → 403, owner token NOT consumed", async () => {
     const owner = await makeUser('del-owner');
     const attacker = await makeUser('del-attacker');
     const raw = await issueToken(owner.id); // token belongs to owner
@@ -142,6 +142,55 @@ describe('POST /api/account/delete/confirm', () => {
     expect(await prisma.user.findUnique({ where: { id: owner.id } })).not.toBeNull();
     expect(await prisma.user.findUnique({ where: { id: attacker.id } })).not.toBeNull();
     expect(delMock).not.toHaveBeenCalled();
+
+    // The ownership-bound consume must NOT have touched the owner's token — it
+    // stays unconsumed so the real owner can still use their link.
+    const ownerToken = await prisma.accountDeletionToken.findUniqueOrThrow({
+      where: { tokenHash: hashDeletionToken(raw) },
+    });
+    expect(ownerToken.consumedAt).toBeNull();
+  });
+
+  it('well-formed but never-issued token → 400, user intact', async () => {
+    const user = await makeUser('del-neverissued');
+    currentUserMock.mockResolvedValue(user);
+    // A syntactically valid token that was never stored.
+    const raw = randomBytes(32).toString('base64url');
+
+    const res = await POST(postWith({ token: raw }));
+    expect(res.status).toBe(400);
+    expect(await prisma.user.findUnique({ where: { id: user.id } })).not.toBeNull();
+    expect(delMock).not.toHaveBeenCalled();
+  });
+
+  it('eraseAccount failure → 503, token consumedAt reset, retry succeeds', async () => {
+    const user = await makeUser('del-erasefail');
+    currentUserMock.mockResolvedValue(user);
+    const raw = await issueToken(user.id);
+
+    // Make the blob del() throw so eraseAccount rejects after consuming token.
+    delMock.mockRejectedValueOnce(new Error('blob down'));
+    // Seed a blob target so del() is actually invoked.
+    await prisma.sourceDocument.create({
+      data: { userId: user.id, kind: 'lab_pdf', capturedAt: new Date(), storagePath: `uploads/${user.id}/x.pdf` },
+    });
+
+    const res = await POST(postWith({ token: raw }));
+    expect(res.status).toBe(503);
+    // User survives (erasure rolled back / never ran the transaction).
+    expect(await prisma.user.findUnique({ where: { id: user.id } })).not.toBeNull();
+    // Token consumedAt was reset to null so the same link is retryable.
+    const token = await prisma.accountDeletionToken.findUniqueOrThrow({
+      where: { tokenHash: hashDeletionToken(raw) },
+    });
+    expect(token.consumedAt).toBeNull();
+
+    // Retry with del() succeeding completes the erasure.
+    delMock.mockResolvedValue(undefined);
+    const retry = await POST(postWith({ token: raw }));
+    expect(retry.status).toBe(200);
+    expect((await retry.json()).status).toBe('deleted');
+    expect(await prisma.user.findUnique({ where: { id: user.id } })).toBeNull();
   });
 
   it('raced double-consume fires erasure exactly once', async () => {

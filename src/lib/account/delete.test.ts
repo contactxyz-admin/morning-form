@@ -165,6 +165,19 @@ async function seedFullUser(p: PrismaClient): Promise<{ id: string; email: strin
     data: { userId: id, provider: 'whoop', source: 'webhook', sizeBytes: 1, payload: '{}' },
   });
 
+  // MagicLinkRateLimit buckets: two email-keyed (plaintext email subject) that
+  // must be deleted on erasure, plus one ip-keyed (salted hash) that must NOT.
+  const normalizedEmail = email.trim().toLowerCase();
+  await p.magicLinkRateLimit.create({
+    data: { subjectKind: 'email-15m', subject: normalizedEmail, window: new Date(0) },
+  });
+  await p.magicLinkRateLimit.create({
+    data: { subjectKind: 'email-24h', subject: normalizedEmail, window: new Date(0) },
+  });
+  await p.magicLinkRateLimit.create({
+    data: { subjectKind: 'ip-1h', subject: `ip-hash-${id}`, window: new Date(0) },
+  });
+
   return { id, email };
 }
 
@@ -284,18 +297,58 @@ describe('eraseAccount — residue assertion (real test DB)', () => {
     expect(visit.email).toBeNull();
     expect(visit.slug).toBe('s'); // row survives
 
-    // RawProviderPayload.userId is NON-NULLABLE in the schema — scrubbed to ''.
+    // RawProviderPayload.userId is NULLABLE — scrubbed to null (row survives,
+    // PII link gone). Zero rows reference the deleted userId; ours is null.
+    expect(await prisma.rawProviderPayload.count({ where: { userId: id } })).toBe(0);
     const raws = await prisma.rawProviderPayload.findMany({ where: { provider: 'whoop' } });
     const ours = raws.find((r) => r.payload === '{}' && r.source === 'webhook');
-    expect(ours?.userId).toBe('');
+    expect(ours).toBeDefined();
+    expect(ours?.userId).toBeNull();
 
     // Email no longer present anywhere.
     expect(await prisma.landingPageVisit.count({ where: { email } })).toBe(0);
   });
 
+  it('deletes plaintext-email rate-limit buckets but leaves IP buckets intact', async () => {
+    const { id, email } = await seedFullUser(prisma);
+    const normalizedEmail = email.trim().toLowerCase();
+
+    await eraseAccount(prisma, id, {});
+
+    // Email-keyed buckets (subject = plaintext email) are gone.
+    expect(
+      await prisma.magicLinkRateLimit.count({ where: { subject: normalizedEmail } }),
+    ).toBe(0);
+    // IP-keyed bucket (salted hash subject) survives untouched.
+    expect(
+      await prisma.magicLinkRateLimit.count({ where: { subject: `ip-hash-${id}` } }),
+    ).toBe(1);
+  });
+
+  it('post-transaction blob sweep deletes a straggler uploaded mid-erasure', async () => {
+    const id = await makeTestUser(prisma, 'delete-straggler');
+    // First list() call (pre-transaction enumeration) sees nothing; the second
+    // (post-commit sweep) returns a straggler that landed during erasure.
+    listMock
+      .mockResolvedValueOnce({ blobs: [], hasMore: false })
+      .mockResolvedValueOnce({ blobs: [{ pathname: `uploads/${id}/exports/late.zip` }], hasMore: false });
+
+    const result = await eraseAccount(prisma, id, {});
+    expect(result.outcome).toBe('completed');
+
+    // del() was called for the straggler in the post-commit sweep.
+    const allTargets = delMock.mock.calls.flatMap((c) => {
+      const arg = c[0];
+      return Array.isArray(arg) ? arg : [arg];
+    });
+    expect(allTargets).toContain(`uploads/${id}/exports/late.zip`);
+  });
+
   it('blob enumeration unions storagePath, export blobPath, and prefix list()', async () => {
     const { id } = await seedFullUser(prisma);
-    listMock.mockResolvedValue({ blobs: [{ pathname: `uploads/${id}/orphan.bin` }], hasMore: false });
+    // Pre-transaction enumeration sees the orphan; the post-commit sweep (second
+    // call, from the afterEach default) sees nothing → only one del() batch.
+    listMock.mockResolvedValueOnce({ blobs: [{ pathname: `uploads/${id}/orphan.bin` }], hasMore: false });
 
     await eraseAccount(prisma, id, {});
 
@@ -314,7 +367,9 @@ describe('eraseAccount — residue assertion (real test DB)', () => {
 
     await eraseAccount(prisma, id, {});
 
-    expect(listMock).toHaveBeenCalledTimes(2);
+    // Two pre-transaction enumeration pages (p1 → p2) plus one post-commit
+    // sweep page (empty, from the afterEach default).
+    expect(listMock).toHaveBeenCalledTimes(3);
     const targets = delMock.mock.calls[0][0] as string[];
     expect(targets).toContain(`uploads/${id}/p1.bin`);
     expect(targets).toContain(`uploads/${id}/p2.bin`);

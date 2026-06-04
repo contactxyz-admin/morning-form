@@ -30,6 +30,7 @@ vi.mock('@/lib/env', () => ({
 }));
 
 import {
+  ARCHIVE_LIMIT_MESSAGE,
   EXCLUSIONS,
   EXPORT_DOMAIN_MODELS,
   assembleExportArchive,
@@ -140,6 +141,18 @@ describe('buildStoreZip', () => {
     expect(entries['files/doc.pdf'].toString('utf8')).toBe('%PDF-fake');
     // End-of-central-directory signature present.
     expect(zip.subarray(zip.length - 22).readUInt32LE(0)).toBe(0x06054b50);
+  });
+
+  it('throws the archive-limit error when summed entries exceed the limit', () => {
+    // Use a tiny injected limit so the test never allocates 3 GB but still
+    // exercises the real guard in the real function.
+    const entries = [
+      { name: 'a.json', data: Buffer.alloc(40) },
+      { name: 'b.json', data: Buffer.alloc(40) },
+    ];
+    expect(() => buildStoreZip(entries, 50)).toThrow(ARCHIVE_LIMIT_MESSAGE);
+    // Exactly at the limit is fine.
+    expect(() => buildStoreZip(entries, 80)).not.toThrow();
   });
 });
 

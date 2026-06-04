@@ -39,6 +39,20 @@ const BOOLEAN_FIELDS = ['notifyMorning', 'notifyProtocol', 'notifyEvening', 'not
 const TIME_FIELDS = ['wakeTime', 'windDownTime'] as const;
 
 /**
+ * True when `tz` is an IANA timezone the runtime's Intl can resolve. Invalid
+ * identifiers make `Intl.DateTimeFormat` throw a RangeError — we reject those
+ * rather than persisting a value that would break every downstream date render.
+ */
+function isValidTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * GET /api/user/preferences — return the current user's preferences, or the
  * defaults (matching the Settings UI) when no row exists yet.
  *
@@ -112,6 +126,12 @@ export async function PUT(request: Request) {
         { status: 400 },
       );
     }
+    if (field === 'timezone' && !isValidTimezone(value)) {
+      return NextResponse.json(
+        { error: `Field 'timezone' must be a valid IANA timezone.` },
+        { status: 400 },
+      );
+    }
     data[field] = value;
   }
 
@@ -122,6 +142,15 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: `Field '${field}' must be a boolean.` }, { status: 400 });
     }
     data[field] = value;
+  }
+
+  // Reject a body with no recognized writable field — an empty PUT (or one
+  // carrying only unknown keys) is a client bug, not a silent no-op upsert.
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json(
+      { error: 'No valid preference fields provided.' },
+      { status: 400 },
+    );
   }
 
   try {
