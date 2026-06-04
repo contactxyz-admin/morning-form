@@ -40,40 +40,43 @@ export class ResendTransientError extends Error {
   }
 }
 
-export interface SendMagicLinkArgs {
+export interface SendEmailArgs {
   to: string;
-  verifyUrl: string;
+  subject: string;
+  text: string;
+  /** Optional HTML alternative. When omitted, only the text part is sent. */
+  html?: string;
 }
 
-export interface SendMagicLinkResult {
+export interface SendEmailResult {
   /** True when an actual HTTP call was made to Resend. False in dev-bypass mode. */
   sent: boolean;
 }
 
-export async function sendMagicLinkEmail({ to, verifyUrl }: SendMagicLinkArgs): Promise<SendMagicLinkResult> {
+/**
+ * Generic Resend sender. The single place that talks to Resend so every
+ * outbound email (magic link, export notice, export download link, deletion
+ * confirmation) shares the same env guards, dev/test console-log bypass,
+ * EU-residency endpoint, retry/backoff, and typed error mapping.
+ *
+ * Dev/test bypass: when RESEND_API_KEY is unset and NODE_ENV !== 'production',
+ * the email is logged to stdout and `{ sent: false }` is returned. This is
+ * what makes auth + GDPR flows exercisable without external credentials —
+ * but it also means the "owner notice" control is only real where the key is
+ * set (callers must treat `sent: false` accordingly).
+ */
+export async function sendEmail({ to, subject, text, html }: SendEmailArgs): Promise<SendEmailResult> {
   if (!env.RESEND_API_KEY) {
     if (env.NODE_ENV === 'production') {
       throw new ResendAuthError('RESEND_API_KEY required in production');
     }
-    // Dev/test bypass — emit the link so a human or test can follow it.
-    console.log(`[auth] dev magic-link for ${to}: ${verifyUrl}`);
+    // Dev/test bypass — emit the message so a human or test can inspect it.
+    console.log(`[email] dev email to ${to} — ${subject}\n${text}`);
     return { sent: false };
   }
   if (!env.RESEND_FROM) {
     throw new ResendAuthError('RESEND_FROM required');
   }
-
-  const subject = 'Sign in to MorningForm';
-  const text = [
-    'Click the link below to sign in to MorningForm. The link expires in 15 minutes.',
-    '',
-    verifyUrl,
-    '',
-    "If you didn't request this, you can safely ignore this email.",
-  ].join('\n');
-  const html = `<p>Click the link below to sign in to MorningForm. The link expires in 15 minutes.</p>
-<p><a href="${verifyUrl}">${verifyUrl}</a></p>
-<p style="color:#6b6b6b;font-size:13px">If you didn't request this, you can safely ignore this email.</p>`;
 
   const response = await fetchWithRetry(RESEND_URL, {
     method: 'POST',
@@ -86,7 +89,7 @@ export async function sendMagicLinkEmail({ to, verifyUrl }: SendMagicLinkArgs): 
       to: [to],
       subject,
       text,
-      html,
+      ...(html ? { html } : {}),
     }),
   });
 
@@ -103,6 +106,29 @@ export async function sendMagicLinkEmail({ to, verifyUrl }: SendMagicLinkArgs): 
     throw new ResendTransientError(response.status, summarizeResendError(body));
   }
   return { sent: true };
+}
+
+export interface SendMagicLinkArgs {
+  to: string;
+  verifyUrl: string;
+}
+
+export type SendMagicLinkResult = SendEmailResult;
+
+export async function sendMagicLinkEmail({ to, verifyUrl }: SendMagicLinkArgs): Promise<SendMagicLinkResult> {
+  const subject = 'Sign in to MorningForm';
+  const text = [
+    'Click the link below to sign in to MorningForm. The link expires in 15 minutes.',
+    '',
+    verifyUrl,
+    '',
+    "If you didn't request this, you can safely ignore this email.",
+  ].join('\n');
+  const html = `<p>Click the link below to sign in to MorningForm. The link expires in 15 minutes.</p>
+<p><a href="${verifyUrl}">${verifyUrl}</a></p>
+<p style="color:#6b6b6b;font-size:13px">If you didn't request this, you can safely ignore this email.</p>`;
+
+  return sendEmail({ to, subject, text, html });
 }
 
 function summarizeResendError(body: string): string | undefined {
