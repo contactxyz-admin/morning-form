@@ -34,7 +34,9 @@ const RouteDecisionWireSchema = z.object({
   topicKey: z.string().min(1).nullable(),
   confidence: z.number().min(0).max(1),
   reasoning: z.string().max(400),
-  answerShape: z.enum(['standard', 'investigations']).default('standard'),
+  // Schema-level default: the LLM may omit answerShape; we default to 'standard'.
+  // coerceDecision applies the default explicitly for the application-level type.
+  answerShape: z.enum(['standard', 'investigations']).optional(),
 });
 type RouteDecisionWire = z.infer<typeof RouteDecisionWireSchema>;
 
@@ -59,6 +61,7 @@ export async function routeTurn(
       topicKey: null,
       confidence: 0,
       reasoning: 'empty input — skipped LLM call',
+      answerShape: 'standard',
     };
   }
 
@@ -104,7 +107,7 @@ export function coerceDecision(wire: RouteDecisionWire): RouteDecision {
     topicKey,
     confidence: wire.confidence,
     reasoning,
-    answerShape: wire.answerShape,
+    answerShape: wire.answerShape ?? 'standard',
   };
 }
 

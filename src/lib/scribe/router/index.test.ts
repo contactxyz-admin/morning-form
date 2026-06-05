@@ -27,6 +27,7 @@ describe('coerceDecision', () => {
       topicKey: 'iron',
       confidence: 0.9,
       reasoning: 'mentions ferritin explicitly',
+      answerShape: 'standard',
     });
   });
 
@@ -63,6 +64,7 @@ describe('coerceDecision', () => {
       topicKey: null,
       confidence: 0.1,
       reasoning: 'nothing in scope',
+      answerShape: 'standard',
     });
   });
 
@@ -90,6 +92,7 @@ describe('routeTurn — pre-guards', () => {
       topicKey: null,
       confidence: 0,
       reasoning: 'empty input — skipped LLM call',
+      answerShape: 'standard',
     });
     expect(spy).not.toHaveBeenCalled();
   });

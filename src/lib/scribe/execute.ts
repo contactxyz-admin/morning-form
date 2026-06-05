@@ -85,6 +85,8 @@ export interface ScribeLLMTurnRequest {
   temperature: number;
   /** Cancellation signal; adapters forward to the SDK request options. */
   signal?: AbortSignal;
+  /** Optional override for max_tokens. When unset the adapter default applies. */
+  maxTokens?: number;
 }
 
 export type ScribeLLMStopReason = 'tool_use' | 'end_turn';
@@ -147,6 +149,12 @@ export interface ScribeExecuteRequest {
    * referral child turns never carry a preamble.
    */
   contextPreamble?: string;
+  /**
+   * Optional override for max_tokens per turn. Used for investigations
+   * shape (raised from the default 2048) so deeper answers aren't
+   * silently truncated.
+   */
+  maxTokens?: number;
 }
 
 export interface ScribeExecuteResult {
@@ -257,6 +265,7 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
           : DEFAULT_SCRIBE_MODEL,
         temperature: scribe.temperature ?? DEFAULT_SCRIBE_TEMPERATURE,
         signal: req.signal,
+        maxTokens: req.maxTokens,
       });
       lastTurn = turn;
       modelVersion = turn.modelVersion;

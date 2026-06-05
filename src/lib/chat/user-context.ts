@@ -277,18 +277,18 @@ async function loadWearableTrends(db: Db, userId: string): Promise<WearableTrend
   }
 
   const trends: WearableTrend[] = [];
-  for (const [metric, entry] of byMetric) {
-    if (entry.values.length < 2) continue;
+  byMetric.forEach((entry, metric) => {
+    if (entry.values.length < 2) return;
     const sorted = [...entry.values].sort((a, b) => a - b);
     trends.push({
       metric,
       count: entry.values.length,
       min: round2(sorted[0]),
       max: round2(sorted[sorted.length - 1]),
-      average: round2(entry.values.reduce((s, v) => s + v, 0) / entry.values.length),
+      average: round2(entry.values.reduce((s: number, v: number) => s + v, 0) / entry.values.length),
       unit: entry.unit,
     });
-  }
+  });
 
   return trends.length > 0 ? trends : null;
 }

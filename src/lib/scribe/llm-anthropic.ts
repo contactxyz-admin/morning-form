@@ -87,7 +87,7 @@ export class AnthropicScribeLLMClient implements ScribeLLMClient {
   async turn(req: ScribeLLMTurnRequest): Promise<ScribeLLMTurn> {
     const params: MessageCreateParamsNonStreaming = {
       model: req.model,
-      max_tokens: MAX_TOKENS,
+      max_tokens: req.maxTokens ?? MAX_TOKENS,
       temperature: req.temperature,
       system: req.system,
       tools: req.tools.map(toAnthropicTool),

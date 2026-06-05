@@ -160,7 +160,11 @@ export async function* runChatTurn(
   //    router's null is resolved to the general scribe). execute() owns
   //    the D11 audit write so every turn writes a ScribeAudit row.
   const topicKey = resolveTopicKey(decision);
-  const systemPrompt = buildAskRuntimeSystemPrompt(topicKey);
+  const systemPrompt = buildAskRuntimeSystemPrompt(topicKey, decision.answerShape ?? undefined);
+  // Shape → judgment kind (orchestrator declares, never the LLM).
+  const declaredJudgmentKind = decision.answerShape === 'investigations'
+    ? 'investigation-avenues'
+    : 'pattern-vs-own-history';
 
   // Phase A context digest — only when the feature flag is on. Assembly must
   // never block a turn (degrade to no-preamble on failure). Compile and
@@ -175,6 +179,10 @@ export async function* runChatTurn(
     }
   }
 
+  // Investigations answers are deeper — raise the token budget so they're
+  // not silently truncated at the default 2048.
+  const maxTokens = decision.answerShape === 'investigations' ? 4096 : undefined;
+
   let result;
   try {
     result = await execute({
@@ -183,12 +191,13 @@ export async function* runChatTurn(
       topicKey,
       mode: 'runtime',
       userMessage: text,
-      declaredJudgmentKind: 'pattern-vs-own-history',
+      declaredJudgmentKind,
       llm: scribeLlm,
       requestId: input.requestId,
       systemPrompt,
       signal,
       contextPreamble,
+      maxTokens,
     });
   } catch (err) {
     // ScribeAuditWriteError is the structurally-load-bearing D11 breach;
@@ -284,15 +293,41 @@ export async function* runChatTurn(
   };
 }
 
-function buildAskRuntimeSystemPrompt(topicKey: string): string | undefined {
+function buildAskRuntimeSystemPrompt(
+  topicKey: string,
+  answerShape?: 'standard' | 'investigations',
+): string | undefined {
   const specialtyPrompt = loadSpecialtySystemPrompt(topicKey);
-  if (specialtyPrompt) {
-    return appendAskAnswerStylePrompt(specialtyPrompt);
+  const base = specialtyPrompt
+    ?? (getPolicy(topicKey) ? buildDefaultScribeSystemPrompt(getPolicy(topicKey)!) : undefined);
+  if (!base) return undefined;
+
+  let prompt = appendAskAnswerStylePrompt(base);
+  if (answerShape === 'investigations') {
+    prompt += '\n\n' + INVESTIGATIONS_PROMPT_SUFFIX;
   }
-  const policy = getPolicy(topicKey);
-  if (!policy) return undefined;
-  return appendAskAnswerStylePrompt(buildDefaultScribeSystemPrompt(policy));
+  return prompt;
 }
+
+/**
+ * Investigations prompt suffix — appended to the system prompt when the
+ * router selects the investigations shape. Instructs the scribe to present
+ * avenues in measurement-yield order, use the user's own data, name the
+ * distinguishing test, and avoid likelihood language.
+ *
+ * Inline rather than a separate file — short enough (~400 chars) that a
+ * file read adds latency without adding clarity. May move to a markdown
+ * module if it grows beyond a paragraph.
+ */
+const INVESTIGATIONS_PROMPT_SUFFIX = [
+  'INVESTIGATIONS MODE — you are presenting possible avenues worth pursuing, not diagnosing.',
+  'For each avenue:',
+  '  - Name the user\'s own data point that suggests it (from the context block, pattern tool, or graph tools).',
+  '  - Name the distinguishing measurement or test that would clarify it. Prefer measurements already available in the user\'s data profile. If none match, name the most common accessible test.',
+  '  - Do NOT rank, label, or order by likelihood. No "most likely," "primary," "secondary," "probable," "possible."',
+  '  - Cite at least one source per avenue (graph node, check-in, or context digest).',
+  'After the avenues, call propose_next_steps with 2–4 typed next steps from the user\'s actual data.',
+].join('\n');
 
 /**
  * Walk the orchestrator's recorded tool calls and pull out successful
