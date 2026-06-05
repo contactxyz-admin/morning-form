@@ -124,7 +124,7 @@ Phase A (daily-use + settings) and Phase B (GDPR) are independent; Unit 4 gates 
 
 ### Phase A — daily-use loop and settings
 
-- [ ] **Unit 1: Wire check-in submission to the server + date plausibility validation**
+- [x] **Unit 1: Wire check-in submission to the server + date plausibility validation**
 
 **Goal:** Check-ins persist to Postgres (R4); server rejects implausible dates.
 
@@ -155,7 +155,7 @@ Phase A (daily-use + settings) and Phase B (GDPR) are independent; Unit 4 gates 
 
 **Verification:** Check in on device A, see the check-in reflected in `/insights` and on device B under the same account.
 
-- [ ] **Unit 2: Insights resilience for check-in-only users**
+- [x] **Unit 2: Insights resilience for check-in-only users**
 
 **Goal:** `/insights` renders real check-in data gracefully when wearable/health-history arms are empty (R5).
 
@@ -179,7 +179,7 @@ Phase A (daily-use + settings) and Phase B (GDPR) are independent; Unit 4 gates 
 
 **Verification:** A user with only check-ins (no wearable) sees a populated `/insights`.
 
-- [ ] **Unit 3: Settings preferences persist via UserPreferences (R10)**
+- [x] **Unit 3: Settings preferences persist via UserPreferences (R10)**
 
 **Goal:** Wake/wind-down, timezone, and notification toggles persist server-side and survive across devices.
 
@@ -210,7 +210,7 @@ Phase A (daily-use + settings) and Phase B (GDPR) are independent; Unit 4 gates 
 
 ### Phase B — GDPR data rights
 
-- [ ] **Unit 4: Schema additions — ExportRequest, DeletionTombstone, deletion-confirmation token**
+- [x] **Unit 4: Schema additions — ExportRequest, DeletionTombstone, deletion-confirmation token**
 
 **Goal:** Persistence for export lifecycle, surviving deletion audit, and deletion re-confirmation.
 
@@ -231,7 +231,7 @@ Phase A (daily-use + settings) and Phase B (GDPR) are independent; Unit 4 gates 
 
 **Verification:** `prisma db push` clean on the test DB; Units 5–6 compile against generated client.
 
-- [ ] **Unit 5: Data export endpoint + delivery (R7)**
+- [x] **Unit 5: Data export endpoint + delivery (R7)**
 
 **Goal:** Complete, rate-limited data export delivered as an emailed expiring link.
 
@@ -272,7 +272,7 @@ Phase A (daily-use + settings) and Phase B (GDPR) are independent; Unit 4 gates 
 
 **Verification:** Real account in a prod-like env receives an email; the downloaded zip opens and contains every populated domain plus the manifest.
 
-- [ ] **Unit 6: Account deletion — re-confirmation flow + ordered erasure (R8)**
+- [x] **Unit 6: Account deletion — re-confirmation flow + ordered erasure (R8)**
 
 **Goal:** Irreversible, complete, auditable account erasure with email re-confirmation.
 
@@ -315,7 +315,7 @@ Phase A (daily-use + settings) and Phase B (GDPR) are independent; Unit 4 gates 
 
 **Verification:** Delete a seeded account in a prod-like env; verify zero residual rows/blobs and a surviving tombstone; sign-in afterwards behaves as a brand-new email.
 
-- [ ] **Unit 7: Settings wiring + dead-control cleanup (R9)**
+- [x] **Unit 7: Settings wiring + dead-control cleanup (R9)**
 
 **Goal:** Settings Data section drives real export/delete; Account section shows the real email and no dead controls.
 
