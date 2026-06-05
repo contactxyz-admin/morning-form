@@ -16,6 +16,7 @@
 
 import type { Citation } from '@/lib/topics/types';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
+import type { ValidatedAction } from '@/lib/scribe/tools/propose-next-steps';
 
 export interface RoutedEvent {
   readonly type: 'routed';
@@ -64,6 +65,8 @@ export interface DoneEvent {
   readonly auditId: string | null;
   /** Specialist consultations made during this turn. Empty when none. */
   readonly referrals: readonly Referral[];
+  /** Validated next-step actions proposed by the scribe. Empty when none. */
+  readonly actions: readonly ValidatedAction[];
 }
 
 export interface ErrorEvent {
@@ -94,4 +97,6 @@ export interface AssistantMessageMetadata {
   readonly auditId?: string;
   /** Specialist consultations made during this turn (Plan 2026-04-25-001 Unit 6). */
   readonly referrals?: readonly Referral[];
+  /** Validated next-step actions proposed by the scribe. Empty when none. */
+  readonly actions?: readonly ValidatedAction[];
 }

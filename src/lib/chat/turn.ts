@@ -40,6 +40,7 @@ import { routeTurn, type RouteDecision } from '@/lib/scribe/router';
 import { getSpecialty } from '@/lib/scribe/specialties/registry';
 import { loadSpecialtySystemPrompt } from '@/lib/scribe/specialties/load-prompt';
 import { assembleUserContext } from '@/lib/chat/user-context';
+import type { ValidatedAction } from '@/lib/scribe/tools/propose-next-steps';
 import { env } from '@/lib/env';
 import {
   DEFAULT_HISTORY_LIMIT,
@@ -225,6 +226,10 @@ export async function* runChatTurn(
   const referrals: readonly Referral[] =
     result.classification === 'clinical-safe' ? collectReferrals(result.toolCalls) : [];
 
+  // Actions — only surfacing (and persisting) when clinical-safe.
+  const actions: readonly ValidatedAction[] =
+    result.classification === 'clinical-safe' ? result.proposedActions : [];
+
   for (const chunk of chunkForStream(visibleOutput)) {
     yield { type: 'token', text: chunk };
   }
@@ -243,11 +248,26 @@ export async function* runChatTurn(
       requestId: result.requestId,
       auditId: result.auditId,
       referrals,
+      actions,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'assistant persistence failed';
     yield { type: 'error', message };
     return;
+  }
+
+  // 8. Persist Action rows (only when clinical-safe, after ChatMessage exists).
+  //    If the answer was rejected, proposedActions is empty so this is a no-op.
+  //    ChatMessage.id is the FK provenance. Ordering: message first, then actions
+  //    — a message persistence failure leaves zero action rows.
+  if (actions.length > 0) {
+    try {
+      await persistSuggestedActions(db, userId, assistantMessage.id, result.requestId, actions);
+    } catch (err) {
+      console.error('[turn] action persistence failed (non-fatal):', err);
+      // Non-fatal — the answer already landed. Missing actions are a
+      // degradation, not a safety gap.
+    }
   }
 
   yield {
@@ -260,6 +280,7 @@ export async function* runChatTurn(
     requestId: result.requestId,
     auditId: result.auditId,
     referrals,
+    actions,
   };
 }
 
@@ -331,6 +352,7 @@ async function persistAssistantMessage(
     requestId: string;
     auditId: string;
     referrals: readonly Referral[];
+    actions: readonly ValidatedAction[];
   },
 ) {
   try {
@@ -341,6 +363,31 @@ async function persistAssistantMessage(
     await new Promise((resolve) => setTimeout(resolve, 150));
     return await createChatMessage(db, userId, 'assistant', output, metadata);
   }
+}
+
+/**
+ * Persist validated suggested actions. Called ONLY after ChatMessage exists
+ * and enforce() returned clinical-safe. A failure here is non-fatal — the
+ * answer already landed; missing actions are a UX degradation, not a safety gap.
+ */
+async function persistSuggestedActions(
+  db: Db,
+  userId: string,
+  chatMessageId: string,
+  scribeRequestId: string,
+  actions: readonly ValidatedAction[],
+): Promise<void> {
+  await db.action.createMany({
+    data: actions.map((a) => ({
+      userId,
+      chatMessageId,
+      scribeRequestId,
+      verb: a.verb,
+      label: a.label,
+      markerName: a.markerName ?? null,
+      state: 'suggested',
+    })),
+  });
 }
 
 function abortMessage(signal: AbortSignal): string {

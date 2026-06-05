@@ -36,6 +36,7 @@ model User {
   healthConnections HealthConnection[]
   healthDataPoints  HealthDataPoint[]
   suggestions       Suggestion[]
+  actions           Action[]
   preferences       UserPreferences?
   sourceDocuments   SourceDocument[]
   embeddingBackfills EmbeddingBackfillState[]
@@ -767,6 +768,29 @@ model AccountDeletionToken {
 
   @@index([userId, createdAt])
   @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Next-step actions — proposed by the scribe at the end of a substantive
+// answer and persisted only when enforce() returns clinical-safe (Plan
+// 2026-06-05-001 feat-ask-deep-phase-a Unit 5). Phase A: state only ever
+// `suggested`. Not a Suggestion extension — lifecycle rows must not be
+// delete-and-regenerated.
+// ---------------------------------------------------------------------------
+model Action {
+  id              String       @id @default(cuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatMessageId   String?
+  scribeRequestId String
+  verb            String       // measure | discuss | track | behavior
+  label           String
+  markerName      String?
+  state           String       @default("suggested") // Phase A: always 'suggested'
+  createdAt       DateTime     @default(now())
+
+  @@index([userId, createdAt])
+  @@index([scribeRequestId])
 }
 
 // Survives account erasure by construction — NO User FK. The audit record

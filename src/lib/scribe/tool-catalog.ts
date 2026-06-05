@@ -20,6 +20,7 @@ import { getTopicOverviewHandler } from './tools/get-topic-overview';
 import { listGraphIndexHandler } from './tools/list-graph-index';
 import { recognizePatternInHistoryHandler } from './tools/recognize-pattern-in-history';
 import { referToSpecialistHandler } from './tools/refer-to-specialist';
+import { proposeNextStepsHandler } from './tools/propose-next-steps';
 import { resolveEntityHandler } from './tools/resolve-entity';
 import { routeToGpPrepHandler } from './tools/route-to-gp-prep';
 import { searchGraphNodesHandler } from './tools/search-graph-nodes';
@@ -33,6 +34,7 @@ export const SCRIBE_TOOL_HANDLERS = [
   recognizePatternInHistoryHandler,
   routeToGpPrepHandler,
   referToSpecialistHandler,
+  proposeNextStepsHandler,
   // U3 of the external-MCP-server plan
   // (docs/plans/2026-05-12-002-feat-external-mcp-server-plan.md). The first
   // seven tools above are topic-scoped (each reads `ctx.topicKey`). The

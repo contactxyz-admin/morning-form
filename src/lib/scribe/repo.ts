@@ -73,6 +73,7 @@ export const DEFAULT_SCRIBE_TOOLS = [
   'recognize_pattern_in_history',
   'route_to_gp_prep',
   'refer_to_specialist',
+  'propose_next_steps',
 ] as const;
 
 export type DefaultScribeToolName = (typeof DEFAULT_SCRIBE_TOOLS)[number];

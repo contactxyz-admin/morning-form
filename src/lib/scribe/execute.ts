@@ -46,6 +46,7 @@ import { getToolHandler, listToolDefinitions } from './tool-catalog';
 import type { Db, ToolContext } from './tools/types';
 import { parseScribeAnnotations } from './annotations';
 import type { Citation } from '@/lib/topics/types';
+import type { ValidatedAction } from './tools/propose-next-steps';
 
 export const DEFAULT_MAX_TOOL_CALLS = 6;
 
@@ -159,6 +160,10 @@ export interface ScribeExecuteResult {
   /** Summed token usage across all tool-loop turns. null when the client provides no usage. */
   inputTokens: number | null;
   outputTokens: number | null;
+  /** Validated next-step actions extracted from propose_next_steps tool calls.
+   *  Empty array when the tool was never called or all actions were invalid.
+   *  Only turn.ts persists these — they ride in-memory through execute(). */
+  proposedActions: ValidatedAction[];
 }
 
 export function buildDefaultScribeSystemPrompt(policy: SafetyPolicy): string {
@@ -217,6 +222,7 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
   ];
 
   const collectedToolCalls: ScribeExecuteResult['toolCalls'] = [];
+  const collectedActions: ValidatedAction[] = [];
   const maxCalls = req.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
 
   let lastTurn: ScribeLLMTurn | null = null;
@@ -307,6 +313,12 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
           const toolOutput = await handler.execute(ctx, parsed.data);
           collectedToolCalls.push({ name: call.name, input: parsed.data, output: toolOutput, isError: false });
           toolResults.push({ toolUseId: call.id, output: toolOutput });
+          // Collect validated actions from propose_next_steps — in-memory only.
+          // Persistence happens in turn.ts after enforce() + ChatMessage.
+          if (call.name === 'propose_next_steps' && toolOutput && typeof toolOutput === 'object') {
+            const actions = (toolOutput as { actions?: ValidatedAction[] }).actions;
+            if (Array.isArray(actions)) collectedActions.push(...actions);
+          }
         } catch (err) {
           const error = { error: err instanceof Error ? err.message : 'handler failed' };
           collectedToolCalls.push({ name: call.name, input: parsed.data, output: error, isError: true });
@@ -377,6 +389,7 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     auditId: audit.id,
     inputTokens: usageSeen ? totalInputTokens : null,
     outputTokens: usageSeen ? totalOutputTokens : null,
+    proposedActions: collectedActions,
   };
 }
 
