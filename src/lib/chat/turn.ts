@@ -39,6 +39,8 @@ import { ScribeAuditWriteError } from '@/lib/scribe/repo';
 import { routeTurn, type RouteDecision } from '@/lib/scribe/router';
 import { getSpecialty } from '@/lib/scribe/specialties/registry';
 import { loadSpecialtySystemPrompt } from '@/lib/scribe/specialties/load-prompt';
+import { assembleUserContext } from '@/lib/chat/user-context';
+import { env } from '@/lib/env';
 import {
   DEFAULT_HISTORY_LIMIT,
   createChatMessage,
@@ -159,6 +161,19 @@ export async function* runChatTurn(
   const topicKey = resolveTopicKey(decision);
   const systemPrompt = buildAskRuntimeSystemPrompt(topicKey);
 
+  // Phase A context digest — only when the feature flag is on. Assembly must
+  // never block a turn (degrade to no-preamble on failure). Compile and
+  // referral child turns never carry a preamble — only turn.ts sets it.
+  let contextPreamble: string | undefined;
+  if (env.ASK_DEEP_ENABLED) {
+    try {
+      contextPreamble = await assembleUserContext(db, userId) ?? undefined;
+    } catch (err) {
+      console.error('[turn] context digest assembly failed:', err);
+      // Degrade gracefully — the turn proceeds without context.
+    }
+  }
+
   let result;
   try {
     result = await execute({
@@ -172,6 +187,7 @@ export async function* runChatTurn(
       requestId: input.requestId,
       systemPrompt,
       signal,
+      contextPreamble,
     });
   } catch (err) {
     // ScribeAuditWriteError is the structurally-load-bearing D11 breach;

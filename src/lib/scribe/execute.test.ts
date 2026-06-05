@@ -428,6 +428,79 @@ describe('scribe executor — error surfaces', () => {
   });
 });
 
+describe('scribe executor — contextPreamble (Phase A Unit 3)', () => {
+  it('prepends the context preamble into the first user message (not a separate message)', async () => {
+    const userId = await makeTestUser(prisma, 'exec-preamble');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client, calls } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const preamble = 'Archetype: runner | Key priorities: • Ferritin: energy marker';
+    await execute(baseRequest({
+      userId,
+      llm: client,
+      contextPreamble: preamble,
+      requestId: 'cc333333-3333-4333-8333-333333333333',
+    }));
+
+    expect(calls).toHaveLength(1);
+    const firstMessageContent = (calls[0].messages as Array<{ role: string; content: string }>)[0].content;
+    expect(firstMessageContent).toContain(preamble);
+    expect(firstMessageContent).toContain('User message:');
+
+    // No second message — preamble is in the first, NOT a separate entry.
+    expect(calls[0].messages).toHaveLength(1);
+  });
+
+  it('audited prompt field stays the user message alone (preamble excluded)', async () => {
+    const userId = await makeTestUser(prisma, 'exec-preamble-audit');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const userMessage = 'why is my ferritin low?';
+    const preamble = 'Archetype: runner';
+
+    const result = await execute(baseRequest({
+      userId,
+      llm: client,
+      userMessage,
+      contextPreamble: preamble,
+      requestId: 'dd444444-4444-4444-8444-444444444444',
+    }));
+
+    const audit = await prisma.scribeAudit.findFirstOrThrow({
+      where: { userId, requestId: 'dd444444-4444-4444-8444-444444444444' },
+    });
+    // prompt field = user message only, no preamble
+    expect(audit.prompt).toBe(userMessage);
+    expect(audit.prompt).not.toContain('Archetype');
+  });
+
+  it('when contextPreamble is absent, messages are unchanged from today', async () => {
+    const userId = await makeTestUser(prisma, 'exec-no-preamble');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client, calls } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    await execute(baseRequest({
+      userId,
+      llm: client,
+      requestId: 'ee555555-5555-4555-8555-555555555555',
+    }));
+
+    const firstContent = (calls[0].messages as Array<{ role: string; content: string }>)[0].content;
+    expect(firstContent).not.toContain('Archetype');
+    expect(firstContent).not.toContain('User message:');
+  });
+});
+
 describe('scribe executor — self-healing model guard', () => {
   // Pins the fix for the P0 prod bug where Scribe rows seeded during the
   // pre-Anthropic era (model = `openrouter/openai/gpt-4.1`) reached the

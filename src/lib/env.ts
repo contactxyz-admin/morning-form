@@ -56,6 +56,10 @@ const optional = {
   // embedding provider is configured; set 'false'/'0' to force legacy
   // lexical+graph retrieval and disable ingest-time embedding writes.
   HYBRID_RETRIEVAL_ENABLED: process.env.HYBRID_RETRIEVAL_ENABLED ?? '',
+  // Phase A feature flag for Ask, deep (Plan 2026-06-05-001). Off by default.
+  // Flips in Unit 7 after legal + advisor gates. Unsetting returns current
+  // behaviour byte-for-byte.
+  ASK_DEEP_ENABLED: process.env.ASK_DEEP_ENABLED ?? '',
 };
 
 export const env = {

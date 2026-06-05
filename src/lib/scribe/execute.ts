@@ -137,6 +137,15 @@ export interface ScribeExecuteRequest {
    * rejected outcome lands — aborted turns are semantically rejections.
    */
   signal?: AbortSignal;
+  /**
+   * Optional user-context digest (Plan 2026-06-05-001 Phase A Unit 3).
+   * When set, the preamble is prepended as a clearly-delimited block
+   * INSIDE the first user message (NOT as a separate message — avoids
+   * Anthropic role-alternation 400). The audited `prompt` field stays
+   * the user's message alone. Only `turn.ts` sets this; compile and
+   * referral child turns never carry a preamble.
+   */
+  contextPreamble?: string;
 }
 
 export interface ScribeExecuteResult {
@@ -194,8 +203,17 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
   const system = buildSystemPrompt(policy, req.systemPrompt);
   const tools: ScribeLLMToolDefinition[] = listToolDefinitions();
 
+  // Build the initial user message. When a contextPreamble is provided (only
+  // from turn.ts) it is prepended into the SAME user-role message as a
+  // clearly-delimited block — NOT a second consecutive user message (which
+  // would trigger Anthropic's role-alternation 400). The audited prompt
+  // field stays req.userMessage alone.
+  const firstUserContent = req.contextPreamble
+    ? `${req.contextPreamble}\n\n---\n\nUser message: ${req.userMessage}`
+    : req.userMessage;
+
   const messages: ScribeLLMMessage[] = [
-    { role: 'user', content: req.userMessage },
+    { role: 'user', content: firstUserContent },
   ];
 
   const collectedToolCalls: ScribeExecuteResult['toolCalls'] = [];
