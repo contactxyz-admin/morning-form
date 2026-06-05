@@ -21,6 +21,10 @@ const putMock =
     async () => ({ url: 'https://blob.test/x.zip', pathname: 'x' }),
   );
 const getMock = vi.fn();
+// The assembler is mocked so individual tests can force it to throw (archive
+// limit / generic) without seeding data. By default it delegates to the real
+// implementation so happy-path tests exercise the real ZIP build.
+const assembleArchiveMock = vi.fn<(prisma: unknown, userId: string) => Promise<unknown>>();
 
 vi.mock('@/lib/db', () => ({
   get prisma() {
@@ -49,6 +53,16 @@ vi.mock('@vercel/blob', () => ({
   get: (...args: unknown[]) => getMock(...args),
 }));
 
+vi.mock('@/lib/account/export', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/account/export')>();
+  return {
+    ...actual,
+    assembleExportArchive: (prismaArg: unknown, userId: string) =>
+      assembleArchiveMock(prismaArg, userId),
+  };
+});
+
+import { ARCHIVE_LIMIT_MESSAGE } from '@/lib/account/export';
 import { GET, POST } from './route';
 
 let prisma: PrismaClient;
@@ -61,6 +75,13 @@ afterAll(async () => {
   await teardownTestDb();
 });
 
+let realAssembleExportArchive: typeof import('@/lib/account/export').assembleExportArchive;
+
+beforeAll(async () => {
+  const actual = await vi.importActual<typeof import('@/lib/account/export')>('@/lib/account/export');
+  realAssembleExportArchive = actual.assembleExportArchive;
+});
+
 afterEach(() => {
   currentUserMock.mockReset();
   sendEmailMock.mockReset();
@@ -68,6 +89,11 @@ afterEach(() => {
   putMock.mockReset();
   putMock.mockResolvedValue({ url: 'https://blob.test/x.zip', pathname: 'x' } as never);
   getMock.mockReset();
+  // Default: delegate to the real assembler (real ZIP build over mocked blob).
+  assembleArchiveMock.mockReset();
+  assembleArchiveMock.mockImplementation((prismaArg, userId) =>
+    realAssembleExportArchive(prismaArg as never, userId),
+  );
 });
 
 async function makeUser(suffix: string): Promise<{ id: string; email: string }> {
@@ -139,8 +165,11 @@ describe('POST /api/account/export', () => {
     putMock.mockRejectedValueOnce(new Error('blob down'));
     const failed = await POST(postRequest());
     expect(failed.status).toBe(500);
-    const failedJson = await failed.json();
-    const failedRow = await prisma.exportRequest.findUniqueOrThrow({ where: { id: failedJson.id } });
+    // The 500 body carries only { error } — find the row by userId.
+    const failedRow = await prisma.exportRequest.findFirstOrThrow({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    });
     expect(failedRow.status).toBe('failed');
 
     // Two more should still succeed (failed one not counted), third 429.
@@ -189,8 +218,11 @@ describe('POST /api/account/export', () => {
 
     const res = await POST(postRequest());
     expect(res.status).toBe(500);
-    const json = await res.json();
-    const row = await prisma.exportRequest.findUniqueOrThrow({ where: { id: json.id } });
+    // The 500 body carries only { error }, not the row id — find by userId.
+    const row = await prisma.exportRequest.findFirstOrThrow({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    });
     expect(row.status).toBe('failed');
     // The raw SDK error must NOT leak to the user-visible failureReason — it is
     // sanitized to a generic message (the raw error goes to console.error only).
@@ -201,6 +233,67 @@ describe('POST /api/account/export', () => {
     expect(sendEmailMock).toHaveBeenCalledTimes(1);
     const subject = sendEmailMock.mock.calls[0][0].subject;
     expect(subject).toMatch(/requested/i);
+  });
+
+  it('archive-limit failure: failureReason is the exact ARCHIVE_LIMIT_MESSAGE, notice sent, no download email', async () => {
+    const user = await makeUser('exp-archlimit');
+    currentUserMock.mockResolvedValue(user);
+    // Assembler throws the user-meaningful archive-limit error — it must pass
+    // through verbatim to failureReason (it is the one internal error we surface).
+    assembleArchiveMock.mockRejectedValueOnce(new Error(ARCHIVE_LIMIT_MESSAGE));
+
+    const res = await POST(postRequest());
+    expect(res.status).toBe(500);
+    const row = await prisma.exportRequest.findFirstOrThrow({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(row.status).toBe('failed');
+    expect(row.failureReason).toBe(ARCHIVE_LIMIT_MESSAGE);
+
+    // Notice email sent (1), no download email.
+    expect(sendEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendEmailMock.mock.calls[0][0].subject).toMatch(/requested/i);
+  });
+
+  it('generic assembler failure: failureReason is the sanitized generic message (raw error not leaked)', async () => {
+    const user = await makeUser('exp-genericfail');
+    currentUserMock.mockResolvedValue(user);
+    assembleArchiveMock.mockRejectedValueOnce(new Error('internal prisma column boom'));
+
+    const res = await POST(postRequest());
+    expect(res.status).toBe(500);
+    const row = await prisma.exportRequest.findFirstOrThrow({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(row.status).toBe('failed');
+    expect(row.failureReason).toBe('Export failed. Please try again.');
+    expect(row.failureReason).not.toContain('boom');
+  });
+
+  it('concurrent double-POST never creates more than the allowed non-failed rows', async () => {
+    const user = await makeUser('exp-concurrent');
+    currentUserMock.mockResolvedValue(user);
+
+    // Fire several POSTs concurrently. Each may 200 (won a slot) or 429 (lost a
+    // slot / serialization conflict). The invariant we assert is on the rows:
+    // at most RATE_LIMIT_MAX (2) non-failed rows can exist in the window.
+    const responses = await Promise.all([
+      POST(postRequest()),
+      POST(postRequest()),
+      POST(postRequest()),
+      POST(postRequest()),
+    ]);
+    for (const res of responses) {
+      expect([200, 429]).toContain(res.status);
+    }
+
+    const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const nonFailed = await prisma.exportRequest.count({
+      where: { userId: user.id, status: { not: 'failed' }, createdAt: { gte: windowStart } },
+    });
+    expect(nonFailed).toBeLessThanOrEqual(2);
   });
 });
 

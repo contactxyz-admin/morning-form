@@ -3,6 +3,10 @@ import { get } from '@vercel/blob';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 
+// Must stay in sync with EXPORT_MAX_DURATION_S (@/lib/account/export-constants).
+// Kept as a literal because Next.js route segment config is extracted by
+// build-time static analysis that resolves only in-module literals (it does NOT
+// follow imported bindings).
 export const maxDuration = 300;
 
 /**

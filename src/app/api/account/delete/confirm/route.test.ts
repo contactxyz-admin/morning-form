@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { createHmac, randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { getTestPrisma, makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
+import { hashDeletionEmail } from '@/lib/account/delete';
 
 const SECRET = 'test-session-secret-at-least-32-chars-long-xxxx';
 
@@ -193,6 +194,46 @@ describe('POST /api/account/delete/confirm', () => {
     expect(await prisma.user.findUnique({ where: { id: user.id } })).toBeNull();
   });
 
+  it('eraseAccount failure + token reset failure → 503 with distinct request-new-link message', async () => {
+    const user = await makeUser('del-resetfail');
+    currentUserMock.mockResolvedValue(user);
+    const raw = await issueToken(user.id);
+
+    // Make eraseAccount reject (blob del down) after consuming the token.
+    delMock.mockRejectedValueOnce(new Error('blob down'));
+    await prisma.sourceDocument.create({
+      data: { userId: user.id, kind: 'lab_pdf', capturedAt: new Date(), storagePath: `uploads/${user.id}/x.pdf` },
+    });
+
+    // Make the token-reset updateMany ALSO throw. The first updateMany call is
+    // the ownership-bound consume (must succeed); the reset is the SECOND call.
+    const realUpdateMany = prisma.accountDeletionToken.updateMany.bind(
+      prisma.accountDeletionToken,
+    );
+    let calls = 0;
+    const spy = vi
+      .spyOn(prisma.accountDeletionToken, 'updateMany')
+      .mockImplementation(((...args: Parameters<typeof realUpdateMany>) => {
+        calls += 1;
+        if (calls === 1) return realUpdateMany(...args);
+        return Promise.reject(new Error('reset down'));
+      }) as unknown as typeof prisma.accountDeletionToken.updateMany);
+
+    try {
+      const res = await POST(postWith({ token: raw }));
+      expect(res.status).toBe(503);
+      expect(res.headers.get('Retry-After')).toBe('10');
+      const body = await res.json();
+      expect(body.error).toBe(
+        'Account deletion failed and your confirmation link may no longer be valid. Please request a new deletion link from Settings.',
+      );
+      // User survives (erasure never committed).
+      expect(await prisma.user.findUnique({ where: { id: user.id } })).not.toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('raced double-consume fires erasure exactly once', async () => {
     const user = await makeUser('del-race');
     currentUserMock.mockResolvedValue(user);
@@ -206,6 +247,11 @@ describe('POST /api/account/delete/confirm', () => {
     // and there is exactly one completed tombstone.
     expect(statuses[0]).toBe(200);
     expect(await prisma.user.findUnique({ where: { id: user.id } })).toBeNull();
+    expect(
+      await prisma.accountDeletionTombstone.count({
+        where: { emailHash: hashDeletionEmail(user.email), status: 'completed' },
+      }),
+    ).toBe(1);
   });
 
   it('happy path: user gone, cookie cleared, tombstone completed', async () => {

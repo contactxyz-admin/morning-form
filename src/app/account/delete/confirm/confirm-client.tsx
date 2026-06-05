@@ -79,26 +79,35 @@ export function DeleteConfirmClient({ token }: { token: string }) {
         files — will be permanently erased. A surviving audit record retains only non-identifying
         proof that the deletion happened.
       </p>
-      <label htmlFor="confirm-delete" className="mt-10 block text-caption text-text-tertiary">
-        Type DELETE to confirm
-      </label>
-      <input
-        id="confirm-delete"
-        type="text"
-        value={confirmText}
-        onChange={(e) => setConfirmText(e.target.value)}
-        autoComplete="off"
-        placeholder="DELETE"
-        className="mt-2 w-full bg-transparent border-b border-border focus:border-alert outline-none text-body text-text-primary py-1.5 font-mono placeholder:text-text-tertiary placeholder:font-mono transition-colors duration-300 ease-spring"
-      />
-      <button
-        type="button"
-        onClick={onConfirm}
-        disabled={!armed || state === 'working'}
-        className="mt-8 text-body text-alert hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+      {/* Wrap input + button in a form so an Enter keypress routes through the
+          same guarded onConfirm (which no-ops when not armed / already working)
+          rather than bypassing the working-state guard. */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void onConfirm();
+        }}
       >
-        {state === 'working' ? 'Deleting…' : 'Permanently delete my account'}
-      </button>
+        <label htmlFor="confirm-delete" className="mt-10 block text-caption text-text-tertiary">
+          Type DELETE to confirm
+        </label>
+        <input
+          id="confirm-delete"
+          type="text"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          autoComplete="off"
+          placeholder="DELETE"
+          className="mt-2 w-full bg-transparent border-b border-border focus:border-alert outline-none text-body text-text-primary py-1.5 font-mono placeholder:text-text-tertiary placeholder:font-mono transition-colors duration-300 ease-spring"
+        />
+        <button
+          type="submit"
+          disabled={!armed || state === 'working'}
+          className="mt-8 text-body text-alert hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {state === 'working' ? 'Deleting…' : 'Permanently delete my account'}
+        </button>
+      </form>
       {state === 'error' && (
         <p role="alert" className="mt-4 text-caption text-alert">
           {message}

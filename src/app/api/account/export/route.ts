@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { put } from '@vercel/blob';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
@@ -8,6 +9,12 @@ import { resolveAppOrigin } from '@/lib/urls';
 
 // Multi-PDF archive assembly + blob upload can run long; Pro caps at 300s.
 // Repo precedent: src/app/api/intake/submit/route.ts.
+//
+// Must stay in sync with EXPORT_MAX_DURATION_S (@/lib/account/export-constants),
+// which the Settings "stale pending" threshold derives from. Next.js route
+// segment config is extracted by build-time static analysis that resolves only
+// in-module literals (it does NOT follow imported bindings), so this is kept as
+// a literal rather than importing the constant.
 export const maxDuration = 300;
 
 const RATE_LIMIT_MAX = 2; // non-failed export requests per user per 24h
@@ -41,31 +48,52 @@ export async function POST(httpRequest: Request) {
   // failed attempt must never lock a user out of an Article 15 right.
   //
   // The count check AND the pending-row creation run inside a single
-  // $transaction (mirroring checkAndIncrementRateLimits in
+  // Serializable $transaction (mirroring checkAndIncrementRateLimits in
   // src/lib/auth/magic-link.ts) so two concurrent POSTs can never both pass
-  // when only one slot remains — one of them sees the other's just-created row.
+  // when only one slot remains. The findMany→create pair isn't atomic on its
+  // own (the count read doesn't lock the rows a sibling tx is about to insert),
+  // so Serializable isolation makes the DB detect the write-skew and abort one
+  // tx with a serialization failure (P2034); we translate that abort into the
+  // same 429 path. Conservative: a genuine over-limit and a lost race both
+  // surface as "try again later".
   const windowStart = new Date(Date.now() - RATE_WINDOW_MS);
-  const result = await prisma.$transaction(async (tx) => {
-    const recent = await tx.exportRequest.findMany({
-      where: {
-        userId: user.id,
-        status: { not: 'failed' },
-        createdAt: { gte: windowStart },
+  let result: { limited: true; retryAfter: number } | { limited: false; request: { id: string } };
+  try {
+    result = await prisma.$transaction(
+      async (tx) => {
+        const recent = await tx.exportRequest.findMany({
+          where: {
+            userId: user.id,
+            status: { not: 'failed' },
+            createdAt: { gte: windowStart },
+          },
+          orderBy: { createdAt: 'asc' },
+          select: { createdAt: true },
+        });
+        if (recent.length >= RATE_LIMIT_MAX) {
+          const oldest = recent[0].createdAt.getTime();
+          const retryAfterMs = oldest + RATE_WINDOW_MS - Date.now();
+          const retryAfter = Math.max(1, Math.ceil(retryAfterMs / 1000));
+          return { limited: true as const, retryAfter };
+        }
+        const row = await tx.exportRequest.create({
+          data: { userId: user.id, status: 'pending' },
+        });
+        return { limited: false as const, request: row };
       },
-      orderBy: { createdAt: 'asc' },
-      select: { createdAt: true },
-    });
-    if (recent.length >= RATE_LIMIT_MAX) {
-      const oldest = recent[0].createdAt.getTime();
-      const retryAfterMs = oldest + RATE_WINDOW_MS - Date.now();
-      const retryAfter = Math.max(1, Math.ceil(retryAfterMs / 1000));
-      return { limited: true as const, retryAfter };
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  } catch (error) {
+    // A serialization conflict (P2034) means a concurrent export request won the
+    // slot — treat the loser exactly like a rate-limit hit rather than a 500.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      return NextResponse.json(
+        { error: 'Export rate limit reached. Try again later.' },
+        { status: 429, headers: { 'Retry-After': '60' } },
+      );
     }
-    const row = await tx.exportRequest.create({
-      data: { userId: user.id, status: 'pending' },
-    });
-    return { limited: false as const, request: row };
-  });
+    throw error;
+  }
 
   if (result.limited) {
     return NextResponse.json(
@@ -125,10 +153,7 @@ export async function POST(httpRequest: Request) {
     await prisma.exportRequest
       .update({ where: { id: request.id }, data: { status: 'failed', failureReason: reason } })
       .catch(() => {});
-    return NextResponse.json(
-      { error: 'Export failed. Please try again.', id: request.id },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: 'Export failed. Please try again.' }, { status: 500 });
   }
 
   // The row is now `complete`. Send the download-link email in its OWN try/catch

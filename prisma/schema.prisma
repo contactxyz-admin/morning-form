@@ -161,7 +161,8 @@ model MagicLinkToken {
 
 model MagicLinkRateLimit {
   id          String   @id @default(cuid())
-  // `subjectKind` = 'email' | 'ip'; `subject` = lowercased email or ip-hash.
+  // `subjectKind` = 'email-15m' | 'email-24h' | 'ip-1h' (the throttling window);
+  // `subject` = lowercased email or ip-hash.
   subjectKind String
   subject     String
   window      DateTime

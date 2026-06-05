@@ -47,6 +47,17 @@ export const MAX_ARCHIVE_BYTES = 3 * 1024 ** 3;
 /** Error message thrown when the assembled archive exceeds MAX_ARCHIVE_BYTES. */
 export const ARCHIVE_LIMIT_MESSAGE = 'export exceeds the 3 GB archive limit';
 
+/**
+ * Hard ceiling on the number of entries a non-ZIP64 archive can address: the
+ * End Of Central Directory record stores the entry count in a UInt16 field, so
+ * 65535 is the maximum. Beyond it the EOCD would silently wrap and produce a
+ * corrupt archive — we throw a clear error first instead.
+ */
+export const MAX_ARCHIVE_ENTRIES = 0xffff;
+
+/** Error message thrown when the archive would exceed MAX_ARCHIVE_ENTRIES. */
+export const ARCHIVE_ENTRY_LIMIT_MESSAGE = 'export exceeds the maximum archive file count';
+
 // Re-exported from a leaf module (no @vercel/blob / prisma imports) so the
 // client-side Settings page can import the constant without pulling this whole
 // assembler — and its runtime blob dependency — into the browser bundle.
@@ -357,19 +368,21 @@ interface FetchedFile {
 async function fetchDocumentFiles(
   documentBlobs: { sourceDocumentId: string; storagePath: string }[],
 ): Promise<FetchedFile[]> {
-  const files: FetchedFile[] = [];
-  for (const { sourceDocumentId, storagePath } of documentBlobs) {
-    const result = await get(storagePath, { access: 'private' });
-    if (!result || result.statusCode !== 200 || !result.stream) {
-      throw new Error(`export: blob fetch returned no body for document ${sourceDocumentId} (${storagePath})`);
-    }
-    const bytes = await streamToBuffer(result.stream);
-    files.push({
-      pathname: `files/${sourceDocumentId}.pdf`,
-      sourceDocumentId,
-      bytes,
-    });
-  }
+  // Fetch every document's blob in parallel. Any null/error rejects the whole
+  // assembly (Promise.all short-circuits) — we never silently omit a file the
+  // manifest would otherwise claim. Order is made deterministic afterwards by
+  // sorting on sourceDocumentId so the resolution race can't shuffle entries.
+  const files = await Promise.all(
+    documentBlobs.map(async ({ sourceDocumentId, storagePath }): Promise<FetchedFile> => {
+      const result = await get(storagePath, { access: 'private' });
+      if (!result || result.statusCode !== 200 || !result.stream) {
+        throw new Error(`export: blob fetch returned no body for document ${sourceDocumentId} (${storagePath})`);
+      }
+      const bytes = await streamToBuffer(result.stream);
+      return { pathname: `files/${sourceDocumentId}.pdf`, sourceDocumentId, bytes };
+    }),
+  );
+  files.sort((a, b) => a.sourceDocumentId.localeCompare(b.sourceDocumentId));
   return files;
 }
 
@@ -483,8 +496,20 @@ function crc32(buf: Buffer): number {
  * that reason rather than building an oversized in-memory / non-ZIP64 archive.
  * `maxBytes` is parameterised so tests can exercise the guard without
  * allocating 3 GB.
+ *
+ * Throws ARCHIVE_ENTRY_LIMIT_MESSAGE when the entry count exceeds `maxEntries`
+ * (default MAX_ARCHIVE_ENTRIES = 65535): the EOCD entry-count field is a UInt16
+ * and would wrap past that, yielding a corrupt archive. `maxEntries` is
+ * parameterised so tests can exercise the guard with a small threshold.
  */
-export function buildStoreZip(entries: ZipEntry[], maxBytes: number = MAX_ARCHIVE_BYTES): Buffer {
+export function buildStoreZip(
+  entries: ZipEntry[],
+  maxBytes: number = MAX_ARCHIVE_BYTES,
+  maxEntries: number = MAX_ARCHIVE_ENTRIES,
+): Buffer {
+  if (entries.length > maxEntries) {
+    throw new Error(ARCHIVE_ENTRY_LIMIT_MESSAGE);
+  }
   const totalBytes = entries.reduce((sum, e) => sum + e.data.length, 0);
   if (totalBytes > maxBytes) {
     throw new Error(ARCHIVE_LIMIT_MESSAGE);

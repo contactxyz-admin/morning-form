@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { classifyInsightsArms, type ArmStatus } from './use-insights-data';
+import {
+  classifyInsightsArms,
+  coerceHealthHistory,
+  type ArmStatus,
+  type HealthHistoryDay,
+} from './use-insights-data';
 
 /**
  * The hook itself relies on React state/effects and runs only in the browser,
@@ -72,5 +77,29 @@ describe('classifyInsightsArms', () => {
     expect(classifyInsightsArms(fail(500), ok(), fail(401))).toEqual({
       kind: 'unauthenticated',
     });
+  });
+});
+
+describe('coerceHealthHistory', () => {
+  const day: HealthHistoryDay = {
+    date: '2026-01-01',
+    hrv: 50,
+    recoveryScore: 80,
+    sleepDuration: 7,
+    restingHR: 55,
+    steps: 9000,
+  };
+
+  it('returns the array when history is a real array', () => {
+    expect(coerceHealthHistory({ history: [day] })).toEqual([day]);
+    expect(coerceHealthHistory({ history: [] })).toEqual([]);
+  });
+
+  it('degrades to [] for a non-array / missing / null history (malformed body)', () => {
+    expect(coerceHealthHistory({ history: undefined })).toEqual([]);
+    expect(coerceHealthHistory({})).toEqual([]);
+    expect(coerceHealthHistory(null)).toEqual([]);
+    expect(coerceHealthHistory({ history: 'oops' as unknown })).toEqual([]);
+    expect(coerceHealthHistory({ history: { not: 'an array' } as unknown })).toEqual([]);
   });
 });

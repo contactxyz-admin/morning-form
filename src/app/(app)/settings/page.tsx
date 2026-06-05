@@ -7,29 +7,7 @@ import { Toggle } from '@/components/ui/toggle';
 import { TimePicker } from '@/components/ui/time-picker';
 import Link from 'next/link';
 import { EXPORT_MAX_DURATION_S } from '@/lib/account/export-constants';
-
-// Server-backed preference fields (mirror of the UserPreferences model /
-// /api/user/preferences allowlist). Notification toggles use the model's
-// notify* names; the UI labels them morning/protocol/evening/weekly.
-type Preferences = {
-  wakeTime: string;
-  windDownTime: string;
-  timezone: string;
-  notifyMorning: boolean;
-  notifyProtocol: boolean;
-  notifyEvening: boolean;
-  notifyWeekly: boolean;
-};
-
-const PREF_DEFAULTS: Preferences = {
-  wakeTime: '07:00',
-  windDownTime: '22:00',
-  timezone: 'UTC',
-  notifyMorning: true,
-  notifyProtocol: true,
-  notifyEvening: true,
-  notifyWeekly: true,
-};
+import { type Preferences, PREF_DEFAULTS } from '@/lib/account/preferences-types';
 
 // Latest export request as surfaced by GET /api/account/export.
 type ExportRequest = {
@@ -61,7 +39,9 @@ function exportViewFromRequest(req: ExportRequest | null): ExportView {
   if (!req) return { kind: 'idle' };
   if (req.status === 'complete') return { kind: 'complete', expiresAt: req.expiresAt };
   if (req.status === 'failed') return { kind: 'failed', reason: req.failureReason };
-  // pending: stale if older than the route could possibly still be running.
+  // 'pending' — and any unrecognized status value — is treated as a pending
+  // request (assembly underway) rather than silently dropping to idle. A
+  // pending row older than the route could possibly still be running is stale.
   const age = Date.now() - new Date(req.createdAt).getTime();
   if (age > EXPORT_STALE_MS) {
     return { kind: 'failed', reason: 'The export timed out. Please try again.' };
@@ -73,7 +53,7 @@ function exportViewFromRequest(req: ExportRequest | null): ExportView {
 type DeleteView =
   | { kind: 'idle' }
   | { kind: 'confirming'; value: string; error: string | null }
-  | { kind: 'requesting'; value: string }
+  | { kind: 'requesting' }
   | { kind: 'sent' };
 
 export default function SettingsPage() {
@@ -97,8 +77,14 @@ export default function SettingsPage() {
   // Data section: export + delete view-state.
   const [exportView, setExportView] = useState<ExportView>({ kind: 'idle' });
   const [deleteView, setDeleteView] = useState<DeleteView>({ kind: 'idle' });
+  // Synchronous in-flight guards: a double-tap (two clicks before the view
+  // state flips to a disabled state) must fire exactly one request.
+  const exportInFlightRef = useRef(false);
+  const deleteInFlightRef = useRef(false);
 
   const requestExport = async () => {
+    if (exportInFlightRef.current) return;
+    exportInFlightRef.current = true;
     setExportView({ kind: 'requesting' });
     try {
       const res = await fetch('/api/account/export', { method: 'POST' });
@@ -118,6 +104,8 @@ export default function SettingsPage() {
       setExportView({ kind: 'failed', reason: json?.error ?? 'Export failed. Please try again.' });
     } catch {
       setExportView({ kind: 'failed', reason: 'Network error. Please try again.' });
+    } finally {
+      exportInFlightRef.current = false;
     }
   };
 
@@ -125,8 +113,9 @@ export default function SettingsPage() {
     // Only ever fired from the confirming view (the Delete button is rendered
     // there); guard on that rather than fabricating a 'DELETE' fallback value.
     if (deleteView.kind !== 'confirming') return;
-    const value = deleteView.value;
-    setDeleteView({ kind: 'requesting', value });
+    if (deleteInFlightRef.current) return;
+    deleteInFlightRef.current = true;
+    setDeleteView({ kind: 'requesting' });
     try {
       const res = await fetch('/api/account/delete/request', {
         method: 'POST',
@@ -149,6 +138,8 @@ export default function SettingsPage() {
         value: 'DELETE',
         error: 'Network error. Please try again.',
       });
+    } finally {
+      deleteInFlightRef.current = false;
     }
   };
 
@@ -198,19 +189,20 @@ export default function SettingsPage() {
 
     (async () => {
       let serverPrefs: Preferences = PREF_DEFAULTS;
-      let hadRow = false;
+      let hasRow = false;
       try {
         const res = await fetch('/api/user/preferences');
         if (res.ok) {
-          const json = (await res.json()) as { preferences?: Preferences; email?: string | null };
+          const json = (await res.json()) as {
+            preferences?: Preferences;
+            email?: string | null;
+            hasRow?: boolean;
+          };
           if (!cancelled && typeof json.email === 'string') setEmail(json.email);
           if (json.preferences) {
             serverPrefs = json.preferences;
-            // The server returns defaults when no row exists; treat a value that
-            // differs from defaults as a real row. We can't distinguish a row
-            // that happens to equal defaults, but migrating defaults is a no-op.
-            hadRow =
-              JSON.stringify(json.preferences) !== JSON.stringify(PREF_DEFAULTS);
+            // The server reports authoritatively whether a real row exists.
+            hasRow = json.hasRow === true;
           }
         }
       } catch {
@@ -220,11 +212,10 @@ export default function SettingsPage() {
 
       // One-time migration: server has no row but a local mf_preferences exists
       // → PUT it once to preserve the per-device value, then adopt it locally.
-      const localPatch = !hadRow ? readLocalLegacy() : null;
+      const localPatch = !hasRow ? readLocalLegacy() : null;
       if (localPatch) {
         const merged: Preferences = { ...serverPrefs, ...localPatch };
         applyPrefs(merged);
-        loadedRef.current = true;
         try {
           await fetch('/api/user/preferences', {
             method: 'PUT',
@@ -234,6 +225,10 @@ export default function SettingsPage() {
         } catch {
           // Best-effort migration; local echo already applied.
         }
+        // Only open the write-through gate AFTER the migration PUT resolves, so
+        // a persist() racing the migration can't fire before it. Honor cancel.
+        if (cancelled) return;
+        loadedRef.current = true;
         return;
       }
 
@@ -473,7 +468,10 @@ export default function SettingsPage() {
                   </p>
                   <input
                     type="text"
-                    value={deleteView.value}
+                    // During 'requesting' the input is disabled and shows the
+                    // confirmed 'DELETE' value; 'value' lives only on the
+                    // 'confirming' variant.
+                    value={deleteView.kind === 'confirming' ? deleteView.value : 'DELETE'}
                     onChange={(e) =>
                       setDeleteView({ kind: 'confirming', value: e.target.value, error: null })
                     }

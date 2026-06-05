@@ -30,9 +30,11 @@ vi.mock('@/lib/env', () => ({
 }));
 
 import {
+  ARCHIVE_ENTRY_LIMIT_MESSAGE,
   ARCHIVE_LIMIT_MESSAGE,
   EXCLUSIONS,
   EXPORT_DOMAIN_MODELS,
+  MAX_ARCHIVE_BYTES,
   assembleExportArchive,
   buildStoreZip,
 } from './export';
@@ -153,6 +155,19 @@ describe('buildStoreZip', () => {
     expect(() => buildStoreZip(entries, 50)).toThrow(ARCHIVE_LIMIT_MESSAGE);
     // Exactly at the limit is fine.
     expect(() => buildStoreZip(entries, 80)).not.toThrow();
+  });
+
+  it('throws the entry-count error when entries exceed the maxEntries cap', () => {
+    // Use a tiny injected entry cap so the test exercises the real UInt16 EOCD
+    // guard without allocating 65k+ entries.
+    const entries = [
+      { name: 'a.json', data: Buffer.from('1') },
+      { name: 'b.json', data: Buffer.from('2') },
+      { name: 'c.json', data: Buffer.from('3') },
+    ];
+    expect(() => buildStoreZip(entries, MAX_ARCHIVE_BYTES, 2)).toThrow(ARCHIVE_ENTRY_LIMIT_MESSAGE);
+    // Exactly at the cap is fine.
+    expect(() => buildStoreZip(entries, MAX_ARCHIVE_BYTES, 3)).not.toThrow();
   });
 });
 

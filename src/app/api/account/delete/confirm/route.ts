@@ -25,7 +25,10 @@ import { eraseAccount, hashDeletionEmail, hashDeletionToken } from '@/lib/accoun
  * goodbye payload.
  *
  * maxDuration mirrors the deletion transaction's generous timeout (repo
- * precedent 300; src/app/api/account/export/route.ts).
+ * precedent 300; src/app/api/account/export/route.ts). Kept as a literal in
+ * sync with EXPORT_MAX_DURATION_S — Next.js route segment config is extracted by
+ * build-time static analysis that resolves only in-module literals (it does NOT
+ * follow imported bindings).
  */
 export const maxDuration = 300;
 
@@ -108,14 +111,28 @@ export async function POST(request: Request) {
     }
 
     // Genuine failure (e.g. blob deletion down). Reset the token so the same
-    // emailed link is retryable, and surface a 503 the client can retry.
+    // emailed link is retryable, and surface a 503 the client can retry. If the
+    // reset ITSELF fails the link can no longer be re-consumed, so we tell the
+    // user to request a fresh deletion link rather than retry a dead link.
     console.error('[API] Account erasure failed:', error);
-    await prisma.accountDeletionToken
-      .updateMany({ where: { tokenHash, userId: user.id }, data: { consumedAt: null } })
-      .catch(() => {});
+    try {
+      await prisma.accountDeletionToken.updateMany({
+        where: { tokenHash, userId: user.id },
+        data: { consumedAt: null },
+      });
+    } catch (resetError) {
+      console.error('[API] Account deletion token reset failed:', resetError);
+      return NextResponse.json(
+        {
+          error:
+            'Account deletion failed and your confirmation link may no longer be valid. Please request a new deletion link from Settings.',
+        },
+        { status: 503, headers: { 'Retry-After': '10' } },
+      );
+    }
     return NextResponse.json(
       { error: 'Account deletion could not be completed. Please try again.' },
-      { status: 503 },
+      { status: 503, headers: { 'Retry-After': '10' } },
     );
   }
 

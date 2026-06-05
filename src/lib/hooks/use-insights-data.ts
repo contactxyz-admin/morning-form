@@ -47,6 +47,15 @@ function collapseCheckInsByDay(rows: StoredCheckIn[]): CheckInHistoryDay[] {
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/**
+ * Coerce a parsed health-history body into a usable array. The body is
+ * untrusted at runtime: a malformed response (missing/null/non-array `history`)
+ * must degrade to an empty section, never throw or pass a non-array downstream.
+ */
+export function coerceHealthHistory(raw: { history?: unknown } | null | undefined): HealthHistoryDay[] {
+  return Array.isArray(raw?.history) ? (raw.history as HealthHistoryDay[]) : [];
+}
+
 /** The minimal shape of each fetch arm the classifier needs (a subset of `Response`). */
 export type ArmStatus = { ok: boolean; status: number };
 
@@ -111,13 +120,18 @@ export function useInsightsData(): InsightsState {
 
   useEffect(() => {
     let cancelled = false;
+    // Abort the in-flight fetches when the effect tears down (unmount / re-run)
+    // so a slow response can't resolve into setState on a dead component. An
+    // AbortError is an expected teardown signal, not a load failure, so it must
+    // resolve to a silent no-op rather than the error state.
+    const controller = new AbortController();
 
     async function load() {
       try {
         const [reviewRes, checkInRes, historyRes] = await Promise.all([
-          fetch('/api/insights/weekly'),
-          fetch('/api/check-in'),
-          fetch('/api/insights/health-history?days=7'),
+          fetch('/api/insights/weekly', { signal: controller.signal }),
+          fetch('/api/check-in', { signal: controller.signal }),
+          fetch('/api/insights/health-history?days=7', { signal: controller.signal }),
         ]);
 
         if (cancelled) return;
@@ -139,9 +153,15 @@ export function useInsightsData(): InsightsState {
           checkInRes.json(),
         ])) as [{ review: WeeklyReview }, { checkIns: StoredCheckIn[] }];
 
-        const healthHistory: HealthHistoryDay[] = classification.healthHistoryOk
-          ? ((await historyRes.json()) as { history: HealthHistoryDay[] }).history
-          : [];
+        if (cancelled) return;
+
+        let healthHistory: HealthHistoryDay[] = [];
+        if (classification.healthHistoryOk) {
+          const raw = (await historyRes.json()) as { history?: unknown };
+          if (cancelled) return;
+          // Defend against a malformed body: only an actual array is usable.
+          healthHistory = coerceHealthHistory(raw);
+        }
 
         if (cancelled) return;
         setState({
@@ -153,18 +173,19 @@ export function useInsightsData(): InsightsState {
           },
         });
       } catch (err) {
-        if (!cancelled) {
-          setState({
-            kind: 'error',
-            message: err instanceof Error ? err.message : 'Failed to load',
-          });
-        }
+        // A teardown-triggered abort is not an error: stay silent.
+        if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) return;
+        setState({
+          kind: 'error',
+          message: err instanceof Error ? err.message : 'Failed to load',
+        });
       }
     }
 
     load();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 

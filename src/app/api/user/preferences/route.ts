@@ -1,32 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
+import { type Preferences, PREF_DEFAULTS as DEFAULTS } from '@/lib/account/preferences-types';
 
 // HH:MM, 24-hour. Mirrors the format produced by the Settings TimePicker.
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-type Preferences = {
-  wakeTime: string;
-  windDownTime: string;
-  timezone: string;
-  notifyMorning: boolean;
-  notifyProtocol: boolean;
-  notifyEvening: boolean;
-  notifyWeekly: boolean;
-};
-
-// Server-side defaults, kept in sync with the UserPreferences model defaults
-// (prisma/schema.prisma) and the Settings UI defaults. Returned when the user
-// has no row yet so the client always renders consistent state.
-const DEFAULTS: Preferences = {
-  wakeTime: '07:00',
-  windDownTime: '22:00',
-  timezone: 'UTC',
-  notifyMorning: true,
-  notifyProtocol: true,
-  notifyEvening: true,
-  notifyWeekly: true,
-};
 
 /**
  * Explicit write allowlist. Only the known UserPreferences model fields are
@@ -61,6 +39,11 @@ function isValidTimezone(tz: string): boolean {
  * session email to render the Account section; there is no other client-facing
  * route that exposes user identity, so we surface it here rather than adding a
  * dedicated `/api/user/me` endpoint. `email` is read-only (no PUT counterpart).
+ *
+ * `hasRow` reports whether a real UserPreferences row exists (vs. synthesized
+ * defaults). The client uses it to decide whether to run the one-time
+ * localStorage→server migration, instead of guessing from a defaults heuristic
+ * (a real row that happens to equal defaults is indistinguishable otherwise).
  */
 export async function GET() {
   const user = await getCurrentUser();
@@ -81,7 +64,7 @@ export async function GET() {
           notifyWeekly: row.notifyWeekly,
         }
       : { ...DEFAULTS };
-    return NextResponse.json({ preferences, email: user.email ?? null });
+    return NextResponse.json({ preferences, email: user.email ?? null, hasRow: row !== null });
   } catch (error) {
     console.error('[API] Preferences fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch preferences' }, { status: 500 });

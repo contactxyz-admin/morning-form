@@ -207,5 +207,26 @@ describe('GET /api/user/preferences', () => {
     expect(json.preferences).toEqual(DEFAULTS);
     // GET surfaces the authenticated user's email as a sibling field.
     expect(json.email).toBe(`prefs-${userId}@example.com`);
+    // No row exists yet → hasRow false (the client uses this to decide the
+    // one-time localStorage→server migration).
+    expect(json.hasRow).toBe(false);
+  });
+
+  it('reports hasRow false with no row and true after a PUT creates one', async () => {
+    const userId = await makeTestUser(prisma, 'prefs-hasrow');
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
+    const before = await GET();
+    expect((await before.json()).hasRow).toBe(false);
+
+    // Write a row whose values equal the defaults — hasRow must STILL be true
+    // (the old defaults-heuristic could not distinguish this case).
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
+    await PUT(putRequest({ wakeTime: DEFAULTS.wakeTime }));
+
+    currentUserMock.mockResolvedValue({ id: userId, email: `prefs-${userId}@example.com` });
+    const after = await GET();
+    const json = await after.json();
+    expect(json.hasRow).toBe(true);
+    expect(json.preferences).toEqual(DEFAULTS);
   });
 });
