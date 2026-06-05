@@ -1,0 +1,159 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { getCurrentUser } from '@/lib/session';
+import { type Preferences, PREF_DEFAULTS as DEFAULTS } from '@/lib/account/preferences-types';
+
+// HH:MM, 24-hour. Mirrors the format produced by the Settings TimePicker.
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * Explicit write allowlist. Only the known UserPreferences model fields are
+ * writable through this endpoint — a future schema addition must not become
+ * silently writable. PUT bodies are validated field-by-field against this map;
+ * unknown keys are ignored.
+ */
+const STRING_FIELDS = ['wakeTime', 'windDownTime', 'timezone'] as const;
+const BOOLEAN_FIELDS = ['notifyMorning', 'notifyProtocol', 'notifyEvening', 'notifyWeekly'] as const;
+const TIME_FIELDS = ['wakeTime', 'windDownTime'] as const;
+
+/**
+ * True when `tz` is an IANA timezone the runtime's Intl can resolve. Invalid
+ * identifiers make `Intl.DateTimeFormat` throw a RangeError — we reject those
+ * rather than persisting a value that would break every downstream date render.
+ */
+function isValidTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * GET /api/user/preferences — return the current user's preferences, or the
+ * defaults (matching the Settings UI) when no row exists yet.
+ *
+ * Also returns the authenticated user's `email` as a sibling field. The
+ * Settings page already fetches this endpoint on mount and needs the real
+ * session email to render the Account section; there is no other client-facing
+ * route that exposes user identity, so we surface it here rather than adding a
+ * dedicated `/api/user/me` endpoint. `email` is read-only (no PUT counterpart).
+ *
+ * `hasRow` reports whether a real UserPreferences row exists (vs. synthesized
+ * defaults). The client uses it to decide whether to run the one-time
+ * localStorage→server migration, instead of guessing from a defaults heuristic
+ * (a real row that happens to equal defaults is indistinguishable otherwise).
+ */
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
+
+  try {
+    const row = await prisma.userPreferences.findUnique({ where: { userId: user.id } });
+    const preferences: Preferences = row
+      ? {
+          wakeTime: row.wakeTime,
+          windDownTime: row.windDownTime,
+          timezone: row.timezone,
+          notifyMorning: row.notifyMorning,
+          notifyProtocol: row.notifyProtocol,
+          notifyEvening: row.notifyEvening,
+          notifyWeekly: row.notifyWeekly,
+        }
+      : { ...DEFAULTS };
+    return NextResponse.json({ preferences, email: user.email ?? null, hasRow: row !== null });
+  } catch (error) {
+    console.error('[API] Preferences fetch error:', error);
+    return NextResponse.json({ error: 'Failed to fetch preferences' }, { status: 500 });
+  }
+}
+
+/**
+ * PUT /api/user/preferences — upsert the current user's preferences.
+ *
+ * Applies an explicit field allowlist: only the known model fields are read
+ * from the body, validated, and written. Unknown fields are ignored. Time
+ * fields must be HH:MM (24-hour) → 400 on bad format.
+ */
+export async function PUT(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Body must be an object.' }, { status: 400 });
+  }
+
+  // Build the write payload field-by-field from the allowlist only.
+  const data: Partial<Preferences> = {};
+
+  for (const field of STRING_FIELDS) {
+    if (body[field] === undefined) continue;
+    const value = body[field];
+    if (typeof value !== 'string') {
+      return NextResponse.json({ error: `Field '${field}' must be a string.` }, { status: 400 });
+    }
+    if ((TIME_FIELDS as readonly string[]).includes(field) && !TIME_RE.test(value)) {
+      return NextResponse.json(
+        { error: `Field '${field}' must be a HH:MM time.` },
+        { status: 400 },
+      );
+    }
+    if (field === 'timezone' && !isValidTimezone(value)) {
+      return NextResponse.json(
+        { error: `Field 'timezone' must be a valid IANA timezone.` },
+        { status: 400 },
+      );
+    }
+    data[field] = value;
+  }
+
+  for (const field of BOOLEAN_FIELDS) {
+    if (body[field] === undefined) continue;
+    const value = body[field];
+    if (typeof value !== 'boolean') {
+      return NextResponse.json({ error: `Field '${field}' must be a boolean.` }, { status: 400 });
+    }
+    data[field] = value;
+  }
+
+  // Reject a body with no recognized writable field — an empty PUT (or one
+  // carrying only unknown keys) is a client bug, not a silent no-op upsert.
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json(
+      { error: 'No valid preference fields provided.' },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const row = await prisma.userPreferences.upsert({
+      where: { userId: user.id },
+      update: data,
+      create: { userId: user.id, ...data },
+    });
+    const preferences: Preferences = {
+      wakeTime: row.wakeTime,
+      windDownTime: row.windDownTime,
+      timezone: row.timezone,
+      notifyMorning: row.notifyMorning,
+      notifyProtocol: row.notifyProtocol,
+      notifyEvening: row.notifyEvening,
+      notifyWeekly: row.notifyWeekly,
+    };
+    return NextResponse.json({ preferences });
+  } catch (error) {
+    console.error('[API] Preferences update error:', error);
+    return NextResponse.json({ error: 'Failed to update preferences' }, { status: 500 });
+  }
+}

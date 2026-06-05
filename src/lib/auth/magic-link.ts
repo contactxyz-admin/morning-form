@@ -32,6 +32,15 @@ const WINDOW_15M_MS = 15 * 60 * 1000;
 const WINDOW_1H_MS = 60 * 60 * 1000;
 const WINDOW_24H_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * subjectKind values for the email-keyed rate-limit buckets. The `subject` of
+ * these rows is the user's normalized (trim+lowercase) plaintext email, so
+ * account erasure must delete them (the ip-1h bucket keys on a salted IP hash
+ * and is deliberately untouched). Single source of truth for both this module
+ * and the erasure scrub in src/lib/account/delete.ts.
+ */
+export const EMAIL_RATE_LIMIT_SUBJECT_KINDS = ['email-15m', 'email-24h'] as const;
+
 export interface IssueArgs {
   email: string;
   requestIpHash: string;
@@ -82,13 +91,13 @@ async function checkAndIncrementRateLimits(
   const now = Date.now();
   const checks = [
     {
-      subjectKind: 'email-15m',
+      subjectKind: EMAIL_RATE_LIMIT_SUBJECT_KINDS[0], // 'email-15m'
       subject: normalizedEmail,
       window: bucketStart(now, WINDOW_15M_MS),
       max: RATE_LIMITS.emailPer15Min,
     },
     {
-      subjectKind: 'email-24h',
+      subjectKind: EMAIL_RATE_LIMIT_SUBJECT_KINDS[1], // 'email-24h'
       subject: normalizedEmail,
       window: bucketStart(now, WINDOW_24H_MS),
       max: RATE_LIMITS.emailPer24Hour,

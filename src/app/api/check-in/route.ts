@@ -5,8 +5,25 @@ import type { EveningCheckIn, MorningCheckIn } from '@/types';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Plausibility window for submitted check-in dates. The +1-day tolerance is
+// deliberate: client date keys are UTC (getDateKey() uses toISOString()), so an
+// edge-of-day submission far from UTC can legitimately read one day ahead of the
+// server's UTC "today". Do not tighten to ±0. See plan: "Date plausibility window".
+const MAX_FUTURE_DAYS = 1;
+const MAX_PAST_DAYS = 365;
+const MS_PER_DAY = 86_400_000;
+
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+/** True when `date` (YYYY-MM-DD) is within the plausibility window of UTC today. */
+function isPlausibleDate(date: string): boolean {
+  const submitted = Date.parse(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(submitted)) return false;
+  const today = Date.parse(`${isoDate(new Date())}T00:00:00.000Z`);
+  const deltaDays = Math.round((submitted - today) / MS_PER_DAY);
+  return deltaDays <= MAX_FUTURE_DAYS && deltaDays >= -MAX_PAST_DAYS;
 }
 
 function defaultWindow(): { start: string; end: string } {
@@ -48,6 +65,13 @@ export async function POST(request: Request) {
   if (typeof date !== 'string' || !DATE_RE.test(date)) {
     return NextResponse.json(
       { error: "Field 'date' must be a YYYY-MM-DD string." },
+      { status: 400 },
+    );
+  }
+
+  if (!isPlausibleDate(date)) {
+    return NextResponse.json(
+      { error: "Field 'date' is outside the accepted range." },
       { status: 400 },
     );
   }
