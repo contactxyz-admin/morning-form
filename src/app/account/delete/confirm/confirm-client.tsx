@@ -7,6 +7,10 @@ import { useState } from 'react';
  * "permanently delete" control behind a typed-confirmation input. Performs NO
  * action on mount — erasure is triggered only by the explicit button click,
  * which POSTs the token (plus the active session cookie) to the confirm API.
+ *
+ * Styled to the app's design language (Fraunces display heading, body/caption
+ * type scale, border-b input) even though the route sits outside the (app)
+ * layout group — this is the page real users land on from the deletion email.
  */
 export function DeleteConfirmClient({ token }: { token: string }) {
   const [confirmText, setConfirmText] = useState('');
@@ -40,31 +44,42 @@ export function DeleteConfirmClient({ token }: { token: string }) {
 
   if (!token) {
     return (
-      <main style={{ maxWidth: 520, margin: '0 auto', padding: '4rem 1.5rem' }}>
-        <h1>Confirmation link incomplete</h1>
-        <p>This link is missing its confirmation token. Request account deletion again from Settings.</p>
+      <main className="mx-auto max-w-lg px-6 py-16">
+        <h1 className="font-display font-light text-display-sm text-text-primary -tracking-[0.035em] leading-[1.05]">
+          Confirmation link incomplete
+        </h1>
+        <p className="mt-6 text-body text-text-secondary leading-relaxed">
+          This link is missing its confirmation token. Request account deletion again from
+          Settings.
+        </p>
       </main>
     );
   }
 
   if (state === 'done') {
     return (
-      <main style={{ maxWidth: 520, margin: '0 auto', padding: '4rem 1.5rem' }}>
-        <h1>Your account has been deleted</h1>
-        <p>All of your data has been permanently erased. You have been signed out.</p>
+      <main className="mx-auto max-w-lg px-6 py-16">
+        <h1 className="font-display font-light text-display-sm text-text-primary -tracking-[0.035em] leading-[1.05]">
+          Your account has been deleted
+        </h1>
+        <p className="mt-6 text-body text-text-secondary leading-relaxed">
+          All of your data has been permanently erased. You have been signed out.
+        </p>
       </main>
     );
   }
 
   return (
-    <main style={{ maxWidth: 520, margin: '0 auto', padding: '4rem 1.5rem' }}>
-      <h1>Permanently delete your account</h1>
-      <p>
-        This is irreversible. All of your data — assessments, check-ins, records, and uploaded files —
-        will be permanently erased. A surviving audit record retains only non-identifying proof that the
-        deletion happened.
+    <main className="mx-auto max-w-lg px-6 py-16">
+      <h1 className="font-display font-light text-display-sm text-text-primary -tracking-[0.035em] leading-[1.05]">
+        Permanently delete your account
+      </h1>
+      <p className="mt-6 text-body text-text-secondary leading-relaxed">
+        This is irreversible. All of your data — assessments, check-ins, records, and uploaded
+        files — will be permanently erased. A surviving audit record retains only non-identifying
+        proof that the deletion happened.
       </p>
-      <label htmlFor="confirm-delete" style={{ display: 'block', marginTop: '1.5rem', fontWeight: 600 }}>
+      <label htmlFor="confirm-delete" className="mt-10 block text-caption text-text-tertiary">
         Type DELETE to confirm
       </label>
       <input
@@ -73,18 +88,19 @@ export function DeleteConfirmClient({ token }: { token: string }) {
         value={confirmText}
         onChange={(e) => setConfirmText(e.target.value)}
         autoComplete="off"
-        style={{ display: 'block', marginTop: '0.5rem', padding: '0.5rem', width: '100%' }}
+        placeholder="DELETE"
+        className="mt-2 w-full bg-transparent border-b border-border focus:border-alert outline-none text-body text-text-primary py-1.5 font-mono placeholder:text-text-tertiary placeholder:font-mono transition-colors duration-300 ease-spring"
       />
       <button
         type="button"
         onClick={onConfirm}
         disabled={!armed || state === 'working'}
-        style={{ marginTop: '1.5rem', padding: '0.75rem 1.25rem' }}
+        className="mt-8 text-body text-alert hover:opacity-80 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {state === 'working' ? 'Deleting…' : 'Permanently delete my account'}
       </button>
       {state === 'error' && (
-        <p role="alert" style={{ marginTop: '1rem', color: '#b00020' }}>
+        <p role="alert" className="mt-4 text-caption text-alert">
           {message}
         </p>
       )}

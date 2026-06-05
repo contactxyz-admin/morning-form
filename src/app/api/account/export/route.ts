@@ -3,7 +3,7 @@ import { put } from '@vercel/blob';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { sendEmail } from '@/lib/auth/email';
-import { assembleExportArchive } from '@/lib/account/export';
+import { assembleExportArchive, ARCHIVE_LIMIT_MESSAGE } from '@/lib/account/export';
 import { resolveAppOrigin } from '@/lib/urls';
 
 // Multi-PDF archive assembly + blob upload can run long; Pro caps at 300s.
@@ -115,7 +115,13 @@ export async function POST(httpRequest: Request) {
     });
   } catch (error) {
     console.error('[API] Export assembly/upload failed:', error);
-    const reason = error instanceof Error ? error.message : 'unknown error';
+    // failureReason renders verbatim in Settings — store a user-facing message,
+    // never a raw SDK/infra error string. The archive-limit message is the one
+    // internal error that IS user-meaningful, so it passes through.
+    const reason =
+      error instanceof Error && error.message === ARCHIVE_LIMIT_MESSAGE
+        ? ARCHIVE_LIMIT_MESSAGE
+        : 'Export failed. Please try again.';
     await prisma.exportRequest
       .update({ where: { id: request.id }, data: { status: 'failed', failureReason: reason } })
       .catch(() => {});

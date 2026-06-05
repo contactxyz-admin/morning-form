@@ -192,7 +192,10 @@ describe('POST /api/account/export', () => {
     const json = await res.json();
     const row = await prisma.exportRequest.findUniqueOrThrow({ where: { id: json.id } });
     expect(row.status).toBe('failed');
-    expect(row.failureReason).toContain('upload boom');
+    // The raw SDK error must NOT leak to the user-visible failureReason — it is
+    // sanitized to a generic message (the raw error goes to console.error only).
+    expect(row.failureReason).toBe('Export failed. Please try again.');
+    expect(row.failureReason).not.toContain('upload boom');
 
     // Notice email WAS sent; download email was NOT (only 1 email total).
     expect(sendEmailMock).toHaveBeenCalledTimes(1);
