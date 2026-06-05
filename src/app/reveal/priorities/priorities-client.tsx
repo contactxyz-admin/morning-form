@@ -8,6 +8,10 @@ import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { useAssessmentData } from '@/lib/hooks/use-assessment-data';
 import { RevealNotOnboardedCard } from '@/components/reveal/not-onboarded-card';
+import {
+  reviewerForArchetype,
+  type Archetype,
+} from '@/lib/priority-marker-engine';
 import { trackIntakeClickAndRedirect } from './actions';
 
 const stagger = {
@@ -67,6 +71,10 @@ export function PrioritiesClient() {
   }
 
   const { stateProfile, priorities } = state.data;
+  // Discreet medical-reviewer attribution. Resolves to null for the internal
+  // editorial key (today's content), so nothing renders until a real clinical
+  // sign-off flips the reviewerKey in the content files.
+  const reviewer = reviewerForArchetype(stateProfile.archetype as Archetype);
 
   return (
     <div className="min-h-screen bg-bg px-5 sm:px-8 pt-16 pb-32">
@@ -101,6 +109,15 @@ export function PrioritiesClient() {
             </motion.div>
           ))}
         </div>
+
+        {reviewer && (
+          <motion.p
+            variants={fadeUp}
+            className="mt-8 text-caption text-text-tertiary"
+          >
+            {reviewer.line} · {reviewer.reviewedAt}
+          </motion.p>
+        )}
       </motion.div>
 
       <div className="fixed bottom-0 left-0 right-0 px-5 sm:px-8 pb-6 pt-12 bg-gradient-to-t from-bg via-bg/95 to-transparent">

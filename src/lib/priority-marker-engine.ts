@@ -26,6 +26,10 @@ import type {
   ArchetypeKey,
   ArchetypePriorities,
 } from '@/lib/priority-markers-schema';
+import {
+  resolveReviewer,
+  type ResolvedReviewer,
+} from '../../content/priority-markers/reviewers';
 
 import sustainedActivator from '../../content/priority-markers/sustained-activator';
 import fragmentedSleeper from '../../content/priority-markers/fragmented-sleeper';
@@ -88,6 +92,23 @@ export function buildPriorities(responses: AssessmentResponses): Omit<Priorities
     confidence: 'high',
     items: items.map((m) => ({ ...m, id: '' })),
   };
+}
+
+/**
+ * Resolve the medical-reviewer attribution for an archetype's priority
+ * markers, or `null` when nothing should be rendered (internal editorial key,
+ * unregistered key, or unparseable review date — see resolveReviewer).
+ *
+ * Reads the file-level reviewer metadata from the bundled content content,
+ * keyed by archetype. Pure + client-safe (content + the registry carry no
+ * server-only deps), so the reveal client can call it with the archetype it
+ * already holds rather than threading reviewer fields through the DB/API.
+ */
+export function reviewerForArchetype(
+  archetype: Archetype,
+): ResolvedReviewer | null {
+  const content = ARCHETYPE_CONTENT[archetype];
+  return resolveReviewer(content.reviewerKey, content.lastReviewedAt);
 }
 
 // ---------------------------------------------------------------------------
