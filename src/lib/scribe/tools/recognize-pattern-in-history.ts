@@ -36,6 +36,7 @@ export type RecognizePatternInHistoryArgs = z.infer<typeof recognizePatternInHis
 
 export const DEFAULT_PATTERN_WINDOW_DAYS = 90;
 export const PATTERN_ROW_SAFETY_THRESHOLD = 2000;
+export const MAX_SERIES_POINTS = 24;
 
 export type PatternDigestStatus =
   | 'ok'
@@ -55,6 +56,16 @@ export interface RecognizePatternInHistoryResult {
   windowDays: number;
   metrics: MetricSeries[];
   checkInCount: number;
+  /** Bounded time series (≤24 most-recent points, most-recent-first).
+   *  Present on `ok` status; `[]` on too-little-data / too-much-data. */
+  series: SeriesPoint[];
+}
+
+export interface SeriesPoint {
+  metric: string;
+  value: number;
+  unit: string;
+  timestamp: string;
 }
 
 export const recognizePatternInHistoryHandler: ToolHandler<
@@ -85,6 +96,7 @@ export const recognizePatternInHistoryHandler: ToolHandler<
         windowDays,
         metrics: [],
         checkInCount: 0,
+        series: [],
       };
     }
 
@@ -106,6 +118,7 @@ export const recognizePatternInHistoryHandler: ToolHandler<
         windowDays,
         metrics: [],
         checkInCount,
+        series: [],
       };
     }
 
@@ -115,6 +128,7 @@ export const recognizePatternInHistoryHandler: ToolHandler<
         windowDays,
         metrics: [],
         checkInCount,
+        series: [],
       };
     }
 
@@ -155,6 +169,16 @@ export const recognizePatternInHistoryHandler: ToolHandler<
       };
     });
 
-    return { status: 'ok', windowDays, metrics, checkInCount };
+    // Build bounded series: most-recent-first, cap at MAX_SERIES_POINTS.
+    const allRowsSorted = [...rows].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+    const seriesRows = allRowsSorted.slice(0, MAX_SERIES_POINTS);
+    const series = seriesRows.map((r) => ({
+      metric: r.metric,
+      value: r.value,
+      unit: r.unit,
+      timestamp: r.timestamp.toISOString(),
+    }));
+
+    return { status: 'ok', windowDays, metrics, checkInCount, series };
   },
 };

@@ -117,16 +117,18 @@ describe('recognize_pattern_in_history handler', () => {
       metrics: ['ferritin'],
       windowDays: 30,
     });
-    expect(result.status).toBe('too-little-data');
-    expect(result.metrics).toEqual([]);
-    expect(result.checkInCount).toBe(0);
+    // Cross-domain grant (Plan 2026-06-05-001 U6a): ferritin is now reachable
+    // from sleep-recovery topics so the scribe can correlate sleep with iron.
+    expect(result.status).toBe('ok');
+    expect(result.metrics.length).toBe(1);
+    expect(result.metrics[0].metric).toBe('ferritin');
   });
 
-  it('topic-scope gate: filters mixed on/off-topic metrics down to the on-topic ones', async () => {
-    // Mixed request: 'hrv' is on-topic for sleep-recovery, 'ferritin' is not.
-    // The handler should query only 'hrv' data. We seed both, and assert the
-    // result contains only 'hrv' series.
-    const userId = await makeTestUser(prisma, 'pattern-mixed-metrics');
+  it('topic-scope gate: cross-domain grants allow ferritin from sleep-recovery topic', async () => {
+    // Both 'hrv' and 'ferritin' are now on-topic for sleep-recovery via
+    // the cross-domain grants. The handler should query both and return
+    // both metric series.
+    const userId = await makeTestUser(prisma, 'pattern-cross-domain');
     const now = Date.now();
     for (let i = 0; i < 5; i++) {
       await prisma.healthDataPoint.create({
@@ -159,8 +161,9 @@ describe('recognize_pattern_in_history handler', () => {
       windowDays: 30,
     });
     expect(result.status).toBe('ok');
-    expect(result.metrics.map((m) => m.metric)).toEqual(['hrv']);
-    expect(result.metrics[0].count).toBe(5);
+    // Both metrics pass the cross-domain grant.
+    const metricNames = result.metrics.map((m) => m.metric).sort();
+    expect(metricNames).toEqual(['ferritin', 'hrv']);
   });
 
   it('topic-scope gate: returns too-little-data when topicKey is unknown', async () => {

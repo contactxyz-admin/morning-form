@@ -34,6 +34,7 @@ const RouteDecisionWireSchema = z.object({
   topicKey: z.string().min(1).nullable(),
   confidence: z.number().min(0).max(1),
   reasoning: z.string().max(400),
+  answerShape: z.enum(['standard', 'investigations']).default('standard'),
 });
 type RouteDecisionWire = z.infer<typeof RouteDecisionWireSchema>;
 
@@ -103,6 +104,7 @@ export function coerceDecision(wire: RouteDecisionWire): RouteDecision {
     topicKey,
     confidence: wire.confidence,
     reasoning,
+    answerShape: wire.answerShape,
   };
 }
 

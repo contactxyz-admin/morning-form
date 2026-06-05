@@ -48,7 +48,13 @@ const SLEEP_RECOVERY_CONFIG: TopicConfig = {
   topicKey: SLEEP_RECOVERY_TOPIC_KEY,
   displayName: 'Sleep & recovery',
   relevantNodeTypes: ['metric_window', 'symptom', 'lifestyle', 'biomarker', 'condition'],
-  canonicalKeyPatterns: ['hrv', 'rhr', 'sleep_stage', 'sleep_duration', 'sleep_onset', 'wake_events'],
+  canonicalKeyPatterns: [
+    'hrv', 'rhr', 'sleep_stage', 'sleep_duration', 'sleep_onset', 'wake_events',
+    // Cross-domain grants (Plan 2026-06-05-001 Phase A U6a): iron/ferritin
+    // reachable from sleep-recovery questions so the scribe can correlate
+    // sleep signals with iron status.
+    'ferritin', 'haemoglobin', 'hemoglobin', 'transferrin_saturation',
+  ],
   depth: 2,
   hasEvidenceForCompile: (nodes) =>
     nodes.some((n) => n.type === 'metric_window' || n.type === 'biomarker'),
