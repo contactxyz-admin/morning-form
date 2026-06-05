@@ -32,6 +32,7 @@ import { z } from 'zod';
 // circular import: `execute.ts` -> `tool-catalog.ts` -> `refer-to-specialist.ts`.
 // Static `import type` is fine — types do not run at module-init time.
 import type { ScribeLLMClient } from '../execute';
+import { getScribeLLMClient } from '../llm';
 import { getSpecialty } from '../specialties/registry';
 import { loadSpecialtySystemPrompt } from '../specialties/load-prompt';
 import type { ToolContext, ToolHandler } from './types';
@@ -91,6 +92,19 @@ export function __setReferralScribeLLMForTest(client: ScribeLLMClient | null): v
   referralScribeLLM = client;
 }
 
+/**
+ * Lazy-resolve the production ScribeLLMClient. Returns null when no key is
+ * configured — the tool responds with a `refused` error shape so the turn
+ * continues gracefully rather than crashing.
+ */
+function resolveProductionClient(): ScribeLLMClient | null {
+  try {
+    return getScribeLLMClient();
+  } catch {
+    return null;
+  }
+}
+
 export const referToSpecialistHandler: ToolHandler<ReferToSpecialistArgs, ReferToSpecialistResult> = {
   name: 'refer_to_specialist',
   description:
@@ -121,10 +135,16 @@ export const referToSpecialistHandler: ToolHandler<ReferToSpecialistArgs, ReferT
     }
 
     // Core specialty — run the specialist scribe.
-    if (!referralScribeLLM) {
-      throw new Error(
-        'refer_to_specialist: no ScribeLLMClient configured. Production wiring or a test seam must set one before invoking the tool.',
-      );
+    // Lazy-resolve: test seam first, then production factory. Neither
+    // in-scope → tool returns an error shape so the turn continues (the
+    // general scribe must answer with its own knowledge instead of
+    // crashing the turn).
+    const client = referralScribeLLM ?? resolveProductionClient();
+    if (!client) {
+      return {
+        status: 'refused',
+        response: 'refer_to_specialist: no ScribeLLMClient configured. Production wiring or a test seam must set one before invoking the tool.',
+      };
     }
 
     const { execute } = await import('../execute');
@@ -136,7 +156,7 @@ export const referToSpecialistHandler: ToolHandler<ReferToSpecialistArgs, ReferT
       mode: 'runtime',
       userMessage: args.question,
       declaredJudgmentKind: null,
-      llm: referralScribeLLM,
+      llm: client,
       // Referral responses are surfaced inside Ask referral chips, so child
       // specialists need the same answer-shape contract as the parent turn.
       systemPrompt: specialtyPrompt

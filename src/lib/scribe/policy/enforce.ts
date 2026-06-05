@@ -91,15 +91,54 @@ export function enforce(
       sectionHeading: '(no sections)',
     });
   }
-  for (const section of candidate.sections) {
-    if (section.paragraphCount <= 0) continue;
-    const density = section.citationCount / section.paragraphCount;
-    if (density < policy.minCitationDensityPerSection) {
+  // Guard: investigation-avenues — every investigation section MUST carry
+  // at least one citation. The generic density loop skips zero-paragraph
+  // sections (paragraphCount ≤ 0), which would vacuously pass an uncited
+  // avenue section. This structural check runs BEFORE the per-section loop
+  // so an entirely-uncited investigation answer is caught unambiguously.
+  if (candidate.judgmentKind === 'investigation-avenues') {
+    for (const section of candidate.sections) {
+      if (section.citationCount === 0) {
+        densityViolations.push({
+          kind: 'insufficient-citation-density',
+          detail: `Investigation section '${section.heading}' lacks a citation. Every investigation avenue must cite at least one source (graph node, check-in, or context digest).`,
+          sectionHeading: section.heading,
+        });
+      }
+    }
+    // An investigations answer with zero sections at all is a policy miss.
+    if (candidate.sections.length === 0) {
       densityViolations.push({
         kind: 'insufficient-citation-density',
-        detail: `Section '${section.heading}' has density ${density.toFixed(2)} (< floor ${policy.minCitationDensityPerSection}).`,
-        sectionHeading: section.heading,
+        detail: 'Investigation-avenues judgments require at least one investigation section with a citation; received zero sections.',
+        sectionHeading: '(no sections)',
       });
+    }
+  }
+  // action-recommendation is exempt from the citation-density loop —
+  // action labels are validated by the propose_next_steps tool against the
+  // forbidden-phrase set, not by section-level citation counts. The phrase
+  // layer already ran above, so a density-violation-free result here is
+  // expected and correct.
+  // action-recommendation is exempt from the generic citation-density
+  // loop — action labels are validated by the propose_next_steps tool
+  // against the forbidden-phrase set, not by section-level citation
+  // counts. investigation-avenues was already checked by its structural
+  // branch above, so skip the per-section loop for it too.
+  if (
+    candidate.judgmentKind !== 'action-recommendation' &&
+    candidate.judgmentKind !== 'investigation-avenues'
+  ) {
+    for (const section of candidate.sections) {
+      if (section.paragraphCount <= 0) continue;
+      const density = section.citationCount / section.paragraphCount;
+      if (density < policy.minCitationDensityPerSection) {
+        densityViolations.push({
+          kind: 'insufficient-citation-density',
+          detail: `Section '${section.heading}' has density ${density.toFixed(2)} (< floor ${policy.minCitationDensityPerSection}).`,
+          sectionHeading: section.heading,
+        });
+      }
     }
   }
 

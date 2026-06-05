@@ -120,6 +120,72 @@ describe('scribe executor — happy path (tool dispatch + audit)', () => {
     expect(audit?.modelVersion).toBe('v-actual');
     expect(audit?.mode).toBe('runtime');
   });
+
+  it('sums input/output tokens across tool-loop turns and lands them on the audit row and result', async () => {
+    const userId = await makeTestUser(prisma, 'exec-token-sum');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client } = scriptedLLM([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          { id: 'call-1', name: 'search_graph_nodes', input: { query: 'ferritin' } },
+        ],
+        inputTokens: 500,
+        outputTokens: 120,
+      },
+      {
+        stopReason: 'end_turn',
+        text: 'Your ferritin is within range.',
+        modelVersion: 'v1',
+        toolCalls: [],
+        inputTokens: 600,
+        outputTokens: 80,
+      },
+    ]);
+
+    const result = await execute(baseRequest({
+      userId,
+      llm: client,
+      requestId: 'aa111111-1111-4111-8111-111111111111',
+    }));
+
+    // Result carries summed tokens.
+    expect(result.inputTokens).toBe(1100);
+    expect(result.outputTokens).toBe(200);
+
+    // Audit row carries tokens.
+    const audits = await prisma.scribeAudit.findMany({ where: { userId, requestId: 'aa111111-1111-4111-8111-111111111111' } });
+    expect(audits).toHaveLength(1);
+    expect(audits[0].inputTokens).toBe(1100);
+    expect(audits[0].outputTokens).toBe(200);
+  });
+
+  it('records null tokens when the client provides no usage (scripted-default)', async () => {
+    const userId = await makeTestUser(prisma, 'exec-token-null');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const result = await execute(baseRequest({
+      userId,
+      llm: client,
+      requestId: 'bb222222-2222-4222-8222-222222222222',
+    }));
+
+    expect(result.inputTokens).toBeNull();
+    expect(result.outputTokens).toBeNull();
+
+    const audit = await prisma.scribeAudit.findFirstOrThrow({
+      where: { userId, requestId: 'bb222222-2222-4222-8222-222222222222' },
+    });
+    expect(audit.inputTokens).toBeNull();
+    expect(audit.outputTokens).toBeNull();
+  });
 });
 
 describe('scribe executor — D10 user-scoping invariant', () => {

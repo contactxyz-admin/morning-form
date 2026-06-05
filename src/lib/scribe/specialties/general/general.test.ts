@@ -16,12 +16,14 @@ describe('general specialty — policy + registry alignment', () => {
     expect(listTopicPolicyKeys()).toContain('general');
   });
 
-  it('allows all four judgment kinds (general scribe is a triage GP)', () => {
+  it('allows all six judgment kinds (general scribe is a triage GP, incl. investigations + actions)', () => {
     expect(GENERAL_POLICY.allowedJudgmentKinds).toEqual([
       'reference-range-comparison',
       'pattern-vs-own-history',
       'citation-surfacing',
       'definition-lookup',
+      'investigation-avenues',
+      'action-recommendation',
     ]);
   });
 

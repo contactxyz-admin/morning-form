@@ -96,6 +96,9 @@ export interface ScribeLLMTurn {
   toolCalls: readonly ScribeLLMToolCall[];
   /** The resolved model version string actually used for this call (D9). */
   modelVersion: string;
+  /** Token usage for this turn (provider-reported). Optional — scripted test clients may omit. */
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 export interface ScribeLLMClient {
@@ -144,6 +147,9 @@ export interface ScribeExecuteResult {
   toolCalls: Array<{ name: string; input: unknown; output: unknown; isError: boolean }>;
   modelVersion: string;
   auditId: string;
+  /** Summed token usage across all tool-loop turns. null when the client provides no usage. */
+  inputTokens: number | null;
+  outputTokens: number | null;
 }
 
 export function buildDefaultScribeSystemPrompt(policy: SafetyPolicy): string {
@@ -200,6 +206,9 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
   let output = '';
   let classification: SafetyClassification = 'rejected';
   let loopError: unknown = null;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let usageSeen = false;
 
   // D11: every exit path below MUST fall through to the recordAudit call so a
   // thrown LLM loop or a thrown enforce still lands a row. We capture the
@@ -227,6 +236,11 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
       });
       lastTurn = turn;
       modelVersion = turn.modelVersion;
+      if (turn.inputTokens !== undefined || turn.outputTokens !== undefined) {
+        totalInputTokens += turn.inputTokens ?? 0;
+        totalOutputTokens += turn.outputTokens ?? 0;
+        usageSeen = true;
+      }
 
       if (turn.stopReason === 'end_turn') {
         if (turn.toolCalls.length > 0) {
@@ -317,6 +331,8 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
       safetyClassification: classification,
       modelVersion,
       parentRequestId: req.parentRequestId ?? null,
+      inputTokens: usageSeen ? totalInputTokens : null,
+      outputTokens: usageSeen ? totalOutputTokens : null,
     });
   } catch (auditErr) {
     // D11 breach: audit-before-gate failed to persist. Surface distinctly so
@@ -341,6 +357,8 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     toolCalls: collectedToolCalls,
     modelVersion,
     auditId: audit.id,
+    inputTokens: usageSeen ? totalInputTokens : null,
+    outputTokens: usageSeen ? totalOutputTokens : null,
   };
 }
 

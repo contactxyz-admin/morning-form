@@ -16,6 +16,8 @@ export const IRON_POLICY: SafetyPolicy = {
     'reference-range-comparison',
     'pattern-vs-own-history',
     'citation-surfacing',
+    'investigation-avenues',
+    'action-recommendation',
   ],
   forbiddenPhrasePatterns: FORBIDDEN_PHRASE_PATTERNS,
   minCitationDensityPerSection: 0.5,

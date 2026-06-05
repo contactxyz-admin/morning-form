@@ -665,6 +665,11 @@ model ScribeAudit {
   // direct-routed) turns. Plan 2026-04-25-001 Unit 5 — see
   // `src/lib/scribe/tools/refer-to-specialist.ts`.
   parentRequestId      String?
+  // Summed token usage across all tool-loop turns. Null when the client
+  // provides no usage (legacy scripted test clients). Plan 2026-06-05-001
+  // feat-ask-deep-phase-a Unit 1.
+  inputTokens          Int?
+  outputTokens         Int?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

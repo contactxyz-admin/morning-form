@@ -25,6 +25,8 @@ export const GENERAL_POLICY: SafetyPolicy = {
     'pattern-vs-own-history',
     'citation-surfacing',
     'definition-lookup',
+    'investigation-avenues',
+    'action-recommendation',
   ],
   forbiddenPhrasePatterns: FORBIDDEN_PHRASE_PATTERNS,
   minCitationDensityPerSection: 0.5,

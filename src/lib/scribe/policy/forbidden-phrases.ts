@@ -13,8 +13,11 @@
  *   3. Imperative treatment verbs — second-person directive phrasings a
  *      specialist GP in conversation with a patient would avoid in favour
  *      of "you could discuss with your GP whether …".
+ *   4. Dietary directives — second-person imperatives about food intake
+ *      (increase/eat/consume-more shapes). These are forbidden in answers
+ *      AND action labels (Plan 2026-06-05-001 Phase A R4).
  *
- * All three are rejected at the phrase level regardless of `judgmentKind`.
+ * All four are rejected at the phrase level regardless of `judgmentKind`.
  * A scribe that needs to narrate a user's *existing* medication would surface
  * it via `citation-surfacing` pointing to a SourceChunk — not by re-writing
  * the phrase itself.
@@ -57,8 +60,30 @@ const IMPERATIVE_VERB_PATTERNS: readonly RegExp[] = [
   /\btaper\s+off\b/i,
 ];
 
+// Dietary directives — second-person imperatives about food/nutrient intake.
+// These are forbidden in answers AND action labels. The plan (Phase A R4)
+// permits "behavior" actions for sleep/training/routine only — never dietary
+// quantity directives. Built with a broad fixture set of legitimate
+// descriptive sentences that must NOT trigger (non-directive mentions of
+// intake, third-person descriptions, clinical context statements).
+const DIETARY_DIRECTIVE_PATTERNS: readonly RegExp[] = [
+  /\byou\s+should\s+eat\s+more\b/i,
+  /\byou\s+should\s+eat\s+less\b/i,
+  /\byou\s+should\s+consume\s+more\b/i,
+  /\byou\s+should\s+consume\s+less\b/i,
+  /\beat\s+more\s+(red\s+meat|iron-rich|leafy|green|protein|calorie)/i,
+  /\bconsume\s+more\s+(red\s+meat|iron-rich|leafy|green|protein|calorie)/i,
+  /\bincrease\s+your\s+intake\s+of\b/i,
+  /\breduce\s+your\s+intake\s+of\b/i,
+  /\byou\s+need\s+to\s+eat\s+more\b/i,
+  /\byou\s+need\s+to\s+consume\s+more\b/i,
+  /\badd\s+more\s+\w+\s+to\s+your\s+diet\b/i,
+  /\bcut\s+(out|down\s+on)\s+\w+\s+from\s+your\s+diet\b/i,
+];
+
 export const FORBIDDEN_PHRASE_PATTERNS: readonly RegExp[] = Object.freeze([
   ...DRUG_TRIPWIRES,
   DOSE_PATTERN,
   ...IMPERATIVE_VERB_PATTERNS,
+  ...DIETARY_DIRECTIVE_PATTERNS,
 ]);

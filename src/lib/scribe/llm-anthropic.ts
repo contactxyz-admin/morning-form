@@ -112,6 +112,8 @@ export class AnthropicScribeLLMClient implements ScribeLLMClient {
       text,
       toolCalls,
       modelVersion: response.model,
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
     };
   }
 

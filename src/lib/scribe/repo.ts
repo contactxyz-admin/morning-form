@@ -103,6 +103,10 @@ export interface RecordAuditInput {
    * top-level (general-scribe or direct-routed) turns.
    */
   parentRequestId?: string | null;
+  /** Summed input tokens across all tool-loop turns. null when the client provides no usage. */
+  inputTokens?: number | null;
+  /** Summed output tokens across all tool-loop turns. null when the client provides no usage. */
+  outputTokens?: number | null;
 }
 
 /**
@@ -216,6 +220,8 @@ export async function recordAudit(
       safetyClassification: input.safetyClassification,
       modelVersion: input.modelVersion,
       parentRequestId: input.parentRequestId ?? null,
+      inputTokens: input.inputTokens ?? null,
+      outputTokens: input.outputTokens ?? null,
     },
     update: {},
   });
