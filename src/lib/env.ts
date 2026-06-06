@@ -68,6 +68,10 @@ const optional = {
   // Reference-only — no health data in email. Production assert fails
   // closed when unset and CONCIERGE_BOOKING_ENABLED is true.
   OPS_EMAIL: process.env.OPS_EMAIL ?? '',
+  // Ops auth secret for the booking fulfillment endpoint (Plan 2026-06-06-001
+  // U4). Shared secret checked against the Authorization header. Never
+  // set in dev — the endpoint returns 401.
+  OPS_SECRET: process.env.OPS_SECRET ?? '',
 };
 
 export const env = {

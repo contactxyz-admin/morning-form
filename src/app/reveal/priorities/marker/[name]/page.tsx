@@ -181,7 +181,77 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
             Upload your blood panel →
           </a>
         </div>
+
+        {/* Your test requests — Phase B timeline seed. Read-only list of
+            the user's booking requests. Collapses into the Decisions
+            timeline when Phase B builds it. */}
+        {user && <UserBookingRequests userId={user.id} />}
       </div>
     </div>
   );
+}
+
+/**
+ * Read-only status block: the user's booking requests. This is the
+ * Phase B timeline seed — displays existing rows, no nav entry, no
+ * state affordances beyond what the API already provides. The cancel
+ * flow reuses the /api/booking/cancel endpoint.
+ */
+async function UserBookingRequests({ userId }: { userId: string }) {
+  const bookings = await prisma.bookingRequest.findMany({
+    where: { userId, status: { not: 'cancelled' } },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+  });
+
+  if (!bookings.length) return null;
+
+  const STATUS_LABELS: Record<string, string> = {
+    requested: 'We\'re arranging your test',
+    arranged: 'Your test is ready — check your email',
+    delivered: 'Test completed',
+    cancelled: 'Cancelled',
+  };
+
+  return (
+    <div className="mt-10 pt-6 border-t border-border-subtle">
+      <h2 className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary mb-4">
+        Your test requests
+      </h2>
+      <ul className="space-y-3">
+        {bookings.map((b) => (
+          <li key={b.id} className="border border-border rounded-card p-4">
+            <div className="flex items-center justify-between">
+              <p className="font-medium text-body text-text-primary">
+                {safeJsonParse(b.markerNames).join(', ') || 'Blood test'}
+              </p>
+              <span className={`font-mono text-[10px] uppercase tracking-[0.08em] ${
+                b.status === 'delivered' ? 'text-emerald-600' :
+                b.status === 'arranged' ? 'text-blue-600' :
+                'text-amber-600'
+              }`}>
+                {STATUS_LABELS[b.status] ?? b.status}
+              </span>
+            </div>
+            <p className="mt-1 font-mono text-[10px] text-text-tertiary">
+              Ref: {b.id.slice(0, 8)} · {new Date(b.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+            {b.status === 'requested' && (
+              <form action={`/api/booking/cancel`} method="POST" className="mt-2">
+                <input type="hidden" name="bookingId" value={b.id} />
+                <button type="submit" className="font-mono text-[10px] text-text-tertiary hover:text-alert transition-colors">
+                  Cancel request
+                </button>
+              </form>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function safeJsonParse(v: string | null): string[] {
+  if (!v) return [];
+  try { return JSON.parse(v); } catch { return []; }
 }
