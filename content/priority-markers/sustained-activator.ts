@@ -28,6 +28,9 @@ export default defineArchetypePriorities({
       category: 'inflammation',
       panelAvailability: 'both',
       sortOrder: 0,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      fastingNote: 'Best measured when you are well — a recent cold or injury can raise this temporarily',
     },
     {
       markerName: 'HbA1c',
@@ -36,6 +39,8 @@ export default defineArchetypePriorities({
       category: 'metabolic',
       panelAvailability: 'both',
       sortOrder: 1,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false, // HbA1c reflects a 3-month average — no fasting needed
     },
     {
       markerName: 'Free testosterone + SHBG',
@@ -44,6 +49,10 @@ export default defineArchetypePriorities({
       category: 'hormones',
       panelAvailability: 'both',
       sortOrder: 2,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      // ADVISOR-REVIEW: testosterone morning peak — sample before 11am.
+      fastingNote: 'Best taken in the morning, when testosterone naturally peaks',
     },
     {
       markerName: 'ApoB',
@@ -52,6 +61,11 @@ export default defineArchetypePriorities({
       category: 'cardio',
       panelAvailability: 'both',
       sortOrder: 3,
+      sampleType: 'Standard venous blood draw',
+      // ADVISOR-REVIEW: modern lipid guidance accepts non-fasting ApoB; some
+      // labs still request fasting if a full lipid panel with triglycerides is
+      // run at the same time.
+      fastingRequired: false,
     },
   ],
 });

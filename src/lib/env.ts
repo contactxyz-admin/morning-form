@@ -60,6 +60,18 @@ const optional = {
   // Flips in Unit 7 after legal + advisor gates. Unsetting returns current
   // behaviour byte-for-byte.
   ASK_DEEP_ENABLED: process.env.ASK_DEEP_ENABLED ?? '',
+  // Concierge booking v1 (Plan 2026-06-06-001). Off by default. Gates
+  // the booking request form + ops fulfillment loop. Flip in U5 after
+  // legal/disclosure packet is signed.
+  CONCIERGE_BOOKING_ENABLED: process.env.CONCIERGE_BOOKING_ENABLED ?? '',
+  // Ops email for concierge booking notifications (Plan 2026-06-06-001 U3).
+  // Reference-only — no health data in email. Production assert fails
+  // closed when unset and CONCIERGE_BOOKING_ENABLED is true.
+  OPS_EMAIL: process.env.OPS_EMAIL ?? '',
+  // Ops auth secret for the booking fulfillment endpoint (Plan 2026-06-06-001
+  // U4). Shared secret checked against the Authorization header. Never
+  // set in dev — the endpoint returns 401.
+  OPS_SECRET: process.env.OPS_SECRET ?? '',
 };
 
 export const env = {
@@ -83,6 +95,15 @@ export function assertAuthEnv(): void {
   if (!env.SESSION_SECRET || env.SESSION_SECRET.length < 32) missing.push('SESSION_SECRET (>=32 chars)');
   if (!env.RESEND_API_KEY) missing.push('RESEND_API_KEY');
   if (!env.RESEND_FROM) missing.push('RESEND_FROM');
+  // Concierge booking (Plan 2026-06-06-001) — fail closed when the flag is on:
+  // a missing ops address silently drops every booking; a weak/absent ops
+  // secret locks the fulfillment loop; an absent encryption key would store
+  // redemption codes under a trivially-derivable key.
+  if (env.CONCIERGE_BOOKING_ENABLED === 'true') {
+    if (!env.OPS_EMAIL) missing.push('OPS_EMAIL (required when CONCIERGE_BOOKING_ENABLED)');
+    if (!env.OPS_SECRET || env.OPS_SECRET.length < 32) missing.push('OPS_SECRET (>=32 chars, required when CONCIERGE_BOOKING_ENABLED)');
+    if (!env.HEALTH_TOKEN_ENCRYPTION_KEY) missing.push('HEALTH_TOKEN_ENCRYPTION_KEY (required when CONCIERGE_BOOKING_ENABLED)');
+  }
   if (missing.length) {
     throw new Error(`[env] Missing required auth secrets in production: ${missing.join(', ')}`);
   }

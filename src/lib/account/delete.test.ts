@@ -92,6 +92,11 @@ async function seedFullUser(p: PrismaClient): Promise<{ id: string; email: strin
       markerName: 'Ferritin',
     },
   });
+  // Concierge booking request (Plan 2026-06-06-001) — userId-bearing, swept on
+  // erasure via the explicit deleteMany in delete.ts.
+  await p.bookingRequest.create({
+    data: { userId: id, markerNames: JSON.stringify(['Ferritin']), market: 'uk', status: 'requested' },
+  });
   await p.healthConnection.create({ data: { userId: id, provider: 'whoop' } });
   await p.healthDataPoint.create({
     data: { userId: id, provider: 'whoop', category: 'sleep', metric: 'd', value: 7, unit: 'h', timestamp: new Date() },
@@ -269,6 +274,9 @@ describe('eraseAccount — residue assertion (real test DB)', () => {
     // Action rows are an explicit numeric deleteMany count (not 'cascade').
     expect(typeof counts.actions).toBe('number');
     expect(counts.actions).toBeGreaterThanOrEqual(1);
+    // Concierge booking requests swept via explicit deleteMany.
+    expect(typeof counts.bookingRequests).toBe('number');
+    expect(counts.bookingRequests).toBeGreaterThanOrEqual(1);
     expect(counts.sourceDocuments).toBe(1);
     expect(counts.sessions).toBe('cascade');
     expect(counts.funnelEventsScrubbed).toBe(1);

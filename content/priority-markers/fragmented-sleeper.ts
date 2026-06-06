@@ -24,6 +24,11 @@ export default defineArchetypePriorities({
       category: 'iron',
       panelAvailability: 'both',
       sortOrder: 0,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      // ADVISOR-REVIEW: ferritin is an acute-phase reactant — raised by recent
+      // illness, which can mask true iron deficiency.
+      fastingNote: 'Best measured when you are well, as recent illness can raise this',
     },
     {
       markerName: 'TSH and Free T4',
@@ -32,6 +37,11 @@ export default defineArchetypePriorities({
       category: 'thyroid',
       panelAvailability: 'both',
       sortOrder: 1,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      // ADVISOR-REVIEW: TSH diurnal rhythm — prefer a consistent morning sample
+      // when tracking over time.
+      fastingNote: 'A morning sample is preferable when tracking thyroid levels over time',
     },
     {
       markerName: 'Vitamin D (25-OH)',
@@ -40,6 +50,8 @@ export default defineArchetypePriorities({
       category: 'micronutrients',
       panelAvailability: 'both',
       sortOrder: 2,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
     },
     {
       markerName: 'HbA1c',
@@ -48,6 +60,8 @@ export default defineArchetypePriorities({
       category: 'metabolic',
       panelAvailability: 'both',
       sortOrder: 3,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false, // HbA1c reflects a 3-month average — no fasting needed
     },
   ],
 });

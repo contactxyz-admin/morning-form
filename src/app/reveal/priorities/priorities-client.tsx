@@ -94,18 +94,28 @@ export function PrioritiesClient() {
         <div className="mt-12 space-y-4">
           {priorities.items.map((marker) => (
             <motion.div key={marker.id} variants={fadeUp}>
-              <Card variant="default" className="space-y-3">
-                <SectionLabel>{marker.category}</SectionLabel>
-                <h3 className="font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
-                  {marker.markerName}
-                </h3>
-                <p className="text-body text-text-secondary leading-relaxed">
-                  {marker.rationale}
-                </p>
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-                  {PANEL_LABEL[marker.panelAvailability]}
-                </p>
-              </Card>
+              <a
+                href={`/reveal/priorities/marker/${encodeURIComponent(marker.markerName)}?archetype=${stateProfile.archetype}`}
+                className="block group"
+              >
+                <Card variant="default" className="space-y-3 group-hover:border-text-tertiary/30 transition-colors">
+                  <SectionLabel>{marker.category}</SectionLabel>
+                  <h3 className="font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
+                    {marker.markerName}
+                  </h3>
+                  <p className="text-body text-text-secondary leading-relaxed">
+                    {marker.rationale}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+                      {PANEL_LABEL[marker.panelAvailability]}
+                    </p>
+                    <span className="font-mono text-[11px] text-text-tertiary group-hover:text-text-secondary transition-colors">
+                      How to get tested →
+                    </span>
+                  </div>
+                </Card>
+              </a>
             </motion.div>
           ))}
         </div>
@@ -122,11 +132,6 @@ export function PrioritiesClient() {
 
       <div className="fixed bottom-0 left-0 right-0 px-5 sm:px-8 pb-6 pt-12 bg-gradient-to-t from-bg via-bg/95 to-transparent">
         <div className="max-w-xl mx-auto flex flex-col gap-3">
-          <form action={trackIntakeClickAndRedirect}>
-            <Button type="submit" fullWidth size="lg">
-              Upload your last blood panel →
-            </Button>
-          </form>
           <Button
             fullWidth
             size="lg"
@@ -135,6 +140,11 @@ export function PrioritiesClient() {
           >
             See why these markers
           </Button>
+          <form action={trackIntakeClickAndRedirect}>
+            <Button type="submit" fullWidth size="lg" variant="ghost">
+              Already have recent results? Upload them →
+            </Button>
+          </form>
         </div>
       </div>
     </div>
