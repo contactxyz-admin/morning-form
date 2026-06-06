@@ -16,6 +16,7 @@ describe('resolveActiveTab', () => {
     ['/guide', 'you'],
     ['/settings', 'you'],
     ['/settings/shared-links', 'you'],
+    ['/decisions', 'decisions'],
   ] as const)('maps %s -> %s', (path, expected) => {
     expect(resolveActiveTab(path)).toBe(expected);
   });

@@ -14,6 +14,7 @@ const PATH_TO_TAB: ReadonlyArray<readonly [string, NavTab]> = [
   ['/check-in', 'home'],
   ['/intake', 'home'],
   ['/ask', 'ask'],
+  ['/decisions', 'decisions'],
   ['/home', 'home'],
   ['/guide', 'you'],
   ['/settings', 'you'],
