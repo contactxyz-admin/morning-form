@@ -10,12 +10,13 @@
  * Upload is the secondary action.
  */
 import { notFound } from 'next/navigation';
-import { headers } from 'next/headers';
 import { getCurrentUser } from '@/lib/session';
 import { prisma } from '@/lib/db';
 import { resolvePrioritiesContent } from '@/lib/priority-marker-engine';
 import { getTestRouteMarket, type Market } from '@/../content/test-routes/index';
 import { env } from '@/lib/env';
+import { BookingRequestForm } from './booking-request-form';
+import { BookingStatusList, type BookingRow } from './booking-status-client';
 
 interface Props {
   params: { name: string };
@@ -23,6 +24,13 @@ interface Props {
 }
 
 export default async function MarkerDetailPage({ params, searchParams }: Props) {
+  // Gate on PRIORITY_MARKERS_ENABLED — mirrors /reveal/priorities/page.tsx so
+  // the clinical detail content isn't reachable by direct URL before launch
+  // (review correctness P3).
+  if ((process.env.PRIORITY_MARKERS_ENABLED ?? '') !== 'true') {
+    notFound();
+  }
+
   const user = await getCurrentUser();
   // Derive market. Not authenticated → default to UK for the unauthenticated
   // preview path (the priorities surface is auth-gated anyway — this is belt-
@@ -64,6 +72,18 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
   const conciergeEnabled = (process.env.CONCIERGE_BOOKING_ENABLED ?? env.CONCIERGE_BOOKING_ENABLED ?? '') === 'true';
   const showConcierge = conciergeEnabled && testRoutes.conciergeAvailable;
   const showSelfOrder = marker.panelAvailability !== 'neither';
+
+  // Link an open `measure` Action for this marker when one exists (R-C). Only
+  // the user's own Actions — ownership re-checked server-side on POST.
+  let linkActionId: string | undefined;
+  if (showConcierge && user) {
+    const action = await prisma.action.findFirst({
+      where: { userId: user.id, verb: 'measure', markerName: marker.markerName },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    linkActionId = action?.id;
+  }
 
   return (
     <div className="min-h-screen bg-bg px-5 sm:px-8 pt-16 pb-32">
@@ -110,14 +130,12 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
             <h3 className="mt-2 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
               MorningForm arranges it
             </h3>
-            <p className="mt-2 text-body text-text-secondary leading-relaxed">
-              We handle the booking through {testRoutes.conciergePartnerNames.join(' and ')}.
-              You redeem the test under your own identity — your data stays between you
-              and the lab until you choose to upload your results here.
-            </p>
-            <p className="mt-3 font-mono text-[11px] text-text-tertiary">
-              Booking available soon — check back here.
-            </p>
+            <BookingRequestForm
+              markerNames={[marker.markerName]}
+              market={market}
+              partnerNames={testRoutes.conciergePartnerNames}
+              actionId={linkActionId}
+            />
           </div>
         )}
 
@@ -192,63 +210,29 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
 }
 
 /**
- * Read-only status block: the user's booking requests. This is the
- * Phase B timeline seed — displays existing rows, no nav entry, no
- * state affordances beyond what the API already provides. The cancel
- * flow reuses the /api/booking/cancel endpoint.
+ * Read-only status block: the user's booking requests. This is the Phase B
+ * timeline seed — fetches rows server-side, hands serializable data to the
+ * client component which owns the cancel (JS fetch, JSON) + one-time in-app
+ * code-reveal interactions.
  */
 async function UserBookingRequests({ userId }: { userId: string }) {
   const bookings = await prisma.bookingRequest.findMany({
     where: { userId, status: { not: 'cancelled' } },
     orderBy: { createdAt: 'desc' },
     take: 10,
+    select: { id: true, markerNames: true, status: true, createdAt: true },
   });
 
   if (!bookings.length) return null;
 
-  const STATUS_LABELS: Record<string, string> = {
-    requested: 'We\'re arranging your test',
-    arranged: 'Your test is ready — check your email',
-    delivered: 'Test completed',
-    cancelled: 'Cancelled',
-  };
+  const rows: BookingRow[] = bookings.map((b) => ({
+    id: b.id,
+    markerNames: safeJsonParse(b.markerNames),
+    status: b.status,
+    createdAt: b.createdAt.toISOString(),
+  }));
 
-  return (
-    <div className="mt-10 pt-6 border-t border-border-subtle">
-      <h2 className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary mb-4">
-        Your test requests
-      </h2>
-      <ul className="space-y-3">
-        {bookings.map((b) => (
-          <li key={b.id} className="border border-border rounded-card p-4">
-            <div className="flex items-center justify-between">
-              <p className="font-medium text-body text-text-primary">
-                {safeJsonParse(b.markerNames).join(', ') || 'Blood test'}
-              </p>
-              <span className={`font-mono text-[10px] uppercase tracking-[0.08em] ${
-                b.status === 'delivered' ? 'text-emerald-600' :
-                b.status === 'arranged' ? 'text-blue-600' :
-                'text-amber-600'
-              }`}>
-                {STATUS_LABELS[b.status] ?? b.status}
-              </span>
-            </div>
-            <p className="mt-1 font-mono text-[10px] text-text-tertiary">
-              Ref: {b.id.slice(0, 8)} · {new Date(b.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </p>
-            {b.status === 'requested' && (
-              <form action={`/api/booking/cancel`} method="POST" className="mt-2">
-                <input type="hidden" name="bookingId" value={b.id} />
-                <button type="submit" className="font-mono text-[10px] text-text-tertiary hover:text-alert transition-colors">
-                  Cancel request
-                </button>
-              </form>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+  return <BookingStatusList bookings={rows} />;
 }
 
 function safeJsonParse(v: string | null): string[] {

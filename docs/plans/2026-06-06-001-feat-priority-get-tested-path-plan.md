@@ -87,7 +87,7 @@ This pulls the origin's Phase C entry forward deliberately: the dead-end ships t
 
 ## Implementation Units
 
-- [ ] **Unit 1: Test-mechanics content layer**
+- [x] **Unit 1: Test-mechanics content layer**
 
 **Goal:** Every marker knows what the test involves and how to obtain it per market.
 
@@ -110,7 +110,7 @@ This pulls the origin's Phase C entry forward deliberately: the dead-end ships t
 
 **Verification:** A test prints the full get-tested sheet for hs-CRP in both markets.
 
-- [ ] **Unit 2: "Get this tested" surface + CTA rewrite (joins the priorities go-live gate)**
+- [x] **Unit 2: "Get this tested" surface + CTA rewrite (joins the priorities go-live gate)**
 
 **Goal:** The dead-end becomes the path on both surfaces.
 
@@ -133,7 +133,7 @@ This pulls the origin's Phase C entry forward deliberately: the dead-end ships t
 
 **Verification:** Visual audit (institutional gate) of card + detail, both markets, both flag states. **This unit is on the priorities go-live checklist.**
 
-- [ ] **Unit 3: Booking request flow (`CONCIERGE_BOOKING_ENABLED`)**
+- [x] **Unit 3: Booking request flow (`CONCIERGE_BOOKING_ENABLED`)**
 
 **Goal:** "MorningForm arranges it" works to the ops hand-off, with disclosure and minimization built in.
 
@@ -157,7 +157,7 @@ This pulls the origin's Phase C entry forward deliberately: the dead-end ships t
 
 **Verification:** Dev request produces a reference-only ops email; the authenticated ops read shows the full details.
 
-- [ ] **Unit 4: Ops fulfillment loop + status (the Phase B timeline seed)**
+- [x] **Unit 4: Ops fulfillment loop + status (the Phase B timeline seed)**
 
 **Goal:** The redemption code reaches the user safely; state is visible; ops works from a runbook.
 

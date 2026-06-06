@@ -1,12 +1,15 @@
 /**
  * POST /api/booking/request — concierge booking request (Plan 2026-06-06-001 U3).
  *
- * Flag-gated behind CONCIERGE_BOOKING_ENABLED. Creates a BookingRequest row,
- * sends a reference-only ops email, and returns confirmation. Ops-email
- * failure deletes the row and returns 502 (no orphan rows).
+ * Flag-gated behind CONCIERGE_BOOKING_ENABLED. Rate-limited per user. Creates a
+ * BookingRequest row, sends a reference-only ops email, and returns
+ * confirmation. Ops-email failure deletes the row, refunds the rate-limit slot,
+ * and returns 502 (no orphan rows).
  *
- * US state is validated for blocking then DISCARDED — never persisted,
- * never logged, never emailed.
+ * US state is validated for blocking then DISCARDED — never persisted, never
+ * logged, never emailed. For the US market a state is REQUIRED (422 if absent).
+ * The submitted market is cross-checked against the session user's signupMarket
+ * when present (mismatch → 400).
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
@@ -16,17 +19,18 @@ import { env } from '@/lib/env';
 import { isBlockedState } from '@/../content/test-routes/index';
 import { sendEmail } from '@/lib/auth/email';
 import { resolvePrioritiesContent } from '@/lib/priority-marker-engine';
+import { ARCHETYPE_KEYS } from '@/lib/priority-markers-schema';
+import {
+  checkAndConsumeBookingRateLimit,
+  refundBookingRateLimit,
+} from '@/lib/booking/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 /** Canonical marker name set — derived from all archetype content at import time. */
 const CANONICAL_MARKERS: Set<string> = (() => {
   const names = new Set<string>();
-  const archetypes = [
-    'sustained-activator', 'fragmented-sleeper', 'sympathetic-dominant',
-    'flat-liner', 'over-stimulated', 'well-regulated',
-  ];
-  for (const key of archetypes) {
+  for (const key of ARCHETYPE_KEYS) {
     const c = resolvePrioritiesContent(key);
     if (c) for (const m of c.markers) names.add(m.markerName);
   }
@@ -38,7 +42,7 @@ const BodySchema = z.object({
   market: z.enum(['uk', 'us']),
   /** Validated then discarded — never persisted. */
   usState: z.string().max(2).optional(),
-  /** Optional Action id to link. */
+  /** Optional Action id to link (ownership verified server-side). */
   actionId: z.string().optional(),
 });
 
@@ -69,8 +73,26 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  // US state: validate for blocking, then DISCARD.
-  if (body.market === 'us' && body.usState) {
+  // Market cross-check: never trust the form over the user's attributed market.
+  // signupMarket is nullable/attribution-scoped — only enforce when present.
+  if (user.signupMarket && user.signupMarket !== body.market) {
+    return NextResponse.json(
+      { error: 'Market mismatch.' },
+      { status: 400 },
+    );
+  }
+
+  // US state: REQUIRED for the US market, validated for blocking, then DISCARDED.
+  if (body.market === 'us') {
+    if (!body.usState) {
+      return NextResponse.json(
+        {
+          error: 'Your state is required for US bookings.',
+          guidance: 'We need your state to confirm direct-access testing is available where you are.',
+        },
+        { status: 422 },
+      );
+    }
     if (isBlockedState('us', body.usState)) {
       return NextResponse.json(
         {
@@ -82,6 +104,26 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
   }
   // State value is NOT logged, stored, or forwarded beyond this check.
+
+  // actionId ownership: only link an Action the requesting user owns.
+  if (body.actionId) {
+    const action = await prisma.action.findUnique({
+      where: { id: body.actionId },
+      select: { userId: true },
+    });
+    if (!action || action.userId !== user.id) {
+      return NextResponse.json({ error: 'Invalid actionId.' }, { status: 400 });
+    }
+  }
+
+  // Rate-limit (failures don't consume slots; 429 + no row).
+  const allowed = await checkAndConsumeBookingRateLimit(prisma, user.id);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'Too many booking requests. Please try again later.' },
+      { status: 429 },
+    );
+  }
 
   // Create the booking row.
   const booking = await prisma.bookingRequest.create({
@@ -111,8 +153,10 @@ export async function POST(req: NextRequest): Promise<Response> {
         ].join('\n'),
       });
     } catch {
-      // Email failed — delete the row so there's no orphan.
+      // Email failed — delete the row so there's no orphan, and refund the
+      // rate-limit slot (a failure must not count against the user).
       await prisma.bookingRequest.delete({ where: { id: booking.id } });
+      await refundBookingRateLimit(prisma, user.id);
       return NextResponse.json(
         { error: 'Unable to process your request right now. Please try again.' },
         { status: 502 },
@@ -136,7 +180,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         '',
         'What happens next:',
         '1. Our team arranges the test for you (usually within 1–2 business days).',
-        '2. You\'ll get an email when everything is ready — follow the link to view your redemption code in-app.',
+        '2. You\'ll get an email when everything is ready — follow the link to reveal your redemption code in-app.',
         '3. You book your own draw under your own identity.',
         '',
         'You can cancel this request at any time before it\'s arranged.',
@@ -145,7 +189,8 @@ export async function POST(req: NextRequest): Promise<Response> {
       ].join('\n'),
     });
   } catch (err) {
-    console.error('[booking/request] user confirmation email failed (non-fatal):', err);
+    console.error('[booking/request] user confirmation email failed (non-fatal)');
+    void err;
   }
 
   return NextResponse.json({

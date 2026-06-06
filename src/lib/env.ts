@@ -95,6 +95,15 @@ export function assertAuthEnv(): void {
   if (!env.SESSION_SECRET || env.SESSION_SECRET.length < 32) missing.push('SESSION_SECRET (>=32 chars)');
   if (!env.RESEND_API_KEY) missing.push('RESEND_API_KEY');
   if (!env.RESEND_FROM) missing.push('RESEND_FROM');
+  // Concierge booking (Plan 2026-06-06-001) — fail closed when the flag is on:
+  // a missing ops address silently drops every booking; a weak/absent ops
+  // secret locks the fulfillment loop; an absent encryption key would store
+  // redemption codes under a trivially-derivable key.
+  if (env.CONCIERGE_BOOKING_ENABLED === 'true') {
+    if (!env.OPS_EMAIL) missing.push('OPS_EMAIL (required when CONCIERGE_BOOKING_ENABLED)');
+    if (!env.OPS_SECRET || env.OPS_SECRET.length < 32) missing.push('OPS_SECRET (>=32 chars, required when CONCIERGE_BOOKING_ENABLED)');
+    if (!env.HEALTH_TOKEN_ENCRYPTION_KEY) missing.push('HEALTH_TOKEN_ENCRYPTION_KEY (required when CONCIERGE_BOOKING_ENABLED)');
+  }
   if (missing.length) {
     throw new Error(`[env] Missing required auth secrets in production: ${missing.join(', ')}`);
   }

@@ -795,6 +795,9 @@ model Action {
   markerName      String?
   state           String       @default("suggested") // Phase A: always 'suggested'
   createdAt       DateTime     @default(now())
+  // Concierge booking requests linking this Action (SetNull on delete —
+  // mirrors chatMessageId's pattern so the booking row survives Action removal).
+  bookingRequests BookingRequest[]
 
   @@index([userId, createdAt])
   @@index([userId, state])
@@ -814,7 +817,12 @@ model BookingRequest {
   markerNames  String?   // JSON array, canonical-validated; nullified at terminal states
   market       String    // 'uk' | 'us'
   status       String    @default("requested") // requested|arranged|delivered|cancelled
+  // Encrypted redemption code (AES-256-GCM via src/lib/health/crypto.ts —
+  // single "<iv>:<tag>:<ciphertext>" hex string). Written at `deliver`;
+  // nulled on the user's one-time in-app reveal. NEVER in email or logs.
+  codeEncrypted String?
   actionId     String?   // FK to Action when linked (SetNull)
+  action       Action?   @relation(fields: [actionId], references: [id], onDelete: SetNull)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

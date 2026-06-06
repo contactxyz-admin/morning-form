@@ -189,4 +189,24 @@ describe('static copy guardrail', () => {
     // Sanity: the path string assembles cleanly (catches typos in SCAN_ROOTS).
     expect(probe).toMatch(/content\/marketing$/);
   });
+
+  it('wires content/test-routes into the scan, and the scanner catches a planted forbidden phrase there (Plan 2026-06-06-001 U1)', () => {
+    // (1) The new content root is on the allowlist of scanned directories.
+    expect(SCAN_ROOTS).toContain('content/test-routes');
+    // The directory actually contributes files to the scan set (catches a
+    // reverted/typo'd SCAN_ROOTS entry, which the marketing probe above cannot).
+    const scanned = collectFiles().map((f) => relative(ROOT, f).replace(/\\/g, '/'));
+    expect(scanned.some((p) => p.startsWith('content/test-routes/'))).toBe(true);
+
+    // (2) Characterization: the detection rules used by the always-on guardrail
+    // fire on a forbidden phrase of the kind that could be planted in
+    // content/test-routes copy (a drug name + a directive + a dose). Running the
+    // same patterns the scanner uses proves a real violation in that root would
+    // be caught, without writing a fixture to disk.
+    const planted = 'Start your atorvastatin 20mg as directed by the lab.';
+    const drugHit = DRUG_PATTERNS.some((d) => d.pattern.test(planted));
+    const doseHit = DOSE_PATTERN.test(planted);
+    const directiveHit = DIRECTIVE_PATTERNS.some((d) => d.pattern.test(planted));
+    expect(drugHit || doseHit || directiveHit).toBe(true);
+  });
 });

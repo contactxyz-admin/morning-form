@@ -34,6 +34,8 @@ export default defineArchetypePriorities({
       category: 'metabolic',
       panelAvailability: 'both',
       sortOrder: 1,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false, // HbA1c reflects a 3-month average — no fasting needed
     },
     {
       markerName: 'Vitamin D (25-OH)',
@@ -42,6 +44,8 @@ export default defineArchetypePriorities({
       category: 'micronutrients',
       panelAvailability: 'both',
       sortOrder: 2,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
     },
     {
       markerName: 'hs-CRP',
@@ -50,6 +54,10 @@ export default defineArchetypePriorities({
       category: 'inflammation',
       panelAvailability: 'both',
       sortOrder: 3,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      // ADVISOR-REVIEW: see flat-liner — transiently raised by recent illness.
+      fastingNote: 'Best measured when you are well — a recent cold or injury can raise this temporarily',
     },
   ],
 });

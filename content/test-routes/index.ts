@@ -90,8 +90,14 @@ const US_MARKET: TestRouteMarket = {
   gpRouteLabel:
     'Ask your primary care provider. Many insurers cover preventive blood work at your annual physical — mention the specific markers by name.',
   blockedStateGuidance:
-    'Direct-access blood testing is not available in New York, New Jersey, or Rhode Island (state regulations require a physician order for all lab tests). Arizona and Hawaii restrict some providers. Your best path is through your primary care provider — they can order the same tests, and most insurers cover them.',
-  blockedStates: ['NY', 'NJ', 'RI', 'AZ', 'HI'],
+    'Direct-access blood testing is not available in New York, New Jersey, or Rhode Island (state regulations require a physician order for all lab tests). Arizona and Hawaii restrict some providers — availability depends on which lab you use. Your best path is through your primary care provider — they can order the same tests, and most insurers cover them.',
+  // Hard blocks only — all direct-access providers are unavailable here, so the
+  // booking flow rejects (422). AZ and HI are deliberately NOT hard-blocked:
+  // the plan characterises them as provider-dependent, not blanket blocks, so
+  // hard-rejecting AZ/HI users who could use a non-blocked provider would be a
+  // false rejection. The conservative-but-honest blockedStateGuidance copy
+  // above surfaces the AZ/HI caveat without blocking the request.
+  blockedStates: ['NY', 'NJ', 'RI'],
 };
 
 const MARKET_MAP: Record<Market, TestRouteMarket> = {

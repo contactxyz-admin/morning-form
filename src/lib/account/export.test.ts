@@ -213,6 +213,10 @@ async function seedMultiDomainUser(p: PrismaClient): Promise<string> {
       markerName: 'Ferritin',
     },
   });
+  // Concierge booking request (Plan 2026-06-06-001) — exports in its own domain.
+  await p.bookingRequest.create({
+    data: { userId, markerNames: JSON.stringify(['Ferritin', 'hs-CRP']), market: 'uk', status: 'requested' },
+  });
   const scribe = await p.scribe.create({
     data: { userId, topicKey: 'iron', modelVersion: 'v1' },
   });
@@ -290,6 +294,7 @@ describe('assembleExportArchive — seeded multi-domain user', () => {
       'checkIns.json',
       'chatMessages.json',
       'actions.json',
+      'bookingRequests.json',
       'scribes.json',
       'healthConnections.json',
       'healthDataPoints.json',
@@ -316,6 +321,13 @@ describe('assembleExportArchive — seeded multi-domain user', () => {
     const priorities = JSON.parse(entries['priorities.json'].toString('utf8'));
     expect(priorities[0].items).toHaveLength(1);
     expect(priorities[0].adjustments).toHaveLength(1);
+
+    // Booking-request domain round-trips the seeded request.
+    const bookings = JSON.parse(entries['bookingRequests.json'].toString('utf8'));
+    expect(bookings).toHaveLength(1);
+    expect(bookings[0].market).toBe('uk');
+    expect(bookings[0].status).toBe('requested');
+    expect(JSON.parse(bookings[0].markerNames)).toEqual(['Ferritin', 'hs-CRP']);
 
     // Health connection tokens must be stripped.
     const conns = JSON.parse(entries['healthConnections.json'].toString('utf8'));

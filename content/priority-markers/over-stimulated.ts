@@ -23,6 +23,9 @@ export default defineArchetypePriorities({
       category: 'thyroid',
       panelAvailability: 'both',
       sortOrder: 0,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      fastingNote: 'A morning sample is preferable when tracking thyroid levels over time',
     },
     {
       markerName: 'hs-CRP',
@@ -31,6 +34,9 @@ export default defineArchetypePriorities({
       category: 'inflammation',
       panelAvailability: 'both',
       sortOrder: 1,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      fastingNote: 'Best measured when you are well — a recent cold or injury can raise this temporarily',
     },
     {
       markerName: 'Free testosterone',
@@ -39,6 +45,9 @@ export default defineArchetypePriorities({
       category: 'hormones',
       panelAvailability: 'both',
       sortOrder: 2,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      fastingNote: 'Best taken in the morning, when testosterone naturally peaks',
     },
     {
       markerName: 'Magnesium (RBC where available)',
@@ -47,6 +56,12 @@ export default defineArchetypePriorities({
       category: 'micronutrients',
       panelAvailability: 'neither',
       sortOrder: 3,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      // ADVISOR-REVIEW: RBC magnesium is a specialised assay not on every
+      // direct-access panel — hence panelAvailability 'neither'. Serum magnesium
+      // is widely available but a poorer reflector of stores.
+      fastingNote: 'RBC magnesium is a specialised test — ask the provider whether it is offered',
     },
   ],
 });

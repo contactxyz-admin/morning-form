@@ -24,6 +24,8 @@ export default defineArchetypePriorities({
       category: 'iron',
       panelAvailability: 'both',
       sortOrder: 0,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
     },
     {
       markerName: 'TSH and Free T4',
@@ -32,6 +34,12 @@ export default defineArchetypePriorities({
       category: 'thyroid',
       panelAvailability: 'both',
       sortOrder: 1,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      // ADVISOR-REVIEW: TSH has a diurnal rhythm (higher in the early morning);
+      // for tracking over time a consistent morning sample is preferable. Noted
+      // descriptively rather than as a hard requirement.
+      fastingNote: 'A morning sample is preferable when tracking thyroid levels over time',
     },
     {
       markerName: 'Total testosterone, Free testosterone, SHBG',
@@ -40,6 +48,12 @@ export default defineArchetypePriorities({
       category: 'hormones',
       panelAvailability: 'both',
       sortOrder: 2,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      // ADVISOR-REVIEW: testosterone has a marked morning peak; guidelines call
+      // for a sample taken in the morning (typically before 11am). Stated
+      // descriptively for the user.
+      fastingNote: 'Best taken in the morning, when testosterone naturally peaks',
     },
     {
       markerName: 'Vitamin D (25-OH)',
@@ -48,6 +62,8 @@ export default defineArchetypePriorities({
       category: 'micronutrients',
       panelAvailability: 'both',
       sortOrder: 3,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
     },
     {
       markerName: 'hs-CRP',
@@ -56,6 +72,11 @@ export default defineArchetypePriorities({
       category: 'inflammation',
       panelAvailability: 'both',
       sortOrder: 4,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
+      // ADVISOR-REVIEW: hs-CRP is non-specific; a recent infection or injury
+      // transiently raises it. Best measured when you are well, not acutely ill.
+      fastingNote: 'Best measured when you are well — a recent cold or injury can raise this temporarily',
     },
   ],
 });

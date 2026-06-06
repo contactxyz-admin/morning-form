@@ -54,10 +54,18 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  await prisma.bookingRequest.update({
-    where: { id: booking.id },
-    data: { status: 'cancelled' },
+  // Conditional transition closes the cancel-vs-arrange race: if ops arranged
+  // the booking between our read and this write, the update affects zero rows.
+  const result = await prisma.bookingRequest.updateMany({
+    where: { id: booking.id, status: 'requested' },
+    data: { status: 'cancelled', markerNames: null }, // retention parity with ops-cancel
   });
+  if (result.count === 0) {
+    return NextResponse.json(
+      { error: 'This booking can no longer be cancelled.' },
+      { status: 409 },
+    );
+  }
 
   return NextResponse.json({ id: booking.id, status: 'cancelled' });
 }
