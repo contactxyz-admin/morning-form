@@ -194,4 +194,4 @@ export interface HealthSummary {
 
 // ── Navigation ──
 
-export type NavTab = 'home' | 'record' | 'ask' | 'you';
+export type NavTab = 'home' | 'record' | 'ask' | 'decisions' | 'you';

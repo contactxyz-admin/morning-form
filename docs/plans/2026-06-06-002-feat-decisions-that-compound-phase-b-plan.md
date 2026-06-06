@@ -96,12 +96,14 @@ The document review correctly flagged that too much UI was deferred to "the audi
 - Back-link mechanism → new `/ask#<messageId>` anchor (Unit 1).
 - New flag vs reuse → `DECISIONS_ENABLED`.
 
-### Deferred to Implementation
-- Exact lifecycle timestamp columns + the canonical transition-matrix location.
-- `ActionOutcome` field set finalization (which subjective metric, nullable shapes) — refine against real seeded data.
-- Trajectory chart form (div-bars vs a small SVG sparkline) — pick against the visual audit; both are in-repo idioms.
-- Whether the marker route keeps a compact request affordance or fully defers to the timeline once `DECISIONS_ENABLED` is on.
-- `before`-value selection rule when a marker has many historical draws (earliest-relevant vs at-acceptance-time) — decide with real data.
+### Resolved During Implementation
+- **Lifecycle timestamp columns + matrix location** → `acceptedAt`/`completedAt`/`dismissedAt` on `Action`; matrix in `src/lib/actions/lifecycle.ts` (`resolveTransition`). `outcome-measured` is NOT in the transition route's BodySchema enum — it is reachable ONLY via `/outcome` (which writes the snapshot in the same `$transaction`), so a snapshot never exists without the state and vice versa.
+- **`ActionOutcome` field set** → `id, actionId(@unique, Cascade), userId(Cascade), markerName, beforeValue Float?, beforeAt DateTime?, afterValue Float, afterAt DateTime?, createdAt`. The optional `subjectiveBefore/After` fields were NOT added (no related check-in metric wired this pass — additive later if needed). `afterAt` is nullable.
+- **Trajectory chart form** → reused `src/components/ui/sparkline.tsx` (the promoted shared component) in the `/decisions/marker/[name]` sub-route. ≥2 points → chart; 1 point → single labelled value; 0 → empty state. The "See trajectory →" link on the outcome card is suppressed below 2 points (no dead link).
+- **`before`-value selection rule** → RESOLVED: "before" = the marker value AT OR BEFORE the Action's `acceptedAt` timestamp (the value the user committed against), selected against the FULL uncapped series via `resolveBeforeValueAtAcceptance`. NOT trajectory-oldest, which is only oldest-of-the-recent-24-window and would be wrong once a marker has >24 draws. If `acceptedAt` is null or no prior dated value exists, `beforeValue` stays null (the 1-point / no-before case). The snapshot is frozen + terminal, so this is correct on first write.
+- **Trajectory unit/source merge** → RESOLVED: the lab+wearable merge is now unit-aware and source-scoped. (1) `recovery`-category wearable points (composite 0–100 scores, never lab-equivalent) are excluded from the merge. (2) `reconcileUnits` drops any point whose non-empty unit conflicts with the metric's dominant (lab-first) unit — drop-on-conflict, not silent co-plot (no in-repo unit-conversion table exists). Empty-unit points are kept (no conflicting claim).
+- **Marker-route absorption** → defers to the timeline with a compact "View your test requests in Decisions →" pointer when `DECISIONS_ENABLED` is on. The pointer counts all non-cancelled bookings; the timeline now surfaces BOTH action-linked bookings (in their TimelineCards) AND unlinked bookings (`actionId = null`, rendered via the absorbed `BookingStatusList` with working cancel + one-time reveal) so the pointer count matches what the timeline renders and no booking vanishes after the flag flip.
+- **Timeline privacy enforcement** → `/decisions` is private by allowlist-omission: it requires `getCurrentUser()` (session-cookie-backed only; SharedView tokens never mint a `Session`), and lives in the `(app)` route group which has no SharedView serving path (SharedView is served under the separate top-level `/share` group). A SharedView-token request therefore cannot reach `/decisions` user data — it redirects to `/sign-in` for want of an app session.
 
 ## High-Level Technical Design
 
@@ -132,7 +134,7 @@ The `/decisions` surface reads: Actions (grouped by state) ⨝ linked BookingReq
 
 Dependency order: U1 (anchor — a small cross-phase pre-req, see its note) and U2 (lifecycle API) are independent; U3 (trajectory reader+view) independent; U4 (ActionOutcome+GDPR) needs **U2+U3** (the outcome endpoint calls the trajectory reader for before/after); U5 (timeline surface + nav + seed absorption) needs U2+U4 and consumes U3; U6 (flag flip + audit) last.
 
-- [ ] **Unit 1: `/ask` per-answer anchor (cross-phase pre-req for the timeline back-link)**
+- [x] **Unit 1: `/ask` per-answer anchor (cross-phase pre-req for the timeline back-link)**
 
 **Goal:** Each assistant answer is addressable so the timeline can link back to it.
 
@@ -152,7 +154,7 @@ Dependency order: U1 (anchor — a small cross-phase pre-req, see its note) and 
 
 **Verification:** Navigating to `/ask#<id>` scrolls to and briefly highlights that answer.
 
-- [ ] **Unit 2: Action lifecycle transition API**
+- [x] **Unit 2: Action lifecycle transition API**
 
 **Goal:** A user can move their own actions through the lifecycle, race-safely.
 
@@ -177,7 +179,7 @@ Dependency order: U1 (anchor — a small cross-phase pre-req, see its note) and 
 
 **Verification:** A seeded suggested action walks to completed via the API; concurrent transitions don't double-fire.
 
-- [ ] **Unit 3: Unified marker trajectory reader + view (R8)**
+- [x] **Unit 3: Unified marker trajectory reader + view (R8)**
 
 **Goal:** A marker with ≥2 dated values renders as a time-ordered trajectory.
 
@@ -203,7 +205,7 @@ Dependency order: U1 (anchor — a small cross-phase pre-req, see its note) and 
 
 **Verification:** Visual audit (gate) of the trajectory in ≥2-point, 1-point, and empty states, desktop + mobile.
 
-- [ ] **Unit 4: `ActionOutcome` snapshot + outcome-measured transition + GDPR coverage**
+- [x] **Unit 4: `ActionOutcome` snapshot + outcome-measured transition + GDPR coverage**
 
 **Goal:** Marking an outcome freezes the before/after and closes the loop — fully covered for export/erasure.
 
@@ -230,7 +232,7 @@ Dependency order: U1 (anchor — a small cross-phase pre-req, see its note) and 
 
 **Verification:** A completed action → outcome-measured produces a queryable frozen snapshot; both GDPR guards exercise a real ActionOutcome row.
 
-- [ ] **Unit 5: Decisions timeline surface + 5th nav tab + booking-seed absorption (R7)**
+- [x] **Unit 5: Decisions timeline surface + 5th nav tab + booking-seed absorption (R7)**
 
 **Goal:** A private `/decisions` tab lists actions across states with back/forward links; the booking seed is absorbed.
 

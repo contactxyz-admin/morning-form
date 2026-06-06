@@ -13,6 +13,7 @@ const tabs: { id: NavTab; label: string; icon: IconName; href: string }[] = [
   { id: 'home', label: 'Home', icon: 'home', href: '/home' },
   { id: 'record', label: 'Record', icon: 'record', href: '/record' },
   { id: 'ask', label: 'Ask', icon: 'guide', href: '/ask' },
+  { id: 'decisions', label: 'Decisions', icon: 'decisions', href: '/decisions' },
   { id: 'you', label: 'You', icon: 'profile', href: '/you' },
 ];
 

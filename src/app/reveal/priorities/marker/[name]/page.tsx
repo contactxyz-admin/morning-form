@@ -216,6 +216,28 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
  * code-reveal interactions.
  */
 async function UserBookingRequests({ userId }: { userId: string }) {
+  const decisionsEnabled = env.DECISIONS_ENABLED === 'true';
+
+  if (decisionsEnabled) {
+    // When the Decisions timeline is live, the canonical booking list lives
+    // there. Show a compact pointer so a user navigating from a marker still
+    // finds their request — no duplicate list.
+    const count = await prisma.bookingRequest.count({
+      where: { userId, status: { not: 'cancelled' } },
+    });
+    if (count === 0) return null;
+    return (
+      <div className="mt-10 pt-6 border-t border-border-subtle">
+        <a
+          href="/decisions"
+          className="inline-flex items-center gap-1.5 font-mono text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+        >
+          View your test requests in Decisions →
+        </a>
+      </div>
+    );
+  }
+
   const bookings = await prisma.bookingRequest.findMany({
     where: { userId, status: { not: 'cancelled' } },
     orderBy: { createdAt: 'desc' },

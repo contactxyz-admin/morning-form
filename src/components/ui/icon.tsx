@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 type IconName =
   | 'home' | 'protocol' | 'record' | 'graph' | 'insights' | 'profile'
   | 'guide' | 'settings' | 'close' | 'back' | 'arrow-right' | 'check'
-  | 'clock' | 'alert' | 'send' | 'chevron-down';
+  | 'clock' | 'alert' | 'send' | 'chevron-down' | 'decisions';
 
 interface IconProps {
   name: IconName;
@@ -30,6 +30,7 @@ const paths: Record<IconName, string> = {
   alert: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z',
   send: 'M12 19l9 2-9-18-9 18 9-2zm0 0v-8',
   'chevron-down': 'M19 9l-7 7-7-7',
+  decisions: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
 };
 
 function Icon({ name, size = 'md', className }: IconProps) {

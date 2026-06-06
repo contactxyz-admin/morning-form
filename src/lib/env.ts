@@ -72,6 +72,10 @@ const optional = {
   // U4). Shared secret checked against the Authorization header. Never
   // set in dev — the endpoint returns 401.
   OPS_SECRET: process.env.OPS_SECRET ?? '',
+  // Decisions-that-compound flag (Plan 2026-06-06-002 Phase B). Off by default.
+  // Gates the /decisions surface, lifecycle API, trajectory views, and outcome
+  // snapshots. Flip in U6 after the visual audit gate.
+  DECISIONS_ENABLED: process.env.DECISIONS_ENABLED ?? '',
 };
 
 export const env = {
