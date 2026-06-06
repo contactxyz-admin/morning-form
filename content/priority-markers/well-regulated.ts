@@ -24,6 +24,8 @@ export default defineArchetypePriorities({
       category: 'cardio',
       panelAvailability: 'both',
       sortOrder: 0,
+      sampleType: 'Standard venous blood draw',
+      fastingRequired: false,
     },
     {
       markerName: 'HbA1c',

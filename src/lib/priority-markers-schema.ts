@@ -38,6 +38,16 @@ const PriorityMarkerInputSchema = z.object({
   panelAvailability: z.enum(['uk', 'us', 'both', 'neither']),
   /** Display order (0 = top priority). */
   sortOrder: z.number().int().min(0),
+  /**
+   * Test-mechanics fields (Plan 2026-06-06-001 U1). Always present —
+   * defaults make backfill non-breaking.
+   */
+  /** What the blood draw involves (e.g. "Standard venous blood draw"). */
+  sampleType: z.string().min(1).default('Standard venous blood draw'),
+  /** Whether fasting is needed before the draw. */
+  fastingRequired: z.boolean().default(false),
+  /** Additional fasting note when relevant (e.g. "8–12 hours, water allowed"). */
+  fastingNote: z.string().max(200).optional(),
 });
 
 export const ArchetypePrioritiesSchema = z.object({

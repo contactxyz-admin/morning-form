@@ -27,6 +27,10 @@ const SCAN_ROOTS = [
   // Path is included now so the gate is ready when content arrives — the
   // walker handles a missing directory gracefully.
   'content/priority-markers',
+  // Test-route guidance copy (Plan 2026-06-06-001 U1). Same compliance
+  // surface as priority-marker content — descriptive register, never
+  // directive.
+  'content/test-routes',
 ];
 
 // Files that are allowed to mention these strings because that is their job.
