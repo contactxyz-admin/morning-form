@@ -13,8 +13,12 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { env } from '@/lib/env';
-import type { ActionState } from '@/lib/actions/lifecycle';
 import type { Action, BookingRequest, ActionOutcome } from '@prisma/client';
+import { buildMarkerTrajectory } from '@/lib/markers/trajectory';
+import {
+  BookingStatusList,
+  type BookingRow,
+} from '@/app/reveal/priorities/marker/[name]/booking-status-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +63,45 @@ export default async function DecisionsPage() {
     take: 50,
   });
 
+  // Unlinked bookings (P0 #2): concierge bookings with actionId = null — booked
+  // for a marker that had no prior Ask action — are never reachable via
+  // action.bookingRequests, so they'd vanish from this surface after the flag
+  // flip (the marker route now points here). Surface them as their own rows so
+  // they keep their cancel + one-time reveal affordances. Mirrors the count the
+  // marker-route pointer reports (userId, not cancelled).
+  const unlinkedBookings = await prisma.bookingRequest.findMany({
+    where: { userId: user.id, actionId: null, status: { not: 'cancelled' } },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    select: { id: true, markerNames: true, status: true, createdAt: true },
+  });
+  const unlinkedRows: BookingRow[] = unlinkedBookings.map((b) => ({
+    id: b.id,
+    markerNames: safeJsonParse(b.markerNames),
+    status: b.status,
+    createdAt: b.createdAt.toISOString(),
+  }));
+
+  // Trajectory point-count per outcome marker (#5): only render "See trajectory"
+  // when there are ≥2 points to chart. Computed once for the markers actually
+  // referenced by an outcome-measured card.
+  const outcomeMarkers = Array.from(
+    new Set(
+      actions
+        .filter((a) => a.state === 'outcome-measured' && a.markerName)
+        .map((a) => a.markerName as string),
+    ),
+  );
+  const trajectoryCounts = new Map<string, number>();
+  await Promise.all(
+    outcomeMarkers.map(async (name) => {
+      const pts = await buildMarkerTrajectory(prisma, user.id, name);
+      trajectoryCounts.set(name, pts.length);
+    }),
+  );
+
+  const hasContent = actions.length > 0 || unlinkedRows.length > 0;
+
   return (
     <div className="min-h-screen bg-bg px-5 sm:px-8 pt-16 pb-32">
       <div className="max-w-xl mx-auto">
@@ -69,7 +112,7 @@ export default async function DecisionsPage() {
           Actions you&rsquo;ve chosen to act on — from suggestion to outcome.
         </p>
 
-        {actions.length === 0 ? (
+        {!hasContent ? (
           <div className="mt-16 text-center">
             <p className="text-body text-text-secondary">
               Decisions you act on appear here.
@@ -84,8 +127,17 @@ export default async function DecisionsPage() {
         ) : (
           <div className="mt-10 space-y-4">
             {/* Active actions first, dismissed grouped at the bottom */}
-            {renderActions(actions.filter((a) => a.state !== 'dismissed'))}
-            {renderDismissed(actions.filter((a) => a.state === 'dismissed'))}
+            {renderActions(
+              actions.filter((a) => a.state !== 'dismissed'),
+              trajectoryCounts,
+            )}
+            {/* Unlinked concierge bookings (no originating action) — absorbed so
+                they keep their cancel + reveal interactions (P0 #2). */}
+            {unlinkedRows.length > 0 && <BookingStatusList bookings={unlinkedRows} />}
+            {renderDismissed(
+              actions.filter((a) => a.state === 'dismissed'),
+              trajectoryCounts,
+            )}
           </div>
         )}
       </div>
@@ -93,14 +145,14 @@ export default async function DecisionsPage() {
   );
 }
 
-function renderActions(actions: TimelineAction[]) {
+function renderActions(actions: TimelineAction[], trajectoryCounts: Map<string, number>) {
   if (!actions.length) return null;
   return actions.map((action) => (
-    <TimelineCard key={action.id} action={action} />
+    <TimelineCard key={action.id} action={action} trajectoryCounts={trajectoryCounts} />
   ));
 }
 
-function renderDismissed(actions: TimelineAction[]) {
+function renderDismissed(actions: TimelineAction[], trajectoryCounts: Map<string, number>) {
   if (!actions.length) return null;
   return (
     <div className="pt-6 mt-6 border-t border-border-subtle">
@@ -109,14 +161,20 @@ function renderDismissed(actions: TimelineAction[]) {
       </p>
       <div className="space-y-3 opacity-60">
         {actions.map((action) => (
-          <TimelineCard key={action.id} action={action} />
+          <TimelineCard key={action.id} action={action} trajectoryCounts={trajectoryCounts} />
         ))}
       </div>
     </div>
   );
 }
 
-function TimelineCard({ action }: { action: TimelineAction }) {
+function TimelineCard({
+  action,
+  trajectoryCounts,
+}: {
+  action: TimelineAction;
+  trajectoryCounts: Map<string, number>;
+}) {
   const isDismissed = action.state === 'dismissed';
   const isOutcome = action.state === 'outcome-measured';
   const booking = action.bookingRequests[0];
@@ -187,14 +245,18 @@ function TimelineCard({ action }: { action: TimelineAction }) {
             See answer →
           </a>
         )}
-        {isOutcome && action.markerName && (
-          <a
-            href={`/decisions/marker/${encodeURIComponent(action.markerName)}`}
-            className="text-text-tertiary hover:text-text-secondary transition-colors"
-          >
-            See trajectory →
-          </a>
-        )}
+        {/* "See trajectory" only when there are ≥2 points to chart (#5): a
+            1-point marker has nothing to plot, so the link would be dead. */}
+        {isOutcome &&
+          action.markerName &&
+          (trajectoryCounts.get(action.markerName) ?? 0) >= 2 && (
+            <a
+              href={`/decisions/marker/${encodeURIComponent(action.markerName)}`}
+              className="text-text-tertiary hover:text-text-secondary transition-colors"
+            >
+              See trajectory →
+            </a>
+          )}
       </div>
     </div>
   );
@@ -205,4 +267,13 @@ function fmtDate(d: Date | string): string {
   return date.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short',
   });
+}
+
+function safeJsonParse(v: string | null): string[] {
+  if (!v) return [];
+  try {
+    return JSON.parse(v);
+  } catch {
+    return [];
+  }
 }

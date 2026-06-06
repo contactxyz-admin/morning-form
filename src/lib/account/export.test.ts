@@ -211,6 +211,11 @@ async function seedMultiDomainUser(p: PrismaClient): Promise<string> {
       verb: 'measure',
       label: 'Re-check ferritin in 3 months',
       markerName: 'Ferritin',
+      // Transitioned action so the export round-trip exercises non-null
+      // lifecycle timestamps (Plan U2 note; GDPR coverage #8).
+      state: 'completed',
+      acceptedAt: new Date('2026-03-15'),
+      completedAt: new Date('2026-05-20'),
     },
   });
   // ActionOutcome (Plan 2026-06-06-002 U4) — frozen snapshot. Seeds BOTH
@@ -308,6 +313,7 @@ describe('assembleExportArchive — seeded multi-domain user', () => {
       'chatMessages.json',
       'actions.json',
       'bookingRequests.json',
+      'actionOutcomes.json',
       'scribes.json',
       'healthConnections.json',
       'healthDataPoints.json',
@@ -323,13 +329,24 @@ describe('assembleExportArchive — seeded multi-domain user', () => {
     const checkIns = JSON.parse(entries['checkIns.json'].toString('utf8'));
     expect(checkIns).toHaveLength(2);
 
-    // Actions domain round-trips the seeded suggested action with provenance.
+    // Actions domain round-trips the seeded action with provenance + the
+    // lifecycle timestamps (acceptedAt/completedAt) — GDPR coverage #8.
     const actions = JSON.parse(entries['actions.json'].toString('utf8'));
     expect(actions).toHaveLength(1);
     expect(actions[0].verb).toBe('measure');
     expect(actions[0].label).toBe('Re-check ferritin in 3 months');
     expect(actions[0].markerName).toBe('Ferritin');
-    expect(actions[0].state).toBe('suggested');
+    expect(actions[0].state).toBe('completed');
+    expect(actions[0].acceptedAt).toBeTruthy();
+    expect(actions[0].completedAt).toBeTruthy();
+
+    // ActionOutcome domain round-trips the frozen snapshot (GDPR #7) — the
+    // guard would pass vacuously without this seeded row, so we assert real data.
+    const actionOutcomes = JSON.parse(entries['actionOutcomes.json'].toString('utf8'));
+    expect(actionOutcomes).toHaveLength(1);
+    expect(actionOutcomes[0].markerName).toBe('Ferritin');
+    expect(actionOutcomes[0].beforeValue).toBe(25);
+    expect(actionOutcomes[0].afterValue).toBe(62);
 
     const priorities = JSON.parse(entries['priorities.json'].toString('utf8'));
     expect(priorities[0].items).toHaveLength(1);

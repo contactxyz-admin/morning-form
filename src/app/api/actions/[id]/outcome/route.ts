@@ -13,7 +13,7 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { env } from '@/lib/env';
 import { resolveTransition } from '@/lib/actions/lifecycle';
-import { buildMarkerTrajectory } from '@/lib/markers/trajectory';
+import { buildMarkerTrajectory, resolveBeforeValueAtAcceptance } from '@/lib/markers/trajectory';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +49,7 @@ export async function POST(
   // Read with ownership check.
   const action = await prisma.action.findUnique({
     where: { id: actionId },
-    select: { id: true, userId: true, state: true, verb: true, markerName: true },
+    select: { id: true, userId: true, state: true, verb: true, markerName: true, acceptedAt: true },
   });
   if (!action || action.userId !== user.id) {
     return NextResponse.json({ error: 'Action not found.' }, { status: 404 });
@@ -71,18 +71,27 @@ export async function POST(
 
   if (action.markerName) {
     const pts = await buildMarkerTrajectory(prisma, user.id, action.markerName);
-    if (pts.length >= 2) {
-      // newest first → pts[0] is after, pts[pts.length-1] is before
+    if (pts.length >= 1) {
+      // newest first → pts[0] is the current ("after") value.
       const newest = pts[0];
-      const oldest = pts[pts.length - 1];
       afterValue = afterValue ?? newest.value;
       afterAt = afterAt ?? newest.timestamp;
-      beforeValue = oldest.value;
-      beforeAt = oldest.timestamp;
-    } else if (pts.length === 1) {
-      afterValue = afterValue ?? pts[0].value;
-      afterAt = afterAt ?? pts[0].timestamp;
-      // before remains null — single-point trajectory.
+    }
+
+    // "Before" = the value the user actually committed against, i.e. the marker
+    // value AT OR BEFORE the action's acceptedAt — NOT trajectory-oldest (which
+    // is only oldest-of-the-recent-24-window). The snapshot is frozen + terminal
+    // so this must be correct on first write (P1 #3). Null acceptedAt or no prior
+    // value → before stays null (the legitimate 1-point / no-before case).
+    const before = await resolveBeforeValueAtAcceptance(
+      prisma,
+      user.id,
+      action.markerName,
+      action.acceptedAt,
+    );
+    if (before) {
+      beforeValue = before.value;
+      beforeAt = before.timestamp;
     }
   }
 

@@ -290,6 +290,10 @@ describe('eraseAccount — residue assertion (real test DB)', () => {
     // Concierge booking requests swept via explicit deleteMany.
     expect(typeof counts.bookingRequests).toBe('number');
     expect(counts.bookingRequests).toBeGreaterThanOrEqual(1);
+    // ActionOutcome snapshots swept via explicit deleteMany — the tombstone
+    // counts the real seeded row (GDPR #7, the vacuous-guard trap).
+    expect(typeof counts.actionOutcomes).toBe('number');
+    expect(counts.actionOutcomes).toBeGreaterThanOrEqual(1);
     expect(counts.sourceDocuments).toBe(1);
     expect(counts.sessions).toBe('cascade');
     expect(counts.funnelEventsScrubbed).toBe(1);

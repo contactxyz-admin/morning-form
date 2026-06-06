@@ -219,9 +219,13 @@ export async function eraseAccount(
       deletedCounts.graphEdges = (await tx.graphEdge.deleteMany({ where: { userId } })).count;
       deletedCounts.graphNodes = (await tx.graphNode.deleteMany({ where: { userId } })).count;
       deletedCounts.topicPages = (await tx.topicPage.deleteMany({ where: { userId } })).count;
+      // ActionOutcome BEFORE Action: ActionOutcome.actionId is onDelete:Cascade,
+      // so deleting Actions first would cascade-remove the outcomes and leave
+      // this explicit deleteMany counting zero (a vacuous audit count). Delete
+      // outcomes first so the tombstone records the real number erased.
+      deletedCounts.actionOutcomes = (await tx.actionOutcome.deleteMany({ where: { userId } })).count;
       deletedCounts.actions = (await tx.action.deleteMany({ where: { userId } })).count;
       deletedCounts.bookingRequests = (await tx.bookingRequest.deleteMany({ where: { userId } })).count;
-      deletedCounts.actionOutcomes = (await tx.actionOutcome.deleteMany({ where: { userId } })).count;
 
       // user.delete() sweeps the cascade-annotated models. Counts for those are
       // not individually recoverable here — record 'cascade'.

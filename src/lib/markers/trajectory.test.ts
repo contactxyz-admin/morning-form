@@ -101,6 +101,47 @@ describe('buildMarkerTrajectory', () => {
     expect(pts[0].timestamp).toContain('2026');
   });
 
+  it('does NOT co-plot a wearable point whose unit conflicts with the lab unit (#4)', async () => {
+    const userId = await makeTestUser(prisma, 'traj-unitmismatch');
+    // Lab marker in μg/L.
+    await addNode(prisma, userId, {
+      type: 'biomarker', canonicalKey: 'ferritin', displayName: 'Ferritin',
+      attributes: { latestValue: 25, unit: 'μg/L', collectionDate: '2026-03-01' },
+    });
+    // Wearable row, same metric name, INCOMPATIBLE unit (ng/dL) — must be dropped.
+    await prisma.healthDataPoint.create({
+      data: {
+        userId, provider: 'manual', category: 'bloodwork',
+        metric: 'ferritin', value: 9999, unit: 'ng/dL', timestamp: new Date('2026-05-01'),
+      },
+    });
+
+    const pts = await buildMarkerTrajectory(prisma, userId, 'Ferritin');
+    // Only the lab point survives; the mismatched-unit wearable point is dropped.
+    expect(pts.map((p) => p.value)).not.toContain(9999);
+    expect(pts).toHaveLength(1);
+    expect(pts[0].value).toBe(25);
+  });
+
+  it('excludes recovery-category wearable points from a lab marker merge (#4)', async () => {
+    const userId = await makeTestUser(prisma, 'traj-recovery');
+    await addNode(prisma, userId, {
+      type: 'biomarker', canonicalKey: 'hrv', displayName: 'HRV',
+      attributes: { latestValue: 45, unit: 'ms', collectionDate: '2026-03-01' },
+    });
+    // recovery-category composite score — never lab-equivalent, must be excluded.
+    await prisma.healthDataPoint.create({
+      data: {
+        userId, provider: 'whoop', category: 'recovery',
+        metric: 'HRV', value: 88, unit: '', timestamp: new Date('2026-05-01'),
+      },
+    });
+
+    const pts = await buildMarkerTrajectory(prisma, userId, 'HRV');
+    expect(pts.map((p) => p.value)).not.toContain(88);
+    expect(pts).toHaveLength(1);
+  });
+
   it('returns 1 point when only 1 biomarker node exists', async () => {
     const userId = await makeTestUser(prisma, 'traj-one');
     await addNode(prisma, userId, {

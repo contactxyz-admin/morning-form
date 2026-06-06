@@ -15,8 +15,16 @@ import { resolveTransition } from '@/lib/actions/lifecycle';
 export const dynamic = 'force-dynamic';
 
 const BodySchema = z.object({
-  /** Target state. */
-  to: z.enum(['accepted', 'completed', 'dismissed', 'outcome-measured']),
+  /**
+   * Target state. `outcome-measured` is deliberately EXCLUDED here: that state
+   * may only be reached via POST /api/actions/[id]/outcome, which writes the
+   * ActionOutcome snapshot in the same $transaction as the state flip. Allowing
+   * it on this route would let an action reach outcome-measured (terminal) with
+   * no snapshot — violating the plan invariant "a snapshot never exists without
+   * the state, and the state never exists without the snapshot". `to:'outcome-measured'`
+   * therefore fails zod validation → 400 (see route.test.ts P0 regression guard).
+   */
+  to: z.enum(['accepted', 'completed', 'dismissed']),
 });
 
 export async function POST(
