@@ -70,6 +70,17 @@ export function generateStateProfile(responses: AssessmentResponses): StateProfi
 }
 
 /**
+ * Resolve the archetype content for a given archetype key. Returns
+ * `undefined` when the key is unregistered so callers can 404 rather
+ * than throw. Used by the marker detail route (Plan 2026-06-06-001 U2).
+ */
+export function resolvePrioritiesContent(
+  archetypeKey: string,
+): ArchetypePriorities | undefined {
+  return ARCHETYPE_CONTENT[archetypeKey as Archetype];
+}
+
+/**
  * Build the priorities object for a user given their assessment responses.
  * Pure function; no side effects. Caller persists the return value via
  * Prisma. The output shape mirrors what the GET /api/assessment endpoint

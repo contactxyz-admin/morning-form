@@ -60,6 +60,10 @@ const optional = {
   // Flips in Unit 7 after legal + advisor gates. Unsetting returns current
   // behaviour byte-for-byte.
   ASK_DEEP_ENABLED: process.env.ASK_DEEP_ENABLED ?? '',
+  // Concierge booking v1 (Plan 2026-06-06-001). Off by default. Gates
+  // the booking request form + ops fulfillment loop. Flip in U5 after
+  // legal/disclosure packet is signed.
+  CONCIERGE_BOOKING_ENABLED: process.env.CONCIERGE_BOOKING_ENABLED ?? '',
 };
 
 export const env = {

@@ -109,6 +109,10 @@ export default function HomePage() {
     assessment.kind === 'ready'
       ? getTopPriorityMarker(assessment.data.priorities.items)
       : undefined;
+  const archetype =
+    assessment.kind === 'ready'
+      ? assessment.data.stateProfile.archetype
+      : undefined;
 
   const showMorningCheckin = (timeOfDay === 'morning' || timeOfDay === 'afternoon') && !morningDone;
   const showEveningCheckin = (timeOfDay === 'evening' || timeOfDay === 'night') && !eveningDone;
@@ -260,10 +264,10 @@ export default function HomePage() {
               {topPriorityMarker.rationale}
             </p>
             <Link
-              href="/intake"
+              href={`/reveal/priorities/marker/${encodeURIComponent(topPriorityMarker.markerName)}?archetype=${archetype ?? ''}`}
               className="mt-4 inline-flex items-center gap-1.5 text-caption text-accent font-medium group"
             >
-              Upload a panel
+              How to get this tested
               <span aria-hidden className="transition-transform duration-450 ease-spring group-hover:translate-x-0.5">→</span>
             </Link>
           </Card>
