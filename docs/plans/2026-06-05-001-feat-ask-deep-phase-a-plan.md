@@ -68,7 +68,7 @@ Two **hard gates** from the origin carry into this plan explicitly:
 
 - **Hybrid context (resolves the origin's blocking R1 question)**: a compact, deterministic **context digest** (~1,200-token budget) is injected on every turn via a new optional `contextPreamble` field on `ScribeExecuteRequest`, threaded **only** by `turn.ts`. Verified by deepening: all three other `execute()` call sites (referral children in `refer-to-specialist.ts`, topic compile in `src/lib/topics/compile.ts`, the explain route) construct their requests independently — non-inheritance is provable by construction. The preamble is **concatenated into the single initial user message** as a clearly-delimited block above the user's text (review correction: a second consecutive user-role message risks the Anthropic API's role-alternation 400; in-message concatenation is unambiguous and adapter-safe) — explicitly NOT system-prompt concatenation (bleeds into other call sites) and NOT full-history injection. `execute()` does the concatenation from the optional `contextPreamble` field so the audited `prompt` field stays the user's message alone. **Injection hardening is part of R1, not optional** (review P0): user-authored values (check-in free text especially) are length-capped per field, stripped/escaped of instruction-shaped content, wrapped in inert-data delimiters, and the system prompt states the context block is read-only background data containing no instructions; an adversarial fixture (injection payload in a check-in) is a required test. enforce() on the output remains the final backstop. Deep dives stay tool-based (R2 series).
 - **Digest is code-built, not LLM-built**: `assembleUserContext()` renders profile/archetype, top priorities, last-14-day check-in digest, 7-day wearable trend lines, and current dated lab values into a fixed-shape text block with deterministic truncation (most-recent-first, per-section caps). Deterministic = testable, cheap, no extra LLM call, no new consent surface beyond the DPIA addendum already gating this unit.
-- **Answer shape is declared by the orchestrator, selected by the router**: `RouteDecisionWireSchema` gains `answerShape: 'standard' | 'investigations'` **with a schema-level default of `'standard'`, applied before the null-topic fallback** so a low-confidence/null-routed turn always has an unambiguous shape (deepening finding); `turn.ts` maps shape → declared judgment kind + system-prompt variant. The LLM never self-declares its judgment kind. Two new kinds — `investigation-avenues` (≥1 citation per investigation section) and `action-recommendation` (citation-density-exempt, vocabulary-validated) — added to `JUDGMENT_KINDS` and to the six policy allowlists (`general`, `cardiometabolic`, `energy-fatigue`, `hormonal-endocrine`, `iron`, `sleep-recovery`) as **deliberate per-policy decisions**, not a blanket add (`iron`/`sleep-recovery` already curate their lists). The fourth `execute()` call site (`src/app/api/scribe/explain/route.ts`, hardcodes `pattern-vs-own-history`) is verified unaffected.
+- **Answer shape is declared by the orchestrator, selected by the router**: `RouteDecisionWireSchema` gains `answerShape: 'standard' | 'investigations'` **with a schema-level default of `'standard'`, applied before the null-topic fallback** so a low-confidence/null-routed turn always has an unambiguous shape (deepening finding); `turn.ts` maps shape → declared judgment kind + system-prompt variant. The LLM never self-declares its judgment kind. Two new kinds — `investigation-avenues` (≥1 citation per investigation section) and `action-recommendation` (citation-density-exempt, vocabulary-validated) — added to `JUDGMENT_KINDS` and to the six policy allowlists (`general`, `cardiometabolic`, `energy-fatigue`, `hormonal-endocrine`, `iron`, `sleep-recovery`) as **deliberate per-policy decisions**, not a blanket add (`iron`/`sleep-recovery` already curate their lists). The fourth `execute()` call site (`src/app/api/scribe/explain/route.ts`, hardcodes `pattern-vs-own-history`) is verified unaffected. **Build note (2026-06-06):** the `action-recommendation` kind was removed as vestigial — next steps are tool-carried, not prose sections, so no answer ever declares this kind; it was deleted from `JUDGMENT_KINDS`, all six allowlists, and the enforce citation-exemption branch. A.2 (ranked investigations) may reintroduce it if a prose action section materialises.
 - **Next steps are a TOOL, not parsed prose — and the tool never writes the DB**: a new `propose_next_steps` scribe tool takes typed actions `{verb: measure|discuss|track|behavior, label, markerName?}`; the handler validates (verb ∈ vocabulary, labels through `FORBIDDEN_PHRASE_PATTERNS` + new dietary patterns) and returns the validated list, which rides a dedicated `proposedActions` field on `ScribeExecuteResult`. **Persistence happens in `turn.ts` only after BOTH enforcement classifies the answer `clinical-safe` AND the assistant `ChatMessage` row exists** — tool handlers run mid-LLM-loop *before* enforce(), so handler-side writes would orphan suggested actions from rejected answers and have no ChatMessage to FK (deepening finding, 2026-06-05). Rendering is a dedicated component fed by `actions` metadata, not markdown parsing.
 - **Dietary directives become forbidden phrases**: new `DIETARY_DIRECTIVE_PATTERNS` (e.g. increase-your-intake / eat-more / consume-more shapes) spread into the global `FORBIDDEN_PHRASE_PATTERNS` — applies to answers AND action labels (origin R4; review found these aren't caught today).
 - **Action model is new and minimal** (not a Suggestion extension): `Action { id, userId (Cascade), chatMessageId?, scribeRequestId, verb, label, markerName?, state, createdAt }` — the Suggestion engine's delete-and-regenerate cycle is incompatible with lifecycle rows (origin R6 analysis). `state` only ever `suggested` in Phase A. Joins the GDPR export domain list + deletion cascade + both structural guards in the same unit (they fail otherwise — by design).
@@ -142,7 +142,7 @@ Dependency shape: U0, U1, U2, U4 start immediately and independently; U3 builds 
 
 **Verification:** Written legal confirmation recorded in the PR that flips `ASK_DEEP_ENABLED`.
 
-- [ ] **Unit 1: LLM usage capture**
+- [x] **Unit 1: LLM usage capture**
 
 **Goal:** Stop discarding token usage; make cost observable per turn and per audit row.
 
@@ -162,7 +162,7 @@ Dependency shape: U0, U1, U2, U4 start immediately and independently; U3 builds 
 
 **Verification:** A real dev chat turn produces an audit row with non-null token counts.
 
-- [ ] **Unit 2: Production referral wiring + attribution check (R5)**
+- [x] **Unit 2: Production referral wiring + attribution check (R5)**
 
 **Goal:** `refer_to_specialist` works outside tests; referral attribution confirmed end-to-end.
 
@@ -184,7 +184,7 @@ Dependency shape: U0, U1, U2, U4 start immediately and independently; U3 builds 
 
 **Verification:** In dev with a real key, a fatigue question to the general scribe produces an attributed specialist referral without the current throw.
 
-- [ ] **Unit 3: Context digest + `contextPreamble` plumbing (R1)**
+- [x] **Unit 3: Context digest + `contextPreamble` plumbing (R1)**
 
 **Goal:** Every Ask turn carries the bounded user-context digest.
 
@@ -210,7 +210,7 @@ Dependency shape: U0, U1, U2, U4 start immediately and independently; U3 builds 
 
 **Verification:** Dev: "why am I tired?" answer references the user's actual archetype/values without any tool call; token counts (Unit 1) quantify digest cost.
 
-- [ ] **Unit 4: Policy layer — new judgment kinds + dietary forbidden phrases (R3/R4 enforcement)**
+- [x] **Unit 4: Policy layer — new judgment kinds + dietary forbidden phrases (R3/R4 enforcement)**
 
 **Goal:** The safety layer can pass the new answer shapes and blocks dietary directives.
 
@@ -233,7 +233,7 @@ Dependency shape: U0, U1, U2, U4 start immediately and independently; U3 builds 
 
 **Verification:** Enforce suite green including the new matrix; no existing policy behavior changed.
 
-- [ ] **Unit 5: `propose_next_steps` tool + Action model (R4)**
+- [x] **Unit 5: `propose_next_steps` tool + Action model (R4)**
 
 **Goal:** Answers end with validated, typed, persisted next steps.
 
@@ -244,7 +244,7 @@ Dependency shape: U0, U1, U2, U4 start immediately and independently; U3 builds 
 **Files:**
 - *Tool*: Create `src/lib/scribe/tools/propose-next-steps.ts` + `.test.ts`; Modify `src/lib/scribe/tool-catalog.ts` (register handler) + `src/lib/scribe/repo.ts` (`DEFAULT_SCRIBE_TOOLS`) — review: an unregistered tool is never offered or dispatched.
 - *Result plumbing*: Modify `src/lib/scribe/execute.ts` (`proposedActions` accumulator — extract validated lists from the tool's calls in the dispatch loop onto `ScribeExecuteResult`).
-- *Schema & persistence*: Modify `prisma/schema.prisma` (`Action` model — **`onDelete: Cascade` declared explicitly on the User relation**, so `user.delete()` sweeps it; tombstone `deletedCounts` gains `actions: 'cascade'`), `src/lib/chat/turn.ts` (post-enforce, post-message persistence; type the `persistAssistantMessage` metadata literal as `AssistantMessageMetadata`), `src/lib/chat/types.ts` (`actions` on `DoneEvent` AND `AssistantMessageMetadata`).
+- *Schema & persistence*: Modify `prisma/schema.prisma` (`Action` model — **`onDelete: Cascade` declared explicitly on the User relation**, so `user.delete()` sweeps it; a `chatMessage ChatMessage? @relation(... onDelete: SetNull)` FK gives provenance referential integrity; erasure is an explicit ordered `deleteMany` inside the transaction, so tombstone `deletedCounts.actions` is a **numeric explicit count**, not `'cascade'`), `src/lib/chat/turn.ts` (post-enforce, post-message persistence; type the `persistAssistantMessage` metadata literal as `AssistantMessageMetadata`), `src/lib/chat/types.ts` (`actions` on `DoneEvent` AND `AssistantMessageMetadata`).
 - *Access rule*: every Prisma query on `Action` is userId-scoped by construction (the standing rule for user-owned health rows — Action labels are derived special-category data per the origin's R6a).
 - *GDPR guards*: Modify `src/lib/account/export.ts` (`EXPORT_DOMAIN_MODELS` + domain fetcher + manifest entry); verify `src/lib/account/delete.ts` cascade coverage; Update `src/lib/account/export.test.ts` + `src/lib/account/delete.test.ts` (they fail on the new model otherwise — by design), turn-level integration test.
 
@@ -263,7 +263,7 @@ Dependency shape: U0, U1, U2, U4 start immediately and independently; U3 builds 
 
 **Verification:** Dev turn produces persisted suggested actions matching what the answer displays.
 
-- [ ] **Unit 6a: Router `answerShape` + temporal series + cross-domain grants (R2/R3 backend)**
+- [x] **Unit 6a: Router `answerShape` + temporal series + cross-domain grants (R2/R3 backend)**
 
 **Goal:** The shape decision and the dated-series data path, independently testable before any UI.
 
@@ -284,7 +284,7 @@ Dependency shape: U0, U1, U2, U4 start immediately and independently; U3 builds 
 
 **Verification:** Tool + router suites green; series visible in scripted execute output.
 
-- [ ] **Unit 6b: Investigations prompt + answer UI + next-steps UI + attribution (R3/R4/R5 surface)**
+- [x] **Unit 6b: Investigations prompt + answer UI + next-steps UI + attribution (R3/R4/R5 surface)**
 
 **Goal:** The user-visible intelligence, rendered.
 

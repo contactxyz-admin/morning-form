@@ -162,6 +162,182 @@ describe('enforce — rejection on forbidden phrase patterns', () => {
   });
 });
 
+describe('enforce — investigation-avenues structural citation rule', () => {
+  it('accepts an investigation-avenues answer with a citation on every avenue section', () => {
+    const candidate = makeCandidate({
+      judgmentKind: 'investigation-avenues',
+      output: 'Your fatigue could stem from several sources. First, your low ferritin… Next, your sleep HRV pattern…',
+      sections: [
+        { heading: 'Iron status', paragraphCount: 2, citationCount: 1 },
+        { heading: 'Sleep recovery', paragraphCount: 1, citationCount: 1 },
+      ],
+    });
+    const result = enforce(getPolicy('energy-fatigue')!, candidate);
+    expect(result.ok).toBe(true);
+    expect(result.classification).toBe('clinical-safe');
+  });
+
+  it('rejects an investigation-avenues answer with an uncited investigation section', () => {
+    const candidate = makeCandidate({
+      judgmentKind: 'investigation-avenues',
+      output: 'Your fatigue could stem from several sources. First, your low ferritin… Next, your sleep pattern…',
+      sections: [
+        { heading: 'Iron status', paragraphCount: 1, citationCount: 1 },
+        { heading: 'Sleep recovery', paragraphCount: 2, citationCount: 0 },
+      ],
+    });
+    const result = enforce(getPolicy('energy-fatigue')!, candidate);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.classification).toBe('rejected');
+    expect(result.violations.some((v) => v.kind === 'insufficient-citation-density' && v.sectionHeading === 'Sleep recovery')).toBe(true);
+  });
+
+  it('rejects an investigation-avenues answer with zero sections', () => {
+    const candidate = makeCandidate({
+      judgmentKind: 'investigation-avenues',
+      output: 'Several factors may explain your tiredness.',
+      sections: [],
+    });
+    const result = enforce(getPolicy('energy-fatigue')!, candidate);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.classification).toBe('rejected');
+    expect(result.violations.some((v) => v.kind === 'insufficient-citation-density')).toBe(true);
+  });
+
+  it('rejects an investigation-avenues section with paragraphCount 0 AND citationCount 0 (vacuous-pass guard)', () => {
+    // The generic density loop skips zero-paragraph sections, which would
+    // vacuously pass an uncited avenue. The structural branch must catch a
+    // section that is both empty and uncited.
+    const candidate = makeCandidate({
+      judgmentKind: 'investigation-avenues',
+      output: 'Your tiredness may have several causes worth investigating.',
+      sections: [
+        { heading: 'Iron status', paragraphCount: 0, citationCount: 0 },
+      ],
+    });
+    const result = enforce(getPolicy('energy-fatigue')!, candidate);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.classification).toBe('rejected');
+    expect(
+      result.violations.some(
+        (v) =>
+          v.kind === 'insufficient-citation-density' &&
+          v.sectionHeading === 'Iron status',
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('enforce — dietary directive forbidden phrases', () => {
+  it('rejects "increase your intake of"', () => {
+    const candidate = makeCandidate({
+      judgmentKind: 'reference-range-comparison',
+      output: 'You should increase your intake of iron-rich foods.',
+      sections: [{ heading: 'Advice', paragraphCount: 1, citationCount: 1 }],
+    });
+    const result = enforce(IRON_POLICY, candidate);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.classification).toBe('rejected');
+    expect(result.violations.some((v) => v.match?.includes('increase your intake of'))).toBe(true);
+  });
+
+  it('rejects "eat more iron-rich foods"', () => {
+    const candidate = makeCandidate({
+      judgmentKind: 'pattern-vs-own-history',
+      output: 'Eat more iron-rich foods like spinach and red meat.',
+      sections: [{ heading: 'Diet', paragraphCount: 1, citationCount: 1 }],
+    });
+    const result = enforce(IRON_POLICY, candidate);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.classification).toBe('rejected');
+  });
+
+  // Cover the remaining dietary-directive patterns (those not already exercised
+  // by the two cases above) — every pattern in DIETARY_DIRECTIVE_PATTERNS must
+  // have a rejecting fixture so a regex regression can't silently widen the net.
+  const DIETARY_DIRECTIVE_FIXTURES: Array<[string, string]> = [
+    ['you should eat more', 'You should eat more to recover your energy.'],
+    ['you should eat less', 'You should eat less in the evenings.'],
+    ['you should consume more', 'You should consume more during training blocks.'],
+    ['you should consume less', 'You should consume less caffeine at night.'],
+    ['consume more protein', 'Consume more protein after your workouts.'],
+    ['you need to eat more', 'You need to eat more to hit your targets.'],
+    ['you need to consume more', 'You need to consume more during your taper.'],
+    ['add more X to your diet', 'Add more spinach to your diet this week.'],
+    ['cut out X from your diet', 'Cut out sugar from your diet entirely.'],
+    ['reduce your intake of', 'Reduce your intake of red meat going forward.'],
+  ];
+
+  it.each(DIETARY_DIRECTIVE_FIXTURES)(
+    'rejects the dietary directive: %s',
+    (_label, output) => {
+      const candidate = makeCandidate({
+        judgmentKind: 'pattern-vs-own-history',
+        output,
+        sections: [{ heading: 'Advice', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+      expect(result.violations.some((v) => v.kind === 'forbidden-phrase')).toBe(true);
+    },
+  );
+
+  // A broad set of legitimate descriptive / non-directive sentences mentioning
+  // diet or intake that MUST pass — a single-example net is too thin for a
+  // global filter.
+  const DESCRIPTIVE_NON_DIRECTIVE: string[] = [
+    'Dietary iron intake can influence ferritin levels over time.',
+    'Your GP note mentions low dietary iron intake as a contributing factor.',
+    'Leafy greens are a common dietary source of folate in the general population.',
+    'Red meat is a dietary source of heme iron, which is absorbed efficiently.',
+    'Your recent intake of caffeine may correlate with the disrupted sleep onset in your log.',
+    'A balanced diet typically includes a range of protein sources.',
+  ];
+
+  it.each(DESCRIPTIVE_NON_DIRECTIVE)(
+    'accepts the descriptive non-directive sentence: %s',
+    (output) => {
+      const candidate = makeCandidate({
+        judgmentKind: 'reference-range-comparison',
+        output,
+        sections: [{ heading: 'Iron status', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(true);
+    },
+  );
+});
+
+describe('enforce — regression: existing 4 judgment kinds unaffected', () => {
+  const OLD_KINDS = ['reference-range-comparison', 'pattern-vs-own-history', 'citation-surfacing', 'definition-lookup'];
+
+  it('old judgment kinds still pass/fail as before on iron policy', () => {
+    for (const kind of OLD_KINDS) {
+      const isAllowed = IRON_POLICY.allowedJudgmentKinds.includes(kind as never);
+      const candidate = makeCandidate({
+        judgmentKind: kind as never,
+        output: 'Test output.',
+        sections: isAllowed
+          ? [{ heading: 'Test', paragraphCount: 1, citationCount: 1 }]
+          : [{ heading: 'Test', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      if (isAllowed) {
+        expect(result.ok).toBe(true);
+      } else {
+        expect(result.ok).toBe(false);
+      }
+    }
+  });
+});
+
 describe('enforce — citation density', () => {
   it('rejects a section whose citation density is below the policy floor', () => {
     // 1 citation across 3 paragraphs = 0.33; policy floor is 0.5.

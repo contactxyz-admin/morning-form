@@ -58,6 +58,11 @@ DECISION RULES:
    - <0.5 for no-clear-match; the caller will substitute null.
 5. reasoning is one short line for the audit trail. NOT shown to the user. Do not hedge; state the signal you used.
 
+ANSWER SHAPE (answerShape):
+Also classify how the answer should be shaped:
+- answerShape="investigations" ONLY for causal / "why" questions about the user's OWN state — questions probing the cause(s) of something the user is experiencing or measuring, where multiple contributing factors are worth investigating (e.g. "why am I so tired?", "what is causing my low HRV?", "could my poor sleep be driving my fatigue?", "why has my ferritin dropped?"). These warrant presenting investigation avenues rather than a single answer.
+- answerShape="standard" for everything else: factual lookups, "has my sleep improved?", "what is ferritin?", definitional, temporal/trend, single-fact, or how-to questions. When unsure, choose "standard".
+
 HARD RULES:
 - Never invent a topicKey. If none fit, return null.
 - Never propose a new specialist domain.
@@ -83,7 +88,7 @@ ${history}
 Current user utterance to route:
 <current_utterance>${escapeFencedText(input.text)}</current_utterance>
 
-Emit { topicKey, confidence, reasoning } for this utterance.`;
+Emit { topicKey, confidence, reasoning, answerShape } for this utterance.`;
 }
 
 /**

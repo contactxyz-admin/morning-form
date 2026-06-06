@@ -27,6 +27,7 @@ describe('coerceDecision', () => {
       topicKey: 'iron',
       confidence: 0.9,
       reasoning: 'mentions ferritin explicitly',
+      answerShape: 'standard',
     });
   });
 
@@ -63,7 +64,43 @@ describe('coerceDecision', () => {
       topicKey: null,
       confidence: 0.1,
       reasoning: 'nothing in scope',
+      answerShape: 'standard',
     });
+  });
+
+  it("passes an 'investigations' answerShape through on a valid routed decision", () => {
+    const decision = coerceDecision({
+      topicKey: 'energy-fatigue',
+      confidence: 0.85,
+      reasoning: 'causal why-question about fatigue',
+      answerShape: 'investigations',
+    });
+    expect(decision.topicKey).toBe('energy-fatigue');
+    expect(decision.answerShape).toBe('investigations');
+  });
+
+  it("resets answerShape to 'standard' when topicKey is coerced to null (KT-001)", () => {
+    // Unregistered key + investigations shape: the null-fallback turn must not
+    // inherit the investigations shape (would demand avenues the fallback
+    // scribe can't satisfy).
+    const unregistered = coerceDecision({
+      topicKey: 'gut',
+      confidence: 0.95,
+      reasoning: 'why is my gut upset',
+      answerShape: 'investigations',
+    });
+    expect(unregistered.topicKey).toBeNull();
+    expect(unregistered.answerShape).toBe('standard');
+
+    // Same for the low-confidence demotion path.
+    const lowConfidence = coerceDecision({
+      topicKey: 'iron',
+      confidence: 0.3,
+      reasoning: 'vague causal guess',
+      answerShape: 'investigations',
+    });
+    expect(lowConfidence.topicKey).toBeNull();
+    expect(lowConfidence.answerShape).toBe('standard');
   });
 
   it('prefers the unregistered-key reasoning prefix when both conditions would trigger', () => {
@@ -90,6 +127,7 @@ describe('routeTurn — pre-guards', () => {
       topicKey: null,
       confidence: 0,
       reasoning: 'empty input — skipped LLM call',
+      answerShape: 'standard',
     });
     expect(spy).not.toHaveBeenCalled();
   });

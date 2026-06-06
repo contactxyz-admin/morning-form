@@ -22,6 +22,8 @@ export interface RouteDecision {
   readonly confidence: number;
   /** One-line rationale for the audit trail. Not user-facing. */
   readonly reasoning: string;
+  /** Answer shape — 'standard' or 'investigations'. Defaults to 'standard'. */
+  readonly answerShape: 'standard' | 'investigations';
 }
 
 export interface RouteTurnInput {

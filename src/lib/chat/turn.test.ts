@@ -84,6 +84,39 @@ function mockRouter(topicKey: string | null, confidence: number, reasoning = 'te
   ]);
 }
 
+function mockRouterWithShape(
+  topicKey: string | null,
+  confidence: number,
+  answerShape: 'standard' | 'investigations',
+) {
+  setMockHandlers([
+    {
+      key: '<current_utterance>',
+      handler: () => ({ topicKey, confidence, reasoning: 'test', answerShape }),
+    },
+  ]);
+}
+
+/** Scribe that captures the full system prompt + tool list per turn. */
+function capturingScribe(
+  turns: ScribeLLMTurn[],
+  calls: Array<{ system: string; toolNames: string[]; firstMessage: string }>,
+): ScribeLLMClient {
+  const queue = [...turns];
+  return {
+    async turn(req) {
+      calls.push({
+        system: req.system,
+        toolNames: req.tools.map((t) => t.name),
+        firstMessage: req.messages[0]?.content ?? '',
+      });
+      const next = queue.shift();
+      if (!next) throw new Error('capturingScribe: queue exhausted');
+      return next;
+    },
+  };
+}
+
 function routerClient(): LLMClient {
   return new LLMClient({ mock: true });
 }
@@ -720,5 +753,218 @@ describe('runChatTurn — referral surfacing (Unit 6)', () => {
     expect(done.referrals[0].displayName).toBe('Mental health');
     expect(done.referrals[0].response).toMatch(/not yet built/i);
     expect(done.referrals[0].requestId).toBeUndefined();
+  });
+});
+
+describe('runChatTurn — ASK_DEEP_ENABLED flag gating (Phase A)', () => {
+  const ORIGINAL_FLAG = process.env.ASK_DEEP_ENABLED;
+
+  afterEach(() => {
+    if (ORIGINAL_FLAG === undefined) delete process.env.ASK_DEEP_ENABLED;
+    else process.env.ASK_DEEP_ENABLED = ORIGINAL_FLAG;
+  });
+
+  /** Seed a user whose profile WOULD produce a digest if the flag were on. */
+  async function seedRichUser(label: string): Promise<string> {
+    const userId = await makeTestUser(prisma, label);
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    await prisma.stateProfile.create({
+      data: {
+        userId,
+        archetype: 'Endurance athlete',
+        primaryPattern: 'Iron dysregulation',
+        patternDescription: 'Recurring low ferritin',
+        observations: 'Responds to monitoring',
+        constraints: '',
+        sensitivities: '',
+      },
+    });
+    return userId;
+  }
+
+  // flag unset, 'false', '0' must ALL leave the feature off.
+  for (const flagValue of [undefined, 'false', '0'] as const) {
+    it(`flag=${flagValue ?? 'unset'} → no preamble, no propose_next_steps tool, standard shape`, async () => {
+      if (flagValue === undefined) delete process.env.ASK_DEEP_ENABLED;
+      else process.env.ASK_DEEP_ENABLED = flagValue;
+
+      const userId = await seedRichUser(`turn-flag-${flagValue ?? 'unset'}`);
+      // Router asks for the investigations shape — the flag-off path must
+      // override it to standard regardless.
+      mockRouterWithShape('iron', 0.95, 'investigations');
+
+      const calls: Array<{ system: string; toolNames: string[]; firstMessage: string }> = [];
+      const events = await collect(
+        runChatTurn({
+          db: prisma,
+          userId,
+          text: 'why is my ferritin low?',
+          routerLlm: routerClient(),
+          scribeLlm: capturingScribe(
+            [{ stopReason: 'end_turn', text: 'Your ferritin reading is on file.', modelVersion: 'v1', toolCalls: [] }],
+            calls,
+          ),
+        }),
+      );
+
+      expect(events.at(-1)?.type).toBe('done');
+      // No context preamble injected — first message is the bare user message.
+      expect(calls[0].firstMessage).toBe('why is my ferritin low?');
+      expect(calls[0].firstMessage).not.toContain('Background context');
+      expect(calls[0].firstMessage).not.toContain('Endurance athlete');
+      // propose_next_steps not offered to the LLM.
+      expect(calls[0].toolNames).not.toContain('propose_next_steps');
+      // Standard shape — no investigations prompt suffix.
+      expect(calls[0].system ?? '').not.toContain('INVESTIGATIONS MODE');
+    });
+  }
+
+  it("flag='true' → preamble injected and propose_next_steps offered", async () => {
+    process.env.ASK_DEEP_ENABLED = 'true';
+
+    const userId = await seedRichUser('turn-flag-true');
+    mockRouter('iron', 0.95);
+
+    const calls: Array<{ system: string; toolNames: string[]; firstMessage: string }> = [];
+    await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'why is my ferritin low?',
+        routerLlm: routerClient(),
+        scribeLlm: capturingScribe(
+          [{ stopReason: 'end_turn', text: 'Your ferritin reading is on file.', modelVersion: 'v1', toolCalls: [] }],
+          calls,
+        ),
+      }),
+    );
+
+    // Preamble present, gated tool offered.
+    expect(calls[0].firstMessage).toContain('Background context');
+    expect(calls[0].firstMessage).toContain('Endurance athlete');
+    expect(calls[0].toolNames).toContain('propose_next_steps');
+  });
+});
+
+describe('runChatTurn — propose_next_steps persistence safety invariant (Phase A)', () => {
+  const ORIGINAL_FLAG = process.env.ASK_DEEP_ENABLED;
+
+  beforeAll(() => {
+    process.env.ASK_DEEP_ENABLED = 'true';
+  });
+
+  afterAll(() => {
+    if (ORIGINAL_FLAG === undefined) delete process.env.ASK_DEEP_ENABLED;
+    else process.env.ASK_DEEP_ENABLED = ORIGINAL_FLAG;
+  });
+
+  /** Two-turn scribe: call propose_next_steps, then end_turn with `finalText`. */
+  function proposeThenAnswer(finalText: string): ScribeLLMClient {
+    return scriptedScribe([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          {
+            id: 'tu-actions',
+            name: 'propose_next_steps',
+            input: {
+              actions: [
+                { verb: 'measure', label: 'Re-check ferritin in 3 months', markerName: 'Ferritin' },
+                { verb: 'discuss', label: 'Review iron results with your GP' },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stopReason: 'end_turn',
+        text: finalText,
+        modelVersion: 'v1',
+        toolCalls: [],
+      },
+    ]);
+  }
+
+  it('happy path → done carries persisted actions and DB has matching Action rows', async () => {
+    const userId = await makeTestUser(prisma, 'turn-actions-happy');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    mockRouter('iron', 0.95);
+
+    const events = await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'what should I do about my iron?',
+        routerLlm: routerClient(),
+        scribeLlm: proposeThenAnswer(
+          'Your ferritin is on file and within the lower part of the typical range.',
+        ),
+      }),
+    );
+
+    const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
+    expect(done.classification).toBe('clinical-safe');
+    expect(done.actions).toHaveLength(2);
+    expect(done.actions.map((a) => a.verb)).toEqual(['measure', 'discuss']);
+
+    const rows = await prisma.action.findMany({ where: { userId } });
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.state === 'suggested')).toBe(true);
+    // chatMessageId provenance points at the persisted assistant message.
+    expect(rows.every((r) => r.chatMessageId === done.assistantMessageId)).toBe(true);
+  });
+
+  it('forbidden-phrase final output → rejected, ZERO Action rows, empty done.actions', async () => {
+    const userId = await makeTestUser(prisma, 'turn-actions-rejected');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    mockRouter('iron', 0.95);
+
+    const events = await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'what should I do about my iron?',
+        routerLlm: routerClient(),
+        // Final answer contains a forbidden dose string → enforce rejects.
+        scribeLlm: proposeThenAnswer('You should take 65mg of ferrous sulfate daily.'),
+      }),
+    );
+
+    const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
+    expect(done.classification).toBe('rejected');
+    expect(done.actions).toEqual([]);
+
+    const rows = await prisma.action.findMany({ where: { userId } });
+    expect(rows).toHaveLength(0);
+  });
+
+  it('out-of-scope-routed answer → ZERO Action rows, empty done.actions', async () => {
+    const userId = await makeTestUser(prisma, 'turn-actions-oos');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    mockRouter('iron', 0.95);
+
+    // A definition-lookup judgment is out-of-scope on the iron policy. We can't
+    // set declaredJudgmentKind from here, but a non-clinical-safe classification
+    // is what matters: drive it via a forbidden phrase is already covered, so
+    // here we assert the broader contract — any non-safe classification yields
+    // no actions. Use an output that trips the imperative-verb forbidden phrase.
+    const events = await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'what should I do about my iron?',
+        routerLlm: routerClient(),
+        scribeLlm: proposeThenAnswer('You should stop taking your current supplement.'),
+      }),
+    );
+
+    const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
+    expect(done.classification).not.toBe('clinical-safe');
+    expect(done.actions).toEqual([]);
+
+    const rows = await prisma.action.findMany({ where: { userId } });
+    expect(rows).toHaveLength(0);
   });
 });

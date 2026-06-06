@@ -39,6 +39,9 @@ import { ScribeAuditWriteError } from '@/lib/scribe/repo';
 import { routeTurn, type RouteDecision } from '@/lib/scribe/router';
 import { getSpecialty } from '@/lib/scribe/specialties/registry';
 import { loadSpecialtySystemPrompt } from '@/lib/scribe/specialties/load-prompt';
+import { assembleUserContext } from '@/lib/chat/user-context';
+import type { ValidatedAction } from '@/lib/scribe/tools/propose-next-steps';
+import { env } from '@/lib/env';
 import {
   DEFAULT_HISTORY_LIMIT,
   createChatMessage,
@@ -156,8 +159,41 @@ export async function* runChatTurn(
   // 5. Scribe path — every conversation runs against a real specialty (the
   //    router's null is resolved to the general scribe). execute() owns
   //    the D11 audit write so every turn writes a ScribeAudit row.
+  //
+  //    ASK_DEEP_ENABLED is the single gate for ALL Phase A behavior. It must
+  //    be a strict `=== 'true'` comparison (matching LIBRE_ENABLED) — any
+  //    other value ('false', '0', '') leaves the flag OFF and the turn
+  //    byte-for-byte identical to pre-Phase-A behaviour. Read from
+  //    process.env first (test seam) then the frozen env snapshot.
+  const askDeep = (process.env.ASK_DEEP_ENABLED ?? env.ASK_DEEP_ENABLED) === 'true';
+
   const topicKey = resolveTopicKey(decision);
-  const systemPrompt = buildAskRuntimeSystemPrompt(topicKey);
+  // answerShape-derived behaviour is gated by the flag. Off → shape forced
+  // 'standard', judgment kind stays the legacy 'pattern-vs-own-history',
+  // no investigations prompt suffix, default token budget.
+  const answerShape = askDeep ? (decision.answerShape ?? undefined) : 'standard';
+  const systemPrompt = buildAskRuntimeSystemPrompt(topicKey, answerShape);
+  // Shape → judgment kind (orchestrator declares, never the LLM).
+  const declaredJudgmentKind = answerShape === 'investigations'
+    ? 'investigation-avenues'
+    : 'pattern-vs-own-history';
+
+  // Phase A context digest — only when the feature flag is on. Assembly must
+  // never block a turn (degrade to no-preamble on failure). Compile and
+  // referral child turns never carry a preamble — only turn.ts sets it.
+  let contextPreamble: string | undefined;
+  if (askDeep) {
+    try {
+      contextPreamble = await assembleUserContext(db, userId) ?? undefined;
+    } catch (err) {
+      console.error('[turn] context digest assembly failed:', err);
+      // Degrade gracefully — the turn proceeds without context.
+    }
+  }
+
+  // Investigations answers are deeper — raise the token budget so they're
+  // not silently truncated at the default 2048.
+  const maxTokens = answerShape === 'investigations' ? 4096 : undefined;
 
   let result;
   try {
@@ -167,11 +203,18 @@ export async function* runChatTurn(
       topicKey,
       mode: 'runtime',
       userMessage: text,
-      declaredJudgmentKind: 'pattern-vs-own-history',
+      declaredJudgmentKind,
       llm: scribeLlm,
       requestId: input.requestId,
       systemPrompt,
       signal,
+      contextPreamble,
+      maxTokens,
+      // Only chat turns with the flag ON may offer propose_next_steps to the
+      // LLM. Compile, explain, and referral-child invocations never set this,
+      // so the tool stays absent from their tool-definition list and is
+      // undispatchable. Flag off → tool absent even on chat turns.
+      enableProposeNextSteps: askDeep,
     });
   } catch (err) {
     // ScribeAuditWriteError is the structurally-load-bearing D11 breach;
@@ -209,6 +252,10 @@ export async function* runChatTurn(
   const referrals: readonly Referral[] =
     result.classification === 'clinical-safe' ? collectReferrals(result.toolCalls) : [];
 
+  // Actions — only surfacing (and persisting) when clinical-safe.
+  const actions: readonly ValidatedAction[] =
+    result.classification === 'clinical-safe' ? result.proposedActions : [];
+
   for (const chunk of chunkForStream(visibleOutput)) {
     yield { type: 'token', text: chunk };
   }
@@ -227,11 +274,32 @@ export async function* runChatTurn(
       requestId: result.requestId,
       auditId: result.auditId,
       referrals,
+      actions,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'assistant persistence failed';
     yield { type: 'error', message };
     return;
+  }
+
+  // 8. Persist Action rows (only when clinical-safe, after ChatMessage exists).
+  //    If the answer was rejected, proposedActions is empty so this is a no-op.
+  //    ChatMessage.id is the FK provenance. Ordering: message first, then actions
+  //    — a message persistence failure leaves zero action rows.
+  //
+  //    The done event must reflect DB state: if persistence fails, the client
+  //    must NOT show actions that aren't durably stored (it can't reconcile
+  //    them on reload). On failure we emit actions: [] but keep the turn alive
+  //    — the answer already landed; missing actions are a UX degradation, not
+  //    a safety gap.
+  let emittedActions: readonly ValidatedAction[] = actions;
+  if (actions.length > 0) {
+    try {
+      await persistSuggestedActions(db, userId, assistantMessage.id, result.requestId, actions);
+    } catch (err) {
+      console.error('[turn] action persistence failed (non-fatal):', err);
+      emittedActions = [];
+    }
   }
 
   yield {
@@ -244,18 +312,46 @@ export async function* runChatTurn(
     requestId: result.requestId,
     auditId: result.auditId,
     referrals,
+    actions: emittedActions,
+    ...(result.truncated ? { truncated: true } : {}),
   };
 }
 
-function buildAskRuntimeSystemPrompt(topicKey: string): string | undefined {
+function buildAskRuntimeSystemPrompt(
+  topicKey: string,
+  answerShape?: 'standard' | 'investigations',
+): string | undefined {
   const specialtyPrompt = loadSpecialtySystemPrompt(topicKey);
-  if (specialtyPrompt) {
-    return appendAskAnswerStylePrompt(specialtyPrompt);
+  const base = specialtyPrompt
+    ?? (getPolicy(topicKey) ? buildDefaultScribeSystemPrompt(getPolicy(topicKey)!) : undefined);
+  if (!base) return undefined;
+
+  let prompt = appendAskAnswerStylePrompt(base);
+  if (answerShape === 'investigations') {
+    prompt += '\n\n' + INVESTIGATIONS_PROMPT_SUFFIX;
   }
-  const policy = getPolicy(topicKey);
-  if (!policy) return undefined;
-  return appendAskAnswerStylePrompt(buildDefaultScribeSystemPrompt(policy));
+  return prompt;
 }
+
+/**
+ * Investigations prompt suffix — appended to the system prompt when the
+ * router selects the investigations shape. Instructs the scribe to present
+ * avenues in measurement-yield order, use the user's own data, name the
+ * distinguishing test, and avoid likelihood language.
+ *
+ * Inline rather than a separate file — short enough (~400 chars) that a
+ * file read adds latency without adding clarity. May move to a markdown
+ * module if it grows beyond a paragraph.
+ */
+const INVESTIGATIONS_PROMPT_SUFFIX = [
+  'INVESTIGATIONS MODE — you are presenting possible avenues worth pursuing, not diagnosing.',
+  'For each avenue:',
+  '  - Name the user\'s own data point that suggests it (from the context block, pattern tool, or graph tools).',
+  '  - Name the distinguishing measurement or test that would clarify it. Prefer measurements already available in the user\'s data profile. If none match, name the most common accessible test.',
+  '  - Do NOT rank, label, or order by likelihood. No "most likely," "primary," "secondary," "probable," "possible."',
+  '  - Cite at least one source per avenue (graph node, check-in, or context digest).',
+  'After the avenues, call propose_next_steps with 2–4 typed next steps from the user\'s actual data.',
+].join('\n');
 
 /**
  * Walk the orchestrator's recorded tool calls and pull out successful
@@ -315,6 +411,7 @@ async function persistAssistantMessage(
     requestId: string;
     auditId: string;
     referrals: readonly Referral[];
+    actions: readonly ValidatedAction[];
   },
 ) {
   try {
@@ -325,6 +422,31 @@ async function persistAssistantMessage(
     await new Promise((resolve) => setTimeout(resolve, 150));
     return await createChatMessage(db, userId, 'assistant', output, metadata);
   }
+}
+
+/**
+ * Persist validated suggested actions. Called ONLY after ChatMessage exists
+ * and enforce() returned clinical-safe. A failure here is non-fatal — the
+ * answer already landed; missing actions are a UX degradation, not a safety gap.
+ */
+async function persistSuggestedActions(
+  db: Db,
+  userId: string,
+  chatMessageId: string,
+  scribeRequestId: string,
+  actions: readonly ValidatedAction[],
+): Promise<void> {
+  await db.action.createMany({
+    data: actions.map((a) => ({
+      userId,
+      chatMessageId,
+      scribeRequestId,
+      verb: a.verb,
+      label: a.label,
+      markerName: a.markerName ?? null,
+      state: 'suggested',
+    })),
+  });
 }
 
 function abortMessage(signal: AbortSignal): string {

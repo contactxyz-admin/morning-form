@@ -17,10 +17,12 @@ import { cn } from '@/lib/utils';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
 import type { Referral } from '@/lib/chat/types';
+import type { ValidatedAction } from '@/lib/scribe/tools/propose-next-steps';
 import { Mention } from '@/components/mention/mention';
 import { AnswerRenderer } from './answer-renderer';
 import { ReferralChips } from './referral-chip';
 import { SpecialistChip } from './specialist-chip';
+import { NextSteps } from './next-steps';
 
 export interface UserBubbleModel {
   readonly role: 'user';
@@ -41,6 +43,8 @@ export interface AssistantBubbleModel {
   readonly pending?: boolean;
   /** If set, renders an inline error surface instead of content. */
   readonly error?: string;
+  /** Validated next-step actions proposed by the scribe. Empty when none. */
+  readonly actions?: readonly ValidatedAction[];
 }
 
 export type BubbleModel = UserBubbleModel | AssistantBubbleModel;
@@ -134,6 +138,12 @@ function AssistantBubble({ message }: { message: AssistantBubbleModel }) {
 
       {message.citations.length > 0 && (
         <CitationList citations={message.citations} />
+      )}
+
+      {message.actions && message.actions.length > 0 && !message.pending && (
+        <div className="max-w-[85%] w-full">
+          <NextSteps actions={message.actions} />
+        </div>
       )}
     </div>
   );

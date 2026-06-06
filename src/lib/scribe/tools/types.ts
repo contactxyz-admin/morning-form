@@ -33,6 +33,12 @@ export interface ToolContext {
    * can record `parentRequestId`. Most handlers ignore it.
    */
   readonly requestId: string;
+  /**
+   * Cancellation signal from the parent scribe invocation. Tools that fan out
+   * into a child `execute()` (`refer_to_specialist`) forward it so an aborted
+   * parent turn also stops the child loop. Most handlers ignore it.
+   */
+  readonly signal?: AbortSignal;
 }
 
 export interface ToolHandler<Args, Result> {

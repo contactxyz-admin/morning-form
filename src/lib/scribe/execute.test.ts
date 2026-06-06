@@ -120,6 +120,72 @@ describe('scribe executor — happy path (tool dispatch + audit)', () => {
     expect(audit?.modelVersion).toBe('v-actual');
     expect(audit?.mode).toBe('runtime');
   });
+
+  it('sums input/output tokens across tool-loop turns and lands them on the audit row and result', async () => {
+    const userId = await makeTestUser(prisma, 'exec-token-sum');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client } = scriptedLLM([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          { id: 'call-1', name: 'search_graph_nodes', input: { query: 'ferritin' } },
+        ],
+        inputTokens: 500,
+        outputTokens: 120,
+      },
+      {
+        stopReason: 'end_turn',
+        text: 'Your ferritin is within range.',
+        modelVersion: 'v1',
+        toolCalls: [],
+        inputTokens: 600,
+        outputTokens: 80,
+      },
+    ]);
+
+    const result = await execute(baseRequest({
+      userId,
+      llm: client,
+      requestId: 'aa111111-1111-4111-8111-111111111111',
+    }));
+
+    // Result carries summed tokens.
+    expect(result.inputTokens).toBe(1100);
+    expect(result.outputTokens).toBe(200);
+
+    // Audit row carries tokens.
+    const audits = await prisma.scribeAudit.findMany({ where: { userId, requestId: 'aa111111-1111-4111-8111-111111111111' } });
+    expect(audits).toHaveLength(1);
+    expect(audits[0].inputTokens).toBe(1100);
+    expect(audits[0].outputTokens).toBe(200);
+  });
+
+  it('records null tokens when the client provides no usage (scripted-default)', async () => {
+    const userId = await makeTestUser(prisma, 'exec-token-null');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const result = await execute(baseRequest({
+      userId,
+      llm: client,
+      requestId: 'bb222222-2222-4222-8222-222222222222',
+    }));
+
+    expect(result.inputTokens).toBeNull();
+    expect(result.outputTokens).toBeNull();
+
+    const audit = await prisma.scribeAudit.findFirstOrThrow({
+      where: { userId, requestId: 'bb222222-2222-4222-8222-222222222222' },
+    });
+    expect(audit.inputTokens).toBeNull();
+    expect(audit.outputTokens).toBeNull();
+  });
 });
 
 describe('scribe executor — D10 user-scoping invariant', () => {
@@ -359,6 +425,230 @@ describe('scribe executor — error surfaces', () => {
     await expect(
       execute(baseRequest({ userId, topicKey: 'nonsense-topic', llm: client })),
     ).rejects.toThrow(/no safety policy registered/);
+  });
+});
+
+describe('scribe executor — contextPreamble (Phase A Unit 3)', () => {
+  it('prepends the context preamble into the first user message (not a separate message)', async () => {
+    const userId = await makeTestUser(prisma, 'exec-preamble');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client, calls } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const preamble = 'Archetype: runner | Key priorities: • Ferritin: energy marker';
+    await execute(baseRequest({
+      userId,
+      llm: client,
+      contextPreamble: preamble,
+      requestId: 'cc333333-3333-4333-8333-333333333333',
+    }));
+
+    expect(calls).toHaveLength(1);
+    const firstMessageContent = (calls[0].messages as Array<{ role: string; content: string }>)[0].content;
+    expect(firstMessageContent).toContain(preamble);
+    expect(firstMessageContent).toContain('User message:');
+
+    // No second message — preamble is in the first, NOT a separate entry.
+    expect(calls[0].messages).toHaveLength(1);
+  });
+
+  it('audited prompt field stays the user message alone (preamble excluded)', async () => {
+    const userId = await makeTestUser(prisma, 'exec-preamble-audit');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const userMessage = 'why is my ferritin low?';
+    const preamble = 'Archetype: runner';
+
+    const result = await execute(baseRequest({
+      userId,
+      llm: client,
+      userMessage,
+      contextPreamble: preamble,
+      requestId: 'dd444444-4444-4444-8444-444444444444',
+    }));
+
+    const audit = await prisma.scribeAudit.findFirstOrThrow({
+      where: { userId, requestId: 'dd444444-4444-4444-8444-444444444444' },
+    });
+    // prompt field = user message only, no preamble
+    expect(audit.prompt).toBe(userMessage);
+    expect(audit.prompt).not.toContain('Archetype');
+  });
+
+  it('when contextPreamble is absent, messages are unchanged from today', async () => {
+    const userId = await makeTestUser(prisma, 'exec-no-preamble');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v-pin' });
+
+    const { client, calls } = scriptedLLM([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    await execute(baseRequest({
+      userId,
+      llm: client,
+      requestId: 'ee555555-5555-4555-8555-555555555555',
+    }));
+
+    const firstContent = (calls[0].messages as Array<{ role: string; content: string }>)[0].content;
+    expect(firstContent).not.toContain('Archetype');
+    expect(firstContent).not.toContain('User message:');
+  });
+});
+
+describe('scribe executor — propose_next_steps gating (Phase A)', () => {
+  function scriptedLLMCapturingTools(turns: ScribeLLMTurn[]): {
+    client: ScribeLLMClient;
+    calls: Array<{ toolNames: string[] }>;
+  } {
+    const calls: Array<{ toolNames: string[] }> = [];
+    const queue = [...turns];
+    const client: ScribeLLMClient = {
+      async turn(req) {
+        calls.push({ toolNames: req.tools.map((t) => t.name) });
+        const next = queue.shift();
+        if (!next) throw new Error('scriptedLLM: queue exhausted');
+        return next;
+      },
+    };
+    return { client, calls };
+  }
+
+  it('does NOT offer propose_next_steps to the LLM when enableProposeNextSteps is unset', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-off');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    const { client, calls } = scriptedLLMCapturingTools([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    await execute(baseRequest({ userId, llm: client }));
+
+    expect(calls[0].toolNames).not.toContain('propose_next_steps');
+  });
+
+  it('offers propose_next_steps to the LLM only when enableProposeNextSteps is true', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-on');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    const { client, calls } = scriptedLLMCapturingTools([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    await execute(baseRequest({ userId, llm: client, enableProposeNextSteps: true }));
+
+    expect(calls[0].toolNames).toContain('propose_next_steps');
+  });
+
+  it('refuses (does not dispatch) a propose_next_steps call when the tool is not enabled', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-refuse');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    // LLM hallucinates the gated tool even though it was not offered.
+    const { client } = scriptedLLM([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          { id: 'c1', name: 'propose_next_steps', input: { actions: [{ verb: 'measure', label: 'Re-test ferritin' }] } },
+        ],
+      },
+      { stopReason: 'end_turn', text: 'Your ferritin is within range.', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const result = await execute(baseRequest({ userId, llm: client }));
+
+    // The call is recorded as an error and produced no actions.
+    const pnsCall = result.toolCalls.find((c) => c.name === 'propose_next_steps');
+    expect(pnsCall?.isError).toBe(true);
+    expect(result.proposedActions).toEqual([]);
+  });
+
+  it('dispatches propose_next_steps and collects actions when enabled', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-collect');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    const { client } = scriptedLLM([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          { id: 'c1', name: 'propose_next_steps', input: { actions: [{ verb: 'measure', label: 'Re-test ferritin in 8 weeks', markerName: 'Ferritin' }] } },
+        ],
+      },
+      { stopReason: 'end_turn', text: 'Your ferritin is within range.', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const result = await execute(baseRequest({ userId, llm: client, enableProposeNextSteps: true }));
+
+    expect(result.proposedActions).toHaveLength(1);
+    expect(result.proposedActions[0].markerName).toBe('Ferritin');
+  });
+
+  it('dedups by (verb,label) and caps at 4 across a double propose_next_steps call', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-dedup');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    const { client } = scriptedLLM([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          {
+            id: 'c1',
+            name: 'propose_next_steps',
+            input: {
+              actions: [
+                { verb: 'measure', label: 'Re-test ferritin' },
+                { verb: 'discuss', label: 'Review iron with GP' },
+                { verb: 'track', label: 'Log energy daily' },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          {
+            id: 'c2',
+            name: 'propose_next_steps',
+            input: {
+              actions: [
+                // Duplicate of the first call (same verb+label) — must dedup.
+                { verb: 'measure', label: 'Re-test ferritin' },
+                // Two new ones; only one fits under the cap of 4.
+                { verb: 'behavior', label: 'Improve sleep routine' },
+                { verb: 'track', label: 'Log mood weekly' },
+              ],
+            },
+          },
+        ],
+      },
+      { stopReason: 'end_turn', text: 'Your ferritin is within range.', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const result = await execute(baseRequest({ userId, llm: client, enableProposeNextSteps: true }));
+
+    // 3 unique from call 1 + 1 net-new from call 2 (the duplicate dropped) = 4,
+    // which is exactly the cap. The fifth distinct action ('Log mood weekly')
+    // is dropped by the cap.
+    expect(result.proposedActions).toHaveLength(4);
+    const labels = result.proposedActions.map((a) => a.label);
+    expect(labels).toEqual([
+      'Re-test ferritin',
+      'Review iron with GP',
+      'Log energy daily',
+      'Improve sleep routine',
+    ]);
+    // No duplicate (verb,label) survived.
+    const keys = result.proposedActions.map((a) => `${a.verb} ${a.label}`);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 

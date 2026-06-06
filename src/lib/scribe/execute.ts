@@ -46,8 +46,16 @@ import { getToolHandler, listToolDefinitions } from './tool-catalog';
 import type { Db, ToolContext } from './tools/types';
 import { parseScribeAnnotations } from './annotations';
 import type { Citation } from '@/lib/topics/types';
+import {
+  MAX_ACTIONS,
+  proposeNextStepsHandler,
+  type ValidatedAction,
+} from './tools/propose-next-steps';
 
 export const DEFAULT_MAX_TOOL_CALLS = 6;
+
+/** The flag-gated tool name — sourced from the handler so the two can't drift. */
+const PROPOSE_NEXT_STEPS_TOOL = proposeNextStepsHandler.name;
 
 export interface ScribeLLMToolDefinition {
   name: string;
@@ -84,6 +92,8 @@ export interface ScribeLLMTurnRequest {
   temperature: number;
   /** Cancellation signal; adapters forward to the SDK request options. */
   signal?: AbortSignal;
+  /** Optional override for max_tokens. When unset the adapter default applies. */
+  maxTokens?: number;
 }
 
 export type ScribeLLMStopReason = 'tool_use' | 'end_turn';
@@ -96,6 +106,15 @@ export interface ScribeLLMTurn {
   toolCalls: readonly ScribeLLMToolCall[];
   /** The resolved model version string actually used for this call (D9). */
   modelVersion: string;
+  /** Token usage for this turn (provider-reported). Optional — scripted test clients may omit. */
+  inputTokens?: number;
+  outputTokens?: number;
+  /**
+   * True when the provider stopped generation because it hit max_tokens
+   * (stop_reason === 'max_tokens'). The text on this turn is truncated.
+   * Optional — scripted test clients omit it.
+   */
+  truncated?: boolean;
 }
 
 export interface ScribeLLMClient {
@@ -134,6 +153,30 @@ export interface ScribeExecuteRequest {
    * rejected outcome lands — aborted turns are semantically rejections.
    */
   signal?: AbortSignal;
+  /**
+   * Optional user-context digest (Plan 2026-06-05-001 Phase A Unit 3).
+   * When set, the preamble is prepended as a clearly-delimited block
+   * INSIDE the first user message (NOT as a separate message — avoids
+   * Anthropic role-alternation 400). The audited `prompt` field stays
+   * the user's message alone. Only `turn.ts` sets this; compile and
+   * referral child turns never carry a preamble.
+   */
+  contextPreamble?: string;
+  /**
+   * Optional override for max_tokens per turn. Used for investigations
+   * shape (raised from the default 2048) so deeper answers aren't
+   * silently truncated.
+   */
+  maxTokens?: number;
+  /**
+   * Gate for the `propose_next_steps` tool (Plan 2026-06-05-001 Phase A).
+   * Defaults to `false`. Only chat turns with ASK_DEEP_ENABLED set this to
+   * true (via turn.ts). When false the tool is filtered out of the
+   * tool-definition list the LLM sees AND refused at dispatch if the LLM
+   * somehow names it — so compile, explain, and referral-child invocations
+   * (which never set it) can never invoke or persist suggested actions.
+   */
+  enableProposeNextSteps?: boolean;
 }
 
 export interface ScribeExecuteResult {
@@ -144,6 +187,15 @@ export interface ScribeExecuteResult {
   toolCalls: Array<{ name: string; input: unknown; output: unknown; isError: boolean }>;
   modelVersion: string;
   auditId: string;
+  /** Summed token usage across all tool-loop turns. null when the client provides no usage. */
+  inputTokens: number | null;
+  outputTokens: number | null;
+  /** Validated next-step actions extracted from propose_next_steps tool calls.
+   *  Empty array when the tool was never called or all actions were invalid.
+   *  Only turn.ts persists these — they ride in-memory through execute(). */
+  proposedActions: ValidatedAction[];
+  /** True when the FINAL turn was truncated by max_tokens (answer is cut off). */
+  truncated: boolean;
 }
 
 export function buildDefaultScribeSystemPrompt(policy: SafetyPolicy): string {
@@ -184,15 +236,38 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     userId: req.userId,
     topicKey: req.topicKey,
     requestId,
+    signal: req.signal,
   };
   const system = buildSystemPrompt(policy, req.systemPrompt);
-  const tools: ScribeLLMToolDefinition[] = listToolDefinitions();
+  // propose_next_steps is gated: unless this invocation explicitly enables it
+  // (only chat turns with ASK_DEEP_ENABLED do), it is removed from the
+  // definitions the LLM sees. The dispatch loop below also refuses it, so a
+  // hallucinated call cannot run the handler on a non-chat / flag-off turn.
+  const proposeNextStepsEnabled = req.enableProposeNextSteps === true;
+  const tools: ScribeLLMToolDefinition[] = listToolDefinitions().filter(
+    (t) => proposeNextStepsEnabled || t.name !== PROPOSE_NEXT_STEPS_TOOL,
+  );
+
+  // Build the initial user message. When a contextPreamble is provided (only
+  // from turn.ts) it is prepended into the SAME user-role message as a
+  // clearly-delimited block — NOT a second consecutive user message (which
+  // would trigger Anthropic's role-alternation 400). The audited prompt
+  // field stays req.userMessage alone.
+  // The separator uses a distinctive, hard-to-forge token rather than a plain
+  // `---` rule. user-context.ts strips `---` lines and the literal phrase
+  // "User message:" from rendered digest content, so the preamble cannot
+  // reproduce this boundary even with adversarial check-in text.
+  const firstUserContent = req.contextPreamble
+    ? `${req.contextPreamble}\n\n=== END BACKGROUND CONTEXT — USER MESSAGE FOLLOWS ===\n\nUser message: ${req.userMessage}`
+    : req.userMessage;
 
   const messages: ScribeLLMMessage[] = [
-    { role: 'user', content: req.userMessage },
+    { role: 'user', content: firstUserContent },
   ];
 
   const collectedToolCalls: ScribeExecuteResult['toolCalls'] = [];
+  const collectedActions: ValidatedAction[] = [];
+  const seenActionKeys = new Set<string>();
   const maxCalls = req.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
 
   let lastTurn: ScribeLLMTurn | null = null;
@@ -200,6 +275,9 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
   let output = '';
   let classification: SafetyClassification = 'rejected';
   let loopError: unknown = null;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let usageSeen = false;
 
   // D11: every exit path below MUST fall through to the recordAudit call so a
   // thrown LLM loop or a thrown enforce still lands a row. We capture the
@@ -224,9 +302,15 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
           : DEFAULT_SCRIBE_MODEL,
         temperature: scribe.temperature ?? DEFAULT_SCRIBE_TEMPERATURE,
         signal: req.signal,
+        maxTokens: req.maxTokens,
       });
       lastTurn = turn;
       modelVersion = turn.modelVersion;
+      if (turn.inputTokens !== undefined || turn.outputTokens !== undefined) {
+        totalInputTokens += turn.inputTokens ?? 0;
+        totalOutputTokens += turn.outputTokens ?? 0;
+        usageSeen = true;
+      }
 
       if (turn.stopReason === 'end_turn') {
         if (turn.toolCalls.length > 0) {
@@ -257,6 +341,15 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
 
       const toolResults: ScribeLLMToolResult[] = [];
       for (const call of turn.toolCalls) {
+        // Refuse the gated tool when it wasn't enabled for this invocation —
+        // even if the LLM hallucinates the name. The handler never runs, no
+        // actions are collected, and the audit trail records the refusal.
+        if (call.name === PROPOSE_NEXT_STEPS_TOOL && !proposeNextStepsEnabled) {
+          const error = { error: `tool '${call.name}' is not enabled for this turn` };
+          collectedToolCalls.push({ name: call.name, input: call.input, output: error, isError: true });
+          toolResults.push({ toolUseId: call.id, output: error, isError: true });
+          continue;
+        }
         const handler = getToolHandler(call.name);
         if (!handler) {
           const error = { error: `unknown tool '${call.name}'` };
@@ -275,6 +368,20 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
           const toolOutput = await handler.execute(ctx, parsed.data);
           collectedToolCalls.push({ name: call.name, input: parsed.data, output: toolOutput, isError: false });
           toolResults.push({ toolUseId: call.id, output: toolOutput });
+          // Collect validated actions from propose_next_steps — in-memory only.
+          // Persistence happens in turn.ts after enforce() + ChatMessage.
+          // A misbehaving LLM can call the tool more than once per turn; we
+          // dedup by (verb,label) first-wins and cap the per-turn total so a
+          // double call can't double the rendered/persisted actions.
+          if (call.name === PROPOSE_NEXT_STEPS_TOOL && isActionsBag(toolOutput)) {
+            for (const action of toolOutput.actions) {
+              if (collectedActions.length >= MAX_ACTIONS) break;
+              const key = `${action.verb} ${action.label}`;
+              if (seenActionKeys.has(key)) continue;
+              seenActionKeys.add(key);
+              collectedActions.push(action);
+            }
+          }
         } catch (err) {
           const error = { error: err instanceof Error ? err.message : 'handler failed' };
           collectedToolCalls.push({ name: call.name, input: parsed.data, output: error, isError: true });
@@ -285,6 +392,11 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     }
 
     output = lastTurn?.text ?? '';
+    if (lastTurn?.truncated) {
+      console.warn(
+        `[scribe.execute] final turn truncated by max_tokens (requestId=${requestId}, topicKey=${req.topicKey}) — answer may be cut off`,
+      );
+    }
     const candidate: PolicyCandidate = {
       judgmentKind: req.declaredJudgmentKind,
       output,
@@ -317,6 +429,8 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
       safetyClassification: classification,
       modelVersion,
       parentRequestId: req.parentRequestId ?? null,
+      inputTokens: usageSeen ? totalInputTokens : null,
+      outputTokens: usageSeen ? totalOutputTokens : null,
     });
   } catch (auditErr) {
     // D11 breach: audit-before-gate failed to persist. Surface distinctly so
@@ -341,6 +455,10 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     toolCalls: collectedToolCalls,
     modelVersion,
     auditId: audit.id,
+    inputTokens: usageSeen ? totalInputTokens : null,
+    outputTokens: usageSeen ? totalOutputTokens : null,
+    proposedActions: collectedActions,
+    truncated: lastTurn?.truncated === true,
   };
 }
 
@@ -400,6 +518,20 @@ function readStringField(value: unknown, key: string): string | null {
   if (!value || typeof value !== 'object') return null;
   const field = (value as Record<string, unknown>)[key];
   return typeof field === 'string' && field.length > 0 ? field : null;
+}
+
+/**
+ * Structural guard for a propose_next_steps tool output: an object with an
+ * `actions` array. Replaces a blind `as { actions?: ValidatedAction[] }` cast
+ * so a malformed handler return can't smuggle a non-array (or undefined)
+ * through to the action collector.
+ */
+function isActionsBag(value: unknown): value is { actions: ValidatedAction[] } {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    Array.isArray((value as { actions?: unknown }).actions)
+  );
 }
 
 function readArrayField(value: unknown, key: string): unknown[] | null {

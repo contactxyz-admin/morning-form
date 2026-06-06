@@ -172,6 +172,7 @@ function buildSseStream(
                 requestId: ev.requestId,
                 auditId: ev.auditId,
                 referrals: ev.referrals,
+                actions: ev.actions,
               });
               break;
             case 'error':

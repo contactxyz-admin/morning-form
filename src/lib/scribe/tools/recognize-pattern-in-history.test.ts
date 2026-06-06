@@ -54,6 +54,32 @@ describe('recognize_pattern_in_history handler', () => {
     expect(result.metrics[0].average).toBeCloseTo(39.83, 1);
   });
 
+  it('caps the series at 24 most-recent points (most-recent-first) given 30 points', async () => {
+    const userId = await makeTestUser(prisma, 'pattern-series-cap');
+    // 30 points, one per day; value === day-offset so we can identify them.
+    const values = Array.from({ length: 30 }, (_, i) => 100 + i);
+    const offsets = Array.from({ length: 30 }, (_, i) => i + 1); // 1..30 days ago
+    await seedHrv(userId, values, offsets);
+
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery', requestId: 'test-req-id' };
+    const result = await recognizePatternInHistoryHandler.execute(ctx, {
+      metrics: ['hrv'],
+      windowDays: 60,
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.series).toHaveLength(24);
+    // Most-recent-first: index 0 was seeded at offset 1 day ago with value 100,
+    // the freshest point.
+    expect(result.series[0].value).toBe(100);
+    // Strictly descending timestamps confirm most-recent-first ordering.
+    for (let i = 1; i < result.series.length; i++) {
+      expect(
+        new Date(result.series[i - 1].timestamp).getTime(),
+      ).toBeGreaterThanOrEqual(new Date(result.series[i].timestamp).getTime());
+    }
+  });
+
   it('returns too-little-data when fewer than 3 matching data points', async () => {
     const userId = await makeTestUser(prisma, 'pattern-too-little');
     await seedHrv(userId, [40, 42], [10, 5]);
@@ -65,6 +91,8 @@ describe('recognize_pattern_in_history handler', () => {
     });
     expect(result.status).toBe('too-little-data');
     expect(result.metrics).toEqual([]);
+    // Non-ok status → empty series.
+    expect(result.series).toEqual([]);
   });
 
   it('bails with too-much-data when combined row count exceeds the safety threshold', async () => {
@@ -117,16 +145,18 @@ describe('recognize_pattern_in_history handler', () => {
       metrics: ['ferritin'],
       windowDays: 30,
     });
-    expect(result.status).toBe('too-little-data');
-    expect(result.metrics).toEqual([]);
-    expect(result.checkInCount).toBe(0);
+    // Cross-domain grant (Plan 2026-06-05-001 U6a): ferritin is now reachable
+    // from sleep-recovery topics so the scribe can correlate sleep with iron.
+    expect(result.status).toBe('ok');
+    expect(result.metrics.length).toBe(1);
+    expect(result.metrics[0].metric).toBe('ferritin');
   });
 
-  it('topic-scope gate: filters mixed on/off-topic metrics down to the on-topic ones', async () => {
-    // Mixed request: 'hrv' is on-topic for sleep-recovery, 'ferritin' is not.
-    // The handler should query only 'hrv' data. We seed both, and assert the
-    // result contains only 'hrv' series.
-    const userId = await makeTestUser(prisma, 'pattern-mixed-metrics');
+  it('topic-scope gate: cross-domain grants allow ferritin from sleep-recovery topic', async () => {
+    // Both 'hrv' and 'ferritin' are now on-topic for sleep-recovery via
+    // the cross-domain grants. The handler should query both and return
+    // both metric series.
+    const userId = await makeTestUser(prisma, 'pattern-cross-domain');
     const now = Date.now();
     for (let i = 0; i < 5; i++) {
       await prisma.healthDataPoint.create({
@@ -159,8 +189,9 @@ describe('recognize_pattern_in_history handler', () => {
       windowDays: 30,
     });
     expect(result.status).toBe('ok');
-    expect(result.metrics.map((m) => m.metric)).toEqual(['hrv']);
-    expect(result.metrics[0].count).toBe(5);
+    // Both metrics pass the cross-domain grant.
+    const metricNames = result.metrics.map((m) => m.metric).sort();
+    expect(metricNames).toEqual(['ferritin', 'hrv']);
   });
 
   it('topic-scope gate: returns too-little-data when topicKey is unknown', async () => {

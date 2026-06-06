@@ -24,6 +24,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SafetyClassification } from '@/lib/scribe/policy/types';
 import type { Citation } from '@/lib/topics/types';
 import type { Referral } from '@/lib/chat/types';
+import type { ValidatedAction } from '@/lib/scribe/tools/propose-next-steps';
 import { readChatStream } from './chat-stream';
 
 export type ChatTurnStatus =
@@ -43,6 +44,7 @@ export interface ChatTurnState {
   assistantMessageId: string | null;
   error: string | null;
   referrals: readonly Referral[];
+  actions: readonly ValidatedAction[];
 }
 
 export interface DoneCallbackArgs {
@@ -53,6 +55,7 @@ export interface DoneCallbackArgs {
   output: string;
   assistantMessageId: string;
   referrals: readonly Referral[];
+  actions: readonly ValidatedAction[];
 }
 
 const INITIAL: ChatTurnState = {
@@ -65,6 +68,7 @@ const INITIAL: ChatTurnState = {
   assistantMessageId: null,
   error: null,
   referrals: [],
+  actions: [],
 };
 
 export interface UseChatStreamArgs {
@@ -172,8 +176,10 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
               topicKey: string | null;
               assistantMessageId: string;
               referrals?: readonly Referral[];
+              actions?: readonly ValidatedAction[];
             };
             const referrals = d.referrals ?? [];
+            const actions = d.actions ?? [];
             setState({
               status: 'done',
               content: d.output,
@@ -184,6 +190,7 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
               assistantMessageId: d.assistantMessageId,
               error: null,
               referrals,
+              actions,
             });
             onDoneRef.current?.({
               text: trimmed,
@@ -193,6 +200,7 @@ export function useChatStream(args: UseChatStreamArgs = {}) {
               output: d.output,
               assistantMessageId: d.assistantMessageId,
               referrals,
+              actions,
             });
           } else if (evt.event === 'error') {
             const d = evt.data as { message?: string };

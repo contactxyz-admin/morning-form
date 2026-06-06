@@ -79,7 +79,19 @@ async function seedFullUser(p: PrismaClient): Promise<{ id: string; email: strin
     data: { prioritiesId: priorities.id, description: 'adj', rationale: 'r' },
   });
   await p.checkIn.create({ data: { userId: id, type: 'morning', date: '2026-03-20', responses: '{}' } });
-  await p.chatMessage.create({ data: { userId: id, role: 'user', content: 'hi' } });
+  const chatMsg = await p.chatMessage.create({ data: { userId: id, role: 'user', content: 'hi' } });
+  // Action row with chatMessageId provenance — exercises the deletion cascade
+  // AND the chatMessage FK relation (onDelete: SetNull).
+  await p.action.create({
+    data: {
+      userId: id,
+      chatMessageId: chatMsg.id,
+      scribeRequestId: `act-req-${id}`,
+      verb: 'measure',
+      label: 'Re-check ferritin in 3 months',
+      markerName: 'Ferritin',
+    },
+  });
   await p.healthConnection.create({ data: { userId: id, provider: 'whoop' } });
   await p.healthDataPoint.create({
     data: { userId: id, provider: 'whoop', category: 'sleep', metric: 'd', value: 7, unit: 'h', timestamp: new Date() },
@@ -254,6 +266,9 @@ describe('eraseAccount — residue assertion (real test DB)', () => {
     expect(counts.priorityMarkers).toBe(1);
     expect(counts.prioritiesAdjustments).toBe(1);
     expect(counts.checkIns).toBe(1);
+    // Action rows are an explicit numeric deleteMany count (not 'cascade').
+    expect(typeof counts.actions).toBe('number');
+    expect(counts.actions).toBeGreaterThanOrEqual(1);
     expect(counts.sourceDocuments).toBe(1);
     expect(counts.sessions).toBe('cascade');
     expect(counts.funnelEventsScrubbed).toBe(1);

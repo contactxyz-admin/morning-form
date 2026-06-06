@@ -233,6 +233,80 @@ describe('AnthropicScribeLLMClient', () => {
       { id: 'toolu_abc', name: 'get_node_detail', input: { nodeId: 'n-1' } },
     ]);
     expect(turn.modelVersion).toBe('claude-opus-4-6-20260101');
+    // Usage is read off response.usage and surfaced on the turn (Unit 1).
+    expect(turn.inputTokens).toBe(10);
+    expect(turn.outputTokens).toBe(20);
     expect(fakeFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces truncated=true when the response stop_reason is max_tokens', async () => {
+    const fakeFetch: typeof fetch = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          id: 'msg_2',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-opus-4-6-20260101',
+          stop_reason: 'max_tokens',
+          stop_sequence: null,
+          usage: { input_tokens: 5, output_tokens: 2048 },
+          content: [{ type: 'text', text: 'A long answer cut off mid-' }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+
+    const client = new AnthropicScribeLLMClient({
+      apiKey: 'test-api-key',
+      fetch: fakeFetch,
+    });
+    const turn = await client.turn({
+      system: 'sys',
+      messages: [{ role: 'user', content: 'q' }],
+      tools: [],
+      model: 'claude-opus-4-6',
+      temperature: 0,
+    });
+
+    // max_tokens collapses to end_turn for the loop invariant, but the
+    // truncated flag is preserved additively.
+    expect(turn.stopReason).toBe('end_turn');
+    expect(turn.truncated).toBe(true);
+  });
+
+  it('forwards the maxTokens override to the SDK request body', async () => {
+    let capturedBody: Record<string, unknown> | null = null;
+    const fakeFetch: typeof fetch = vi.fn(async (_url, init) => {
+      capturedBody = JSON.parse((init?.body as string) ?? '{}');
+      return new Response(
+        JSON.stringify({
+          id: 'msg_3',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-opus-4-6-20260101',
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+          usage: { input_tokens: 1, output_tokens: 1 },
+          content: [{ type: 'text', text: 'ok' }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+
+    const client = new AnthropicScribeLLMClient({
+      apiKey: 'test-api-key',
+      fetch: fakeFetch,
+    });
+    await client.turn({
+      system: 'sys',
+      messages: [{ role: 'user', content: 'q' }],
+      tools: [],
+      model: 'claude-opus-4-6',
+      temperature: 0,
+      maxTokens: 4096,
+    });
+
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody!.max_tokens).toBe(4096);
   });
 });

@@ -16,6 +16,7 @@ export const SLEEP_RECOVERY_POLICY: SafetyPolicy = {
     'reference-range-comparison',
     'pattern-vs-own-history',
     'citation-surfacing',
+    'investigation-avenues',
   ],
   forbiddenPhrasePatterns: FORBIDDEN_PHRASE_PATTERNS,
   minCitationDensityPerSection: 0.5,
