@@ -500,6 +500,7 @@ model ChatMessage {
   content   String
   metadata  String?
   createdAt DateTime @default(now())
+  actions   Action[]
 
   @@index([userId])
 }
@@ -782,6 +783,11 @@ model Action {
   userId          String
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   chatMessageId   String?
+  // FK provenance to the assistant ChatMessage this action was proposed in.
+  // onDelete: SetNull preserves the (append-only) Action row when its
+  // ChatMessage is deleted outside account erasure, while enforcing
+  // referential integrity at the DB level.
+  chatMessage     ChatMessage? @relation(fields: [chatMessageId], references: [id], onDelete: SetNull)
   scribeRequestId String
   verb            String       // measure | discuss | track | behavior
   label           String
@@ -790,6 +796,7 @@ model Action {
   createdAt       DateTime     @default(now())
 
   @@index([userId, createdAt])
+  @@index([userId, state])
   @@index([scribeRequestId])
 }
 

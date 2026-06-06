@@ -16,7 +16,6 @@ export const JUDGMENT_KINDS = [
   'citation-surfacing',
   'definition-lookup',
   'investigation-avenues',
-  'action-recommendation',
 ] as const;
 export type JudgmentKind = (typeof JUDGMENT_KINDS)[number];
 

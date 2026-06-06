@@ -159,10 +159,22 @@ export async function* runChatTurn(
   // 5. Scribe path — every conversation runs against a real specialty (the
   //    router's null is resolved to the general scribe). execute() owns
   //    the D11 audit write so every turn writes a ScribeAudit row.
+  //
+  //    ASK_DEEP_ENABLED is the single gate for ALL Phase A behavior. It must
+  //    be a strict `=== 'true'` comparison (matching LIBRE_ENABLED) — any
+  //    other value ('false', '0', '') leaves the flag OFF and the turn
+  //    byte-for-byte identical to pre-Phase-A behaviour. Read from
+  //    process.env first (test seam) then the frozen env snapshot.
+  const askDeep = (process.env.ASK_DEEP_ENABLED ?? env.ASK_DEEP_ENABLED) === 'true';
+
   const topicKey = resolveTopicKey(decision);
-  const systemPrompt = buildAskRuntimeSystemPrompt(topicKey, decision.answerShape ?? undefined);
+  // answerShape-derived behaviour is gated by the flag. Off → shape forced
+  // 'standard', judgment kind stays the legacy 'pattern-vs-own-history',
+  // no investigations prompt suffix, default token budget.
+  const answerShape = askDeep ? (decision.answerShape ?? undefined) : 'standard';
+  const systemPrompt = buildAskRuntimeSystemPrompt(topicKey, answerShape);
   // Shape → judgment kind (orchestrator declares, never the LLM).
-  const declaredJudgmentKind = decision.answerShape === 'investigations'
+  const declaredJudgmentKind = answerShape === 'investigations'
     ? 'investigation-avenues'
     : 'pattern-vs-own-history';
 
@@ -170,7 +182,7 @@ export async function* runChatTurn(
   // never block a turn (degrade to no-preamble on failure). Compile and
   // referral child turns never carry a preamble — only turn.ts sets it.
   let contextPreamble: string | undefined;
-  if (env.ASK_DEEP_ENABLED) {
+  if (askDeep) {
     try {
       contextPreamble = await assembleUserContext(db, userId) ?? undefined;
     } catch (err) {
@@ -181,7 +193,7 @@ export async function* runChatTurn(
 
   // Investigations answers are deeper — raise the token budget so they're
   // not silently truncated at the default 2048.
-  const maxTokens = decision.answerShape === 'investigations' ? 4096 : undefined;
+  const maxTokens = answerShape === 'investigations' ? 4096 : undefined;
 
   let result;
   try {
@@ -198,6 +210,11 @@ export async function* runChatTurn(
       signal,
       contextPreamble,
       maxTokens,
+      // Only chat turns with the flag ON may offer propose_next_steps to the
+      // LLM. Compile, explain, and referral-child invocations never set this,
+      // so the tool stays absent from their tool-definition list and is
+      // undispatchable. Flag off → tool absent even on chat turns.
+      enableProposeNextSteps: askDeep,
     });
   } catch (err) {
     // ScribeAuditWriteError is the structurally-load-bearing D11 breach;
@@ -269,13 +286,19 @@ export async function* runChatTurn(
   //    If the answer was rejected, proposedActions is empty so this is a no-op.
   //    ChatMessage.id is the FK provenance. Ordering: message first, then actions
   //    — a message persistence failure leaves zero action rows.
+  //
+  //    The done event must reflect DB state: if persistence fails, the client
+  //    must NOT show actions that aren't durably stored (it can't reconcile
+  //    them on reload). On failure we emit actions: [] but keep the turn alive
+  //    — the answer already landed; missing actions are a UX degradation, not
+  //    a safety gap.
+  let emittedActions: readonly ValidatedAction[] = actions;
   if (actions.length > 0) {
     try {
       await persistSuggestedActions(db, userId, assistantMessage.id, result.requestId, actions);
     } catch (err) {
       console.error('[turn] action persistence failed (non-fatal):', err);
-      // Non-fatal — the answer already landed. Missing actions are a
-      // degradation, not a safety gap.
+      emittedActions = [];
     }
   }
 
@@ -289,7 +312,8 @@ export async function* runChatTurn(
     requestId: result.requestId,
     auditId: result.auditId,
     referrals,
-    actions,
+    actions: emittedActions,
+    ...(result.truncated ? { truncated: true } : {}),
   };
 }
 

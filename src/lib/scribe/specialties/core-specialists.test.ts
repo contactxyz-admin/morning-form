@@ -40,25 +40,23 @@ describe('core specialists — policy registration', () => {
 });
 
 describe('core specialists — policy shape', () => {
-  it('cardiometabolic allows all six judgment kinds (broad metabolic remit incl. investigations + actions)', () => {
+  it('cardiometabolic allows the five judgment kinds (broad metabolic remit incl. investigations)', () => {
     expect(CARDIOMETABOLIC_POLICY.allowedJudgmentKinds).toEqual([
       'reference-range-comparison',
       'pattern-vs-own-history',
       'citation-surfacing',
       'definition-lookup',
       'investigation-avenues',
-      'action-recommendation',
     ]);
   });
 
-  it('hormonal-endocrine allows all six judgment kinds (definition lookup is core, investigations + actions)', () => {
+  it('hormonal-endocrine allows the five judgment kinds (definition lookup is core, incl. investigations)', () => {
     expect(HORMONAL_ENDOCRINE_POLICY.allowedJudgmentKinds).toEqual([
       'reference-range-comparison',
       'pattern-vs-own-history',
       'citation-surfacing',
       'definition-lookup',
       'investigation-avenues',
-      'action-recommendation',
     ]);
   });
 

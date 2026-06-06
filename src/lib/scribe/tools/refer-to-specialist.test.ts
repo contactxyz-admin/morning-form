@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { getOrCreateScribeForTopic } from '@/lib/scribe/repo';
@@ -14,6 +14,16 @@ import {
   referToSpecialistHandler,
 } from './refer-to-specialist';
 import type { ToolContext } from './types';
+
+// Mock the production factory so the fallback path (test seam null) is
+// controllable: a configured client in one test, a throwing factory in another.
+const getScribeLLMClientMock = vi.fn(() => {
+  throw new Error('getScribeLLMClient mock not configured for this test');
+}) as unknown as ReturnType<typeof vi.fn> & (() => ScribeLLMClient);
+vi.mock('../llm', () => ({
+  getScribeLLMClient: () => getScribeLLMClientMock(),
+  setScribeLLMForTest: vi.fn(),
+}));
 
 let prisma: PrismaClient;
 
@@ -94,6 +104,78 @@ describe('refer_to_specialist — core specialty', () => {
     expect(audits).toHaveLength(1);
     expect(audits[0].parentRequestId).toBe('parent-req-id-core');
     expect(audits[0].topicKey).toBe('cardiometabolic');
+  });
+});
+
+describe('refer_to_specialist — production factory fallback', () => {
+  it('falls back to the production factory client when the test seam is null', async () => {
+    const userId = await makeTestUser(prisma, 'refer-factory-fallback');
+    await getOrCreateScribeForTopic(prisma, userId, 'cardiometabolic', {
+      modelVersion: 'v1',
+    });
+
+    // Test seam nulled — the handler must reach for the production factory.
+    __setReferralScribeLLMForTest(null);
+    const calls: Array<Pick<ScribeLLMTurnRequest, 'system'>> = [];
+    // The mocked factory returns a configured (scripted) client.
+    getScribeLLMClientMock.mockReturnValueOnce(
+      scriptedScribe(
+        [
+          {
+            stopReason: 'end_turn',
+            text: 'From cardiometabolic (via factory).',
+            modelVersion: 'v1',
+            toolCalls: [],
+          },
+        ],
+        calls,
+      ),
+    );
+
+    const ctx: ToolContext = {
+      db: prisma,
+      userId,
+      topicKey: 'general',
+      requestId: 'parent-req-factory',
+    };
+    const result = await referToSpecialistHandler.execute(ctx, {
+      specialtyKey: 'cardiometabolic',
+      question: 'Is the pattern concerning?',
+    });
+    expect(result.status).toBe('core');
+    expect(result.response).toMatch(/via factory/);
+    expect(calls).toHaveLength(1);
+    expect(getScribeLLMClientMock).toHaveBeenCalled();
+  });
+
+  it('returns a refused shape (no crash) when the factory throws (no client configured)', async () => {
+    const userId = await makeTestUser(prisma, 'refer-factory-throws');
+    await getOrCreateScribeForTopic(prisma, userId, 'cardiometabolic', {
+      modelVersion: 'v1',
+    });
+
+    // Test seam null + factory throws → resolveProductionClient must catch and
+    // yield a refused result, not propagate the throw.
+    __setReferralScribeLLMForTest(null);
+    getScribeLLMClientMock.mockImplementationOnce(() => {
+      throw new Error('scribe.llm: ANTHROPIC_API_KEY is not set.');
+    });
+
+    const ctx: ToolContext = {
+      db: prisma,
+      userId,
+      topicKey: 'general',
+      requestId: 'parent-req-throws',
+    };
+    const result = await referToSpecialistHandler.execute(ctx, {
+      specialtyKey: 'cardiometabolic',
+      question: 'Is the pattern concerning?',
+    });
+    expect(result.status).toBe('refused');
+    expect(result.response).toMatch(/no ScribeLLMClient configured/i);
+
+    const audits = await prisma.scribeAudit.findMany({ where: { userId } });
+    expect(audits).toHaveLength(0);
   });
 });
 

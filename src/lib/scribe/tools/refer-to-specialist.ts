@@ -163,6 +163,9 @@ export const referToSpecialistHandler: ToolHandler<ReferToSpecialistArgs, ReferT
         ? appendAskAnswerStylePrompt(specialtyPrompt)
         : specialtyPrompt,
       parentRequestId: ctx.requestId,
+      // Forward the parent's cancellation signal so an aborted parent turn
+      // also short-circuits the child specialist loop.
+      signal: ctx.signal,
     });
 
     return {

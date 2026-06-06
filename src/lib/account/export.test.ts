@@ -202,7 +202,17 @@ async function seedMultiDomainUser(p: PrismaClient): Promise<string> {
   });
   await p.checkIn.create({ data: { userId, type: 'morning', date: '2026-03-20', responses: '{}' } });
   await p.checkIn.create({ data: { userId, type: 'evening', date: '2026-03-20', responses: '{}' } });
-  await p.chatMessage.create({ data: { userId, role: 'user', content: 'hi' } });
+  const chatMsg = await p.chatMessage.create({ data: { userId, role: 'user', content: 'hi' } });
+  await p.action.create({
+    data: {
+      userId,
+      chatMessageId: chatMsg.id,
+      scribeRequestId: `act-req-${userId}`,
+      verb: 'measure',
+      label: 'Re-check ferritin in 3 months',
+      markerName: 'Ferritin',
+    },
+  });
   const scribe = await p.scribe.create({
     data: { userId, topicKey: 'iron', modelVersion: 'v1' },
   });
@@ -279,6 +289,7 @@ describe('assembleExportArchive — seeded multi-domain user', () => {
       'priorities.json',
       'checkIns.json',
       'chatMessages.json',
+      'actions.json',
       'scribes.json',
       'healthConnections.json',
       'healthDataPoints.json',
@@ -293,6 +304,14 @@ describe('assembleExportArchive — seeded multi-domain user', () => {
 
     const checkIns = JSON.parse(entries['checkIns.json'].toString('utf8'));
     expect(checkIns).toHaveLength(2);
+
+    // Actions domain round-trips the seeded suggested action with provenance.
+    const actions = JSON.parse(entries['actions.json'].toString('utf8'));
+    expect(actions).toHaveLength(1);
+    expect(actions[0].verb).toBe('measure');
+    expect(actions[0].label).toBe('Re-check ferritin in 3 months');
+    expect(actions[0].markerName).toBe('Ferritin');
+    expect(actions[0].state).toBe('suggested');
 
     const priorities = JSON.parse(entries['priorities.json'].toString('utf8'));
     expect(priorities[0].items).toHaveLength(1);

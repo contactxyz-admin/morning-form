@@ -71,7 +71,7 @@ export async function routeTurn(
     prompt: buildRouterUserPrompt({ ...input, text: trimmed }),
     schema: RouteDecisionWireSchema,
     schemaDescription:
-      'Pick a specialist topicKey from the closed list in the system prompt, or null for out-of-scope. confidence is 0..1. reasoning is a one-line audit string.',
+      "Pick a specialist topicKey from the closed list in the system prompt, or null for out-of-scope. confidence is 0..1. reasoning is a one-line audit string. answerShape is 'investigations' for causal/'why' questions about the user's own state (multiple contributing factors worth investigating), else 'standard'.",
     model: LIGHTWEIGHT_MODEL,
     temperature: 0,
     maxTokens: 512,
@@ -103,11 +103,18 @@ export function coerceDecision(wire: RouteDecisionWire): RouteDecision {
     topicKey = null;
   }
 
+  // KT-001: a null-routed (unregistered / low-confidence) turn falls back to a
+  // generic scribe with no investigation policy. Reset answerShape to
+  // 'standard' so an 'investigations' shape can't leak into the fallback turn
+  // and demand investigation-avenues output the fallback scribe can't satisfy.
+  const answerShape: RouteDecision['answerShape'] =
+    topicKey === null ? 'standard' : wire.answerShape ?? 'standard';
+
   return {
     topicKey,
     confidence: wire.confidence,
     reasoning,
-    answerShape: wire.answerShape ?? 'standard',
+    answerShape,
   };
 }
 

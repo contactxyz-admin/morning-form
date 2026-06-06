@@ -15,8 +15,8 @@ const MOCK_CTX: ToolContext = {
 };
 
 describe('propose_next_steps — validation boundary', () => {
-  it('accepts valid measure/discuss/track/behavior actions', () => {
-    const result = proposeNextStepsHandler.execute(MOCK_CTX, {
+  it('accepts valid measure/discuss/track/behavior actions', async () => {
+    const result = await proposeNextStepsHandler.execute(MOCK_CTX, {
       actions: [
         { verb: 'measure', label: 'Get a ferritin blood test in 3 months', markerName: 'Ferritin' },
         { verb: 'discuss', label: 'Ask your GP about your iron panel results' },
@@ -30,21 +30,22 @@ describe('propose_next_steps — validation boundary', () => {
     expect(result.actions.map((a) => a.verb)).toEqual(['measure', 'discuss', 'track', 'behavior']);
   });
 
-  it('drops actions with unknown verbs', () => {
-    const result = proposeNextStepsHandler.execute(MOCK_CTX, {
+  it('rejects unknown verbs at the schema (zod enum) boundary', () => {
+    // Unknown verbs are enforced by the z.enum(NEXT_STEP_VERBS) at the parse
+    // boundary (the executor re-parses tool input against proposeNextStepsSchema
+    // before calling execute), not by a handler-side check. A bad verb produces
+    // a parse failure → tool-error frame, never a silently-dropped action.
+    const parsed = proposeNextStepsHandler.parameters.safeParse({
       actions: [
         { verb: 'measure', label: 'Get a ferritin test' },
-        { verb: 'prescribe' as never, label: 'Take iron pills' },
+        { verb: 'prescribe', label: 'Take iron pills' },
       ],
     });
-
-    expect(result.actions).toHaveLength(1);
-    expect(result.dropped).toBe(1);
-    expect(result.dropReasons[0]).toContain('prescribe');
+    expect(parsed.success).toBe(false);
   });
 
-  it('drops actions whose labels contain dietary directive phrases', () => {
-    const result = proposeNextStepsHandler.execute(MOCK_CTX, {
+  it('drops actions whose labels contain dietary directive phrases', async () => {
+    const result = await proposeNextStepsHandler.execute(MOCK_CTX, {
       actions: [
         { verb: 'measure', label: 'Get a ferritin test' },
         { verb: 'behavior', label: 'Increase your intake of iron-rich foods like spinach' },
@@ -57,8 +58,8 @@ describe('propose_next_steps — validation boundary', () => {
     expect(result.actions[0].label).toBe('Get a ferritin test');
   });
 
-  it('drops actions containing drug names or dose strings', () => {
-    const result = proposeNextStepsHandler.execute(MOCK_CTX, {
+  it('drops actions containing drug names or dose strings', async () => {
+    const result = await proposeNextStepsHandler.execute(MOCK_CTX, {
       actions: [
         { verb: 'measure', label: 'Get a ferritin test' },
         { verb: 'discuss', label: 'Consider ferrous sulfate 65mg supplementation' },
@@ -69,9 +70,24 @@ describe('propose_next_steps — validation boundary', () => {
     expect(result.dropped).toBe(1);
   });
 
-  it('caps label length to MAX_LABEL_LENGTH', () => {
+  it('drops an action whose markerName contains a drug name + dose', async () => {
+    const result = await proposeNextStepsHandler.execute(MOCK_CTX, {
+      actions: [
+        { verb: 'measure', label: 'Get a blood test', markerName: 'Ferrous sulfate 65mg' },
+        { verb: 'measure', label: 'Re-test ferritin in 8 weeks', markerName: 'Ferritin' },
+      ],
+    });
+
+    // The drug-name markerName action is dropped; the clean one survives.
+    expect(result.actions).toHaveLength(1);
+    expect(result.dropped).toBe(1);
+    expect(result.actions[0].markerName).toBe('Ferritin');
+    expect(result.dropReasons[0]).toMatch(/markerName/i);
+  });
+
+  it('caps label length to MAX_LABEL_LENGTH', async () => {
     const longLabel = 'x'.repeat(300);
-    const result = proposeNextStepsHandler.execute(MOCK_CTX, {
+    const result = await proposeNextStepsHandler.execute(MOCK_CTX, {
       actions: [{ verb: 'measure', label: longLabel }],
     });
 
@@ -79,8 +95,8 @@ describe('propose_next_steps — validation boundary', () => {
     expect(result.actions[0].label.length).toBeLessThanOrEqual(200);
   });
 
-  it('returns empty actions + dropped count when all are invalid', () => {
-    const result = proposeNextStepsHandler.execute(MOCK_CTX, {
+  it('returns empty actions + dropped count when all are invalid', async () => {
+    const result = await proposeNextStepsHandler.execute(MOCK_CTX, {
       actions: [
         { verb: 'behavior', label: 'You should take 65mg ferrous sulfate' },
       ],
@@ -90,8 +106,8 @@ describe('propose_next_steps — validation boundary', () => {
     expect(result.dropped).toBe(1);
   });
 
-  it('drops action with forbidden label but keeps others', () => {
-    const result = proposeNextStepsHandler.execute(MOCK_CTX, {
+  it('drops action with forbidden label but keeps others', async () => {
+    const result = await proposeNextStepsHandler.execute(MOCK_CTX, {
       actions: [
         { verb: 'measure', label: 'Re-test ferritin in 8 weeks' },
         { verb: 'discuss', label: 'Ask your GP whether a sleep study is appropriate' },
@@ -104,9 +120,9 @@ describe('propose_next_steps — validation boundary', () => {
     expect(result.actions.map((a) => a.verb)).toEqual(['measure', 'discuss']);
   });
 
-  it('all 4 canonical verbs are valid', () => {
+  it('all 4 canonical verbs are valid', async () => {
     for (const verb of NEXT_STEP_VERBS) {
-      const result = proposeNextStepsHandler.execute(MOCK_CTX, {
+      const result = await proposeNextStepsHandler.execute(MOCK_CTX, {
         actions: [{ verb, label: `Do something with verb ${verb}` }],
       });
       expect(result.dropped).toBe(0);

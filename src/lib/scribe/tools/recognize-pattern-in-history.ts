@@ -135,6 +135,10 @@ export const recognizePatternInHistoryHandler: ToolHandler<
     const rows = await ctx.db.healthDataPoint.findMany({
       where: { userId: ctx.userId, metric: { in: topicMetrics }, timestamp: { gte: since } },
       orderBy: { timestamp: 'asc' },
+      // Defense-in-depth: the count gate above already bails over the
+      // threshold, but cap the materialised set too so a race between the
+      // count and the fetch can't load an unbounded result set.
+      take: PATTERN_ROW_SAFETY_THRESHOLD,
     });
 
     const byMetric = new Map<string, typeof rows>();

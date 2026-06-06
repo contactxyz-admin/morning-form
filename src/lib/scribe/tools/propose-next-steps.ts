@@ -64,18 +64,14 @@ export const proposeNextStepsHandler: ToolHandler<
   description:
     'Propose typed next steps for the user at the end of an answer. Each action has a verb (measure|discuss|track|behavior), a label, and optionally a markerName. Only call this tool after the full answer is complete — it is the final tool before end_turn. Actions are validated against the clinical safety policy; invalid ones are silently dropped.',
   parameters: proposeNextStepsSchema,
-  execute(_ctx: ToolContext, args: ProposeNextStepsArgs): ProposeNextStepsResult {
+  async execute(_ctx: ToolContext, args: ProposeNextStepsArgs): Promise<ProposeNextStepsResult> {
     const valid: ValidatedAction[] = [];
     const dropReasons: string[] = [];
     let dropped = 0;
 
     for (const action of args.actions) {
-      // Verb must be in the closed vocabulary.
-      if (!(NEXT_STEP_VERBS as readonly string[]).includes(action.verb)) {
-        dropped++;
-        dropReasons.push(`Unknown verb '${action.verb}' — dropped.`);
-        continue;
-      }
+      // Verb is already constrained to the closed vocabulary by the zod enum
+      // at the parse boundary (proposeNextStepsSchema) — no re-check needed.
 
       // Label length cap.
       const label = action.label.slice(0, MAX_LABEL_LENGTH);
@@ -92,10 +88,26 @@ export const proposeNextStepsHandler: ToolHandler<
         continue;
       }
 
+      // Scan markerName with the SAME forbidden-phrase gate as label — a
+      // marker name is user-facing (renders in the UI chip) and persists to
+      // the Action table, so a drug name or dose smuggled here (e.g.
+      // 'Ferrous sulfate 65mg') must drop the whole action.
+      const markerName = action.markerName?.slice(0, MAX_MARKER_NAME_LENGTH);
+      if (markerName) {
+        const markerViolations = scanForbiddenPhrases(markerName, FORBIDDEN_PHRASE_PATTERNS);
+        if (markerViolations.length > 0) {
+          dropped++;
+          dropReasons.push(
+            `Action markerName '${markerName.slice(0, 60)}' matched forbidden phrase(s): ${markerViolations.map((v) => v.match).join(', ')}`,
+          );
+          continue;
+        }
+      }
+
       valid.push({
-        verb: action.verb as NextStepVerb,
+        verb: action.verb,
         label,
-        markerName: action.markerName?.slice(0, MAX_MARKER_NAME_LENGTH),
+        markerName,
       });
     }
 

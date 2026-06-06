@@ -205,31 +205,29 @@ describe('enforce — investigation-avenues structural citation rule', () => {
     expect(result.classification).toBe('rejected');
     expect(result.violations.some((v) => v.kind === 'insufficient-citation-density')).toBe(true);
   });
-});
 
-describe('enforce — action-recommendation density exemption', () => {
-  it('accepts an action-recommendation answer with no citations (density-exempt)', () => {
+  it('rejects an investigation-avenues section with paragraphCount 0 AND citationCount 0 (vacuous-pass guard)', () => {
+    // The generic density loop skips zero-paragraph sections, which would
+    // vacuously pass an uncited avenue. The structural branch must catch a
+    // section that is both empty and uncited.
     const candidate = makeCandidate({
-      judgmentKind: 'action-recommendation',
-      output: 'Here are some steps you might consider: measure your ferritin again in 3 months.',
-      sections: [],
+      judgmentKind: 'investigation-avenues',
+      output: 'Your tiredness may have several causes worth investigating.',
+      sections: [
+        { heading: 'Iron status', paragraphCount: 0, citationCount: 0 },
+      ],
     });
-    const result = enforce(IRON_POLICY, candidate);
-    expect(result.ok).toBe(true);
-    expect(result.classification).toBe('clinical-safe');
-  });
-
-  it('still rejects an action-recommendation containing a forbidden phrase', () => {
-    const candidate = makeCandidate({
-      judgmentKind: 'action-recommendation',
-      output: 'You should take 65mg ferrous sulfate daily.',
-      sections: [],
-    });
-    const result = enforce(IRON_POLICY, candidate);
+    const result = enforce(getPolicy('energy-fatigue')!, candidate);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.classification).toBe('rejected');
-    expect(result.violations.every((v) => v.kind === 'forbidden-phrase')).toBe(true);
+    expect(
+      result.violations.some(
+        (v) =>
+          v.kind === 'insufficient-citation-density' &&
+          v.sectionHeading === 'Iron status',
+      ),
+    ).toBe(true);
   });
 });
 
@@ -259,25 +257,62 @@ describe('enforce — dietary directive forbidden phrases', () => {
     expect(result.classification).toBe('rejected');
   });
 
-  it('accepts a descriptive mention of dietary intake (not a directive)', () => {
-    const candidate = makeCandidate({
-      judgmentKind: 'reference-range-comparison',
-      output: 'Your ferritin is below the typical reference range. Dietary iron intake can influence ferritin levels.',
-      sections: [{ heading: 'Iron status', paragraphCount: 1, citationCount: 1 }],
-    });
-    const result = enforce(IRON_POLICY, candidate);
-    expect(result.ok).toBe(true);
-  });
+  // Cover the remaining dietary-directive patterns (those not already exercised
+  // by the two cases above) — every pattern in DIETARY_DIRECTIVE_PATTERNS must
+  // have a rejecting fixture so a regex regression can't silently widen the net.
+  const DIETARY_DIRECTIVE_FIXTURES: Array<[string, string]> = [
+    ['you should eat more', 'You should eat more to recover your energy.'],
+    ['you should eat less', 'You should eat less in the evenings.'],
+    ['you should consume more', 'You should consume more during training blocks.'],
+    ['you should consume less', 'You should consume less caffeine at night.'],
+    ['consume more protein', 'Consume more protein after your workouts.'],
+    ['you need to eat more', 'You need to eat more to hit your targets.'],
+    ['you need to consume more', 'You need to consume more during your taper.'],
+    ['add more X to your diet', 'Add more spinach to your diet this week.'],
+    ['cut out X from your diet', 'Cut out sugar from your diet entirely.'],
+    ['reduce your intake of', 'Reduce your intake of red meat going forward.'],
+  ];
 
-  it('accepts non-directive clinical context statement about intake', () => {
-    const candidate = makeCandidate({
-      judgmentKind: 'citation-surfacing',
-      output: 'Your GP note mentions low dietary iron intake as a contributing factor.',
-      sections: [{ heading: 'From your notes', paragraphCount: 1, citationCount: 1 }],
-    });
-    const result = enforce(IRON_POLICY, candidate);
-    expect(result.ok).toBe(true);
-  });
+  it.each(DIETARY_DIRECTIVE_FIXTURES)(
+    'rejects the dietary directive: %s',
+    (_label, output) => {
+      const candidate = makeCandidate({
+        judgmentKind: 'pattern-vs-own-history',
+        output,
+        sections: [{ heading: 'Advice', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+      expect(result.violations.some((v) => v.kind === 'forbidden-phrase')).toBe(true);
+    },
+  );
+
+  // A broad set of legitimate descriptive / non-directive sentences mentioning
+  // diet or intake that MUST pass — a single-example net is too thin for a
+  // global filter.
+  const DESCRIPTIVE_NON_DIRECTIVE: string[] = [
+    'Dietary iron intake can influence ferritin levels over time.',
+    'Your GP note mentions low dietary iron intake as a contributing factor.',
+    'Leafy greens are a common dietary source of folate in the general population.',
+    'Red meat is a dietary source of heme iron, which is absorbed efficiently.',
+    'Your recent intake of caffeine may correlate with the disrupted sleep onset in your log.',
+    'A balanced diet typically includes a range of protein sources.',
+  ];
+
+  it.each(DESCRIPTIVE_NON_DIRECTIVE)(
+    'accepts the descriptive non-directive sentence: %s',
+    (output) => {
+      const candidate = makeCandidate({
+        judgmentKind: 'reference-range-comparison',
+        output,
+        sections: [{ heading: 'Iron status', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(true);
+    },
+  );
 });
 
 describe('enforce — regression: existing 4 judgment kinds unaffected', () => {

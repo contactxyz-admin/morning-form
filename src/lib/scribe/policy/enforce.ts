@@ -115,20 +115,10 @@ export function enforce(
       });
     }
   }
-  // action-recommendation is exempt from the citation-density loop —
-  // action labels are validated by the propose_next_steps tool against the
-  // forbidden-phrase set, not by section-level citation counts. The phrase
-  // layer already ran above, so a density-violation-free result here is
-  // expected and correct.
-  // action-recommendation is exempt from the generic citation-density
-  // loop — action labels are validated by the propose_next_steps tool
-  // against the forbidden-phrase set, not by section-level citation
-  // counts. investigation-avenues was already checked by its structural
-  // branch above, so skip the per-section loop for it too.
-  if (
-    candidate.judgmentKind !== 'action-recommendation' &&
-    candidate.judgmentKind !== 'investigation-avenues'
-  ) {
+  // investigation-avenues was already checked by its structural branch above
+  // (≥1 citation per section, regardless of paragraph count), so skip the
+  // generic per-section density loop for it.
+  if (candidate.judgmentKind !== 'investigation-avenues') {
     for (const section of candidate.sections) {
       if (section.paragraphCount <= 0) continue;
       const density = section.citationCount / section.paragraphCount;

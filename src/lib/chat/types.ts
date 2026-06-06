@@ -67,6 +67,11 @@ export interface DoneEvent {
   readonly referrals: readonly Referral[];
   /** Validated next-step actions proposed by the scribe. Empty when none. */
   readonly actions: readonly ValidatedAction[];
+  /**
+   * Set additively when the scribe's final turn was truncated by max_tokens
+   * (answer may be cut off). Omitted on a clean completion.
+   */
+  readonly truncated?: boolean;
 }
 
 export interface ErrorEvent {
@@ -99,4 +104,6 @@ export interface AssistantMessageMetadata {
   readonly referrals?: readonly Referral[];
   /** Validated next-step actions proposed by the scribe. Empty when none. */
   readonly actions?: readonly ValidatedAction[];
+  /** Set additively when the scribe's final turn was truncated by max_tokens. */
+  readonly truncated?: boolean;
 }

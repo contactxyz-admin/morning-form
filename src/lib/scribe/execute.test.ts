@@ -501,6 +501,157 @@ describe('scribe executor — contextPreamble (Phase A Unit 3)', () => {
   });
 });
 
+describe('scribe executor — propose_next_steps gating (Phase A)', () => {
+  function scriptedLLMCapturingTools(turns: ScribeLLMTurn[]): {
+    client: ScribeLLMClient;
+    calls: Array<{ toolNames: string[] }>;
+  } {
+    const calls: Array<{ toolNames: string[] }> = [];
+    const queue = [...turns];
+    const client: ScribeLLMClient = {
+      async turn(req) {
+        calls.push({ toolNames: req.tools.map((t) => t.name) });
+        const next = queue.shift();
+        if (!next) throw new Error('scriptedLLM: queue exhausted');
+        return next;
+      },
+    };
+    return { client, calls };
+  }
+
+  it('does NOT offer propose_next_steps to the LLM when enableProposeNextSteps is unset', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-off');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    const { client, calls } = scriptedLLMCapturingTools([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    await execute(baseRequest({ userId, llm: client }));
+
+    expect(calls[0].toolNames).not.toContain('propose_next_steps');
+  });
+
+  it('offers propose_next_steps to the LLM only when enableProposeNextSteps is true', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-on');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    const { client, calls } = scriptedLLMCapturingTools([
+      { stopReason: 'end_turn', text: 'ok', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    await execute(baseRequest({ userId, llm: client, enableProposeNextSteps: true }));
+
+    expect(calls[0].toolNames).toContain('propose_next_steps');
+  });
+
+  it('refuses (does not dispatch) a propose_next_steps call when the tool is not enabled', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-refuse');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    // LLM hallucinates the gated tool even though it was not offered.
+    const { client } = scriptedLLM([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          { id: 'c1', name: 'propose_next_steps', input: { actions: [{ verb: 'measure', label: 'Re-test ferritin' }] } },
+        ],
+      },
+      { stopReason: 'end_turn', text: 'Your ferritin is within range.', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const result = await execute(baseRequest({ userId, llm: client }));
+
+    // The call is recorded as an error and produced no actions.
+    const pnsCall = result.toolCalls.find((c) => c.name === 'propose_next_steps');
+    expect(pnsCall?.isError).toBe(true);
+    expect(result.proposedActions).toEqual([]);
+  });
+
+  it('dispatches propose_next_steps and collects actions when enabled', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-collect');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    const { client } = scriptedLLM([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          { id: 'c1', name: 'propose_next_steps', input: { actions: [{ verb: 'measure', label: 'Re-test ferritin in 8 weeks', markerName: 'Ferritin' }] } },
+        ],
+      },
+      { stopReason: 'end_turn', text: 'Your ferritin is within range.', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const result = await execute(baseRequest({ userId, llm: client, enableProposeNextSteps: true }));
+
+    expect(result.proposedActions).toHaveLength(1);
+    expect(result.proposedActions[0].markerName).toBe('Ferritin');
+  });
+
+  it('dedups by (verb,label) and caps at 4 across a double propose_next_steps call', async () => {
+    const userId = await makeTestUser(prisma, 'exec-pns-dedup');
+    await getOrCreateScribeForTopic(prisma, userId, 'iron', { modelVersion: 'v1' });
+    const { client } = scriptedLLM([
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          {
+            id: 'c1',
+            name: 'propose_next_steps',
+            input: {
+              actions: [
+                { verb: 'measure', label: 'Re-test ferritin' },
+                { verb: 'discuss', label: 'Review iron with GP' },
+                { verb: 'track', label: 'Log energy daily' },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        stopReason: 'tool_use',
+        text: '',
+        modelVersion: 'v1',
+        toolCalls: [
+          {
+            id: 'c2',
+            name: 'propose_next_steps',
+            input: {
+              actions: [
+                // Duplicate of the first call (same verb+label) — must dedup.
+                { verb: 'measure', label: 'Re-test ferritin' },
+                // Two new ones; only one fits under the cap of 4.
+                { verb: 'behavior', label: 'Improve sleep routine' },
+                { verb: 'track', label: 'Log mood weekly' },
+              ],
+            },
+          },
+        ],
+      },
+      { stopReason: 'end_turn', text: 'Your ferritin is within range.', modelVersion: 'v1', toolCalls: [] },
+    ]);
+
+    const result = await execute(baseRequest({ userId, llm: client, enableProposeNextSteps: true }));
+
+    // 3 unique from call 1 + 1 net-new from call 2 (the duplicate dropped) = 4,
+    // which is exactly the cap. The fifth distinct action ('Log mood weekly')
+    // is dropped by the cap.
+    expect(result.proposedActions).toHaveLength(4);
+    const labels = result.proposedActions.map((a) => a.label);
+    expect(labels).toEqual([
+      'Re-test ferritin',
+      'Review iron with GP',
+      'Log energy daily',
+      'Improve sleep routine',
+    ]);
+    // No duplicate (verb,label) survived.
+    const keys = result.proposedActions.map((a) => `${a.verb} ${a.label}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
 describe('scribe executor — self-healing model guard', () => {
   // Pins the fix for the P0 prod bug where Scribe rows seeded during the
   // pre-Anthropic era (model = `openrouter/openai/gpt-4.1`) reached the

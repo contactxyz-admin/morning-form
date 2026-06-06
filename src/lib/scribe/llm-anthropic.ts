@@ -114,6 +114,11 @@ export class AnthropicScribeLLMClient implements ScribeLLMClient {
       modelVersion: response.model,
       inputTokens: response.usage?.input_tokens,
       outputTokens: response.usage?.output_tokens,
+      // Preserve the max_tokens truncation signal even though mapStopReason
+      // collapses it into 'end_turn' for the loop invariant. execute() logs a
+      // warning and surfaces it additively so the answer can be flagged as
+      // cut off.
+      truncated: response.stop_reason === 'max_tokens',
     };
   }
 
