@@ -64,6 +64,10 @@ const optional = {
   // the booking request form + ops fulfillment loop. Flip in U5 after
   // legal/disclosure packet is signed.
   CONCIERGE_BOOKING_ENABLED: process.env.CONCIERGE_BOOKING_ENABLED ?? '',
+  // Ops email for concierge booking notifications (Plan 2026-06-06-001 U3).
+  // Reference-only — no health data in email. Production assert fails
+  // closed when unset and CONCIERGE_BOOKING_ENABLED is true.
+  OPS_EMAIL: process.env.OPS_EMAIL ?? '',
 };
 
 export const env = {

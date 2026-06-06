@@ -37,6 +37,7 @@ model User {
   healthDataPoints  HealthDataPoint[]
   suggestions       Suggestion[]
   actions           Action[]
+  bookingRequests   BookingRequest[]
   preferences       UserPreferences?
   sourceDocuments   SourceDocument[]
   embeddingBackfills EmbeddingBackfillState[]
@@ -798,6 +799,27 @@ model Action {
   @@index([userId, createdAt])
   @@index([userId, state])
   @@index([scribeRequestId])
+}
+
+// ---------------------------------------------------------------------------
+// Concierge booking requests (Plan 2026-06-06-001 U3). One row per request.
+// Marker names validated against canonical set at POST time. usState
+// validated then DISCARDED (never persisted). markerNames nullified at
+// terminal states per the retention schedule.
+// ---------------------------------------------------------------------------
+model BookingRequest {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  markerNames  String?   // JSON array, canonical-validated; nullified at terminal states
+  market       String    // 'uk' | 'us'
+  status       String    @default("requested") // requested|arranged|delivered|cancelled
+  actionId     String?   // FK to Action when linked (SetNull)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId, status, createdAt])
+  @@index([userId, createdAt])
 }
 
 // Survives account erasure by construction — NO User FK. The audit record
