@@ -221,6 +221,7 @@ export async function eraseAccount(
       deletedCounts.topicPages = (await tx.topicPage.deleteMany({ where: { userId } })).count;
       deletedCounts.actions = (await tx.action.deleteMany({ where: { userId } })).count;
       deletedCounts.bookingRequests = (await tx.bookingRequest.deleteMany({ where: { userId } })).count;
+      deletedCounts.actionOutcomes = (await tx.actionOutcome.deleteMany({ where: { userId } })).count;
 
       // user.delete() sweeps the cascade-annotated models. Counts for those are
       // not individually recoverable here — record 'cascade'.

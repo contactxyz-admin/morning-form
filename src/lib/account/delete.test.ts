@@ -82,7 +82,7 @@ async function seedFullUser(p: PrismaClient): Promise<{ id: string; email: strin
   const chatMsg = await p.chatMessage.create({ data: { userId: id, role: 'user', content: 'hi' } });
   // Action row with chatMessageId provenance — exercises the deletion cascade
   // AND the chatMessage FK relation (onDelete: SetNull).
-  await p.action.create({
+  const action = await p.action.create({
     data: {
       userId: id,
       chatMessageId: chatMsg.id,
@@ -90,6 +90,19 @@ async function seedFullUser(p: PrismaClient): Promise<{ id: string; email: strin
       verb: 'measure',
       label: 'Re-check ferritin in 3 months',
       markerName: 'Ferritin',
+    },
+  });
+  // ActionOutcome (Plan 2026-06-06-002 U4) — seeded so the deletion residue
+  // scan exercises a real row (the vacuous-guard trap).
+  await p.actionOutcome.create({
+    data: {
+      actionId: action.id,
+      userId: id,
+      markerName: 'Ferritin',
+      beforeValue: 25,
+      beforeAt: new Date('2026-03-01'),
+      afterValue: 62,
+      afterAt: new Date('2026-06-01'),
     },
   });
   // Concierge booking request (Plan 2026-06-06-001) — userId-bearing, swept on

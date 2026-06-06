@@ -203,7 +203,7 @@ async function seedMultiDomainUser(p: PrismaClient): Promise<string> {
   await p.checkIn.create({ data: { userId, type: 'morning', date: '2026-03-20', responses: '{}' } });
   await p.checkIn.create({ data: { userId, type: 'evening', date: '2026-03-20', responses: '{}' } });
   const chatMsg = await p.chatMessage.create({ data: { userId, role: 'user', content: 'hi' } });
-  await p.action.create({
+  const action = await p.action.create({
     data: {
       userId,
       chatMessageId: chatMsg.id,
@@ -211,6 +211,19 @@ async function seedMultiDomainUser(p: PrismaClient): Promise<string> {
       verb: 'measure',
       label: 'Re-check ferritin in 3 months',
       markerName: 'Ferritin',
+    },
+  });
+  // ActionOutcome (Plan 2026-06-06-002 U4) — frozen snapshot. Seeds BOTH
+  // export + delete fixtures so the GDPR guard exercises a real row.
+  await p.actionOutcome.create({
+    data: {
+      actionId: action.id,
+      userId,
+      markerName: 'Ferritin',
+      beforeValue: 25,
+      beforeAt: new Date('2026-03-01'),
+      afterValue: 62,
+      afterAt: new Date('2026-06-01'),
     },
   });
   // Concierge booking request (Plan 2026-06-06-001) — exports in its own domain.

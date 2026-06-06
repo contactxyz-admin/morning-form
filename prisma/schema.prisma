@@ -38,6 +38,7 @@ model User {
   suggestions       Suggestion[]
   actions           Action[]
   bookingRequests   BookingRequest[]
+  actionOutcomes    ActionOutcome[]
   preferences       UserPreferences?
   sourceDocuments   SourceDocument[]
   embeddingBackfills EmbeddingBackfillState[]
@@ -802,10 +803,34 @@ model Action {
   // Concierge booking requests linking this Action (SetNull on delete —
   // mirrors chatMessageId's pattern so the booking row survives Action removal).
   bookingRequests BookingRequest[]
+  outcomes         ActionOutcome[]
 
   @@index([userId, createdAt])
   @@index([userId, state])
   @@index([scribeRequestId])
+}
+
+// ---------------------------------------------------------------------------
+// Frozen outcome snapshot — written atomically with the outcome-measured
+// transition (Plan 2026-06-06-002 Phase B U4). Captures the marker before/after
+// at the moment the user closes the loop. Joins GDPR export + deletion +
+// both structural-guard fixtures in the same unit (the vacuous-guard trap).
+// ---------------------------------------------------------------------------
+model ActionOutcome {
+  id         String   @id @default(cuid())
+  actionId   String   @unique // one outcome per action
+  action     Action   @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  markerName String
+  beforeValue Float?
+  beforeAt    DateTime?
+  afterValue  Float
+  afterAt     DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([actionId])
 }
 
 // ---------------------------------------------------------------------------
