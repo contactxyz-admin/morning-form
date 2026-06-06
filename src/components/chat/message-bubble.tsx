@@ -111,7 +111,7 @@ function AssistantBubble({ message }: { message: AssistantBubbleModel }) {
   const referrals = message.referrals ?? [];
 
   return (
-    <div className="flex flex-col items-start gap-2">
+    <div className="flex flex-col items-start gap-2" id={message.id}>
       {showChip && <SpecialistChip topicKey={message.topicKey!} />}
 
       {referrals.length > 0 && (

@@ -149,6 +149,24 @@ function AskPageInner() {
     };
   }, []);
 
+  // Hash-scroll: when navigated to /ask#<messageId>, scroll to and briefly
+  // highlight that assistant answer. Phase B U1 — timeline back-link.
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const el = document.getElementById(hash);
+    if (!el) return;
+    // Small delay so the DOM has rendered before scrolling.
+    const timer = setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-accent/30', 'rounded-card', 'transition-all');
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-accent/30');
+      }, 2000);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleSubmit = useCallback(
     (text: string) => {
       const trimmed = text.trim();
