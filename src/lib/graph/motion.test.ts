@@ -1,7 +1,7 @@
 /**
  * Motion primitives tests (Plan 2026-06-08-001 U1). Pure, DOM-free.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { smooth, easeOutCubic, entranceFrame } from './motion';
 
 describe('smooth', () => {
@@ -109,36 +109,58 @@ describe('entranceFrame', () => {
 // The frozen layout for a given seed + data must be byte-identical after
 // the motion wiring. This test runs the EXACT force-simulation pipeline
 // from use-graph-state.ts and snapshots the converged positions.
+//
+// It locks ABSOLUTE values against a frozen reference (so a force-param or
+// tick-count drift fails), asserts the RNG is constructed exactly once
+// (single stream — the R4 invariant), and stays coupled to production by
+// importing the real `radiusForTier`. It also includes the regression test
+// that would have caught the P0 no-op: scatter (tick 0) !== settled (tick 80).
 
 import * as d3 from 'd3';
-import { makeRng } from '../../../prisma/fixtures/synthetic/generators';
-import type { GraphNodeWire, GraphEdgeWire } from '@/types/graph';
+import * as generators from '../../../prisma/fixtures/synthetic/generators';
+import { radiusForTier } from '@/lib/graph/visual-encoding';
+import type { ImportanceTier } from '@/types/graph';
+
+// Local Pick<> fixtures — only the fields the simulation reads. Keeps the
+// fixtures honest (real field names/types) without fabricating the full
+// wire shape (userId, attributes, confidence, timestamps, …).
+type SimNodeFixture = Pick<
+  import('@/types/graph').GraphNodeWire,
+  'id' | 'type' | 'tier' | 'score' | 'canonicalKey' | 'displayName'
+>;
+type SimEdgeFixture = Pick<
+  import('@/types/graph').GraphEdgeWire,
+  'id' | 'type' | 'fromNodeId' | 'toNodeId'
+>;
 
 describe('R4 determinism — seed→80-ticks→positions', () => {
-  // Minimal GraphNodeWire fixtures — only the fields the simulation reads.
-  function node(id: string, tier: 1 | 2 | 3 = 1): GraphNodeWire {
+  function node(id: string, tier: ImportanceTier = 1): SimNodeFixture {
     return {
       id,
-      type: 'biomarker' as const,
+      type: 'biomarker',
       canonicalKey: id,
       displayName: id.toUpperCase(),
       score: 1,
       tier,
     };
   }
-  function edge(id: string, from: string, to: string): GraphEdgeWire {
-    return { id, type: 'relates' as const, fromNodeId: from, toNodeId: to };
+  function edge(id: string, from: string, to: string): SimEdgeFixture {
+    return { id, type: 'SUPPORTS', fromNodeId: from, toNodeId: to };
   }
 
   // Snapshot helper: run the pipeline and return {id, x, y}[].
+  // `ticks` controls how far the sim is advanced (0 = scatter only).
+  // Mirrors use-graph-state.ts: single makeRng stream feeds both the
+  // initial scatter and `.randomSource`, real radiusForTier for collide.
   function solvePositions(
-    nodes: GraphNodeWire[],
-    edges: GraphEdgeWire[],
+    nodes: SimNodeFixture[],
+    edges: SimEdgeFixture[],
     seed: number,
     width = 960,
     height = 600,
+    ticks = 80,
   ): { id: string; x: number; y: number }[] {
-    const rng = makeRng(seed);
+    const rng = generators.makeRng(seed);
 
     const simNodes = nodes.map((n) => ({
       ...n,
@@ -157,33 +179,87 @@ describe('R4 determinism — seed→80-ticks→positions', () => {
       })
       .filter(Boolean) as { id: string; source: typeof simNodes[0]; target: typeof simNodes[0]; type: string }[];
 
+    type SolveNode = (typeof simNodes)[number];
     const simulation = d3
       .forceSimulation(simNodes)
-      .force('link', d3.forceLink(simEdges).id((d: any) => d.id).distance(70).strength(0.6))
+      .force(
+        'link',
+        d3
+          .forceLink(simEdges)
+          .id((d) => (d as SolveNode).id)
+          .distance(70)
+          .strength(0.6),
+      )
       .force('charge', d3.forceManyBody().strength(-260))
       .force('center', d3.forceCenter(width / 2, height / 2).strength(0.15))
-      .force('collide', d3.forceCollide().radius((d: any) => (d.tier === 1 ? 12 : d.tier === 2 ? 9 : 7) + 4))
+      .force('collide', d3.forceCollide<SolveNode>().radius((d) => radiusForTier(d.tier) + 4))
       .randomSource(rng)
       .stop();
 
-    for (let i = 0; i < 80; i++) simulation.tick();
+    for (let i = 0; i < ticks; i++) simulation.tick();
 
     return simNodes.map((n) => ({ id: n.id, x: Math.round(n.x * 1000) / 1000, y: Math.round(n.y * 1000) / 1000 }));
   }
 
-  it('produces deterministic positions for a 5-node fixture', () => {
-    const nodes = [node('a'), node('b'), node('c'), node('d', 2), node('e', 3)];
-    const edges = [edge('ab', 'a', 'b'), edge('bc', 'b', 'c'), edge('cd', 'c', 'd'), edge('de', 'd', 'e')];
+  const FIXTURE_NODES = [node('a'), node('b'), node('c'), node('d', 2), node('e', 3)];
+  const FIXTURE_EDGES = [
+    edge('ab', 'a', 'b'),
+    edge('bc', 'b', 'c'),
+    edge('cd', 'c', 'd'),
+    edge('de', 'd', 'e'),
+  ];
 
-    const a = solvePositions(nodes, edges, 42);
-    const b = solvePositions(nodes, edges, 42);
+  it('produces deterministic positions for a 5-node fixture', () => {
+    const a = solvePositions(FIXTURE_NODES, FIXTURE_EDGES, 42);
+    const b = solvePositions(FIXTURE_NODES, FIXTURE_EDGES, 42);
 
     // Same seed → byte-identical.
     expect(a).toEqual(b);
 
     // Different seed → different positions.
-    const c = solvePositions(nodes, edges, 99);
+    const c = solvePositions(FIXTURE_NODES, FIXTURE_EDGES, 99);
     expect(a).not.toEqual(c);
+  });
+
+  it('matches the frozen reference layout (locks force params + tick count)', () => {
+    // Absolute golden snapshot. Any drift in force strengths, distances,
+    // collide radius, tick count, or RNG stream order will fail this.
+    const FROZEN_42: { id: string; x: number; y: number }[] = [
+      { id: 'a', x: 625.508, y: 245.124 },
+      { id: 'b', x: 539.661, y: 251.127 },
+      { id: 'c', x: 453.156, y: 269.147 },
+      { id: 'd', x: 383.385, y: 321.958 },
+      { id: 'e', x: 391.232, y: 406.868 },
+    ];
+    const actual = solvePositions(FIXTURE_NODES, FIXTURE_EDGES, 42);
+    // Diagnostic on drift: print the actual so the reference is easy to refresh.
+    if (JSON.stringify(actual) !== JSON.stringify(FROZEN_42)) {
+      // eslint-disable-next-line no-console
+      console.error('R4 frozen-layout drift; actual =', JSON.stringify(actual));
+    }
+    expect(actual).toEqual(FROZEN_42);
+  });
+
+  it('constructs the RNG exactly once per solve (single stream — R4 invariant)', () => {
+    const spy = vi.spyOn(generators, 'makeRng');
+    solvePositions(FIXTURE_NODES, FIXTURE_EDGES, 42);
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+  it('entrance actually displaces nodes: scatter (tick 0) !== settled (tick 80)', () => {
+    // The P0 regression guard. If startPositions were snapshotted after the
+    // ticks (the original no-op bug), scatter would equal settled and this
+    // would fail.
+    const scatter = solvePositions(FIXTURE_NODES, FIXTURE_EDGES, 42, 960, 600, 0);
+    const settled = solvePositions(FIXTURE_NODES, FIXTURE_EDGES, 42, 960, 600, 80);
+    expect(scatter).not.toEqual(settled);
+    // And every individual node moved (not just one).
+    for (let i = 0; i < scatter.length; i++) {
+      const moved =
+        scatter[i].x !== settled[i].x || scatter[i].y !== settled[i].y;
+      expect(moved).toBe(true);
+    }
   });
 
   it('produces deterministic positions for a single-node graph', () => {
@@ -193,8 +269,8 @@ describe('R4 determinism — seed→80-ticks→positions', () => {
   });
 
   it('positions are within the canvas bounds (± some margin)', () => {
-    const nodes = Array.from({ length: 20 }, (_, i) => node(`n${i}`, (i % 3 + 1) as 1 | 2 | 3));
-    const edges: GraphEdgeWire[] = [];
+    const nodes = Array.from({ length: 20 }, (_, i) => node(`n${i}`, ((i % 3) + 1) as ImportanceTier));
+    const edges: SimEdgeFixture[] = [];
     for (let i = 1; i < nodes.length; i++) {
       edges.push(edge(`e${i}`, nodes[i - 1].id, nodes[i].id));
     }
@@ -205,5 +281,30 @@ describe('R4 determinism — seed→80-ticks→positions', () => {
       expect(p.y).toBeGreaterThan(-200);
       expect(p.y).toBeLessThan(800);
     }
+  });
+});
+
+// ── entranceFrame: ReadonlyMap target + purity ──
+describe('entranceFrame — ReadonlyMap target', () => {
+  it('accepts a prebuilt ReadonlyMap and lerps identically to the array form', () => {
+    const start = [
+      { id: 'a', x: 0, y: 0 },
+      { id: 'b', x: 10, y: 10 },
+    ];
+    const targetArr = [
+      { id: 'a', x: 100, y: 100 },
+      { id: 'b', x: 20, y: 20 },
+    ];
+    const targetMap = new Map(targetArr.map((p) => [p.id, p]));
+    expect(entranceFrame(start, targetMap, 0.5)).toEqual(
+      entranceFrame(start, targetArr, 0.5),
+    );
+  });
+
+  it('returns a copy (not the aliased input) for nodes absent from target', () => {
+    const start = [{ id: 'a', x: 1, y: 2 }];
+    const result = entranceFrame(start, new Map(), 0.5);
+    expect(result[0]).toEqual({ id: 'a', x: 1, y: 2 });
+    expect(result[0]).not.toBe(start[0]); // distinct object reference
   });
 });
