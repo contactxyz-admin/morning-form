@@ -12,7 +12,12 @@ export function smooth(t: number): number {
   return c * c * (3 - 2 * c);
 }
 
-/** Clamped ease-out cubic (fast start, gentle settle). */
+/**
+ * Clamped ease-out cubic (fast start, gentle settle).
+ * Phase 2 (deferred): the drag spring-back will ease released nodes home
+ * with this curve. Kept here so the Phase 2 wiring imports a tested
+ * primitive rather than re-deriving it.
+ */
 export function easeOutCubic(t: number): number {
   const c = clamp(t);
   return 1 - Math.pow(1 - c, 3);
@@ -36,17 +41,26 @@ export interface MotionPoint {
  * Pure position interpolation for a single frame.
  * `alpha` is the eased, normalized time [0,1].
  * Returns start at alpha=0, target at alpha=1, lerp in between per-node.
+ *
+ * `target` may be a `MotionPoint[]` (test ergonomics) or a prebuilt
+ * `ReadonlyMap<id, point>` (hot path — the caller builds the map once and
+ * passes it every frame to avoid a per-frame rebuild).
  */
 export function entranceFrame(
   start: readonly MotionPoint[],
-  target: readonly MotionPoint[],
+  target: readonly MotionPoint[] | ReadonlyMap<string, MotionPoint>,
   alpha: number,
 ): MotionPoint[] {
   const t = clamp(alpha);
-  const targetMap = new Map(target.map((p) => [p.id, p]));
+  const targetMap: ReadonlyMap<string, MotionPoint> = Array.isArray(target)
+    ? new Map(target.map((p) => [p.id, p]))
+    : (target as ReadonlyMap<string, MotionPoint>);
   return start.map((s) => {
     const tg = targetMap.get(s.id);
-    if (!tg) return s; // node removed — keep last known position
+    // Node absent from target — keep last known position. Return a COPY,
+    // never the aliased input ref, so callers can't mutate `start` through
+    // the result.
+    if (!tg) return { id: s.id, x: s.x, y: s.y };
     return {
       id: s.id,
       x: lerp(s.x, tg.x, t),
