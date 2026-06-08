@@ -2,9 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
+import { animate } from 'framer-motion';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { makeRng } from '../../../prisma/fixtures/synthetic/generators';
 import { radiusForTier, visualForEdge, visualForNode } from '@/lib/graph/visual-encoding';
+import { smooth, entranceFrame, type MotionPoint } from '@/lib/graph/motion';
+
+/** Entrance duration in seconds. */
+const ENTRANCE_DURATION_S = 0.7;
 
 /**
  * Force-directed graph hook. Modeled on seam's `useGraphState` (see
@@ -65,6 +70,7 @@ export function useGraphState(
   const simulationRef = useRef<d3.Simulation<SimulationNode, SimulationEdge> | null>(null);
   const simNodesRef = useRef<SimulationNode[]>([]);
   const simEdgesRef = useRef<SimulationEdge[]>([]);
+  const animateRef = useRef<ReturnType<typeof animate> | null>(null);
 
   // Volatile callback refs — must not retrigger the simulation.
   const onNodeClickRef = useRef(options.onNodeClick);
@@ -157,6 +163,21 @@ export function useGraphState(
 
     simulationRef.current = simulation;
 
+    // Snapshot start + target positions for the entrance animation.
+    // R4: both snapshots come from the same single-RNG-stream simNodes —
+    // no re-seed, no re-solve.
+    const startPositions: MotionPoint[] = simNodes.map((n) => ({
+      id: n.id,
+      x: n.x,
+      y: n.y,
+    }));
+    // Reset simNodes to start before rendering — animation drives toward target.
+    const targetMap = new Map(simNodes.map((n) => [n.id, { x: n.x, y: n.y }]));
+    for (const n of simNodes) {
+      const s = startPositions.find((p) => p.id === n.id);
+      if (s) { n.x = s.x; n.y = s.y; }
+    }
+
     // Edge layer (renders below nodes).
     const edgeLayer = svg.append('g').attr('class', 'graph-edges');
     edgeLayer
@@ -229,6 +250,67 @@ export function useGraphState(
       .attr('text-anchor', 'middle')
       .attr('dy', (d) => radiusForTier(d.tier) + 14)
       .text((d) => d.displayName);
+
+    // ── Entrance animation ──
+    // Check reduced-motion + SSR guard. Motion runs only in the browser
+    // when the user hasn't requested reduced motion.
+    const motionAllowed =
+      typeof window !== 'undefined' &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (motionAllowed && startPositions.length > 0) {
+      const edgeSel = svg.selectAll<SVGLineElement, SimulationEdge>('line');
+      const nodeSel = svg.selectAll<SVGGElement, SimulationNode>('g.graph-node');
+
+      // Cancel any in-flight animation from a prior dataSignature change.
+      animateRef.current?.stop();
+
+      const targetPoints: MotionPoint[] = Array.from(targetMap.entries()).map(
+        ([id, p]) => ({ id, x: p.x, y: p.y }),
+      );
+
+      animateRef.current = animate(0, 1, {
+        duration: ENTRANCE_DURATION_S,
+        ease: smooth,
+        onUpdate(alpha) {
+          const frame = entranceFrame(startPositions, targetPoints, alpha);
+          const posMap = new Map(frame.map((p) => [p.id, p]));
+
+          // Update node transforms.
+          nodeSel.attr('transform', (d) => {
+            const p = posMap.get(d.id);
+            return p ? `translate(${p.x},${p.y})` : `translate(${d.x},${d.y})`;
+          });
+
+          // Update edge endpoints from bound datum (NOT data-edge-id parsing).
+          edgeSel
+            .attr('x1', (d) => (posMap.get(d.source.id) ?? d.source).x)
+            .attr('y1', (d) => (posMap.get(d.source.id) ?? d.source).y)
+            .attr('x2', (d) => (posMap.get(d.target.id) ?? d.target).x)
+            .attr('y2', (d) => (posMap.get(d.target.id) ?? d.target).y);
+        },
+        onComplete() {
+          // Snap to exact target — R4 byte-identical end-state.
+          nodeSel.attr('transform', (d) => {
+            const tg = targetMap.get(d.id);
+            return tg ? `translate(${tg.x},${tg.y})` : `translate(${d.x},${d.y})`;
+          });
+          edgeSel
+            .attr('x1', (d) => (targetMap.get(d.source.id) ?? d.source).x)
+            .attr('y1', (d) => (targetMap.get(d.source.id) ?? d.source).y)
+            .attr('x2', (d) => (targetMap.get(d.target.id) ?? d.target).x)
+            .attr('y2', (d) => (targetMap.get(d.target.id) ?? d.target).y);
+
+          // Update simNodes to target so the R4 invariant holds for
+          // any downstream code that reads simNodesRef.
+          for (const n of simNodes) {
+            const tg = targetMap.get(n.id);
+            if (tg) { n.x = tg.x; n.y = tg.y; }
+          }
+          animateRef.current = null;
+        },
+      });
+    }
   }, [svgRef, nodes, edges, options]);
 
   // Re-init when shape changes; the dataSignature guards against
@@ -236,6 +318,8 @@ export function useGraphState(
   useEffect(() => {
     initGraph();
     return () => {
+      animateRef.current?.stop();
+      animateRef.current = null;
       simulationRef.current?.stop();
       simulationRef.current = null;
     };
