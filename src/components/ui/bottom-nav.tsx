@@ -7,6 +7,10 @@ import type { NavTab } from '@/types';
 
 interface BottomNavProps {
   active: NavTab;
+  /** Whether the flag-gated Decisions tab should render. Sourced server-side
+   *  from env.DECISIONS_ENABLED so a dormant feature shows no dead tab that
+   *  would silently redirect to /home. */
+  showDecisions?: boolean;
 }
 
 const tabs: { id: NavTab; label: string; icon: IconName; href: string }[] = [
@@ -17,11 +21,12 @@ const tabs: { id: NavTab; label: string; icon: IconName; href: string }[] = [
   { id: 'you', label: 'You', icon: 'profile', href: '/you' },
 ];
 
-function BottomNav({ active }: BottomNavProps) {
+function BottomNav({ active, showDecisions = false }: BottomNavProps) {
+  const visibleTabs = showDecisions ? tabs : tabs.filter((tab) => tab.id !== 'decisions');
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-bg/85 backdrop-blur-xl border-t border-border z-40">
       <div className="flex items-center justify-around max-w-lg mx-auto h-16 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = active === tab.id;
           return (
             <Link
