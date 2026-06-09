@@ -16,6 +16,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
+import { edgeOpacity } from '@/lib/graph/motion';
 import { useGraphState } from './use-graph-state';
 
 export interface GraphCanvasProps {
@@ -83,7 +84,7 @@ export function GraphCanvas({
     svg.querySelectorAll<SVGElement>('[data-from-id]').forEach((el) => {
       const fromId = el.getAttribute('data-from-id') ?? '';
       const toId = el.getAttribute('data-to-id') ?? '';
-      el.style.opacity = neighbourIds.has(fromId) && neighbourIds.has(toId) ? '1' : '0.15';
+      el.style.opacity = edgeOpacity(fromId, toId, neighbourIds);
     });
   }, [focusedNodeId, neighbourIds]);
 
