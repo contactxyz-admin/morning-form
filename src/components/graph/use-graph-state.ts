@@ -6,10 +6,28 @@ import { animate } from 'framer-motion';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { makeRng } from '../../../prisma/fixtures/synthetic/generators';
 import { radiusForTier, visualForEdge, visualForNode } from '@/lib/graph/visual-encoding';
-import { smooth, entranceFrame, clampToBounds, type MotionPoint } from '@/lib/graph/motion';
+import {
+  smooth,
+  entranceFrame,
+  clampToBounds,
+  fitTransform,
+  type MotionPoint,
+} from '@/lib/graph/motion';
 
 /** Entrance duration in seconds. */
 const ENTRANCE_DURATION_S = 0.7;
+
+/** Zoom scale extent (view-only — never affects solved positions). */
+const MIN_ZOOM = 0.3;
+const MAX_ZOOM = 4;
+/** Step factor for the +/- zoom controls (1.3× in, 1/1.3× out). */
+const ZOOM_STEP = 1.3;
+/** Duration of a +/- zoom-control transition. */
+const ZOOM_STEP_MS = 200;
+/** Duration of the eased reset/fit "camera" transition. */
+const RESET_DURATION_MS = 450;
+/** Padding (px) left around the node bbox when fitting to view. */
+const FIT_PADDING = 48;
 
 /** alphaTarget the sim is re-energized to while a node is being dragged. */
 const DRAG_ALPHA_TARGET = 0.3;
@@ -59,10 +77,16 @@ export function computeMotionAllowed(win: Window | undefined = typeof window !==
  *     retained sim (alphaTarget + fx/fy pin), neighbours spring via the
  *     existing forces, and the sim cools to a frozen rest on release.
  *     Gated on computeMotionAllowed() — reduced-motion / SSR get no drag.
+ *   - Zoom + pan (graph-zoom): d3.zoom on the svg drives a single
+ *     `.graph-zoom` <g> wrapping the edge + node layers. Wheel zooms
+ *     anywhere; primary-button drag on the BACKGROUND pans (a node-targeted
+ *     mousedown is rejected by the filter so node-drag still wins). Touch is
+ *     excluded (desktop-first). Imperative +/- / reset controls are returned
+ *     for the canvas to render; reset eases a fit-to-view "camera" and
+ *     respects reduced motion. View-only — solved positions are unchanged.
  *
- * No zoom/pan, no contextmenu, no progress overlay, no cluster
- * carry-forward — those are seam-specific and we don't need them on the
- * demo.
+ * No contextmenu, no progress overlay, no cluster carry-forward — those are
+ * seam-specific and we don't need them on the demo.
  */
 
 export interface SimulationNode extends GraphNodeWire {
@@ -92,9 +116,30 @@ export interface UseGraphStateOptions {
   readonly focusedNodeId?: string | null;
 }
 
+/**
+ * Imperative zoom controls bound to the live svg + d3.zoom behaviour. Stable
+ * identity (the functions read the current behaviour through a ref), so the
+ * canvas can wire them to buttons without re-rendering the graph. All three
+ * are view-only — they never touch solved node positions (R4).
+ */
+export interface ZoomControls {
+  /** Smoothly zoom in one step about the viewport centre. */
+  readonly zoomIn: () => void;
+  /** Smoothly zoom out one step about the viewport centre. */
+  readonly zoomOut: () => void;
+  /**
+   * Eased "camera" reset: fit the node bounding box into the viewport
+   * (falls back to identity when bounds are unavailable). Honours
+   * prefers-reduced-motion by applying instantly with no transition.
+   */
+  readonly reset: () => void;
+}
+
 export interface UseGraphStateReturn {
   /** 1-hop neighbour set including the focused node itself. */
   readonly neighbourIds: ReadonlySet<string>;
+  /** Imperative +/- / reset controls for the zoom behaviour. */
+  readonly zoomControls: ZoomControls;
 }
 
 export function useGraphState(
@@ -124,6 +169,18 @@ export function useGraphState(
   // A longer DRAG_MAX_MS cap that force-stops the sim. Replaced on the next
   // dragstart, cleared on dragend and in teardown.
   const dragBackstopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Zoom behaviour for the current init, so the imperative zoomControls can
+  // drive svg.transition().call(zoom.*, ...). Set in initGraph (after the
+  // zoom is attached), cleared in teardown. The zoom listeners live on the
+  // svg ELEMENT and survive selectAll('*').remove(), so teardown explicitly
+  // detaches them (svg.on('.zoom', null)) to avoid accumulation across
+  // re-inits / StrictMode remounts.
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  // Settled node bounding box (graph coords), snapshotted post-prewarm, so
+  // the reset/fit camera can frame the layout without re-reading the DOM.
+  const nodeBoundsRef = useRef<{ minX: number; minY: number; maxX: number; maxY: number } | null>(
+    null,
+  );
 
   // Volatile callback refs — must not retrigger the simulation. The whole
   // `options` object is a fresh literal each parent render (hover toggles
@@ -180,6 +237,37 @@ export function useGraphState(
       .append('path')
       .attr('d', 'M0,-5L10,0L0,5')
       .attr('class', 'fill-text-secondary/70');
+
+    // ── Zoom layer ──
+    // A single <g> that carries the d3.zoom transform. The edge + node
+    // layers live INSIDE it, so pan/zoom composes once over all positional
+    // content. <defs> stays on the svg (non-positional). The initial
+    // transform is identity — first paint / the 80-tick solve are unchanged
+    // (R4) and the entrance writes node transforms in graph coords beneath
+    // an identity zoom.
+    const zoomLayer = svg.append('g').attr('class', 'graph-zoom');
+
+    // Pan must only start on the BACKGROUND, never on a node (else dragging
+    // a node would also pan). Wheel-zoom is allowed anywhere. Touch is
+    // excluded (desktop-first, consistent with drag's .touchable(false)).
+    const zoomFilter = (event: { type?: string; button?: number; ctrlKey?: boolean; target?: EventTarget | null }) => {
+      if (event.type === 'wheel') return true; // zoom anywhere
+      if (event.button || event.ctrlKey) return false; // primary button only
+      if (event.type && event.type.startsWith('touch')) return false; // desktop-first
+      const t = event.target; // pan only on the background, not a node
+      return !(t instanceof Element && t.closest('.graph-node'));
+    };
+
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([MIN_ZOOM, MAX_ZOOM])
+      .filter(zoomFilter)
+      .on('zoom', (e) => zoomLayer.attr('transform', e.transform.toString()));
+
+    // Attach; disable native double-click-zoom so a double-click on a node
+    // isn't hijacked by the zoom behaviour.
+    svg.call(zoom).on('dblclick.zoom', null);
+    zoomBehaviorRef.current = zoom;
 
     // Seeded initial positions — drift from centre by ±200px per axis.
     const simNodes: SimulationNode[] = nodes.map((node) => ({
@@ -247,6 +335,24 @@ export function useGraphState(
       simNodes.map((n) => [n.id, { id: n.id, x: n.x, y: n.y }]),
     );
 
+    // Snapshot the settled node bounding box (graph coords) for the
+    // reset/fit "camera". Padded outward by each node's radius so the fit
+    // frames whole dots, not just their centres.
+    {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const n of simNodes) {
+        const r = radiusForTier(n.tier);
+        if (n.x - r < minX) minX = n.x - r;
+        if (n.y - r < minY) minY = n.y - r;
+        if (n.x + r > maxX) maxX = n.x + r;
+        if (n.y + r > maxY) maxY = n.y + r;
+      }
+      nodeBoundsRef.current = Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;
+    }
+
     // Reset simNodes back to the SCATTER positions so the first SVG paint
     // (and the animation's first frame) begin from scatter, not target.
     // Index-aligned: startPositions[i] ↔ simNodes[i].
@@ -255,8 +361,8 @@ export function useGraphState(
       simNodes[i].y = startPositions[i].y;
     }
 
-    // Edge layer (renders below nodes).
-    const edgeLayer = svg.append('g').attr('class', 'graph-edges');
+    // Edge layer (renders below nodes). Inside zoomLayer so it pans/zooms.
+    const edgeLayer = zoomLayer.append('g').attr('class', 'graph-edges');
     edgeLayer
       .selectAll<SVGLineElement, SimulationEdge>('line')
       .data(simEdges, (d) => d.id)
@@ -279,8 +385,8 @@ export function useGraphState(
       .attr('x2', (d) => d.target.x)
       .attr('y2', (d) => d.target.y);
 
-    // Node layer.
-    const nodeLayer = svg.append('g').attr('class', 'graph-nodes');
+    // Node layer. Inside zoomLayer so it pans/zooms with the edges.
+    const nodeLayer = zoomLayer.append('g').attr('class', 'graph-nodes');
     const nodeGroups = nodeLayer
       .selectAll<SVGGElement, SimulationNode>('g.graph-node')
       .data(simNodes, (d) => d.id)
@@ -489,11 +595,21 @@ export function useGraphState(
         // (tap → sheet); real drags suppress it. This IS the click-vs-drag
         // disambiguation — no manual threshold.
         .clickDistance(DRAG_CLICK_DISTANCE)
+        // Reconcile with zoom: resolve event.x/event.y in zoomLayer (graph)
+        // space, NOT screen space. So at any zoom level the pinned fx/fy and
+        // clampToBounds() keep operating in graph coords [0,W]×[0,H] exactly
+        // as before — a node dragged at 2× zoom still tracks the pointer.
+        .container(() => zoomLayer.node() as SVGGElement)
         .on('start', (event, d) => {
           // Orphan guard: d3-drag's window listeners survive teardown, so a
           // 'start' fired after this closure was torn down must no-op (else
           // it re-energizes a dead/replaced sim).
           if (isCancelled) return;
+          // Belt-and-suspenders: stop the node-initiated mousedown from
+          // reaching the svg's zoom behaviour, so a node drag can never also
+          // start a pan. (zoomFilter already rejects node targets; this makes
+          // the separation robust even if both behaviours observe the event.)
+          event.sourceEvent?.stopPropagation();
           // A higher-priority transition (drag) cancels the entrance.
           // The entrance onUpdate is guarded by isCancelled / a null
           // handle, so it won't fight the sim.
@@ -590,6 +706,13 @@ export function useGraphState(
       // Reset the SVG cursor: if teardown fires mid-drag, 'grabbing' would
       // otherwise persist into the next init.
       svg.style('cursor', null);
+      // CRITICAL: the zoom listeners live on the svg ELEMENT and survive
+      // selectAll('*').remove(); detach them so they don't accumulate across
+      // re-inits / StrictMode remounts (each initGraph re-attaches a fresh
+      // zoom behaviour). Also drop the refs the controls read.
+      svg.on('.zoom', null);
+      zoomBehaviorRef.current = null;
+      nodeBoundsRef.current = null;
       flushToTarget();
     };
   }, [svgRef, nodes, edges, width, height, seed]);
@@ -628,5 +751,55 @@ export function useGraphState(
     return set;
   }, [edges, options.focusedNodeId]);
 
-  return { neighbourIds };
+  // Imperative zoom controls. Stable identity (deps are the layout-stable
+  // scalars + svgRef) — they read the live zoom behaviour through a ref, so
+  // wiring them to buttons never re-renders the graph. All view-only (R4).
+  const zoomControls = useMemo<ZoomControls>(() => {
+    const withZoom = (
+      fn: (sel: d3.Selection<SVGSVGElement, unknown, null, undefined>, zoom: d3.ZoomBehavior<SVGSVGElement, unknown>) => void,
+    ) => {
+      const svgEl = svgRef.current;
+      const zoom = zoomBehaviorRef.current;
+      if (!svgEl || !zoom) return;
+      fn(d3.select(svgEl), zoom);
+    };
+
+    return {
+      zoomIn: () =>
+        withZoom((sel, zoom) => {
+          sel.transition().duration(ZOOM_STEP_MS).call(zoom.scaleBy, ZOOM_STEP);
+        }),
+      zoomOut: () =>
+        withZoom((sel, zoom) => {
+          sel.transition().duration(ZOOM_STEP_MS).call(zoom.scaleBy, 1 / ZOOM_STEP);
+        }),
+      reset: () =>
+        withZoom((sel, zoom) => {
+          // Fit the settled node bbox into the viewport; fall back to
+          // identity if bounds are unavailable. Under reduced motion, apply
+          // instantly (no transition).
+          const bounds = nodeBoundsRef.current;
+          const target = bounds
+            ? (() => {
+                const { k, x, y } = fitTransform(
+                  bounds,
+                  width,
+                  height,
+                  FIT_PADDING,
+                  MIN_ZOOM,
+                  MAX_ZOOM,
+                );
+                return d3.zoomIdentity.translate(x, y).scale(k);
+              })()
+            : d3.zoomIdentity;
+          if (computeMotionAllowed()) {
+            sel.transition().duration(RESET_DURATION_MS).call(zoom.transform, target);
+          } else {
+            sel.call(zoom.transform, target);
+          }
+        }),
+    };
+  }, [svgRef, width, height]);
+
+  return { neighbourIds, zoomControls };
 }
