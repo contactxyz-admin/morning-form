@@ -11,7 +11,10 @@ import {
   entranceFrame,
   clampToBounds,
   fitTransform,
+  zoomFilter,
+  boundsFromNodes,
   type MotionPoint,
+  type GraphBounds,
 } from '@/lib/graph/motion';
 
 /** Entrance duration in seconds. */
@@ -152,6 +155,12 @@ export function useGraphState(
   const simNodesRef = useRef<SimulationNode[]>([]);
   const simEdgesRef = useRef<SimulationEdge[]>([]);
   const animateRef = useRef<ReturnType<typeof animate> | null>(null);
+  // Flush-the-entrance-to-target callback for the CURRENT init. reset() calls
+  // it (after stopping animateRef) so the entrance can't keep scattering nodes
+  // while the camera transition runs (ADV-04). Set in initGraph, cleared in
+  // teardown. Also repaints the settled node/edge DOM so a reset mid-entrance
+  // leaves the canvas at the target layout, not a half-animated frame.
+  const flushEntranceRef = useRef<(() => void) | null>(null);
   // Per-init teardown (flag-cancel + flush) and reduced-motion listener
   // cleanup, set by initGraph and invoked by the effect cleanup.
   const teardownRef = useRef<(() => void) | null>(null);
@@ -176,11 +185,11 @@ export function useGraphState(
   // detaches them (svg.on('.zoom', null)) to avoid accumulation across
   // re-inits / StrictMode remounts.
   const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
-  // Settled node bounding box (graph coords), snapshotted post-prewarm, so
-  // the reset/fit camera can frame the layout without re-reading the DOM.
-  const nodeBoundsRef = useRef<{ minX: number; minY: number; maxX: number; maxY: number } | null>(
-    null,
-  );
+  // Last-computed node bounding box (graph coords) for the reset/fit camera.
+  // Reset now recomputes this from the LIVE node positions at click time
+  // (see zoomControls.reset) so it frames the CURRENT arrangement after drags,
+  // not a stale post-prewarm snapshot. Kept as a ref only so teardown can null it.
+  const nodeBoundsRef = useRef<GraphBounds | null>(null);
 
   // Volatile callback refs — must not retrigger the simulation. The whole
   // `options` object is a fresh literal each parent render (hover toggles
@@ -247,26 +256,27 @@ export function useGraphState(
     // an identity zoom.
     const zoomLayer = svg.append('g').attr('class', 'graph-zoom');
 
-    // Pan must only start on the BACKGROUND, never on a node (else dragging
-    // a node would also pan). Wheel-zoom is allowed anywhere. Touch is
-    // excluded (desktop-first, consistent with drag's .touchable(false)).
-    const zoomFilter = (event: { type?: string; button?: number; ctrlKey?: boolean; target?: EventTarget | null }) => {
-      if (event.type === 'wheel') return true; // zoom anywhere
-      if (event.button || event.ctrlKey) return false; // primary button only
-      if (event.type && event.type.startsWith('touch')) return false; // desktop-first
-      const t = event.target; // pan only on the background, not a node
-      return !(t instanceof Element && t.closest('.graph-node'));
-    };
-
+    // Filter (pan-on-background, ctrl/⌘+wheel-zoom, no-touch) is the pure
+    // exported `zoomFilter` (motion.ts) — d3 hands it native Mouse/Wheel/Touch
+    // events, all assignable to ZoomFilterEvent.
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([MIN_ZOOM, MAX_ZOOM])
       .filter(zoomFilter)
-      .on('zoom', (e) => zoomLayer.attr('transform', e.transform.toString()));
+      .on('zoom', (e: d3.D3ZoomEvent<SVGSVGElement, unknown>) =>
+        zoomLayer.attr('transform', e.transform.toString()),
+      );
 
     // Attach; disable native double-click-zoom so a double-click on a node
     // isn't hijacked by the zoom behaviour.
     svg.call(zoom).on('dblclick.zoom', null);
+    // Reset d3's internal __zoom datum to identity. selectAll('*').remove()
+    // wipes the svg's CHILDREN but NOT the __zoom property d3 stores on the svg
+    // ELEMENT, so after a dataSignature re-init the fresh zoomLayer sits at
+    // identity while d3 still believes the view is panned/zoomed — the first
+    // wheel/pan would jump (ADV-01). Seeding identity here makes every init
+    // start clean.
+    svg.call(zoom.transform, d3.zoomIdentity);
     zoomBehaviorRef.current = zoom;
 
     // Seeded initial positions — drift from centre by ±200px per axis.
@@ -335,23 +345,12 @@ export function useGraphState(
       simNodes.map((n) => [n.id, { id: n.id, x: n.x, y: n.y }]),
     );
 
-    // Snapshot the settled node bounding box (graph coords) for the
-    // reset/fit "camera". Padded outward by each node's radius so the fit
-    // frames whole dots, not just their centres.
-    {
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-      for (const n of simNodes) {
-        const r = radiusForTier(n.tier);
-        if (n.x - r < minX) minX = n.x - r;
-        if (n.y - r < minY) minY = n.y - r;
-        if (n.x + r > maxX) maxX = n.x + r;
-        if (n.y + r > maxY) maxY = n.y + r;
-      }
-      nodeBoundsRef.current = Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;
-    }
+    // Seed the node bounding box (graph coords) from the freshly-settled
+    // layout. reset() recomputes this from the LIVE positions at click time
+    // (item 4), but seeding it here means a reset before any drag still has a
+    // sane fit. Padded outward by each node's radius (see boundsFromNodes) so
+    // the fit frames whole dots, not just their centres.
+    nodeBoundsRef.current = boundsFromNodes(simNodes, (n) => radiusForTier(n.tier));
 
     // Reset simNodes back to the SCATTER positions so the first SVG paint
     // (and the animation's first frame) begin from scatter, not target.
@@ -452,6 +451,32 @@ export function useGraphState(
       }
     };
 
+    // Paint the settled-target node transforms + edge endpoints (zoomLayer-
+    // scoped, item 6). Defined here (not just inside the entrance branch) so
+    // flushEntranceRef can repaint to target when reset() interrupts the
+    // entrance mid-flight.
+    const targetNodeSel = zoomLayer.selectAll<SVGGElement, SimulationNode>('g.graph-node');
+    const targetEdgeSel = zoomLayer.selectAll<SVGLineElement, SimulationEdge>('line');
+    const paintTarget = () => {
+      targetNodeSel.attr('transform', (d) => {
+        const tg = targetMap.get(d.id);
+        return tg ? `translate(${tg.x},${tg.y})` : `translate(${d.x},${d.y})`;
+      });
+      targetEdgeSel
+        .attr('x1', (d) => (targetMap.get(d.source.id) ?? d.source).x)
+        .attr('y1', (d) => (targetMap.get(d.source.id) ?? d.source).y)
+        .attr('x2', (d) => (targetMap.get(d.target.id) ?? d.target).x)
+        .attr('y2', (d) => (targetMap.get(d.target.id) ?? d.target).y);
+    };
+
+    // reset() calls this (after stopping animateRef) to halt + flush the
+    // in-flight entrance so both don't run at once and scatter nodes (ADV-04).
+    // Idempotent: a no-op once the entrance has already completed/flushed.
+    flushEntranceRef.current = () => {
+      flushToTarget();
+      paintTarget();
+    };
+
     // Local cancellation flag for this init's closure. Once set (in
     // cleanup, before stop()), any queued rAF frame is a no-op so we
     // never write to a torn-down SVG.
@@ -460,23 +485,11 @@ export function useGraphState(
     const motionAllowed = computeMotionAllowed();
 
     if (motionAllowed && startPositions.length > 0) {
-      const edgeSel = svg.selectAll<SVGLineElement, SimulationEdge>('line');
-      const nodeSel = svg.selectAll<SVGGElement, SimulationNode>('g.graph-node');
+      const edgeSel = targetEdgeSel;
+      const nodeSel = targetNodeSel;
 
       // Cancel any in-flight animation from a prior dataSignature change.
       animateRef.current?.stop();
-
-      const paintTarget = () => {
-        nodeSel.attr('transform', (d) => {
-          const tg = targetMap.get(d.id);
-          return tg ? `translate(${tg.x},${tg.y})` : `translate(${d.x},${d.y})`;
-        });
-        edgeSel
-          .attr('x1', (d) => (targetMap.get(d.source.id) ?? d.source).x)
-          .attr('y1', (d) => (targetMap.get(d.source.id) ?? d.source).y)
-          .attr('x2', (d) => (targetMap.get(d.target.id) ?? d.target).x)
-          .attr('y2', (d) => (targetMap.get(d.target.id) ?? d.target).y);
-      };
 
       animateRef.current = animate(0, 1, {
         duration: ENTRANCE_DURATION_S,
@@ -536,8 +549,8 @@ export function useGraphState(
       // behaviour without the cursor-pointer class).
       nodeGroups.style('cursor', 'pointer');
       flushToTarget();
-      const edgeSel = svg.selectAll<SVGLineElement, SimulationEdge>('line');
-      const nodeSel = svg.selectAll<SVGGElement, SimulationNode>('g.graph-node');
+      const edgeSel = zoomLayer.selectAll<SVGLineElement, SimulationEdge>('line');
+      const nodeSel = zoomLayer.selectAll<SVGGElement, SimulationNode>('g.graph-node');
       nodeSel.attr('transform', (d) => {
         const tg = targetMap.get(d.id);
         return tg ? `translate(${tg.x},${tg.y})` : `translate(${d.x},${d.y})`;
@@ -564,8 +577,8 @@ export function useGraphState(
       // it is .stop()ped otherwise), write node transforms + edge
       // endpoints from the LIVE bound datum (d.x/d.y, d.source/d.target),
       // mirroring the entrance write-path. Selections captured once.
-      const tickNodeSel = svg.selectAll<SVGGElement, SimulationNode>('g.graph-node');
-      const tickEdgeSel = svg.selectAll<SVGLineElement, SimulationEdge>('line');
+      const tickNodeSel = zoomLayer.selectAll<SVGGElement, SimulationNode>('g.graph-node');
+      const tickEdgeSel = zoomLayer.selectAll<SVGLineElement, SimulationEdge>('line');
       const tickHandler = () => {
         // Guard: a final queued tick after teardown's stop() must not
         // write to a wiped SVG.
@@ -599,7 +612,7 @@ export function useGraphState(
         // space, NOT screen space. So at any zoom level the pinned fx/fy and
         // clampToBounds() keep operating in graph coords [0,W]×[0,H] exactly
         // as before — a node dragged at 2× zoom still tracks the pointer.
-        .container(() => zoomLayer.node() as SVGGElement)
+        .container(() => zoomLayer.node()!)
         .on('start', (event, d) => {
           // Orphan guard: d3-drag's window listeners survive teardown, so a
           // 'start' fired after this closure was torn down must no-op (else
@@ -693,6 +706,7 @@ export function useGraphState(
       isCancelled = true;
       animateRef.current?.stop();
       animateRef.current = null;
+      flushEntranceRef.current = null;
       // Clear BOTH drag timers so neither can fire after teardown / re-init
       // (a pending backstop or watchdog would otherwise touch the next sim).
       if (dragWatchdogRef.current) {
@@ -767,18 +781,41 @@ export function useGraphState(
     return {
       zoomIn: () =>
         withZoom((sel, zoom) => {
-          sel.transition().duration(ZOOM_STEP_MS).call(zoom.scaleBy, ZOOM_STEP);
+          // Gate the transition on reduced motion (WCAG-correct, matches
+          // reset): instant under reduce, eased otherwise. Guarded so a
+          // mid-entrance click never throws (it only scales the view).
+          if (computeMotionAllowed()) {
+            sel.transition().duration(ZOOM_STEP_MS).call(zoom.scaleBy, ZOOM_STEP);
+          } else {
+            sel.call(zoom.scaleBy, ZOOM_STEP);
+          }
         }),
       zoomOut: () =>
         withZoom((sel, zoom) => {
-          sel.transition().duration(ZOOM_STEP_MS).call(zoom.scaleBy, 1 / ZOOM_STEP);
+          if (computeMotionAllowed()) {
+            sel.transition().duration(ZOOM_STEP_MS).call(zoom.scaleBy, 1 / ZOOM_STEP);
+          } else {
+            sel.call(zoom.scaleBy, 1 / ZOOM_STEP);
+          }
         }),
       reset: () =>
         withZoom((sel, zoom) => {
-          // Fit the settled node bbox into the viewport; fall back to
-          // identity if bounds are unavailable. Under reduced motion, apply
-          // instantly (no transition).
-          const bounds = nodeBoundsRef.current;
+          // Stop + flush the in-flight entrance BEFORE starting the camera
+          // transition, so the two don't run at once and scatter nodes
+          // (ADV-04). flushEntranceRef halts animateRef, flushes simNodes to
+          // target, and repaints the settled DOM.
+          animateRef.current?.stop();
+          animateRef.current = null;
+          flushEntranceRef.current?.();
+
+          // Fit the CURRENT (live) node arrangement, not a stale post-prewarm
+          // snapshot — so reset frames where the nodes actually are after any
+          // drags (item 4). Recompute the padded bbox from simNodesRef; fall
+          // back to identity when there are no nodes.
+          const bounds =
+            boundsFromNodes(simNodesRef.current, (n) => radiusForTier(n.tier)) ??
+            nodeBoundsRef.current;
+          nodeBoundsRef.current = bounds;
           const target = bounds
             ? (() => {
                 const { k, x, y } = fitTransform(
@@ -792,6 +829,7 @@ export function useGraphState(
                 return d3.zoomIdentity.translate(x, y).scale(k);
               })()
             : d3.zoomIdentity;
+          // Under reduced motion, apply instantly (no transition).
           if (computeMotionAllowed()) {
             sel.transition().duration(RESET_DURATION_MS).call(zoom.transform, target);
           } else {
