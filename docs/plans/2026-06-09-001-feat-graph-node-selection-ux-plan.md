@@ -59,6 +59,7 @@ distinct failures compose into that one box:
 - `GraphListView` selected-row highlight driven by the same `?entity=` state.
 - A source-document detail experience on the public demo (fixture has no `/record/source/[id]` equivalent).
 - Camera assist: pan/zoom the selected node into the visible region when the Phase-2 rail covers it (needs the zoom controls' programmatic transform; design-reviewed separately).
+- **`NodeDetailSheet` dialog focus management (WCAG 2.4.3)** — the sheet is `role="dialog" aria-modal="true"` but never moves focus into itself on open, traps it, or restores it on close (pre-existing gap, surfaced by ce:review 2026-06-09). The canvas's blur-on-deselect guard is the interim compensation; when proper focus management lands (natural fit: the Phase-2 modality rework), that guard simplifies away. Do them together so the two mechanisms never fight over focus.
 
 ## Context & Research
 
@@ -185,6 +186,14 @@ CSS (globals.css):
 clicking the selected node doesn't deselect), and blur-on-deselect guarded by
 `!el.matches(':focus-visible')` so a keyboard user's Tab position survives
 Escape while pointer-driven stale focus is still cleared.
+
+**ce:review outcomes (2026-06-09):** no correctness bugs. Three findings
+dispositioned: (1) drag clamp now uses `haloRadiusForTier` so a node dragged
+flush to the edge keeps its ring un-clipped — fixed; (2) the selection
+effect's iterate-all-nodes form was reviewed and deliberately KEPT — it is
+what makes re-application after a `dataSignature` rebuild trivially correct,
+and ~200 discrete attribute writes per selection change is immaterial;
+(3) sheet focus management logged under Deferred (see Scope Boundaries).
 
 - [x] **Unit 3: Honest source-document affordance**
 

@@ -668,8 +668,11 @@ export function useGraphState(
           onNodeHoverRef.current?.(null);
           // Re-energize the retained sim.
           simulationRef.current?.alphaTarget(DRAG_ALPHA_TARGET).restart();
-          // Pin the node under the pointer (clamped on-canvas).
-          const r = radiusForTier(d.tier);
+          // Pin the node under the pointer (clamped on-canvas). Clamp by the
+          // HALO radius, not the dot radius, so a node dragged flush to the
+          // edge keeps its selection/focus ring fully inside the viewBox
+          // (ce:review 2026-06-09 — the ring clipped at the boundary).
+          const r = haloRadiusForTier(d.tier);
           d.fx = clampToBounds(event.x, r, width);
           d.fy = clampToBounds(event.y, r, height);
           // Grabbing cursor on the SVG (inline style, not a class).
@@ -689,7 +692,8 @@ export function useGraphState(
         })
         .on('drag', (event, d) => {
           if (isCancelled) return;
-          const r = radiusForTier(d.tier);
+          // Halo radius, matching dragstart — keeps the ring on-canvas.
+          const r = haloRadiusForTier(d.tier);
           d.fx = clampToBounds(event.x, r, width);
           d.fy = clampToBounds(event.y, r, height);
         })
