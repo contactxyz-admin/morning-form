@@ -6,7 +6,7 @@ import { animate } from 'framer-motion';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { makeRng } from '../../../prisma/fixtures/synthetic/generators';
 import { radiusForTier, visualForEdge, visualForNode } from '@/lib/graph/visual-encoding';
-import { smooth, entranceFrame, type MotionPoint } from '@/lib/graph/motion';
+import { smooth, entranceFrame, clampToBounds, type MotionPoint } from '@/lib/graph/motion';
 
 /** Entrance duration in seconds. */
 const ENTRANCE_DURATION_S = 0.7;
@@ -34,10 +34,14 @@ export function computeMotionAllowed(win: Window | undefined = typeof window !==
  *     shows a settled layout (no jitter, no flicker).
  *   - StrictMode-safe via refs that guard the simulation lifecycle.
  *   - 1-hop neighbour computation for the U6 hover/focus interaction.
+ *   - Spring drag (Plan 2026-06-08-001 Unit 3): d3.drag re-energizes the
+ *     retained sim (alphaTarget + fx/fy pin), neighbours spring via the
+ *     existing forces, and the sim cools to a frozen rest on release.
+ *     Gated on computeMotionAllowed() — reduced-motion / SSR get no drag.
  *
- * No zoom/pan, no drag, no contextmenu, no progress overlay, no
- * cluster carry-forward — those are seam-specific and we don't need
- * them on the demo.
+ * No zoom/pan, no contextmenu, no progress overlay, no cluster
+ * carry-forward — those are seam-specific and we don't need them on the
+ * demo.
  */
 
 export interface SimulationNode extends GraphNodeWire {
@@ -86,6 +90,10 @@ export function useGraphState(
   // cleanup, set by initGraph and invoked by the effect cleanup.
   const teardownRef = useRef<(() => void) | null>(null);
   const reducedMotionCleanupRef = useRef<(() => void) | null>(null);
+  // Drag watchdog: forces the re-energized sim to stop if alpha-cooling
+  // somehow stalls after a drag (R6 "never stops" backstop). Armed on
+  // dragend, replaced on the next dragstart, cleared in teardown.
+  const dragWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Volatile callback refs — must not retrigger the simulation. The whole
   // `options` object is a fresh literal each parent render (hover toggles
@@ -244,7 +252,7 @@ export function useGraphState(
       .data(simNodes, (d) => d.id)
       .enter()
       .append('g')
-      .attr('class', 'graph-node cursor-pointer')
+      .attr('class', 'graph-node')
       .attr('role', 'button')
       .attr('tabindex', 0)
       .attr('aria-label', (d) => d.displayName)
@@ -378,7 +386,10 @@ export function useGraphState(
       }
     } else {
       // Reduced motion / SSR / empty — first paint already shows scatter;
-      // snap straight to the settled target.
+      // snap straight to the settled target. No drag is attached (R5), so
+      // keep the original click affordance (inline, matches pre-drag
+      // behaviour without the cursor-pointer class).
+      nodeGroups.style('cursor', 'pointer');
       flushToTarget();
       const edgeSel = svg.selectAll<SVGLineElement, SimulationEdge>('line');
       const nodeSel = svg.selectAll<SVGGElement, SimulationNode>('g.graph-node');
@@ -393,12 +404,103 @@ export function useGraphState(
         .attr('y2', (d) => (targetMap.get(d.target.id) ?? d.target).y);
     }
 
+    // ── Spring drag (Plan 2026-06-08-001 Unit 3) ──
+    // Re-energize the EXISTING D3 sim on drag (no new engine). Gated on
+    // computeMotionAllowed(): reduced-motion / SSR get NO drag at all
+    // (the plan's chosen default — honours R5; tap still opens the sheet
+    // via the existing .on('click')). The dragging cursor is set as an
+    // inline style, never a Tailwind class, to dodge the JIT content-glob
+    // footgun (data-driven classes in src/lib/** silently drop).
+    if (motionAllowed) {
+      // Draggable affordance: grab on the node (inline, not a class).
+      nodeGroups.style('cursor', 'grab');
+
+      // Tick handler: while the sim runs (only during an active drag —
+      // it is .stop()ped otherwise), write node transforms + edge
+      // endpoints from the LIVE bound datum (d.x/d.y, d.source/d.target),
+      // mirroring the entrance write-path. Selections captured once.
+      const tickNodeSel = svg.selectAll<SVGGElement, SimulationNode>('g.graph-node');
+      const tickEdgeSel = svg.selectAll<SVGLineElement, SimulationEdge>('line');
+      const tickHandler = () => {
+        // Guard: a final queued tick after teardown's stop() must not
+        // write to a wiped SVG.
+        if (isCancelled) return;
+        tickNodeSel.attr('transform', (d) => `translate(${d.x},${d.y})`);
+        tickEdgeSel
+          .attr('x1', (d) => d.source.x)
+          .attr('y1', (d) => d.source.y)
+          .attr('x2', (d) => d.target.x)
+          .attr('y2', (d) => d.target.y);
+      };
+      simulation.on('tick', tickHandler);
+
+      const drag = d3
+        .drag<SVGGElement, SimulationNode>()
+        // Exclude ctrl-click / non-primary buttons / touch. Touchscreen
+        // laptops: a tap is not a drag, so it still opens the detail
+        // sheet via the existing click handler.
+        .filter((event) => !event.ctrlKey && !event.button && event.pointerType !== 'touch')
+        // Movements under 4px still emit the native click (tap → sheet);
+        // real drags suppress it. This IS the click-vs-drag
+        // disambiguation — no manual threshold.
+        .clickDistance(4)
+        .on('start', (event, d) => {
+          // A higher-priority transition (drag) cancels the entrance.
+          // The entrance onUpdate is guarded by isCancelled / a null
+          // handle, so it won't fight the sim.
+          animateRef.current?.stop();
+          animateRef.current = null;
+          // Clear the hover/focus dim for the duration of the drag.
+          onNodeHoverRef.current?.(null);
+          // Re-energize the retained sim.
+          simulationRef.current?.alphaTarget(0.3).restart();
+          // Pin the node under the pointer (clamped on-canvas).
+          const r = radiusForTier(d.tier);
+          d.fx = clampToBounds(event.x, r, width);
+          d.fy = clampToBounds(event.y, r, height);
+          // Grabbing cursor on the SVG (inline style, not a class).
+          svg.style('cursor', 'grabbing');
+          // Replace any stale watchdog from a prior drag.
+          if (dragWatchdogRef.current) clearTimeout(dragWatchdogRef.current);
+          dragWatchdogRef.current = null;
+        })
+        .on('drag', (event, d) => {
+          const r = radiusForTier(d.tier);
+          d.fx = clampToBounds(event.x, r, width);
+          d.fy = clampToBounds(event.y, r, height);
+        })
+        .on('end', () => {
+          // Cool the sim to rest; d3's internal timer auto-stops at
+          // alphaMin. RETAIN fx/fy (session pin — node stays where
+          // dropped; no spring-back, no persistence).
+          simulationRef.current?.alphaTarget(0);
+          // Restore the default cursor on the SVG.
+          svg.style('cursor', null);
+          // Watchdog backstop: if alpha-cooling stalls and the sim is
+          // somehow still running ~5s later, force it to stop (R6).
+          if (dragWatchdogRef.current) clearTimeout(dragWatchdogRef.current);
+          dragWatchdogRef.current = setTimeout(() => {
+            simulationRef.current?.alphaTarget(0);
+            simulationRef.current?.stop();
+            dragWatchdogRef.current = null;
+          }, 5000);
+        });
+
+      nodeGroups.call(drag);
+    }
+
     // Expose teardown to the effect cleanup so it can flag + flush this
     // exact closure's state before the SVG is wiped.
     teardownRef.current = () => {
       isCancelled = true;
       animateRef.current?.stop();
       animateRef.current = null;
+      // Clear the drag watchdog so a pending timer can't fire after
+      // teardown / re-init.
+      if (dragWatchdogRef.current) {
+        clearTimeout(dragWatchdogRef.current);
+        dragWatchdogRef.current = null;
+      }
       flushToTarget();
     };
   }, [svgRef, nodes, edges, width, height, seed]);

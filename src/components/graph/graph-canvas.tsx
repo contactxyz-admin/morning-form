@@ -6,6 +6,12 @@
  * Used by /demo/record (fixture data, fixed seed) and — eventually —
  * the authed /graph desktop view. Mobile callers should not render
  * this component; gate via CSS (`hidden md:block`) so SSR stays clean.
+ *
+ * No zoom/pan. Spring drag (Plan 2026-06-08-001 Unit 3) lives in
+ * useGraphState: nodes are draggable on motion-enabled desktop (it
+ * re-energizes the retained D3 sim); reduced-motion / SSR get no drag.
+ * dragstart clears the hover/focus dim by pushing onNodeHover(null) up to
+ * the focusedNodeId state below — the dim effect re-derives from there.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
