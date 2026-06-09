@@ -72,3 +72,26 @@ export function entranceFrame(
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
+
+// ── Bounds clamp (Phase 2 / Unit 3 drag) ──
+
+/**
+ * Clamp a coordinate so a node of the given `radius` stays fully inside a
+ * `[0, max]` axis — i.e. confine `value` to `[radius, max - radius]`.
+ * Used per-axis during drag (`clampX = clampToBounds(x, r, width)`,
+ * `clampY = clampToBounds(y, r, height)`) so a dragged node can never be
+ * pulled off-canvas (there is no zoom/pan to recover it).
+ *
+ * Degenerate case: when the node is larger than the canvas
+ * (`radius > max - radius`, i.e. `2*radius > max`), the valid interval
+ * inverts. We collapse to the canvas midpoint (`max / 2`) so the node stays
+ * centred and on-screen rather than snapping to a meaningless edge.
+ */
+export function clampToBounds(value: number, radius: number, max: number): number {
+  const lo = radius;
+  const hi = max - radius;
+  if (lo > hi) return max / 2;
+  if (value < lo) return lo;
+  if (value > hi) return hi;
+  return value;
+}
