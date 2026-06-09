@@ -2,9 +2,25 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
+import { animate } from 'framer-motion';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { makeRng } from '../../../prisma/fixtures/synthetic/generators';
 import { radiusForTier, visualForEdge, visualForNode } from '@/lib/graph/visual-encoding';
+import { smooth, entranceFrame, type MotionPoint } from '@/lib/graph/motion';
+
+/** Entrance duration in seconds. */
+const ENTRANCE_DURATION_S = 0.7;
+
+/**
+ * Pure decision: is the entrance animation allowed to run?
+ * Returns false in node/SSR (no window) and when the user has requested
+ * reduced motion. Guarded so it never throws when matchMedia is absent.
+ * Node-env unit-testable (see use-graph-state.test.ts).
+ */
+export function computeMotionAllowed(win: Window | undefined = typeof window !== 'undefined' ? window : undefined): boolean {
+  if (!win || typeof win.matchMedia !== 'function') return false;
+  return !win.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 /**
  * Force-directed graph hook. Modeled on seam's `useGraphState` (see
@@ -65,14 +81,29 @@ export function useGraphState(
   const simulationRef = useRef<d3.Simulation<SimulationNode, SimulationEdge> | null>(null);
   const simNodesRef = useRef<SimulationNode[]>([]);
   const simEdgesRef = useRef<SimulationEdge[]>([]);
+  const animateRef = useRef<ReturnType<typeof animate> | null>(null);
+  // Per-init teardown (flag-cancel + flush) and reduced-motion listener
+  // cleanup, set by initGraph and invoked by the effect cleanup.
+  const teardownRef = useRef<(() => void) | null>(null);
+  const reducedMotionCleanupRef = useRef<(() => void) | null>(null);
 
-  // Volatile callback refs — must not retrigger the simulation.
+  // Volatile callback refs — must not retrigger the simulation. The whole
+  // `options` object is a fresh literal each parent render (hover toggles
+  // focusedNodeId), so we route the volatile members through refs and key
+  // initGraph only on the layout-stable scalars (width/height/seed).
+  const optionsRef = useRef(options);
   const onNodeClickRef = useRef(options.onNodeClick);
   const onNodeHoverRef = useRef(options.onNodeHover);
   useEffect(() => {
+    optionsRef.current = options;
     onNodeClickRef.current = options.onNodeClick;
     onNodeHoverRef.current = options.onNodeHover;
   });
+
+  // Layout-stable scalars — the ONLY option fields that should rebuild the
+  // graph. focusedNodeId / onNodeClick / onNodeHover must NOT (hover would
+  // otherwise wipe the DOM + restart the 700ms entrance every frame).
+  const { width, height, seed } = options;
 
   // Stable signature so React re-runs initGraph only when the data
   // actually changes shape, not on every parent re-render.
@@ -92,7 +123,6 @@ export function useGraphState(
     const svgEl = svgRef.current;
     if (!svgEl || nodes.length === 0) return;
 
-    const { width, height, seed } = options;
     const rng = makeRng(seed);
 
     const svg = d3.select(svgEl);
@@ -120,6 +150,16 @@ export function useGraphState(
       y: height / 2 + (rng() - 0.5) * height * 0.5,
     }));
     simNodesRef.current = simNodes;
+
+    // Snapshot the SCATTER positions BEFORE pre-warm — these are the
+    // animation's starting frame. Captured here (not after the ticks)
+    // so the entrance actually displaces nodes: scatter → settled.
+    // Index-aligned with simNodes (same map() order) — no Array.find.
+    const startPositions: MotionPoint[] = simNodes.map((n) => ({
+      id: n.id,
+      x: n.x,
+      y: n.y,
+    }));
 
     const simEdges: SimulationEdge[] = edges
       .map((edge) => {
@@ -156,6 +196,26 @@ export function useGraphState(
     for (let i = 0; i < TICKS; i++) simulation.tick();
 
     simulationRef.current = simulation;
+
+    // Snapshot the SETTLED positions AFTER pre-warm — the animation's
+    // target frame. R4: this is the frozen, byte-identical output of the
+    // single-RNG-stream 80-tick solve.
+    const targetMap: ReadonlyMap<string, { x: number; y: number }> = new Map(
+      simNodes.map((n) => [n.id, { x: n.x, y: n.y }]),
+    );
+    // Prebuilt MotionPoint map for the entrance frame stepper — built once
+    // here, reused every frame (no per-frame Map rebuild).
+    const targetPointMap: ReadonlyMap<string, MotionPoint> = new Map(
+      simNodes.map((n) => [n.id, { id: n.id, x: n.x, y: n.y }]),
+    );
+
+    // Reset simNodes back to the SCATTER positions so the first SVG paint
+    // (and the animation's first frame) begin from scatter, not target.
+    // Index-aligned: startPositions[i] ↔ simNodes[i].
+    for (let i = 0; i < simNodes.length; i++) {
+      simNodes[i].x = startPositions[i].x;
+      simNodes[i].y = startPositions[i].y;
+    }
 
     // Edge layer (renders below nodes).
     const edgeLayer = svg.append('g').attr('class', 'graph-edges');
@@ -229,13 +289,133 @@ export function useGraphState(
       .attr('text-anchor', 'middle')
       .attr('dy', (d) => radiusForTier(d.tier) + 14)
       .text((d) => d.displayName);
-  }, [svgRef, nodes, edges, options]);
+
+    // ── Entrance animation ──
+    // FLUSH simNodes to the settled target. Always-safe end-state for any
+    // downstream reader of simNodesRef (R4), regardless of how the
+    // animation ends — runs in the cleanup and on any stop path.
+    const flushToTarget = () => {
+      for (let i = 0; i < simNodes.length; i++) {
+        const tg = targetMap.get(simNodes[i].id);
+        if (tg) {
+          simNodes[i].x = tg.x;
+          simNodes[i].y = tg.y;
+        }
+      }
+    };
+
+    // Local cancellation flag for this init's closure. Once set (in
+    // cleanup, before stop()), any queued rAF frame is a no-op so we
+    // never write to a torn-down SVG.
+    let isCancelled = false;
+
+    const motionAllowed = computeMotionAllowed();
+
+    if (motionAllowed && startPositions.length > 0) {
+      const edgeSel = svg.selectAll<SVGLineElement, SimulationEdge>('line');
+      const nodeSel = svg.selectAll<SVGGElement, SimulationNode>('g.graph-node');
+
+      // Cancel any in-flight animation from a prior dataSignature change.
+      animateRef.current?.stop();
+
+      const paintTarget = () => {
+        nodeSel.attr('transform', (d) => {
+          const tg = targetMap.get(d.id);
+          return tg ? `translate(${tg.x},${tg.y})` : `translate(${d.x},${d.y})`;
+        });
+        edgeSel
+          .attr('x1', (d) => (targetMap.get(d.source.id) ?? d.source).x)
+          .attr('y1', (d) => (targetMap.get(d.source.id) ?? d.source).y)
+          .attr('x2', (d) => (targetMap.get(d.target.id) ?? d.target).x)
+          .attr('y2', (d) => (targetMap.get(d.target.id) ?? d.target).y);
+      };
+
+      animateRef.current = animate(0, 1, {
+        duration: ENTRANCE_DURATION_S,
+        ease: smooth,
+        onUpdate(alpha) {
+          if (isCancelled) return;
+          const frame = entranceFrame(startPositions, targetPointMap, alpha);
+          const posMap = new Map(frame.map((p) => [p.id, p]));
+
+          // Update node transforms.
+          nodeSel.attr('transform', (d) => {
+            const p = posMap.get(d.id);
+            return p ? `translate(${p.x},${p.y})` : `translate(${d.x},${d.y})`;
+          });
+
+          // Update edge endpoints from bound datum (NOT data-edge-id parsing).
+          edgeSel
+            .attr('x1', (d) => (posMap.get(d.source.id) ?? d.source).x)
+            .attr('y1', (d) => (posMap.get(d.source.id) ?? d.source).y)
+            .attr('x2', (d) => (posMap.get(d.target.id) ?? d.target).x)
+            .attr('y2', (d) => (posMap.get(d.target.id) ?? d.target).y);
+        },
+        onComplete() {
+          if (isCancelled) return;
+          // onUpdate(1) already painted the exact target; only the bookkeeping
+          // remains — flush simNodes + clear the handle.
+          flushToTarget();
+          animateRef.current = null;
+        },
+      });
+
+      // Reduced-motion can flip mid-animation (OS setting toggled). On
+      // reduce=true, stop the animation and snap to target.
+      if (typeof window !== 'undefined' && window.matchMedia) {
+        const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const onReduceChange = (e: MediaQueryListEvent) => {
+          if (e.matches && !isCancelled) {
+            animateRef.current?.stop();
+            animateRef.current = null;
+            paintTarget();
+            flushToTarget();
+          }
+        };
+        mql.addEventListener('change', onReduceChange);
+        reducedMotionCleanupRef.current = () =>
+          mql.removeEventListener('change', onReduceChange);
+      }
+    } else {
+      // Reduced motion / SSR / empty — first paint already shows scatter;
+      // snap straight to the settled target.
+      flushToTarget();
+      const edgeSel = svg.selectAll<SVGLineElement, SimulationEdge>('line');
+      const nodeSel = svg.selectAll<SVGGElement, SimulationNode>('g.graph-node');
+      nodeSel.attr('transform', (d) => {
+        const tg = targetMap.get(d.id);
+        return tg ? `translate(${tg.x},${tg.y})` : `translate(${d.x},${d.y})`;
+      });
+      edgeSel
+        .attr('x1', (d) => (targetMap.get(d.source.id) ?? d.source).x)
+        .attr('y1', (d) => (targetMap.get(d.source.id) ?? d.source).y)
+        .attr('x2', (d) => (targetMap.get(d.target.id) ?? d.target).x)
+        .attr('y2', (d) => (targetMap.get(d.target.id) ?? d.target).y);
+    }
+
+    // Expose teardown to the effect cleanup so it can flag + flush this
+    // exact closure's state before the SVG is wiped.
+    teardownRef.current = () => {
+      isCancelled = true;
+      animateRef.current?.stop();
+      animateRef.current = null;
+      flushToTarget();
+    };
+  }, [svgRef, nodes, edges, width, height, seed]);
 
   // Re-init when shape changes; the dataSignature guards against
   // referential-only updates.
   useEffect(() => {
     initGraph();
     return () => {
+      // Flag the in-flight animation cancelled + flush BEFORE stopping,
+      // so no queued frame writes to the SVG we're about to wipe and
+      // simNodesRef ends at the settled target (R4). StrictMode-safe:
+      // mount→unmount→remount tears down cleanly without a leaked handle.
+      teardownRef.current?.();
+      teardownRef.current = null;
+      reducedMotionCleanupRef.current?.();
+      reducedMotionCleanupRef.current = null;
       simulationRef.current?.stop();
       simulationRef.current = null;
     };
