@@ -2,7 +2,16 @@
  * Motion primitives tests (Plan 2026-06-08-001 U1). Pure, DOM-free.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { smooth, edgeOpacity, entranceFrame, clampToBounds, fitTransform } from './motion';
+import {
+  smooth,
+  edgeOpacity,
+  entranceFrame,
+  clampToBounds,
+  fitTransform,
+  zoomFilter,
+  boundsFromNodes,
+  type ZoomFilterEvent,
+} from './motion';
 
 describe('smooth', () => {
   it('is 0 at t=0 and 1 at t=1', () => {
@@ -216,6 +225,90 @@ describe('fitTransform', () => {
     // The single point maps to the viewport centre.
     expect(300 * t.k + t.x).toBeCloseTo(360, 6);
     expect(200 * t.k + t.y).toBeCloseTo(240, 6);
+  });
+});
+
+// ── zoomFilter (graph-zoom — d3.zoom .filter decision) ──
+describe('zoomFilter', () => {
+  // Minimal event builder — only the fields zoomFilter reads.
+  function ev(partial: Partial<ZoomFilterEvent>): ZoomFilterEvent {
+    return {
+      type: 'mousedown',
+      button: 0,
+      ctrlKey: false,
+      metaKey: false,
+      target: null,
+      ...partial,
+    };
+  }
+
+  it('zooms on ctrl+wheel (page scroll otherwise passes through)', () => {
+    expect(zoomFilter(ev({ type: 'wheel', ctrlKey: true }))).toBe(true);
+  });
+
+  it('zooms on ⌘+wheel (macOS)', () => {
+    expect(zoomFilter(ev({ type: 'wheel', metaKey: true }))).toBe(true);
+  });
+
+  it('does NOT zoom on a plain (unmodified) wheel — scroll reaches the page', () => {
+    expect(zoomFilter(ev({ type: 'wheel' }))).toBe(false);
+  });
+
+  it('allows a primary mousedown on the background (pan)', () => {
+    // No target / a background element with no .graph-node ancestor.
+    expect(zoomFilter(ev({ type: 'mousedown', target: null }))).toBe(true);
+    expect(
+      zoomFilter(ev({ type: 'mousedown', target: { closest: () => null } })),
+    ).toBe(true);
+  });
+
+  it('rejects a non-primary (button > 0) mousedown', () => {
+    expect(zoomFilter(ev({ type: 'mousedown', button: 2 }))).toBe(false);
+  });
+
+  it('rejects a ctrl-click mousedown', () => {
+    expect(zoomFilter(ev({ type: 'mousedown', ctrlKey: true }))).toBe(false);
+  });
+
+  it('rejects touch events entirely (desktop-first)', () => {
+    expect(zoomFilter(ev({ type: 'touchstart' }))).toBe(false);
+    expect(zoomFilter(ev({ type: 'touchmove' }))).toBe(false);
+  });
+
+  it('rejects a mousedown whose target is inside a .graph-node (node-drag wins)', () => {
+    // Stub element: closest('.graph-node') resolves to a non-null ancestor.
+    const target = { closest: (sel: string) => (sel === '.graph-node' ? {} : null) };
+    expect(zoomFilter(ev({ type: 'mousedown', target }))).toBe(false);
+  });
+});
+
+// ── boundsFromNodes (graph-zoom — live-position bbox for reset/fit) ──
+describe('boundsFromNodes', () => {
+  it('returns the radius-padded bbox over multiple nodes', () => {
+    const nodes = [
+      { x: 100, y: 100, r: 10 },
+      { x: 300, y: 200, r: 20 },
+    ];
+    const b = boundsFromNodes(nodes, (n) => n.r);
+    expect(b).toEqual({ minX: 90, minY: 90, maxX: 320, maxY: 220 });
+  });
+
+  it('pads a single node by its own radius', () => {
+    const b = boundsFromNodes([{ x: 50, y: 60, r: 5 }], (n) => n.r);
+    expect(b).toEqual({ minX: 45, minY: 55, maxX: 55, maxY: 65 });
+  });
+
+  it('returns null for an empty node list', () => {
+    expect(boundsFromNodes([], () => 10)).toBeNull();
+  });
+
+  it('expands the box to the widest node on each axis', () => {
+    const nodes = [
+      { x: 0, y: 0, r: 1 },
+      { x: 0, y: 0, r: 50 }, // coincident centre, larger radius dominates
+    ];
+    const b = boundsFromNodes(nodes, (n) => n.r);
+    expect(b).toEqual({ minX: -50, minY: -50, maxX: 50, maxY: 50 });
   });
 });
 
