@@ -117,15 +117,13 @@ export function GraphCanvas({
         // viewBox ratio. The wrapper div then takes the svg's height.
         style={{ display: 'block', width: '100%', height: 'auto' }}
         onClick={(e) => {
-          // Tap on the SVG background (not a node) clears focus. d3.zoom
-          // suppresses the click that follows a pan move (clickDistance), so
-          // a genuine background click still clears focus while a pan does
-          // not. The zoom layer (<g>) is not the svg, so a click landing on
-          // empty space inside it still reports the svg as e.target only when
-          // it hits the root — guard on both the svg and the zoom layer
-          // background so an empty-space click anywhere clears focus.
-          const target = e.target as Element;
-          if (target.tagName === 'svg' || target.classList.contains('graph-zoom')) {
+          // Any click that is NOT on a node clears focus — the svg background,
+          // an edge <line>, the zoom layer <g>, an empty-space gap, all of it.
+          // (The earlier svg-tagName-only guard missed edges and the layer
+          // groups.) d3.zoom suppresses the click that follows a pan move
+          // (clickDistance), so a genuine background click still clears focus
+          // while a pan does not.
+          if (!(e.target as Element).closest?.('.graph-node')) {
             setFocusedNodeId(null);
           }
         }}
@@ -176,6 +174,12 @@ function ZoomButton({
       aria-label={label}
       title={label}
       onClick={onClick}
+      // globals.css zeroes the native focus ring (`:focus-visible{outline:none}`)
+      // with no replacement, so keyboard focus would be invisible. Restore the
+      // moss focus ring (same shadow-ring-focus pattern as home/page.tsx etc).
+      // graph-canvas.tsx is in the Tailwind content glob, so these classes
+      // aren't subject to the src/lib data-driven-class drop.
+      className="focus-visible:shadow-ring-focus focus-visible:outline-none"
       style={{
         pointerEvents: 'auto',
         width: 28,
