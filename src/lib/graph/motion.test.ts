@@ -2,7 +2,7 @@
  * Motion primitives tests (Plan 2026-06-08-001 U1). Pure, DOM-free.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { smooth, easeOutCubic, entranceFrame } from './motion';
+import { smooth, easeOutCubic, entranceFrame, clampToBounds } from './motion';
 
 describe('smooth', () => {
   it('is 0 at t=0 and 1 at t=1', () => {
@@ -102,6 +102,35 @@ describe('entranceFrame', () => {
   it('clamps alpha outside [0,1]', () => {
     expect(entranceFrame(start, target, -0.5)).toEqual(start);
     expect(entranceFrame(start, target, 1.5)).toEqual(target);
+  });
+});
+
+// ── clampToBounds (Plan 2026-06-08-001 Unit 3 — drag bounds) ──
+describe('clampToBounds', () => {
+  it('leaves a value within bounds unchanged', () => {
+    expect(clampToBounds(100, 12, 960)).toBe(100);
+  });
+
+  it('clamps a value below the radius up to the radius', () => {
+    expect(clampToBounds(5, 12, 960)).toBe(12);
+    expect(clampToBounds(-50, 9, 600)).toBe(9);
+  });
+
+  it('clamps a value beyond max-radius down to max-radius', () => {
+    expect(clampToBounds(955, 12, 960)).toBe(948);
+    expect(clampToBounds(10_000, 7, 600)).toBe(593);
+  });
+
+  it('keeps the lower and upper edges exactly at radius / max-radius', () => {
+    expect(clampToBounds(12, 12, 960)).toBe(12);
+    expect(clampToBounds(948, 12, 960)).toBe(948);
+  });
+
+  it('collapses to the canvas midpoint when the node is larger than the canvas (degenerate)', () => {
+    // radius > max - radius ⇒ valid interval inverts; return max/2.
+    expect(clampToBounds(0, 60, 100)).toBe(50);
+    expect(clampToBounds(1000, 60, 100)).toBe(50);
+    expect(clampToBounds(50, 60, 100)).toBe(50);
   });
 });
 
