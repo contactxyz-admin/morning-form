@@ -85,6 +85,151 @@ export function clampToBounds(value: number, radius: number, max: number): numbe
   return value;
 }
 
+// ── Zoom: fit-to-view transform (Plan graph-zoom) ──
+
+/** Axis-aligned bounding box of the node positions, in graph coordinates. */
+export interface GraphBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/**
+ * A computed fit-to-view transform: scale `k`, translate `(x, y)`. Named
+ * `FitTransform` (not `ZoomTransform`) to avoid shadowing d3's own
+ * `ZoomTransform` class — this is a plain POJO, not a d3 instance.
+ */
+export interface FitTransform {
+  k: number;
+  x: number;
+  y: number;
+}
+
+/**
+ * Pure "camera fit" math: compute the d3-zoom transform that frames `bounds`
+ * (graph coordinates) inside a `width × height` viewport, leaving `padding`
+ * px of breathing room on every side, with the content centred.
+ *
+ * The returned `{k, x, y}` is exactly what d3.zoomIdentity.translate(x,y)
+ * .scale(k) encodes: a screen point `p` maps to graph point `(p - (x,y)) / k`,
+ * i.e. a graph point `g` lands on screen at `g * k + (x, y)`.
+ *
+ * `k` is clamped to `[minScale, maxScale]` so the fit never exceeds the
+ * zoom behaviour's scaleExtent (otherwise d3 would re-clamp on the next
+ * gesture and the view would jump). Degenerate bounds (zero or negative
+ * extent — single node, or all nodes coincident) collapse to a centred
+ * identity-scale view so we never divide by zero or produce NaN.
+ */
+export function fitTransform(
+  bounds: GraphBounds,
+  width: number,
+  height: number,
+  padding: number,
+  minScale: number,
+  maxScale: number,
+): FitTransform {
+  const boundsW = bounds.maxX - bounds.minX;
+  const boundsH = bounds.maxY - bounds.minY;
+  const availW = width - 2 * padding;
+  const availH = height - 2 * padding;
+
+  // Degenerate: no positive extent to fit, or no room to fit it into.
+  // Centre the bounds' midpoint in the viewport at scale 1 (clamped).
+  if (boundsW <= 0 || boundsH <= 0 || availW <= 0 || availH <= 0) {
+    const k = clampScale(1, minScale, maxScale);
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+    return { k, x: width / 2 - cx * k, y: height / 2 - cy * k };
+  }
+
+  const k = clampScale(Math.min(availW / boundsW, availH / boundsH), minScale, maxScale);
+  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cy = (bounds.minY + bounds.maxY) / 2;
+  return {
+    x: width / 2 - cx * k,
+    y: height / 2 - cy * k,
+    k,
+  };
+}
+
+function clampScale(k: number, min: number, max: number): number {
+  if (k < min) return min;
+  if (k > max) return max;
+  return k;
+}
+
+// ── Zoom: live-position bounds + d3.zoom event filter ──
+
+/**
+ * Pure axis-aligned bounding box over the CURRENT node positions, each node
+ * padded outward by its own radius so the box frames whole dots (not centres).
+ *
+ * Computed at reset time from the live `x/y` (post-drag arrangement), not a
+ * stale post-prewarm snapshot — so "reset" fits what the user is actually
+ * looking at. `radiusFor` maps a node to its draw radius (production passes
+ * `(n) => radiusForTier(n.tier)`). Returns `null` for an empty list (caller
+ * falls back to identity) — never NaN/Infinity bounds.
+ */
+export function boundsFromNodes<T extends { x: number; y: number }>(
+  nodes: readonly T[],
+  radiusFor: (node: T) => number,
+): GraphBounds | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of nodes) {
+    const r = radiusFor(n);
+    if (n.x - r < minX) minX = n.x - r;
+    if (n.y - r < minY) minY = n.y - r;
+    if (n.x + r > maxX) maxX = n.x + r;
+    if (n.y + r > maxY) maxY = n.y + r;
+  }
+  return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null;
+}
+
+/**
+ * Minimal structural shape of the events d3.zoom hands its `.filter()`. d3
+ * dispatches native `MouseEvent | WheelEvent | TouchEvent` here; we read only
+ * these fields. `button` is non-optional (closing the optional-undefined hole
+ * the inline filter had) so a falsy-coalesce can't hide a missing field.
+ */
+export interface ZoomFilterEvent {
+  type: string;
+  button: number;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  target: { closest?: (selector: string) => unknown } | null;
+}
+
+/**
+ * Pure decision for d3.zoom's `.filter()` (graph-zoom). Extracted from
+ * initGraph so it is unit-testable without a DOM.
+ *
+ *   - Wheel: zoom ONLY with ctrl/⌘ held — plain scroll passes through to the
+ *     page (ADV-05; otherwise d3.zoom preventDefaults and hijacks page scroll
+ *     whenever the pointer is over the graph). The +/− buttons remain the
+ *     discoverable, modifier-free zoom path.
+ *   - Pan: primary mouse button only, on the BACKGROUND — a mousedown whose
+ *     target is inside a `.graph-node` is rejected so node-drag wins.
+ *   - Non-primary button or ctrl-click: rejected.
+ *   - Touch: rejected entirely (desktop-first, mirrors drag's touchable(false)).
+ */
+export function zoomFilter(event: ZoomFilterEvent): boolean {
+  if (event.type === 'wheel') {
+    // ctrl/⌘+scroll zooms; plain scroll scrolls the page (ADV-05).
+    return !!event.ctrlKey || !!event.metaKey;
+  }
+  if (event.button || event.ctrlKey) return false; // primary button only
+  if (event.type.startsWith('touch')) return false; // desktop-first
+  // Pan only on the background, not a node. Duck-typed on `closest` so the
+  // decision stays DOM-free (unit-testable with a stub) — d3 always passes a
+  // real Element as `target` for a mousedown.
+  const t = event.target;
+  return !(t && typeof t.closest === 'function' && t.closest('.graph-node'));
+}
+
 // ── Hover-dim edge opacity ──
 
 /** Edge opacity when both endpoints are in the focused neighbour set. */
