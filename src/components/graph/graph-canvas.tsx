@@ -80,9 +80,9 @@ export function GraphCanvas({
       const hoverLabel = el.querySelector<SVGTextElement>('.graph-node-label-hover');
       if (hoverLabel) hoverLabel.style.opacity = neighbourIds.has(id) ? '1' : '0';
     });
-    svg.querySelectorAll<SVGElement>('[data-edge-id]').forEach((el) => {
-      const fromId = el.getAttribute('data-edge-id')?.split('__')[0] ?? '';
-      const toId = el.getAttribute('data-edge-id')?.split('__').pop() ?? '';
+    svg.querySelectorAll<SVGElement>('[data-from-id]').forEach((el) => {
+      const fromId = el.getAttribute('data-from-id') ?? '';
+      const toId = el.getAttribute('data-to-id') ?? '';
       el.style.opacity = neighbourIds.has(fromId) && neighbourIds.has(toId) ? '1' : '0.15';
     });
   }, [focusedNodeId, neighbourIds]);

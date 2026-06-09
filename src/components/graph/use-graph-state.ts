@@ -240,6 +240,10 @@ export function useGraphState(
       .attr('stroke-dasharray', (d) => visualForEdge(d.type).dashArray ?? null)
       .attr('marker-end', (d) => (visualForEdge(d.type).arrowHead ? 'url(#graph-arrow)' : null))
       .attr('data-edge-id', (d) => d.id)
+      // Endpoint node ids for the hover-dim neighbour check (edge ids are
+      // opaque cuids with no from/to encoded — never parse data-edge-id).
+      .attr('data-from-id', (d) => d.source.id)
+      .attr('data-to-id', (d) => d.target.id)
       .attr('x1', (d) => d.source.x)
       .attr('y1', (d) => d.source.y)
       .attr('x2', (d) => d.target.x)
@@ -342,7 +346,10 @@ export function useGraphState(
         duration: ENTRANCE_DURATION_S,
         ease: smooth,
         onUpdate(alpha) {
-          if (isCancelled) return;
+          // isCancelled: closure torn down. null handle: a higher-priority
+          // transition (drag) stopped + nulled the entrance — a queued frame
+          // must not write entrance positions over the sim's.
+          if (isCancelled || animateRef.current === null) return;
           const frame = entranceFrame(startPositions, targetPointMap, alpha);
           const posMap = new Map(frame.map((p) => [p.id, p]));
 
