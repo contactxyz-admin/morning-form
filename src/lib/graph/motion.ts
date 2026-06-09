@@ -12,17 +12,6 @@ export function smooth(t: number): number {
   return c * c * (3 - 2 * c);
 }
 
-/**
- * Clamped ease-out cubic (fast start, gentle settle).
- * Phase 2 (deferred): the drag spring-back will ease released nodes home
- * with this curve. Kept here so the Phase 2 wiring imports a tested
- * primitive rather than re-deriving it.
- */
-export function easeOutCubic(t: number): number {
-  const c = clamp(t);
-  return 1 - Math.pow(1 - c, 3);
-}
-
 function clamp(t: number): number {
   if (t <= 0) return 0;
   if (t >= 1) return 1;
@@ -94,4 +83,29 @@ export function clampToBounds(value: number, radius: number, max: number): numbe
   if (value < lo) return lo;
   if (value > hi) return hi;
   return value;
+}
+
+// ── Hover-dim edge opacity ──
+
+/** Edge opacity when both endpoints are in the focused neighbour set. */
+const EDGE_OPACITY_LIT = '1';
+/** Edge opacity when one or both endpoints fall outside the set. */
+const EDGE_OPACITY_DIM = '0.15';
+
+/**
+ * Pure decision for the graph-canvas hover-dim: an edge is fully lit only
+ * when BOTH of its endpoints are in the focused node's 1-hop neighbour set;
+ * otherwise it dims. Extracted so the data-from-id / data-to-id wiring is
+ * unit-testable and guarded against transposition (the result is symmetric,
+ * but the call site reads the two attributes in order — the test pins both
+ * are consulted).
+ */
+export function edgeOpacity(
+  fromId: string,
+  toId: string,
+  neighbourIds: ReadonlySet<string>,
+): string {
+  return neighbourIds.has(fromId) && neighbourIds.has(toId)
+    ? EDGE_OPACITY_LIT
+    : EDGE_OPACITY_DIM;
 }

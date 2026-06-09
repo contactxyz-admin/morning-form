@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
@@ -190,41 +190,54 @@ interface VaultMapModeProps {
  * view is intentionally kept health-data-only.
  */
 function VaultMapMode({ data, isDesktop, onNodeClick }: VaultMapModeProps) {
+  // Memoize the canvas node/edge arrays on their content. Built inline they
+  // are fresh refs every render, which churns useGraphState's initGraph
+  // identity → full teardown+reinit (possibly mid-drag) + spurious
+  // re-animations. Matches src/components/demo/demo-graph-section.tsx.
+  // NOTE: these hooks run before the empty-graph early return below, so the
+  // hook order stays stable (rules-of-hooks); they no-op on empty data.
+  const canvasNodes = useMemo<GraphNodeWire[]>(() => {
+    if (data.nodes.length === 0) return [];
+    // Borrow the userId from a real graph node — every node in `data.nodes`
+    // belongs to the current user (R/W is server-scoped by session) so
+    // either of them is the same answer.
+    const userId = data.nodes[0].userId;
+    const scoreCeiling = data.nodes.reduce((max, n) => Math.max(max, n.score), 0);
+
+    // Filter source documents to those actually referenced by surviving
+    // edges. The importance cap upstream can drop nodes whose only
+    // supporting provenance pointed at a given document — without this
+    // filter, the source-doc hub would render as a floating tier-1 island
+    // with no edges (PR #120 ce:review C1).
+    // `data.sources ?? []` also defends against the Vercel deploy-skew
+    // window where a fresh client lands against a pre-deploy response.
+    const referencedDocIds = referencedSourceDocumentIds(data.edges);
+    const visibleSources = (data.sources ?? []).filter((s) => referencedDocIds.has(s.id));
+    const sourceNodes = synthesizeSourceNodes(visibleSources, userId, scoreCeiling);
+    return [...data.nodes, ...sourceNodes];
+  }, [data.nodes, data.edges, data.sources]);
+
+  const canvasEdges = useMemo<GraphEdgeWire[]>(() => {
+    if (data.nodes.length === 0) return [];
+    // Synthesise visible biomarker → source-doc edges from the existing
+    // self-SUPPORTS edges' `fromDocumentId` provenance. The real
+    // SUPPORTS edges are filtered out of the canvas-side spread because
+    // they're self-loops (fromNodeId === toNodeId — see
+    // src/lib/graph/mutations.ts) and D3 renders them as degenerate
+    // zero-length lines that also inflate the aria-label edge count.
+    // The synthesised biomarker → source-doc edges cover the same
+    // provenance signal, visibly.
+    const graphNodeIds = new Set(data.nodes.map((n) => n.id));
+    const sourceIds = new Set(
+      canvasNodes.filter((n) => n.type === 'source_document').map((n) => n.id),
+    );
+    return [
+      ...data.edges.filter((e) => e.type !== 'SUPPORTS'),
+      ...synthesizeSourceEdges(data.edges, graphNodeIds, sourceIds),
+    ];
+  }, [data.nodes, data.edges, canvasNodes]);
+
   if (data.nodes.length === 0) return <GraphListEmpty />;
-
-  // Borrow the userId from a real graph node — every node in `data.nodes`
-  // belongs to the current user (R/W is server-scoped by session) so
-  // either of them is the same answer. The early-return above guarantees
-  // at least one exists.
-  const userId = data.nodes[0].userId;
-  const scoreCeiling = data.nodes.reduce((max, n) => Math.max(max, n.score), 0);
-
-  // Filter source documents to those actually referenced by surviving
-  // edges. The importance cap upstream can drop nodes whose only
-  // supporting provenance pointed at a given document — without this
-  // filter, the source-doc hub would render as a floating tier-1 island
-  // with no edges (PR #120 ce:review C1).
-  // `data.sources ?? []` also defends against the Vercel deploy-skew
-  // window where a fresh client lands against a pre-deploy response.
-  const referencedDocIds = referencedSourceDocumentIds(data.edges);
-  const visibleSources = (data.sources ?? []).filter((s) => referencedDocIds.has(s.id));
-  const sourceNodes = synthesizeSourceNodes(visibleSources, userId, scoreCeiling);
-  const canvasNodes: GraphNodeWire[] = [...data.nodes, ...sourceNodes];
-
-  // Synthesise visible biomarker → source-doc edges from the existing
-  // self-SUPPORTS edges' `fromDocumentId` provenance. The real
-  // SUPPORTS edges are filtered out of the canvas-side spread because
-  // they're self-loops (fromNodeId === toNodeId — see
-  // src/lib/graph/mutations.ts) and D3 renders them as degenerate
-  // zero-length lines that also inflate the aria-label edge count.
-  // The synthesised biomarker → source-doc edges cover the same
-  // provenance signal, visibly.
-  const graphNodeIds = new Set(data.nodes.map((n) => n.id));
-  const sourceIds = new Set(sourceNodes.map((n) => n.id));
-  const canvasEdges: GraphEdgeWire[] = [
-    ...data.edges.filter((e) => e.type !== 'SUPPORTS'),
-    ...synthesizeSourceEdges(data.edges, graphNodeIds, sourceIds),
-  ];
 
   return (
     <>

@@ -11,6 +11,27 @@ import { smooth, entranceFrame, clampToBounds, type MotionPoint } from '@/lib/gr
 /** Entrance duration in seconds. */
 const ENTRANCE_DURATION_S = 0.7;
 
+/** alphaTarget the sim is re-energized to while a node is being dragged. */
+const DRAG_ALPHA_TARGET = 0.3;
+/**
+ * Click-vs-drag disambiguation: pointer movement under this many px still
+ * emits the native click (tap → detail sheet); larger movements suppress it.
+ */
+const DRAG_CLICK_DISTANCE = 4;
+/**
+ * dragend watchdog: if the sim is somehow still hot this long after a drag
+ * ends (alpha-cooling stalled), force it to stop. Alpha-guarded so it never
+ * cuts a legitimately-cooling spring short (R6 backstop, short horizon).
+ */
+const DRAG_WATCHDOG_MS = 5_000;
+/**
+ * dragstart backstop: the ultimate cap. If `dragend` never fires (mouse
+ * released outside the window, Alt+Tab while holding), the sim would
+ * otherwise tick at alphaTarget(DRAG_ALPHA_TARGET) forever. Armed on
+ * dragstart, replaced on the next dragstart, cleared on dragend / teardown.
+ */
+const DRAG_MAX_MS = 30_000;
+
 /**
  * Pure decision: is the entrance animation allowed to run?
  * Returns false in node/SSR (no window) and when the user has requested
@@ -90,10 +111,19 @@ export function useGraphState(
   // cleanup, set by initGraph and invoked by the effect cleanup.
   const teardownRef = useRef<(() => void) | null>(null);
   const reducedMotionCleanupRef = useRef<(() => void) | null>(null);
+  // window 'blur' listener cleanup (alt-tab mid-drag cools the sim).
+  // Attached in initGraph when drag is enabled, removed in teardown —
+  // same ref-driven pattern as reducedMotionCleanupRef.
+  const blurCleanupRef = useRef<(() => void) | null>(null);
   // Drag watchdog: forces the re-energized sim to stop if alpha-cooling
   // somehow stalls after a drag (R6 "never stops" backstop). Armed on
   // dragend, replaced on the next dragstart, cleared in teardown.
   const dragWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Backstop watchdog: armed on DRAGSTART (the dragend one above is not
+  // armed if dragend never fires — mouse released off-window / alt-tab).
+  // A longer DRAG_MAX_MS cap that force-stops the sim. Replaced on the next
+  // dragstart, cleared on dragend and in teardown.
+  const dragBackstopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Volatile callback refs — must not retrigger the simulation. The whole
   // `options` object is a fresh literal each parent render (hover toggles
@@ -367,7 +397,9 @@ export function useGraphState(
             .attr('y2', (d) => (posMap.get(d.target.id) ?? d.target).y);
         },
         onComplete() {
-          if (isCancelled) return;
+          // Mirror onUpdate's guard: a torn-down closure or a higher-priority
+          // transition (drag) that nulled the handle must not run bookkeeping.
+          if (isCancelled || animateRef.current === null) return;
           // onUpdate(1) already painted the exact target; only the bookkeeping
           // remains — flush simNodes + clear the handle.
           flushToTarget();
@@ -443,15 +475,25 @@ export function useGraphState(
 
       const drag = d3
         .drag<SVGGElement, SimulationNode>()
-        // Exclude ctrl-click / non-primary buttons / touch. Touchscreen
-        // laptops: a tap is not a drag, so it still opens the detail
-        // sheet via the existing click handler.
-        .filter((event) => !event.ctrlKey && !event.button && event.pointerType !== 'touch')
-        // Movements under 4px still emit the native click (tap → sheet);
-        // real drags suppress it. This IS the click-vs-drag
+        // Exclude ctrl-click / non-primary buttons. (event.pointerType is
+        // NOT checked here — d3-drag@3 dispatches Mouse/Touch events, never
+        // PointerEvents, so pointerType is always undefined and the old
+        // check was a dead no-op. Touch is disabled via .touchable below.)
+        .filter((event) => !event.ctrlKey && !event.button)
+        // DISABLE touch entirely (the correct d3-drag API). A touchscreen
+        // tap must NOT start a drag — it still opens the detail sheet via
+        // the existing .on('click'). Without this, touch drags fire and
+        // clickDistance is ignored for touch.
+        .touchable(() => false)
+        // Movements under DRAG_CLICK_DISTANCE px still emit the native click
+        // (tap → sheet); real drags suppress it. This IS the click-vs-drag
         // disambiguation — no manual threshold.
-        .clickDistance(4)
+        .clickDistance(DRAG_CLICK_DISTANCE)
         .on('start', (event, d) => {
+          // Orphan guard: d3-drag's window listeners survive teardown, so a
+          // 'start' fired after this closure was torn down must no-op (else
+          // it re-energizes a dead/replaced sim).
+          if (isCancelled) return;
           // A higher-priority transition (drag) cancels the entrance.
           // The entrance onUpdate is guarded by isCancelled / a null
           // handle, so it won't fight the sim.
@@ -460,40 +502,73 @@ export function useGraphState(
           // Clear the hover/focus dim for the duration of the drag.
           onNodeHoverRef.current?.(null);
           // Re-energize the retained sim.
-          simulationRef.current?.alphaTarget(0.3).restart();
+          simulationRef.current?.alphaTarget(DRAG_ALPHA_TARGET).restart();
           // Pin the node under the pointer (clamped on-canvas).
           const r = radiusForTier(d.tier);
           d.fx = clampToBounds(event.x, r, width);
           d.fy = clampToBounds(event.y, r, height);
           // Grabbing cursor on the SVG (inline style, not a class).
           svg.style('cursor', 'grabbing');
-          // Replace any stale watchdog from a prior drag.
+          // Clear any stale dragend watchdog from a prior drag.
           if (dragWatchdogRef.current) clearTimeout(dragWatchdogRef.current);
           dragWatchdogRef.current = null;
+          // Arm the BACKSTOP: if dragend never fires (pointer released
+          // off-window / alt-tab while holding), this is the ultimate cap
+          // that cools + stops the sim so it can't tick forever (R6).
+          if (dragBackstopRef.current) clearTimeout(dragBackstopRef.current);
+          dragBackstopRef.current = setTimeout(() => {
+            simulationRef.current?.alphaTarget(0);
+            simulationRef.current?.stop();
+            dragBackstopRef.current = null;
+          }, DRAG_MAX_MS);
         })
         .on('drag', (event, d) => {
+          if (isCancelled) return;
           const r = radiusForTier(d.tier);
           d.fx = clampToBounds(event.x, r, width);
           d.fy = clampToBounds(event.y, r, height);
         })
         .on('end', () => {
+          // Orphan guard: an 'end' fired after teardown (or a StrictMode
+          // remount) must not arm a watchdog on the NEW sim.
+          if (isCancelled) return;
           // Cool the sim to rest; d3's internal timer auto-stops at
           // alphaMin. RETAIN fx/fy (session pin — node stays where
           // dropped; no spring-back, no persistence).
           simulationRef.current?.alphaTarget(0);
           // Restore the default cursor on the SVG.
           svg.style('cursor', null);
-          // Watchdog backstop: if alpha-cooling stalls and the sim is
-          // somehow still running ~5s later, force it to stop (R6).
+          // dragend handled the cool-down — the backstop is no longer needed.
+          if (dragBackstopRef.current) {
+            clearTimeout(dragBackstopRef.current);
+            dragBackstopRef.current = null;
+          }
+          // Watchdog: if alpha-cooling stalls and the sim is somehow still
+          // HOT ~DRAG_WATCHDOG_MS later, force it to stop (R6). The alpha
+          // guard means it never cuts a legitimately-cooling spring short.
           if (dragWatchdogRef.current) clearTimeout(dragWatchdogRef.current);
           dragWatchdogRef.current = setTimeout(() => {
-            simulationRef.current?.alphaTarget(0);
-            simulationRef.current?.stop();
+            const sim = simulationRef.current;
+            if (sim && sim.alpha() > sim.alphaMin()) {
+              sim.alphaTarget(0);
+              sim.stop();
+            }
             dragWatchdogRef.current = null;
-          }, 5000);
+          }, DRAG_WATCHDOG_MS);
         });
 
       nodeGroups.call(drag);
+
+      // Window blur (alt-tab / focus loss mid-drag): cool the sim gracefully
+      // so it can't keep ticking at DRAG_ALPHA_TARGET while unattended. The
+      // dragstart backstop is the hard cap; this is the graceful nudge.
+      if (typeof window !== 'undefined') {
+        const onBlur = () => {
+          simulationRef.current?.alphaTarget(0);
+        };
+        window.addEventListener('blur', onBlur);
+        blurCleanupRef.current = () => window.removeEventListener('blur', onBlur);
+      }
     }
 
     // Expose teardown to the effect cleanup so it can flag + flush this
@@ -502,12 +577,19 @@ export function useGraphState(
       isCancelled = true;
       animateRef.current?.stop();
       animateRef.current = null;
-      // Clear the drag watchdog so a pending timer can't fire after
-      // teardown / re-init.
+      // Clear BOTH drag timers so neither can fire after teardown / re-init
+      // (a pending backstop or watchdog would otherwise touch the next sim).
       if (dragWatchdogRef.current) {
         clearTimeout(dragWatchdogRef.current);
         dragWatchdogRef.current = null;
       }
+      if (dragBackstopRef.current) {
+        clearTimeout(dragBackstopRef.current);
+        dragBackstopRef.current = null;
+      }
+      // Reset the SVG cursor: if teardown fires mid-drag, 'grabbing' would
+      // otherwise persist into the next init.
+      svg.style('cursor', null);
       flushToTarget();
     };
   }, [svgRef, nodes, edges, width, height, seed]);
@@ -525,6 +607,8 @@ export function useGraphState(
       teardownRef.current = null;
       reducedMotionCleanupRef.current?.();
       reducedMotionCleanupRef.current = null;
+      blurCleanupRef.current?.();
+      blurCleanupRef.current = null;
       simulationRef.current?.stop();
       simulationRef.current = null;
     };

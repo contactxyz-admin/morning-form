@@ -4,7 +4,7 @@
  * exercise the extracted `computeMotionAllowed` decision, which must be
  * safe in node/SSR and honour prefers-reduced-motion.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as d3 from 'd3';
 import { computeMotionAllowed } from './use-graph-state';
 
@@ -61,7 +61,9 @@ describe('spring drag — headless d3 sim physics', () => {
   function buildSim() {
     const a: DragSimNode = { id: 'a', x: 100, y: 100 };
     const b: DragSimNode = { id: 'b', x: 160, y: 100 };
-    const nodes: DragSimNode[] = [a, b];
+    // C is UNLINKED — only repulsion couples it to A, no link force.
+    const c: DragSimNode = { id: 'c', x: 220, y: 100 };
+    const nodes: DragSimNode[] = [a, b, c];
     const links: DragSimLink[] = [{ source: a, target: b }];
 
     const sim = d3
@@ -77,11 +79,11 @@ describe('spring drag — headless d3 sim physics', () => {
       .force('charge', d3.forceManyBody<DragSimNode>().strength(-260))
       .stop();
 
-    return { sim, a, b };
+    return { sim, a, b, c };
   }
 
   it('re-energizes the sim and springs the linked neighbour on a pinned drag', () => {
-    const { sim, a, b } = buildSim();
+    const { sim, a, b, c } = buildSim();
 
     // A fresh sim starts at alpha=1; settle it to rest first so the
     // "resting" baseline is meaningful (not the un-run starting energy).
@@ -89,6 +91,7 @@ describe('spring drag — headless d3 sim physics', () => {
     const restingAlpha = sim.alpha();
 
     const bStart = { x: b.x as number, y: b.y as number };
+    const cStart = { x: c.x as number, y: c.y as number };
 
     // dragstart: re-energize + pin node A far from its rest position.
     sim.alphaTarget(0.3).restart();
@@ -102,10 +105,14 @@ describe('spring drag — headless d3 sim physics', () => {
     expect(sim.alpha()).toBeGreaterThan(restingAlpha);
 
     // (b) spring coupling: the linked neighbour B moved.
-    const bMoved =
-      Math.abs((b.x as number) - bStart.x) > 1e-6 ||
-      Math.abs((b.y as number) - bStart.y) > 1e-6;
-    expect(bMoved).toBe(true);
+    const bDist = Math.hypot((b.x as number) - bStart.x, (b.y as number) - bStart.y);
+    expect(bDist).toBeGreaterThan(1e-6);
+
+    // (c) selective coupling: the LINKED neighbour B moves substantially
+    // more than the UNLINKED node C. C still drifts (repulsion as A moves),
+    // so this is a RELATIVE assertion, not C === 0.
+    const cDist = Math.hypot((c.x as number) - cStart.x, (c.y as number) - cStart.y);
+    expect(bDist).toBeGreaterThan(cDist * 2);
   });
 
   it('settles below alphaMin once alphaTarget returns to 0 (dragend cools to rest)', () => {
@@ -131,5 +138,76 @@ describe('spring drag — headless d3 sim physics', () => {
     // Pin retained through settle.
     expect(a.fx).toBe(400);
     expect(a.fy).toBe(400);
+  });
+
+  // ── R6: watchdog backstop — sim never ticks forever ──
+  // Mirrors the alpha-guarded dragend watchdog in use-graph-state.ts. With
+  // fake timers we run the sim hot, fire the watchdog logic, advance time,
+  // and assert the sim is cooled below alphaMin.
+  it('watchdog (alpha-guarded) stops a still-hot sim and it cools below alphaMin', () => {
+    vi.useFakeTimers();
+    try {
+      const { sim, a } = buildSim();
+      const ALPHA_MIN = sim.alphaMin();
+
+      // Run hot (a re-energized drag) and leave it hot.
+      sim.alphaTarget(0.3).restart();
+      a.fx = 400;
+      a.fy = 400;
+      for (let i = 0; i < 5; i++) sim.tick();
+      expect(sim.alpha()).toBeGreaterThan(ALPHA_MIN);
+
+      // The watchdog callback logic (the alpha-guarded stop from production):
+      // only intervene if still hot.
+      let fired = false;
+      setTimeout(() => {
+        if (sim.alpha() > sim.alphaMin()) {
+          sim.alphaTarget(0);
+          sim.stop();
+        }
+        fired = true;
+      }, 5_000);
+
+      vi.advanceTimersByTime(5_000);
+      expect(fired).toBe(true);
+
+      // After the watchdog forced alphaTarget(0) + stop(), drive the manual
+      // cool-down (the internal d3 timer is stopped; alphaTarget(0) makes it
+      // decay) and assert it reaches rest.
+      let guard = 0;
+      while (sim.alpha() >= ALPHA_MIN && guard < 10_000) {
+        sim.tick();
+        guard++;
+      }
+      expect(sim.alpha()).toBeLessThan(ALPHA_MIN);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // ── Teardown mid-drag: stop() while hot must not throw + cools to rest ──
+  it('teardown mid-drag: stop() on a hot sim leaves it below alphaMin, no throw', () => {
+    const { sim, a } = buildSim();
+    const ALPHA_MIN = sim.alphaMin();
+
+    sim.alphaTarget(0.3).restart();
+    a.fx = 400;
+    a.fy = 400;
+    for (let i = 0; i < 5; i++) sim.tick();
+
+    // Teardown: the internal timer is stopped. We also drop alphaTarget so
+    // the sim can decay to rest (production does alphaTarget(0) on the
+    // backstop/teardown paths).
+    expect(() => {
+      sim.alphaTarget(0);
+      sim.stop();
+    }).not.toThrow();
+
+    let guard = 0;
+    while (sim.alpha() >= ALPHA_MIN && guard < 10_000) {
+      sim.tick();
+      guard++;
+    }
+    expect(sim.alpha()).toBeLessThan(ALPHA_MIN);
   });
 });
