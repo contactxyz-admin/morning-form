@@ -2,7 +2,7 @@
  * Motion primitives tests (Plan 2026-06-08-001 U1). Pure, DOM-free.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { smooth, edgeOpacity, entranceFrame, clampToBounds } from './motion';
+import { smooth, edgeOpacity, entranceFrame, clampToBounds, fitTransform } from './motion';
 
 describe('smooth', () => {
   it('is 0 at t=0 and 1 at t=1', () => {
@@ -136,6 +136,86 @@ describe('clampToBounds', () => {
     expect(clampToBounds(0, 60, 100)).toBe(50);
     expect(clampToBounds(1000, 60, 100)).toBe(50);
     expect(clampToBounds(50, 60, 100)).toBe(50);
+  });
+});
+
+// ── fitTransform (graph-zoom — camera fit math) ──
+describe('fitTransform', () => {
+  const MIN = 0.3;
+  const MAX = 4;
+
+  it('centres a small bbox and maps its centre to the viewport centre', () => {
+    // 100×100 bbox centred at (300,300) inside a 720×480 viewport, 40px pad.
+    const bounds = { minX: 250, minY: 250, maxX: 350, maxY: 350 };
+    const t = fitTransform(bounds, 720, 480, 40, MIN, MAX);
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+    // Graph centre lands on screen centre: g*k + (x,y) === viewport/2.
+    expect(cx * t.k + t.x).toBeCloseTo(720 / 2, 6);
+    expect(cy * t.k + t.y).toBeCloseTo(480 / 2, 6);
+  });
+
+  it('fits the bbox edges within the padded viewport (no overflow)', () => {
+    const bounds = { minX: 0, minY: 0, maxX: 400, maxY: 200 };
+    const w = 720;
+    const h = 480;
+    const pad = 40;
+    const t = fitTransform(bounds, w, h, pad, MIN, MAX);
+    const left = bounds.minX * t.k + t.x;
+    const right = bounds.maxX * t.k + t.x;
+    const top = bounds.minY * t.k + t.y;
+    const bottom = bounds.maxY * t.k + t.y;
+    // Allow tiny float slack; content stays inside the padded box.
+    expect(left).toBeGreaterThanOrEqual(pad - 1e-6);
+    expect(right).toBeLessThanOrEqual(w - pad + 1e-6);
+    expect(top).toBeGreaterThanOrEqual(pad - 1e-6);
+    expect(bottom).toBeLessThanOrEqual(h - pad + 1e-6);
+  });
+
+  it('uses the tighter (min) axis ratio so neither axis overflows', () => {
+    // Wide-but-short bbox: width is the binding constraint.
+    const bounds = { minX: 0, minY: 0, maxX: 1000, maxY: 100 };
+    const t = fitTransform(bounds, 720, 480, 40, MIN, MAX);
+    const availW = 720 - 80;
+    const availH = 480 - 80;
+    const expectedK = Math.min(availW / 1000, availH / 100);
+    expect(t.k).toBeCloseTo(expectedK, 6);
+  });
+
+  it('clamps k to maxScale for a very small bbox', () => {
+    const bounds = { minX: 100, minY: 100, maxX: 110, maxY: 110 };
+    const t = fitTransform(bounds, 720, 480, 40, MIN, MAX);
+    expect(t.k).toBe(MAX);
+  });
+
+  it('clamps k to minScale for a bbox far larger than the viewport', () => {
+    const bounds = { minX: 0, minY: 0, maxX: 100_000, maxY: 100_000 };
+    const t = fitTransform(bounds, 720, 480, 40, MIN, MAX);
+    expect(t.k).toBe(MIN);
+  });
+
+  it('always returns k within [minScale, maxScale]', () => {
+    const samples = [
+      { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+      { minX: 0, minY: 0, maxX: 5000, maxY: 50 },
+      { minX: -300, minY: -300, maxX: 300, maxY: 300 },
+    ];
+    for (const b of samples) {
+      const t = fitTransform(b, 720, 480, 40, MIN, MAX);
+      expect(t.k).toBeGreaterThanOrEqual(MIN);
+      expect(t.k).toBeLessThanOrEqual(MAX);
+    }
+  });
+
+  it('handles a degenerate (zero-extent) bbox by centring without NaN', () => {
+    const bounds = { minX: 300, minY: 200, maxX: 300, maxY: 200 };
+    const t = fitTransform(bounds, 720, 480, 40, MIN, MAX);
+    expect(Number.isFinite(t.k)).toBe(true);
+    expect(Number.isFinite(t.x)).toBe(true);
+    expect(Number.isFinite(t.y)).toBe(true);
+    // The single point maps to the viewport centre.
+    expect(300 * t.k + t.x).toBeCloseTo(360, 6);
+    expect(200 * t.k + t.y).toBeCloseTo(240, 6);
   });
 });
 

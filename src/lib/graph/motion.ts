@@ -85,6 +85,76 @@ export function clampToBounds(value: number, radius: number, max: number): numbe
   return value;
 }
 
+// ── Zoom: fit-to-view transform (Plan graph-zoom) ──
+
+/** Axis-aligned bounding box of the node positions, in graph coordinates. */
+export interface GraphBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** A d3-zoom transform: scale `k`, translate `(x, y)`. */
+export interface ZoomTransform {
+  k: number;
+  x: number;
+  y: number;
+}
+
+/**
+ * Pure "camera fit" math: compute the d3-zoom transform that frames `bounds`
+ * (graph coordinates) inside a `width × height` viewport, leaving `padding`
+ * px of breathing room on every side, with the content centred.
+ *
+ * The returned `{k, x, y}` is exactly what d3.zoomIdentity.translate(x,y)
+ * .scale(k) encodes: a screen point `p` maps to graph point `(p - (x,y)) / k`,
+ * i.e. a graph point `g` lands on screen at `g * k + (x, y)`.
+ *
+ * `k` is clamped to `[minScale, maxScale]` so the fit never exceeds the
+ * zoom behaviour's scaleExtent (otherwise d3 would re-clamp on the next
+ * gesture and the view would jump). Degenerate bounds (zero or negative
+ * extent — single node, or all nodes coincident) collapse to a centred
+ * identity-scale view so we never divide by zero or produce NaN.
+ */
+export function fitTransform(
+  bounds: GraphBounds,
+  width: number,
+  height: number,
+  padding: number,
+  minScale: number,
+  maxScale: number,
+): ZoomTransform {
+  const boundsW = bounds.maxX - bounds.minX;
+  const boundsH = bounds.maxY - bounds.minY;
+  const availW = width - 2 * padding;
+  const availH = height - 2 * padding;
+
+  // Degenerate: no positive extent to fit, or no room to fit it into.
+  // Centre the bounds' midpoint in the viewport at scale 1 (clamped).
+  if (boundsW <= 0 || boundsH <= 0 || availW <= 0 || availH <= 0) {
+    const k = clampScale(1, minScale, maxScale);
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+    return { k, x: width / 2 - cx * k, y: height / 2 - cy * k };
+  }
+
+  const k = clampScale(Math.min(availW / boundsW, availH / boundsH), minScale, maxScale);
+  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cy = (bounds.minY + bounds.maxY) / 2;
+  return {
+    x: width / 2 - cx * k,
+    y: height / 2 - cy * k,
+    k,
+  };
+}
+
+function clampScale(k: number, min: number, max: number): number {
+  if (k < min) return min;
+  if (k > max) return max;
+  return k;
+}
+
 // ── Hover-dim edge opacity ──
 
 /** Edge opacity when both endpoints are in the focused neighbour set. */
