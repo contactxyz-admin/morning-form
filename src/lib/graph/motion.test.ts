@@ -2,7 +2,7 @@
  * Motion primitives tests (Plan 2026-06-08-001 U1). Pure, DOM-free.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { smooth, easeOutCubic, entranceFrame, clampToBounds } from './motion';
+import { smooth, edgeOpacity, entranceFrame, clampToBounds } from './motion';
 
 describe('smooth', () => {
   it('is 0 at t=0 and 1 at t=1', () => {
@@ -32,20 +32,25 @@ describe('smooth', () => {
   });
 });
 
-describe('easeOutCubic', () => {
-  it('is 0 at t=0 and 1 at t=1', () => {
-    expect(easeOutCubic(0)).toBe(0);
-    expect(easeOutCubic(1)).toBe(1);
+describe('edgeOpacity', () => {
+  it('is fully lit when BOTH endpoints are in the neighbour set', () => {
+    const set = new Set(['a', 'b']);
+    expect(edgeOpacity('a', 'b', set)).toBe('1');
   });
 
-  it('clamps outside [0,1]', () => {
-    expect(easeOutCubic(-0.5)).toBe(0);
-    expect(easeOutCubic(1.5)).toBe(1);
+  it('dims when only one endpoint is in the set', () => {
+    const set = new Set(['a']);
+    expect(edgeOpacity('a', 'b', set)).toBe('0.15');
+    expect(edgeOpacity('b', 'a', set)).toBe('0.15');
   });
 
-  it('starts faster than linear (ease-out property)', () => {
-    // At t=0.25, ease-out should be ahead of linear.
-    expect(easeOutCubic(0.25)).toBeGreaterThan(0.25);
+  it('dims when neither endpoint is in the set', () => {
+    const set = new Set(['z']);
+    expect(edgeOpacity('a', 'b', set)).toBe('0.15');
+  });
+
+  it('dims against an empty set', () => {
+    expect(edgeOpacity('a', 'b', new Set())).toBe('0.15');
   });
 });
 
