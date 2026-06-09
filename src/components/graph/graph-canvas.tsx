@@ -16,8 +16,14 @@
  * Spring drag (Plan 2026-06-08-001 Unit 3) lives in useGraphState: nodes are
  * draggable on motion-enabled desktop (it re-energizes the retained D3 sim);
  * reduced-motion / SSR get no drag. dragstart clears the hover/focus dim by
- * pushing onNodeHover(null) up to the focusedNodeId state below — the dim
- * effect re-derives from there.
+ * pushing onNodeHover(null) up to the hoveredNodeId state below — the dim
+ * effect re-derives from there (falling back to the persistent selection).
+ *
+ * Selection (node-selection-ux plan 2026-06-09-001): `selectedNodeId` mirrors
+ * the open detail surface's `?entity=` URL state. The selected node shows a
+ * halo ring ([data-selected] → globals.css) and keeps its 1-hop neighbourhood
+ * emphasised while the surface is open; hover temporarily re-aims the
+ * emphasis and releases back to the selection on mouseleave.
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -36,6 +42,18 @@ export interface GraphCanvasProps {
   readonly className?: string;
   /** Optional accessible label for the SVG root. */
   readonly ariaLabel?: string;
+  /**
+   * Node id whose detail surface is open (the `?entity=` selection). Shows
+   * the selection halo + persistent neighbourhood emphasis; cleared by the
+   * caller when the surface closes. Node ID, never canonicalKey — callers
+   * map their own URL state first.
+   */
+  readonly selectedNodeId?: string | null;
+  /**
+   * Per-node interactivity predicate (see UseGraphStateOptions.nodeInteractive).
+   * Defaults to all-interactive.
+   */
+  readonly nodeInteractive?: (node: GraphNodeWire) => boolean;
 }
 
 const DEFAULT_SEED = 0x4d6f6e64; // 'Mond' — arbitrary but stable.
@@ -49,17 +67,26 @@ export function GraphCanvas({
   onNodeClick,
   className,
   ariaLabel,
+  selectedNodeId = null,
+  nodeInteractive,
 }: GraphCanvasProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
+  // Emphasis = hover while the pointer is on a node, falling back to the
+  // persistent selection (the open detail surface) at rest. Hover stays
+  // transient and unchanged; selection keeps the neighbourhood lit after
+  // mouseleave instead of letting the open sheet float free of any anchor.
+  const emphasisNodeId = hoveredNodeId ?? selectedNodeId;
 
   const { neighbourIds, zoomControls } = useGraphState(svgRef, nodes, edges, {
     width,
     height,
     seed,
     onNodeClick,
-    onNodeHover: (n) => setFocusedNodeId(n?.id ?? null),
-    focusedNodeId,
+    onNodeHover: (n) => setHoveredNodeId(n?.id ?? null),
+    focusedNodeId: emphasisNodeId,
+    nodeInteractive,
   });
 
   // Imperatively dim non-neighbour nodes / edges when a node is
@@ -69,7 +96,7 @@ export function GraphCanvas({
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
-    if (!focusedNodeId) {
+    if (!emphasisNodeId) {
       svg.querySelectorAll('[data-node-id], [data-edge-id]').forEach((el) => {
         (el as SVGElement).style.opacity = '';
       });
@@ -92,7 +119,40 @@ export function GraphCanvas({
       const toId = el.getAttribute('data-to-id') ?? '';
       el.style.opacity = edgeOpacity(fromId, toId, neighbourIds);
     });
-  }, [focusedNodeId, neighbourIds]);
+  }, [emphasisNodeId, neighbourIds]);
+
+  // Selection halo + aria-current, mirrored from the `?entity=` URL state.
+  // Same imperative seam as the dim effect: attribute toggles on existing
+  // DOM, never a sim re-init. `nodes` in the deps re-applies the attributes
+  // after a dataSignature re-init rebuilds the node groups (this effect is
+  // declared after the useGraphState call, so it runs after the rebuild).
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    svg.querySelectorAll<SVGGElement>('.graph-node').forEach((el) => {
+      const isSelected =
+        selectedNodeId != null && el.getAttribute('data-node-id') === selectedNodeId;
+      if (isSelected) {
+        el.setAttribute('data-selected', 'true');
+        el.setAttribute('aria-current', 'true');
+      } else {
+        // Blur-on-deselect: a click leaves DOM focus on the <g>, so after
+        // the sheet closes a stale focus artifact would linger (the original
+        // blue-box symptom). Keyboard focus (:focus-visible) is preserved —
+        // blurring it would dump the user's Tab position back to <body>
+        // after Escape.
+        if (
+          el.hasAttribute('data-selected') &&
+          el === document.activeElement &&
+          !el.matches(':focus-visible')
+        ) {
+          el.blur();
+        }
+        el.removeAttribute('data-selected');
+        el.removeAttribute('aria-current');
+      }
+    });
+  }, [selectedNodeId, nodes]);
 
   const summary = useMemo(
     () => `Health graph — ${nodes.length} nodes, ${edges.length} edges`,
@@ -117,14 +177,15 @@ export function GraphCanvas({
         // viewBox ratio. The wrapper div then takes the svg's height.
         style={{ display: 'block', width: '100%', height: 'auto' }}
         onClick={(e) => {
-          // Any click that is NOT on a node clears focus — the svg background,
+          // Any click that is NOT on a node clears hover — the svg background,
           // an edge <line>, the zoom layer <g>, an empty-space gap, all of it.
           // (The earlier svg-tagName-only guard missed edges and the layer
           // groups.) d3.zoom suppresses the click that follows a pan move
-          // (clickDistance), so a genuine background click still clears focus
-          // while a pan does not.
+          // (clickDistance), so a genuine background click still clears hover
+          // while a pan does not. Selection is NOT cleared here — it belongs
+          // to the detail surface and releases when that closes.
           if (!(e.target as Element).closest?.('.graph-node')) {
-            setFocusedNodeId(null);
+            setHoveredNodeId(null);
           }
         }}
       />

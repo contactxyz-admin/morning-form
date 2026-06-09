@@ -84,6 +84,37 @@ export function visualForNode(type: NodeType): NodeVisual {
 }
 
 /**
+ * Selection-halo stroke per visual class. Slightly stronger than the node's
+ * own stroke so the halo reads as emphasis rather than duplication. Mirrored
+ * in tailwind.config.ts safelist (src/lib classes are JIT-dropped otherwise).
+ */
+const SELECTION_STROKE_BY_CLASS: Record<NodeVisualClass, string> = {
+  clinical: 'stroke-alert/80',
+  biomarker: 'stroke-accent',
+  intervention: 'stroke-positive/80',
+  data: 'stroke-text-tertiary/70',
+};
+
+/**
+ * Stroke class for the selection halo ring
+ * (docs/plans/2026-06-09-001-feat-graph-node-selection-ux-plan.md): the
+ * halo speaks the node's identity, so it carries the node's visual-class
+ * hue. Keyboard focus overrides to graphite in globals.css.
+ */
+export function selectionStrokeClass(type: NodeType): string {
+  const visualClass = NODE_VISUAL_CLASS[type] ?? 'data';
+  return SELECTION_STROKE_BY_CLASS[visualClass];
+}
+
+/**
+ * Halo ring radius — node radius + 4, matching the forceCollide padding in
+ * use-graph-state.ts so a halo can never overlap a neighbouring dot.
+ */
+export function haloRadiusForTier(tier: ImportanceTier): number {
+  return radiusForTier(tier) + 4;
+}
+
+/**
  * Tier-based radius. Tier 1 reads as a quiet headline, tier 3 as
  * metadata. Matches seam's neural-ink renderer.
  */

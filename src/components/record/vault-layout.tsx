@@ -77,15 +77,17 @@ export function VaultLayout() {
   const handleNodeClick = useCallback(
     (node: GraphNodeWire) => {
       // Source-document pseudo-nodes (synthesised client-side for the
-      // canvas) aren't in `state.data.nodes`, so opening the detail
-      // sheet for them would resolve to null and trigger the deep-link
-      // guard to immediately clear the URL — a visible flicker for no
-      // outcome. No source-doc detail surface exists yet; ignore the
-      // click. (If we add one later, drop this guard and route on type.)
-      if (node.type === 'source_document') return;
+      // canvas) aren't in `state.data.nodes`, so the entity sheet can't
+      // serve them — but they carry the real SourceDocument id
+      // (canvas-synthesis sets id = canonicalKey = document id), and
+      // /record/source/[id] is a real surface. Route there.
+      if (node.type === 'source_document') {
+        router.push(`/record/source/${encodeURIComponent(node.id)}`);
+        return;
+      }
       updateUrl({ entity: node.canonicalKey });
     },
-    [updateUrl],
+    [router, updateUrl],
   );
 
   const handleSheetClose = useCallback(() => {
@@ -159,6 +161,7 @@ export function VaultLayout() {
             data={state.data}
             isDesktop={isDesktop}
             onNodeClick={handleNodeClick}
+            selectedNodeId={selectedNode?.id ?? null}
           />
         )}
       </div>
@@ -177,6 +180,8 @@ interface VaultMapModeProps {
   data: RecordIndexData;
   isDesktop: boolean;
   onNodeClick: (node: GraphNodeWire) => void;
+  /** Node id of the open `?entity=` selection — drives the canvas halo. */
+  selectedNodeId: string | null;
 }
 
 /**
@@ -189,7 +194,7 @@ interface VaultMapModeProps {
  * real graph nodes so the SUPPORTS edges find visible targets; the list
  * view is intentionally kept health-data-only.
  */
-function VaultMapMode({ data, isDesktop, onNodeClick }: VaultMapModeProps) {
+function VaultMapMode({ data, isDesktop, onNodeClick, selectedNodeId }: VaultMapModeProps) {
   // Memoize the canvas node/edge arrays on their content. Built inline they
   // are fresh refs every render, which churns useGraphState's initGraph
   // identity → full teardown+reinit (possibly mid-drag) + spurious
@@ -271,6 +276,7 @@ function VaultMapMode({ data, isDesktop, onNodeClick }: VaultMapModeProps) {
             width={720}
             height={480}
             onNodeClick={onNodeClick}
+            selectedNodeId={selectedNodeId}
             className="w-full h-auto"
             ariaLabel={`Your health graph — ${canvasNodes.length} nodes, ${canvasEdges.length} edges. Tap any node to see its sources.`}
           />

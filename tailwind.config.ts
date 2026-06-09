@@ -32,6 +32,10 @@ const config: Config = {
     'stroke-text-tertiary/50',
     'stroke-text-secondary/70',
     'stroke-alert/60',
+    // Selection-halo strokes (4 visual classes — stroke-accent and
+    // stroke-positive/80 already listed above)
+    'stroke-alert/80',
+    'stroke-text-tertiary/70',
   ],
   theme: {
     extend: {
