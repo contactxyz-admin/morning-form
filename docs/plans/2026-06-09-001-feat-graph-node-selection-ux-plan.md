@@ -133,7 +133,7 @@ CSS (globals.css):
 
 ### Phase 1 — Selection grammar (ships; fixes the complaint)
 
-- [ ] **Unit 1: Halo primitive + native-ring kill**
+- [x] **Unit 1: Halo primitive + native-ring kill**
 
 **Goal:** Every node owns a hidden halo ring; the UA blue box is gone; keyboard focus shows the designed graphite ring.
 
@@ -156,7 +156,7 @@ CSS (globals.css):
 
 **Verification:** click a node in Chrome/Safari/Firefox → no native ring anywhere (the Chromium SVG click-focus quirk is the case that bites); Tab to a node → graphite ring, visually distinct from selection; reduced-motion → instant. **Visual-audit gate:** keyboard-focused vs selected vs hover screenshots on both render sites.
 
-- [ ] **Unit 2: Selected state threaded from the URL**
+- [x] **Unit 2: Selected state threaded from the URL**
 
 **Goal:** The canvas mirrors the open detail surface: halo + persistent neighborhood emphasis while `?entity=` is set, released (and DOM-blurred) when it clears.
 
@@ -180,7 +180,13 @@ CSS (globals.css):
 
 **Verification:** click node → halo springs in, sheet opens, neighborhood stays emphasized with the pointer anywhere; close via ✕ / Escape / backdrop / browser-back → halo releases, canvas fully restored; load `/record?mode=map&entity=…` directly → halo present on first paint. **Visual-audit gate:** selected-with-sheet-open (through the scrim), post-close, deep-link first paint.
 
-- [ ] **Unit 3: Honest source-document affordance**
+**Implementation notes (2026-06-09):** shipped with two deliberate deviations —
+`aria-current="true"` instead of `aria-pressed` (pressed implies a toggle, and
+clicking the selected node doesn't deselect), and blur-on-deselect guarded by
+`!el.matches(':focus-visible')` so a keyboard user's Tab position survives
+Escape while pointer-driven stale focus is still cleared.
+
+- [x] **Unit 3: Honest source-document affordance**
 
 **Goal:** Clicking a source-document node does something real on the vault, and stops pretending on the demo.
 

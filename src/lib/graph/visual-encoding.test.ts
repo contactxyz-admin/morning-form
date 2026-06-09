@@ -6,8 +6,10 @@ import {
   type NodeType,
 } from './types';
 import {
+  haloRadiusForTier,
   labelVisibleByDefault,
   radiusForTier,
+  selectionStrokeClass,
   visualForEdge,
   visualForNode,
 } from './visual-encoding';
@@ -79,6 +81,41 @@ describe('radiusForTier', () => {
   it('tier 1 > tier 2 > tier 3', () => {
     expect(radiusForTier(1)).toBeGreaterThan(radiusForTier(2));
     expect(radiusForTier(2)).toBeGreaterThan(radiusForTier(3));
+  });
+});
+
+describe('selectionStrokeClass', () => {
+  it('maps every NodeType to exactly 4 stroke classes', () => {
+    const classes = new Set(NODE_TYPES.map((t) => selectionStrokeClass(t)));
+    expect(classes.size).toBe(4);
+  });
+
+  it('returns Tailwind stroke classes (no raw hex) — must stay mirrored in the tailwind.config.ts safelist', () => {
+    for (const type of NODE_TYPES) {
+      expect(selectionStrokeClass(type)).toMatch(/^stroke-/);
+    }
+  });
+
+  it('follows the same 4-class grouping as visualForNode', () => {
+    // Same visual class → same halo stroke; the halo speaks node identity.
+    expect(selectionStrokeClass('condition')).toBe(selectionStrokeClass('symptom'));
+    expect(selectionStrokeClass('biomarker')).toBe(selectionStrokeClass('observation'));
+    expect(selectionStrokeClass('medication')).toBe(selectionStrokeClass('lifestyle'));
+    expect(selectionStrokeClass('source_document')).toBe(selectionStrokeClass('mood'));
+  });
+
+  it('falls back to the data-class stroke for unknown types (mirrors visualForNode)', () => {
+    expect(selectionStrokeClass('not_a_real_type' as NodeType)).toBe(
+      selectionStrokeClass('source_document'),
+    );
+  });
+});
+
+describe('haloRadiusForTier', () => {
+  it('is node radius + 4 (the forceCollide padding) for every tier', () => {
+    for (const tier of [1, 2, 3] as const) {
+      expect(haloRadiusForTier(tier)).toBe(radiusForTier(tier) + 4);
+    }
   });
 });
 

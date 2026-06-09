@@ -55,6 +55,56 @@
   }
 }
 
+@layer components {
+  /* ── Graph canvas: node selection / focus grammar ──
+     See docs/plans/2026-06-09-001-feat-graph-node-selection-ux-plan.md.
+     The halo <circle class="graph-node-halo"> is appended per node group by
+     use-graph-state.ts; interaction only toggles [data-selected] on the
+     group (graph-canvas.tsx) — these rules own everything visual. */
+
+  /* Chromium draws a native UA focus ring on click-focused SVG content,
+     tracing the group bbox (including the opacity-0 hover label) — the
+     oversized blue rectangle. Suppress on :focus (covers click focus in
+     every browser); the designed rings below carry WCAG 2.4.7. */
+  .graph-node:focus {
+    outline: none;
+  }
+
+  .graph-node-halo {
+    opacity: 0;
+    transform: scale(0.6);
+    transform-box: fill-box;
+    transform-origin: center;
+    transition:
+      opacity 250ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 250ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Keyboard focus — full-opacity graphite ring. (The ring-focus token's
+     0.42 alpha lands ≈2.5:1 on the warm canvas; WCAG 1.4.11 needs ≥3:1.
+     box-shadow doesn't render on SVG, hence a stroke, not shadow-ring-focus.)
+     Scoped :not([data-selected]) so selection keeps the node-hue ring when
+     both states apply (Enter on a focused node). */
+  .graph-node:focus-visible:not([data-selected]) > .graph-node-halo {
+    opacity: 1;
+    transform: scale(1);
+    stroke: theme(colors.accent.DEFAULT);
+  }
+
+  /* Selected — mirrors the open detail surface (?entity=). Node-hue stroke
+     class is set per visual class in use-graph-state.ts. */
+  .graph-node[data-selected] > .graph-node-halo {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .graph-node-halo {
+      transition: none;
+    }
+  }
+}
+
 @layer utilities {
   .no-scrollbar {
     -ms-overflow-style: none;

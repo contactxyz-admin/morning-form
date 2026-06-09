@@ -5,7 +5,13 @@ import * as d3 from 'd3';
 import { animate } from 'framer-motion';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { makeRng } from '../../../prisma/fixtures/synthetic/generators';
-import { radiusForTier, visualForEdge, visualForNode } from '@/lib/graph/visual-encoding';
+import {
+  haloRadiusForTier,
+  radiusForTier,
+  selectionStrokeClass,
+  visualForEdge,
+  visualForNode,
+} from '@/lib/graph/visual-encoding';
 import {
   smooth,
   entranceFrame,
@@ -117,6 +123,13 @@ export interface UseGraphStateOptions {
   readonly onNodeHover?: (node: GraphNodeWire | null) => void;
   /** Currently focused node id; non-neighbours dim. */
   readonly focusedNodeId?: string | null;
+  /**
+   * Per-node interactivity predicate. Non-interactive nodes render without
+   * `role="button"` / `tabindex` / a click affordance (honest affordances —
+   * e.g. the demo's source-document pseudo-nodes, which have no detail
+   * surface). They still hover-dim and still drag. Defaults to all-interactive.
+   */
+  readonly nodeInteractive?: (node: GraphNodeWire) => boolean;
 }
 
 /**
@@ -385,6 +398,12 @@ export function useGraphState(
       .attr('y2', (d) => d.target.y);
 
     // Node layer. Inside zoomLayer so it pans/zooms with the edges.
+    // Interactivity is per-node (nodeInteractive predicate, read live through
+    // optionsRef so a fresh function literal never re-inits the graph):
+    // non-interactive nodes get no button role / tab stop / click, but keep
+    // hover-dim and drag.
+    const isInteractive = (d: SimulationNode) =>
+      optionsRef.current.nodeInteractive?.(d) ?? true;
     const nodeLayer = zoomLayer.append('g').attr('class', 'graph-nodes');
     const nodeGroups = nodeLayer
       .selectAll<SVGGElement, SimulationNode>('g.graph-node')
@@ -392,20 +411,36 @@ export function useGraphState(
       .enter()
       .append('g')
       .attr('class', 'graph-node')
-      .attr('role', 'button')
-      .attr('tabindex', 0)
+      .attr('role', (d) => (isInteractive(d) ? 'button' : null))
+      .attr('tabindex', (d) => (isInteractive(d) ? 0 : null))
       .attr('aria-label', (d) => d.displayName)
       .attr('data-node-id', (d) => d.id)
       .attr('transform', (d) => `translate(${d.x},${d.y})`)
-      .on('click', (_event, d) => onNodeClickRef.current?.(d))
+      .on('click', (_event, d) => {
+        if (isInteractive(d)) onNodeClickRef.current?.(d);
+      })
       .on('mouseenter', (_event, d) => onNodeHoverRef.current?.(d))
       .on('mouseleave', () => onNodeHoverRef.current?.(null))
       .on('keydown', (event, d) => {
+        if (!isInteractive(d)) return;
         if ((event as KeyboardEvent).key === 'Enter' || (event as KeyboardEvent).key === ' ') {
           event.preventDefault();
           onNodeClickRef.current?.(d);
         }
       });
+
+    // Selection/focus halo — a hidden concentric ring beneath the dot,
+    // toggled purely via CSS (globals.css): [data-selected] shows it in the
+    // node's visual-class hue, :focus-visible in graphite. Appended FIRST so
+    // the node circle paints on top; pointer-events:none so it never widens
+    // the hit area. See docs/plans/2026-06-09-001 (node selection UX).
+    nodeGroups
+      .append('circle')
+      .attr('class', (d) => `graph-node-halo ${selectionStrokeClass(d.type)}`)
+      .attr('r', (d) => haloRadiusForTier(d.tier))
+      .attr('fill', 'none')
+      .attr('stroke-width', 2)
+      .attr('pointer-events', 'none');
 
     nodeGroups
       .append('circle')
@@ -546,8 +581,9 @@ export function useGraphState(
       // Reduced motion / SSR / empty — first paint already shows scatter;
       // snap straight to the settled target. No drag is attached (R5), so
       // keep the original click affordance (inline, matches pre-drag
-      // behaviour without the cursor-pointer class).
-      nodeGroups.style('cursor', 'pointer');
+      // behaviour without the cursor-pointer class). Non-interactive nodes
+      // get the default cursor — nothing to click, nothing to drag.
+      nodeGroups.style('cursor', (d) => (isInteractive(d) ? 'pointer' : 'default'));
       flushToTarget();
       const edgeSel = zoomLayer.selectAll<SVGLineElement, SimulationEdge>('line');
       const nodeSel = zoomLayer.selectAll<SVGGElement, SimulationNode>('g.graph-node');

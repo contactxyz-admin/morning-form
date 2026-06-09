@@ -59,6 +59,12 @@ interface Props {
 const ENTITY_PATTERN = /^[A-Za-z0-9\-_.:]+$/;
 const ENTITY_MAX_LEN = 200;
 
+// Source-document pseudo-nodes have no detail surface on the public demo
+// (no /record/source/[id] equivalent for fixtures), so they must not
+// present as buttons — no role, no tab stop, no pointer cursor. They keep
+// hover-dim and drag. Module-level so the predicate identity is stable.
+const isNodeInteractive = (node: GraphNodeWire) => node.type !== 'source_document';
+
 export function DemoGraphSection({ fixture }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -152,8 +158,9 @@ export function DemoGraphSection({ fixture }: Props) {
       // Source-document pseudo-nodes (added in U6) aren't in
       // `adapted.provenanceByNodeId`. Opening the sheet for them would
       // resolve to null and trigger the deep-link guard to immediately
-      // clear the URL — a visible flicker for no outcome.
-      if (node.type === 'source_document') return;
+      // clear the URL — a visible flicker for no outcome. Belt-and-braces:
+      // the canvas already withholds the click via `isNodeInteractive`.
+      if (!isNodeInteractive(node)) return;
       updateUrl(node.id);
     },
     [updateUrl],
@@ -205,6 +212,8 @@ export function DemoGraphSection({ fixture }: Props) {
           width={720}
           height={480}
           onNodeClick={handleNodeClick}
+          selectedNodeId={openNode?.id ?? null}
+          nodeInteractive={isNodeInteractive}
           className="w-full h-auto"
           ariaLabel={`Health graph — ${canvasNodes.length} nodes, ${canvasEdges.length} edges. Tap any node to see its sources.`}
         />
