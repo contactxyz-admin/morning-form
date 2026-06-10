@@ -16,6 +16,7 @@
 
 import type { PrismaClient, Prisma } from '@prisma/client';
 import type { SeriesPoint } from '@/lib/scribe/tools/recognize-pattern-in-history';
+import { wearableMetricNamesFor } from './metric-aliases';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -129,8 +130,23 @@ async function loadBiomarkerSeries(
 ): Promise<SeriesPoint[]> {
   const nodes = await db.graphNode.findMany({
     where: { userId, type: 'biomarker' },
-    select: { displayName: true, attributes: true },
+    select: { id: true, displayName: true, attributes: true },
   });
+
+  const conceptIds = nodes
+    .filter((n) => n.displayName.toLowerCase() === markerName.toLowerCase())
+    .map((n) => n.id);
+  if (conceptIds.length === 0) return [];
+
+  // Dated history lives on `observation` instances linked to the concept via
+  // INSTANCE_OF (longitudinal plan 2026-06-10-002). When instances exist they
+  // are the source of truth: the concept node's own `latestValue` is the
+  // CURRENT reading but its `collectionDate` is the FIRST-seen anchor, so
+  // emitting it as a point would pair a recent value with an old date. We
+  // therefore prefer instances and only fall back to the concept value for
+  // legacy/pre-migration markers that have no instances yet.
+  const instancePoints = await loadObservationInstances(db, userId, conceptIds, markerName);
+  if (instancePoints.length > 0) return instancePoints;
 
   const points: SeriesPoint[] = [];
   for (const node of nodes) {
@@ -162,6 +178,49 @@ async function loadBiomarkerSeries(
 }
 
 /**
+ * Dated lab-reading instances for a marker: `observation` nodes that are
+ * INSTANCE_OF one of the marker's concept nodes. Each carries its own
+ * value/unit/measuredAt, so this is the real multi-point lab series.
+ */
+async function loadObservationInstances(
+  db: Db,
+  userId: string,
+  conceptIds: string[],
+  markerName: string,
+): Promise<SeriesPoint[]> {
+  const edges = await db.graphEdge.findMany({
+    where: { userId, type: 'INSTANCE_OF', toNodeId: { in: conceptIds } },
+    select: { fromNodeId: true },
+  });
+  const instanceIds = edges.map((e) => e.fromNodeId);
+  if (instanceIds.length === 0) return [];
+
+  const instances = await db.graphNode.findMany({
+    where: { userId, id: { in: instanceIds }, type: 'observation' },
+    select: { attributes: true },
+  });
+
+  const points: SeriesPoint[] = [];
+  for (const inst of instances) {
+    let attrs: Record<string, unknown> | null = null;
+    try {
+      attrs = inst.attributes ? JSON.parse(inst.attributes) : null;
+    } catch { continue; }
+    if (!attrs) continue;
+    const value = typeof attrs.value === 'number' ? attrs.value : null;
+    const dateStr = typeof attrs.measuredAt === 'string' ? attrs.measuredAt : null;
+    if (value === null || !dateStr) continue;
+    points.push({
+      metric: markerName,
+      value,
+      unit: typeof attrs.unit === 'string' ? attrs.unit : '',
+      timestamp: new Date(dateStr).toISOString(),
+    });
+  }
+  return points;
+}
+
+/**
  * Wearable HealthDataPoint categories that are NOT lab-equivalent scalar
  * measurements and must never co-plot with a lab marker on one axis. `recovery`
  * (and similar composite scores) are derived 0–100 indices, not the physical
@@ -175,8 +234,13 @@ async function loadWearableSeries(
   userId: string,
   markerName: string,
 ): Promise<SeriesPoint[]> {
+  // Match the marker name AND its known wearable-metric aliases (e.g.
+  // "Ferritin" ↔ `ferritin_ng_ml`), so the lab and wearable stores actually
+  // merge (longitudinal plan 2026-06-10-002 U3). Aliases are explicit, not
+  // fuzzy; unit conflicts are still dropped by reconcileUnits downstream.
+  const metricNames = wearableMetricNamesFor(markerName);
   const rows = await db.healthDataPoint.findMany({
-    where: { userId, metric: { equals: markerName, mode: 'insensitive' } },
+    where: { userId, metric: { in: metricNames, mode: 'insensitive' } },
     orderBy: { timestamp: 'asc' },
     select: { metric: true, value: true, unit: true, timestamp: true, category: true },
   });
@@ -184,7 +248,10 @@ async function loadWearableSeries(
   return rows
     .filter((r) => !NON_LAB_EQUIVALENT_CATEGORIES.has(r.category.toLowerCase()))
     .map((r) => ({
-      metric: r.metric,
+      // Normalize aliased rows to the canonical marker name so unit
+      // reconciliation and same-day dedupe key consistently against the lab
+      // points (which carry the marker displayName).
+      metric: markerName,
       value: r.value,
       unit: r.unit,
       timestamp: r.timestamp.toISOString(),

@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
-import { addNode } from '@/lib/graph/mutations';
+import { addEdge, addNode } from '@/lib/graph/mutations';
 import { buildMarkerTrajectory, MAX_TRAJECTORY_POINTS } from './trajectory';
 
 let prisma: PrismaClient;
@@ -140,6 +140,73 @@ describe('buildMarkerTrajectory', () => {
     const pts = await buildMarkerTrajectory(prisma, userId, 'HRV');
     expect(pts.map((p) => p.value)).not.toContain(88);
     expect(pts).toHaveLength(1);
+  });
+
+  it('reads dated observation instances as a multi-point lab series, preferring them over the concept anchor (longitudinal U3)', async () => {
+    const userId = await makeTestUser(prisma, 'traj-instances');
+    // Concept node as the post-U2 ingest leaves it: first-seen anchor +
+    // rolled current value.
+    const { id: conceptId } = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: {
+        value: 18,
+        collectionDate: '2026-04-01',
+        latestValue: 62,
+        latestValueAt: '2026-08-01',
+        unit: 'ug/L',
+      },
+    });
+    // Three dated instances linked via INSTANCE_OF.
+    for (const [val, date] of [
+      [18, '2026-04-01'],
+      [41, '2026-06-01'],
+      [62, '2026-08-01'],
+    ] as const) {
+      const { id: instId } = await addNode(prisma, userId, {
+        type: 'observation',
+        canonicalKey: `obs_ferritin_${date.replace(/-/g, '_')}`,
+        displayName: `Ferritin · ${date}`,
+        attributes: { value: val, unit: 'ug/L', measuredAt: new Date(date).toISOString() },
+        promoted: false,
+      });
+      await addEdge(prisma, userId, {
+        type: 'INSTANCE_OF',
+        fromNodeId: instId,
+        toNodeId: conceptId,
+      });
+    }
+
+    const pts = await buildMarkerTrajectory(prisma, userId, 'Ferritin');
+    // Three instance points, newest first — NOT a single anchor point, and
+    // no incoherent (latestValue@anchor-date) point.
+    expect(pts.map((p) => p.value)).toEqual([62, 41, 18]);
+    expect(pts[0].timestamp).toContain('2026-08');
+    expect(pts[2].timestamp).toContain('2026-04');
+  });
+
+  it('merges lab + wearable for the same marker via the metric alias map (longitudinal U3)', async () => {
+    const userId = await makeTestUser(prisma, 'traj-alias');
+    // Lab concept (no instances → legacy anchor point).
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: { latestValue: 25, unit: 'ug/L', collectionDate: '2026-03-01' },
+    });
+    // Wearable/seeded series under the persona-style metric name.
+    await prisma.healthDataPoint.createMany({
+      data: [
+        { userId, provider: 'manual', category: 'bloodwork', metric: 'ferritin_ng_ml', value: 41, unit: 'ug/L', timestamp: new Date('2026-05-01') },
+        { userId, provider: 'manual', category: 'bloodwork', metric: 'ferritin_ng_ml', value: 55, unit: 'ug/L', timestamp: new Date('2026-07-01') },
+      ],
+    });
+
+    const pts = await buildMarkerTrajectory(prisma, userId, 'Ferritin');
+    // The aliased wearable points merged with the lab anchor — exact-name
+    // join alone would have returned only the single lab point.
+    expect(pts.map((p) => p.value).sort((a, b) => a - b)).toEqual([25, 41, 55]);
   });
 
   it('returns 1 point when only 1 biomarker node exists', async () => {
