@@ -50,6 +50,7 @@ import {
   type ExtractedLabPanel,
 } from '@/lib/intake/lab-prompts';
 import { resolveBiomarker } from '@/lib/intake/biomarkers';
+import { buildLabObservationGraphInputs } from '@/lib/intake/lab-observations';
 
 export const dynamic = 'force-dynamic';
 // Lab extraction runs one LLM call with a 90 s per-attempt timeout and up
@@ -188,6 +189,16 @@ export async function POST(req: Request) {
       ? new Date(panel.reportCollectionDate)
       : new Date();
 
+    // Dated observation instances: one per reading, parented to the concept
+    // node via INSTANCE_OF, so marker history accumulates across panels
+    // (longitudinal plan 2026-06-10-002 U2). The concept node's rolling
+    // latestValue/latestValueAt track currency (date-guarded in the merge);
+    // value/collectionDate stay the first-seen anchor.
+    const observations = buildLabObservationGraphInputs(
+      validBiomarkers,
+      panel.reportCollectionDate,
+    );
+
     const input: IngestExtractionInput = {
       document: {
         kind: 'lab_pdf',
@@ -202,22 +213,33 @@ export async function POST(req: Request) {
         },
       },
       chunks,
-      nodes: validBiomarkers.map((b) => ({
-        type: 'biomarker' as const,
-        canonicalKey: b.canonicalKey,
-        displayName: b.displayName,
-        attributes: {
-          value: b.value,
-          unit: b.unit,
-          referenceRangeLow: b.referenceRangeLow,
-          referenceRangeHigh: b.referenceRangeHigh,
-          flaggedOutOfRange: b.flaggedOutOfRange,
-          collectionDate: b.collectionDate ?? panel.reportCollectionDate,
-          registryKey: resolveBiomarker(b.displayName)?.canonicalKey ?? null,
-        },
-        supportingChunkIndices: b.supportingChunkIndices,
-      })),
-      edges: [],
+      nodes: [
+        ...validBiomarkers.map((b) => {
+          const readingDate = b.collectionDate ?? panel.reportCollectionDate;
+          const readingAt = readingDate ? new Date(readingDate) : null;
+          const latestValueAt =
+            readingAt && !Number.isNaN(readingAt.getTime()) ? readingAt.toISOString() : undefined;
+          return {
+            type: 'biomarker' as const,
+            canonicalKey: b.canonicalKey,
+            displayName: b.displayName,
+            attributes: {
+              value: b.value,
+              unit: b.unit,
+              referenceRangeLow: b.referenceRangeLow,
+              referenceRangeHigh: b.referenceRangeHigh,
+              flaggedOutOfRange: b.flaggedOutOfRange,
+              collectionDate: readingDate,
+              registryKey: resolveBiomarker(b.displayName)?.canonicalKey ?? null,
+              latestValue: b.value,
+              ...(latestValueAt ? { latestValueAt } : {}),
+            },
+            supportingChunkIndices: b.supportingChunkIndices,
+          };
+        }),
+        ...observations.nodes,
+      ],
+      edges: observations.edges,
     };
 
     const persisted = await ingestExtraction(prisma, user.id, input);
@@ -236,7 +258,9 @@ export async function POST(req: Request) {
       documentId: persisted.documentId,
       deduped: false,
       chunkCount: persisted.chunkIds.length,
-      biomarkerCount: persisted.nodeIds.length,
+      // Count extracted markers, not persisted node rows — the ingest now
+      // also writes one observation instance per dated reading.
+      biomarkerCount: validBiomarkers.length,
       promotedTopics: promoted,
     });
   } catch (err) {
