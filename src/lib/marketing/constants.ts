@@ -29,6 +29,28 @@ export const MEMBERSHIP_PRICE: Record<
 };
 
 /**
+ * Deck-aligned pricing for the not-yet-launched layers (Studios, Supply).
+ * Surfaced today only on the public demo's preview cards (plan
+ * 2026-06-10-001 R-F) — components import these, never literal price
+ * strings. The DEMO_ prefix is deliberate: these are preview fiction, and
+ * a grep must never confuse them with launched pricing like
+ * MEMBERSHIP_PRICE. When a layer ships, add its real constant and retire
+ * the DEMO_ one.
+ */
+export const DEMO_STUDIO_VISIT_PRICE = {
+  amount: 29900,
+  currency: 'USD',
+  display: '$299',
+} as const;
+
+export const DEMO_SUPPLY_PRICE = {
+  amount: 6900,
+  currency: 'USD',
+  display: '$69',
+  period: 'month',
+} as const;
+
+/**
  * Cookie names. Centralised so middleware, route handlers, and the
  * market-banner / visit-beacon components all read/write the same keys.
  */
