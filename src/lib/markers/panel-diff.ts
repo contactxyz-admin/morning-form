@@ -15,8 +15,16 @@
  */
 
 import type { PrismaClient, Prisma } from '@prisma/client';
+import { parseJsonField } from '@/lib/graph/queries';
 
 type Db = PrismaClient | Prisma.TransactionClient;
+
+/**
+ * How many recent lab documents to scan when looking for the two most
+ * recent panels that actually carry dated readings. Bounded so a pathological
+ * upload history can't turn the diff into a full-table walk.
+ */
+const MAX_PANEL_SCAN = 12;
 
 export type ChangeDirection = 'up' | 'down' | 'flat';
 export type ChangeClassification =
@@ -84,33 +92,50 @@ interface InstanceRow {
 }
 
 /**
- * Build the diff between the user's two most-recent lab panels. Returns
- * `previousPanelAt: null` (and `new` rows) when only one panel exists.
- * Returns null when there are no lab panels at all.
+ * Build the diff between the user's two most-recent lab panels THAT CARRY
+ * dated readings. Panels without instances (undated extractions, pre-feature
+ * uploads that were never backfilled) are skipped rather than allowed to
+ * blank the comparison — an instance-less newest doc must not hide two
+ * perfectly comparable panels beneath it. Returns `previousPanelAt: null`
+ * (and `new` rows) when only one reading-bearing panel exists, and null when
+ * none do.
  */
 export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDiff | null> {
   const docs = await db.sourceDocument.findMany({
     where: { userId, kind: 'lab_pdf' },
     orderBy: { capturedAt: 'desc' },
-    take: 2,
+    take: MAX_PANEL_SCAN,
     select: { id: true, capturedAt: true },
   });
   if (docs.length === 0) return null;
 
-  const latestDoc = docs[0];
-  const prevDoc = docs[1] ?? null;
+  // Walk newest-first, keeping the first two docs whose instance map is
+  // non-empty. Batched so the common case (the two newest docs both have
+  // readings) resolves in one parallel round.
+  const panels: Array<{ capturedAt: Date; readings: Map<string, InstanceRow> }> = [];
+  let cursor = 0;
+  while (cursor < docs.length && panels.length < 2) {
+    const batch = docs.slice(cursor, cursor + (2 - panels.length));
+    const maps = await Promise.all(
+      batch.map((d) => loadPanelInstances(db, userId, d.id)),
+    );
+    batch.forEach((d, i) => {
+      if (maps[i].size > 0) panels.push({ capturedAt: d.capturedAt, readings: maps[i] });
+    });
+    cursor += batch.length;
+  }
+  if (panels.length === 0) return null;
 
-  const latest = await loadPanelInstances(db, userId, latestDoc.id);
-  const previous = prevDoc
-    ? await loadPanelInstances(db, userId, prevDoc.id)
-    : new Map<string, InstanceRow>();
+  const latest = panels[0];
+  const previous = panels[1] ?? null;
+  const previousReadings = previous?.readings ?? new Map<string, InstanceRow>();
 
   const changes: MarkerChange[] = [];
-  for (const [marker, after] of Array.from(latest.entries())) {
-    const before = previous.get(marker);
+  for (const [joinKey, after] of Array.from(latest.readings.entries())) {
+    const before = previousReadings.get(joinKey);
     if (!before) {
       changes.push({
-        marker,
+        marker: after.marker,
         unit: after.unit,
         beforeValue: null,
         beforeAt: null,
@@ -130,7 +155,7 @@ export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDif
       after.referenceHigh,
     );
     changes.push({
-      marker,
+      marker: after.marker,
       unit: after.unit,
       beforeValue: before.value,
       beforeAt: before.measuredAt,
@@ -147,16 +172,25 @@ export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDif
   changes.sort((a, b) => a.marker.localeCompare(b.marker));
 
   return {
-    latestPanelAt: latestDoc.capturedAt.toISOString(),
-    previousPanelAt: prevDoc ? prevDoc.capturedAt.toISOString() : null,
+    latestPanelAt: latest.capturedAt.toISOString(),
+    previousPanelAt: previous ? previous.capturedAt.toISOString() : null,
     changes,
   };
 }
 
 /**
- * Map of marker displayName → its reading in one panel. Joins observation
+ * Map of join key → the marker's reading in one panel. Joins observation
  * instances to the panel via SUPPORTS (`fromDocumentId`) and to their marker
  * concept via INSTANCE_OF, pulling the reference range off the concept.
+ *
+ * The join key is the concept's `registryKey` when resolved, else its
+ * canonicalKey (lowercased) — NOT the displayName. Two concepts can share a
+ * displayName under different canonicalKeys (registry key vs snake_case
+ * fallback across uploads); the registry key reunifies them across panels.
+ * When two readings in ONE panel still collide on the key (same marker
+ * measured twice), the one with the most recent `measuredAt` wins
+ * deterministically (instances are sorted before insertion) — mirroring the
+ * trajectory's same-day dedupe.
  */
 async function loadPanelInstances(
   db: Db,
@@ -171,58 +205,70 @@ async function loadPanelInstances(
   const supportedIds = Array.from(new Set(supports.map((e) => e.fromNodeId)));
   if (supportedIds.length === 0) return new Map();
 
-  const instances = await db.graphNode.findMany({
-    where: { userId, id: { in: supportedIds }, type: 'observation' },
-    select: { id: true, attributes: true },
-  });
+  // Instance nodes and their INSTANCE_OF edges both depend only on the
+  // supported-id set — fetch in parallel. (INSTANCE_OF never originates from
+  // concept nodes, so querying with the superset id list is safe.)
+  const [instances, instanceOf] = await Promise.all([
+    db.graphNode.findMany({
+      where: { userId, id: { in: supportedIds }, type: 'observation' },
+      select: { id: true, attributes: true },
+    }),
+    db.graphEdge.findMany({
+      where: { userId, type: 'INSTANCE_OF', fromNodeId: { in: supportedIds } },
+      select: { fromNodeId: true, toNodeId: true },
+    }),
+  ]);
   if (instances.length === 0) return new Map();
 
-  // Each instance → its marker concept via INSTANCE_OF.
-  const instanceIds = instances.map((n) => n.id);
-  const instanceOf = await db.graphEdge.findMany({
-    where: { userId, type: 'INSTANCE_OF', fromNodeId: { in: instanceIds } },
-    select: { fromNodeId: true, toNodeId: true },
-  });
   const conceptByInstance = new Map(instanceOf.map((e) => [e.fromNodeId, e.toNodeId]));
   const conceptIds = Array.from(new Set(instanceOf.map((e) => e.toNodeId)));
 
   const concepts = await db.graphNode.findMany({
     where: { userId, id: { in: conceptIds }, type: 'biomarker' },
-    select: { id: true, displayName: true, attributes: true },
+    select: { id: true, canonicalKey: true, displayName: true, attributes: true },
   });
   const conceptById = new Map(concepts.map((c) => [c.id, c]));
 
+  // Deterministic collision order: oldest first, so the latest reading of a
+  // marker within the panel is the one that survives the final set().
+  const parsed = instances
+    .map((inst) => {
+      const attrs = parseJsonField(inst.attributes);
+      const value = typeof attrs.value === 'number' ? attrs.value : null;
+      const measuredAt = typeof attrs.measuredAt === 'string' ? attrs.measuredAt : null;
+      if (value === null || !measuredAt) return null;
+      return {
+        instId: inst.id,
+        value,
+        measuredAt,
+        unit: typeof attrs.unit === 'string' ? attrs.unit : '',
+      };
+    })
+    .filter((p): p is NonNullable<typeof p> => p !== null)
+    .sort((a, b) => a.measuredAt.localeCompare(b.measuredAt) || a.instId.localeCompare(b.instId));
+
   const out = new Map<string, InstanceRow>();
-  for (const inst of instances) {
-    const conceptId = conceptByInstance.get(inst.id);
+  for (const reading of parsed) {
+    const conceptId = conceptByInstance.get(reading.instId);
     if (!conceptId) continue;
     const concept = conceptById.get(conceptId);
     if (!concept) continue;
 
-    const attrs = safeParse(inst.attributes);
-    const value = typeof attrs.value === 'number' ? attrs.value : null;
-    const measuredAt = typeof attrs.measuredAt === 'string' ? attrs.measuredAt : null;
-    if (value === null || !measuredAt) continue;
+    const cAttrs = parseJsonField(concept.attributes);
+    const joinKey = (
+      typeof cAttrs.registryKey === 'string' && cAttrs.registryKey
+        ? cAttrs.registryKey
+        : concept.canonicalKey
+    ).toLowerCase();
 
-    const cAttrs = safeParse(concept.attributes);
-    out.set(concept.displayName, {
+    out.set(joinKey, {
       marker: concept.displayName,
-      unit: typeof attrs.unit === 'string' ? attrs.unit : '',
-      value,
-      measuredAt,
+      unit: reading.unit,
+      value: reading.value,
+      measuredAt: reading.measuredAt,
       referenceLow: typeof cAttrs.referenceRangeLow === 'number' ? cAttrs.referenceRangeLow : null,
       referenceHigh: typeof cAttrs.referenceRangeHigh === 'number' ? cAttrs.referenceRangeHigh : null,
     });
   }
   return out;
-}
-
-function safeParse(raw: string | null): Record<string, unknown> {
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
 }

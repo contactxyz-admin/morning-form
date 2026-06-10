@@ -21,4 +21,12 @@ describe('wearableMetricNamesFor', () => {
   it('returns just the name for an unmapped marker (no fuzzy guessing)', () => {
     expect(wearableMetricNamesFor('Selenium')).toEqual(['selenium']);
   });
+
+  it('is safe for prototype-member tokens — marker names are user-controlled URL input', () => {
+    // A plain-object map would resolve Object.prototype members for these and
+    // crash on aliases.map(); the Map-backed lookup must return just the name.
+    for (const hostile of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
+      expect(wearableMetricNamesFor(hostile)).toEqual([hostile.toLowerCase()]);
+    }
+  });
 });

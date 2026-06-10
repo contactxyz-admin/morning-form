@@ -1,5 +1,6 @@
 import { listTopicConfigs } from '@/lib/topics/registry';
 import { computeImportance } from '@/lib/graph/importance';
+import { computeLabInstanceNodeIds } from '@/lib/graph/lab-instances';
 import {
   decodeSourceDocumentKind,
   type GraphNodeRecord,
@@ -24,29 +25,10 @@ function matchesTopic(node: GraphNodeRecord, patterns: string[]): boolean {
   return patterns.some((p) => key.includes(p));
 }
 
-/**
- * Lab-reading history instances: `observation` nodes that are INSTANCE_OF a
- * `biomarker` concept (longitudinal plan 2026-06-10-002 U6). These are dated
- * points behind a marker's trajectory, not graph concepts — they would flood
- * the canvas and the recent-activity log and consume the node cap. We exclude
- * them from the vault payload entirely; history surfaces via trajectories and
- * the panel diff instead. Standalone vital-sign observations (T4 — no
- * INSTANCE_OF to a biomarker) are NOT affected.
- */
-function computeLabInstanceIds(
-  nodes: GraphNodeRecord[],
-  edges: AggregateInput['edges'],
-): Set<string> {
-  const typeById = new Map(nodes.map((n) => [n.id, n.type]));
-  const ids = new Set<string>();
-  for (const e of edges) {
-    if (e.type !== 'INSTANCE_OF') continue;
-    if (typeById.get(e.fromNodeId) === 'observation' && typeById.get(e.toNodeId) === 'biomarker') {
-      ids.add(e.fromNodeId);
-    }
-  }
-  return ids;
-}
+// Lab-reading history instances are excluded from the vault payload — the
+// shared predicate lives in the graph read layer (`computeLabInstanceNodeIds`,
+// also applied in getSubgraphForTopic) so canvas, topic subgraphs, and scribe
+// search agree on what counts as a graph concept vs a trajectory point.
 
 /**
  * Pure aggregator powering the unified `GET /api/record` endpoint (and the
@@ -66,7 +48,7 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
   // Strip lab-reading history instances before anything else sees them — the
   // canvas/list, importance scoring + cap, type counts, and the activity log
   // all operate on graph concepts, not trajectory points (plan U6).
-  const labInstanceIds = computeLabInstanceIds(input.nodes, input.edges);
+  const labInstanceIds = computeLabInstanceNodeIds(input.nodes, input.edges);
   const graphNodes =
     labInstanceIds.size > 0 ? input.nodes.filter((n) => !labInstanceIds.has(n.id)) : input.nodes;
   const graphEdges =

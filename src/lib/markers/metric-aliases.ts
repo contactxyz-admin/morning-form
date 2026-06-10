@@ -21,32 +21,36 @@
  * canonicalKey both normalize into this), → the set of `HealthDataPoint.metric`
  * strings that are the SAME physiological quantity. Values are matched
  * case-insensitively against the metric column.
+ *
+ * A `Map`, not an object literal: the token is user-controlled (marker name
+ * from a URL param), and a plain-object index would resolve prototype members
+ * for tokens like "constructor" — `Map.get` cannot.
  */
-const METRIC_ALIASES: Record<string, readonly string[]> = {
-  ferritin: ['ferritin_ng_ml'],
-  hba1c: ['hba1c_percent', 'hba1c_mmol_mol'],
-  'fasting glucose': ['fasting_glucose_mmol_l'],
-  glucose_fasting: ['fasting_glucose_mmol_l'],
-  'total cholesterol': ['total_cholesterol_mmol_l'],
-  total_cholesterol: ['total_cholesterol_mmol_l'],
-  'ldl cholesterol': ['ldl_mmol_l'],
-  ldl_cholesterol: ['ldl_mmol_l'],
-  'hdl cholesterol': ['hdl_mmol_l'],
-  hdl_cholesterol: ['hdl_mmol_l'],
-  triglycerides: ['triglycerides_mmol_l'],
-  tsh: ['tsh_miu_l'],
-  'free testosterone': ['free_testosterone_pg_ml'],
-  hscrp: ['hscrp_mg_l'],
-  hs_crp: ['hscrp_mg_l'],
-  crp: ['hscrp_mg_l'],
-  'body weight': ['weight_kg'],
-  weight: ['weight_kg'],
-  'systolic bp': ['systolic_bp_mmhg_morning'],
-  systolic_bp: ['systolic_bp_mmhg_morning'],
-  'diastolic bp': ['diastolic_bp_mmhg_morning'],
-  diastolic_bp: ['diastolic_bp_mmhg_morning'],
-  hrv: ['hrv_ms'],
-};
+const METRIC_ALIASES: ReadonlyMap<string, readonly string[]> = new Map([
+  ['ferritin', ['ferritin_ng_ml']],
+  ['hba1c', ['hba1c_percent', 'hba1c_mmol_mol']],
+  ['fasting glucose', ['fasting_glucose_mmol_l']],
+  ['glucose_fasting', ['fasting_glucose_mmol_l']],
+  ['total cholesterol', ['total_cholesterol_mmol_l']],
+  ['total_cholesterol', ['total_cholesterol_mmol_l']],
+  ['ldl cholesterol', ['ldl_mmol_l']],
+  ['ldl_cholesterol', ['ldl_mmol_l']],
+  ['hdl cholesterol', ['hdl_mmol_l']],
+  ['hdl_cholesterol', ['hdl_mmol_l']],
+  ['triglycerides', ['triglycerides_mmol_l']],
+  ['tsh', ['tsh_miu_l']],
+  ['free testosterone', ['free_testosterone_pg_ml']],
+  ['hscrp', ['hscrp_mg_l']],
+  ['hs_crp', ['hscrp_mg_l']],
+  ['crp', ['hscrp_mg_l']],
+  ['body weight', ['weight_kg']],
+  ['weight', ['weight_kg']],
+  ['systolic bp', ['systolic_bp_mmhg_morning']],
+  ['systolic_bp', ['systolic_bp_mmhg_morning']],
+  ['diastolic bp', ['diastolic_bp_mmhg_morning']],
+  ['diastolic_bp', ['diastolic_bp_mmhg_morning']],
+  ['hrv', ['hrv_ms']],
+]);
 
 function normalizeMarkerToken(name: string): string {
   return name.trim().toLowerCase();
@@ -60,6 +64,6 @@ function normalizeMarkerToken(name: string): string {
  */
 export function wearableMetricNamesFor(markerName: string): string[] {
   const token = normalizeMarkerToken(markerName);
-  const aliases = METRIC_ALIASES[token] ?? [];
+  const aliases = METRIC_ALIASES.get(token) ?? [];
   return Array.from(new Set([token, ...aliases.map((a) => a.toLowerCase())]));
 }

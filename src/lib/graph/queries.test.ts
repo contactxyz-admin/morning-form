@@ -120,6 +120,53 @@ describe('getSubgraphForTopic', () => {
     expect(result.edges).toEqual([]);
   });
 
+  it('excludes lab-reading observation instances pulled in via INSTANCE_OF — topic subgraphs feed LLM prompts (longitudinal)', async () => {
+    const userId = await makeTestUser(prisma, 'subgraph-no-instances');
+    const ferritin = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+    });
+    // Three dated lab-reading instances of the seeded marker.
+    const instanceIds: string[] = [];
+    for (const date of ['2026_02_01', '2026_04_01', '2026_06_01']) {
+      const inst = await addNode(prisma, userId, {
+        type: 'observation',
+        canonicalKey: `obs_ferritin_${date}`,
+        displayName: `Ferritin · ${date}`,
+        attributes: { value: 20, unit: 'ug/L', measuredAt: new Date('2026-04-01').toISOString() },
+        promoted: false,
+      });
+      instanceIds.push(inst.id);
+      await addEdge(prisma, userId, { type: 'INSTANCE_OF', fromNodeId: inst.id, toNodeId: ferritin.id });
+    }
+    // A standalone vital-sign observation linked associatively (NOT an
+    // INSTANCE_OF-a-biomarker) must survive the filter.
+    const vital = await addNode(prisma, userId, {
+      type: 'observation',
+      canonicalKey: 'bp_systolic',
+      displayName: 'Systolic BP',
+      attributes: { value: 128, unit: 'mmHg', measuredAt: new Date('2026-04-01').toISOString() },
+    });
+    await addEdge(prisma, userId, { type: 'ASSOCIATED_WITH', fromNodeId: vital.id, toNodeId: ferritin.id });
+
+    const result = await getSubgraphForTopic(prisma, userId, {
+      types: ['biomarker'],
+      canonicalKeyPatterns: ['ferritin'],
+      depth: 2,
+    });
+
+    const nodeIds = result.nodes.map((n) => n.id);
+    expect(nodeIds).toContain(ferritin.id);
+    expect(nodeIds).toContain(vital.id);
+    for (const id of instanceIds) expect(nodeIds).not.toContain(id);
+    // No dangling INSTANCE_OF edges to filtered instances either.
+    for (const e of result.edges) {
+      expect(instanceIds).not.toContain(e.fromNodeId);
+      expect(instanceIds).not.toContain(e.toNodeId);
+    }
+  });
+
   it('includes SUPPORTS edges for visited nodes so callers see provenance pointers', async () => {
     const userId = await makeTestUser(prisma, 'subgraph-with-supports');
     await ingestExtraction(prisma, userId, {

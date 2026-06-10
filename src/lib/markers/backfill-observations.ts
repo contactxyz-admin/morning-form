@@ -7,8 +7,15 @@
  * that one surviving reading as an `observation` instance (value + date from
  * the concept's stored attributes), linked via INSTANCE_OF, so pre-migration
  * markers show a point on their trajectory. It cannot recover values that
- * first-write-wins already discarded — those return only as the user
- * re-uploads, which now accumulates correctly.
+ * first-write-wins already discarded — those return as the user re-uploads,
+ * which now accumulates correctly.
+ *
+ * Provenance: the instance also receives a SUPPORTS edge copied from the
+ * concept's provenance — the chunk/document whose capturedAt matches the
+ * reading's date (else the earliest). This is load-bearing, not cosmetic:
+ * the panel diff joins instances to panels via SUPPORTS(fromDocumentId), so
+ * a backfilled instance without it would be invisible to "what changed
+ * since my last test".
  *
  * Idempotent: instances key on `obs_<marker>_<yyyy_mm_dd>` and `addNode`/
  * `addEdge` upsert, so re-running is a no-op.
@@ -16,7 +23,9 @@
 
 import type { PrismaClient, Prisma } from '@prisma/client';
 import { addEdge, addNode } from '@/lib/graph/mutations';
+import { getProvenanceForNodes, parseJsonField } from '@/lib/graph/queries';
 import { observationKeyFor } from '@/lib/intake/lab-observations';
+import type { ProvenanceItem } from '@/lib/graph/types';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -26,14 +35,22 @@ export interface BackfillResult {
   skipped: number;
 }
 
-function parse(raw: string | null): Record<string, unknown> {
-  if (!raw) return {};
-  try {
-    const v = JSON.parse(raw);
-    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
-  } catch {
-    return {};
-  }
+/**
+ * Pick the provenance item backing a reading dated `measuredAt`: prefer a
+ * document captured the same UTC day, else the earliest-captured document
+ * (the anchor value came from the first panel by construction).
+ */
+function pickProvenance(
+  items: ProvenanceItem[],
+  measuredAt: string,
+): ProvenanceItem | null {
+  if (items.length === 0) return null;
+  const readingDay = measuredAt.slice(0, 10);
+  const sameDay = items.find((i) => i.capturedAt.toISOString().slice(0, 10) === readingDay);
+  if (sameDay) return sameDay;
+  return items.reduce((earliest, i) =>
+    i.capturedAt.getTime() < earliest.capturedAt.getTime() ? i : earliest,
+  );
 }
 
 /**
@@ -47,11 +64,19 @@ export async function backfillObservationsForUser(db: Db, userId: string): Promi
     select: { id: true, canonicalKey: true, displayName: true, attributes: true },
   });
 
+  // Batched provenance for all concepts (2 queries total) — the SUPPORTS
+  // chunk/document pairs each instance will inherit.
+  const provenanceByConcept = await getProvenanceForNodes(
+    db,
+    concepts.map((c) => c.id),
+    userId,
+  );
+
   let created = 0;
   let skipped = 0;
 
   for (const concept of concepts) {
-    const attrs = parse(concept.attributes);
+    const attrs = parseJsonField(concept.attributes);
     const value =
       typeof attrs.value === 'number' ? attrs.value
       : typeof attrs.latestValue === 'number' ? attrs.latestValue
@@ -74,7 +99,7 @@ export async function backfillObservationsForUser(db: Db, userId: string): Promi
     }
     const measuredAt = new Date(dateStr).toISOString();
 
-    const { created: nodeCreated } = await addNode(db, userId, {
+    const { id: instanceId, created: nodeCreated } = await addNode(db, userId, {
       type: 'observation',
       canonicalKey: key,
       displayName: `${concept.displayName} · ${dateStr.slice(0, 10)}`,
@@ -84,12 +109,20 @@ export async function backfillObservationsForUser(db: Db, userId: string): Promi
     // addEdge is idempotent (dedups on (type, from, to, chunk)).
     await addEdge(db, userId, {
       type: 'INSTANCE_OF',
-      fromNodeId: (await db.graphNode.findUniqueOrThrow({
-        where: { userId_type_canonicalKey: { userId, type: 'observation', canonicalKey: key } },
-        select: { id: true },
-      })).id,
+      fromNodeId: instanceId,
       toNodeId: concept.id,
     });
+    // Inherit provenance so the instance joins its panel in the diff.
+    const provenance = pickProvenance(provenanceByConcept.get(concept.id) ?? [], measuredAt);
+    if (provenance) {
+      await addEdge(db, userId, {
+        type: 'SUPPORTS',
+        fromNodeId: instanceId,
+        toNodeId: instanceId,
+        fromChunkId: provenance.chunkId,
+        fromDocumentId: provenance.documentId,
+      });
+    }
     if (nodeCreated) created++;
     else skipped++;
   }

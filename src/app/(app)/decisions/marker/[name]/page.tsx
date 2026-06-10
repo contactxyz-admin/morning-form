@@ -91,5 +91,9 @@ export default async function MarkerTrajectoryPage({ params }: Props) {
 }
 
 function fmtShort(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  // UTC-pinned: reading dates are UTC-midnight instants; a negative-offset
+  // server would otherwise label them with the previous day.
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', timeZone: 'UTC',
+  });
 }

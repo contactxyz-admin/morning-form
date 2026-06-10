@@ -153,6 +153,119 @@ describe('diffLatestPanels', () => {
     });
   });
 
+  it('skips an instance-less newest document instead of letting it blank the diff', async () => {
+    const userId = await makeTestUser(prisma, 'diff-skip-empty');
+    await ingestPanel(userId, '2026-04-01', [
+      { marker: 'ferritin', display: 'Ferritin', value: 18, low: 30, high: 400, flagged: true },
+    ]);
+    await ingestPanel(userId, '2026-06-01', [
+      { marker: 'ferritin', display: 'Ferritin', value: 41, low: 30, high: 400, flagged: false },
+    ]);
+    // A newer lab document that produced ZERO instances (e.g. an undated
+    // extraction — route falls back capturedAt=now).
+    await prisma.sourceDocument.create({
+      data: {
+        userId,
+        kind: 'lab_pdf',
+        sourceRef: 'undated.pdf',
+        contentHash: 'hash-undated',
+        capturedAt: new Date('2026-07-15'),
+      },
+    });
+
+    const diff = await diffLatestPanels(prisma, userId);
+    // The empty document is skipped; the two reading-bearing panels compare.
+    expect(diff?.latestPanelAt).toContain('2026-06-01');
+    expect(diff?.previousPanelAt).toContain('2026-04-01');
+    expect(diff?.changes[0]).toMatchObject({
+      marker: 'Ferritin',
+      beforeValue: 18,
+      afterValue: 41,
+      classification: 'improved',
+    });
+  });
+
+  it('matches a marker across canonicalKey drift via registryKey', async () => {
+    const userId = await makeTestUser(prisma, 'diff-registry-join');
+    // April panel: LLM emitted the snake_case fallback key, but the registry
+    // resolved it — registryKey carries the canonical identity.
+    await ingestPanelWithKeys(userId, '2026-04-01', {
+      canonicalKey: 'serum_ferritin',
+      registryKey: 'ferritin',
+      display: 'Ferritin',
+      value: 18,
+    });
+    // June panel: same marker under the registry canonicalKey.
+    await ingestPanelWithKeys(userId, '2026-06-01', {
+      canonicalKey: 'ferritin',
+      registryKey: 'ferritin',
+      display: 'Ferritin',
+      value: 41,
+    });
+
+    const diff = await diffLatestPanels(prisma, userId);
+    // Joined via registryKey — a before/after, NOT two disjoint 'new' rows.
+    expect(diff?.changes).toHaveLength(1);
+    expect(diff?.changes[0]).toMatchObject({
+      marker: 'Ferritin',
+      beforeValue: 18,
+      afterValue: 41,
+      classification: 'improved',
+    });
+  });
+
+  async function ingestPanelWithKeys(
+    userId: string,
+    date: string,
+    opts: { canonicalKey: string; registryKey: string; display: string; value: number },
+  ) {
+    const measuredAt = new Date(date).toISOString();
+    await ingestExtraction(prisma, userId, {
+      document: {
+        kind: 'lab_pdf',
+        sourceRef: `panel-${date}.pdf`,
+        contentHash: `hash-keys-${date}`,
+        capturedAt: new Date(date),
+      },
+      chunks: [{ index: 0, text: `${opts.display} ${opts.value}`, offsetStart: 0, offsetEnd: 10 }],
+      nodes: [
+        {
+          type: 'biomarker',
+          canonicalKey: opts.canonicalKey,
+          displayName: opts.display,
+          attributes: {
+            value: opts.value,
+            unit: 'ug/L',
+            referenceRangeLow: 30,
+            referenceRangeHigh: 400,
+            collectionDate: date,
+            registryKey: opts.registryKey,
+            latestValue: opts.value,
+            latestValueAt: measuredAt,
+          },
+          supportingChunkIndices: [0],
+        },
+        {
+          type: 'observation',
+          canonicalKey: `obs_${opts.canonicalKey}_${date.replace(/-/g, '_')}`,
+          displayName: `${opts.display} · ${date}`,
+          attributes: { value: opts.value, unit: 'ug/L', measuredAt },
+          promoted: false,
+          supportingChunkIndices: [0],
+        },
+      ],
+      edges: [
+        {
+          type: 'INSTANCE_OF',
+          fromType: 'observation',
+          fromCanonicalKey: `obs_${opts.canonicalKey}_${date.replace(/-/g, '_')}`,
+          toType: 'biomarker',
+          toCanonicalKey: opts.canonicalKey,
+        },
+      ],
+    });
+  }
+
   it('flags a marker present only in the latest panel as `new`', async () => {
     const userId = await makeTestUser(prisma, 'diff-new-marker');
     await ingestPanel(userId, '2026-04-01', [

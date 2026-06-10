@@ -259,10 +259,18 @@ export async function POST(req: Request) {
     // "What changed since last test": when the longitudinal surface is on and
     // this upload is a re-test (a prior panel exists), include the diff so the
     // client can show it immediately. Flag-gated; absent otherwise (flag-off
-    // upload response stays byte-for-byte the previous shape).
+    // upload response stays byte-for-byte the previous shape). The diff runs
+    // AFTER the ingest transaction has committed, so its own failure must
+    // never convert a successful upload into an error response — degrade to
+    // an omitted `changes` block instead.
     let changes: Awaited<ReturnType<typeof diffLatestPanels>> | undefined;
     if (env.LONGITUDINAL_GRAPH_ENABLED === 'true') {
-      changes = await diffLatestPanels(prisma, user.id);
+      try {
+        changes = await diffLatestPanels(prisma, user.id);
+      } catch (diffErr) {
+        const msg = diffErr instanceof Error ? diffErr.message : String(diffErr);
+        console.error(`[API] intake/documents panel diff failed post-ingest (non-fatal): ${msg}`);
+      }
     }
 
     return NextResponse.json({

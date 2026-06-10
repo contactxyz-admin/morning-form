@@ -16,9 +16,24 @@
 
 import type { PrismaClient, Prisma } from '@prisma/client';
 import type { SeriesPoint } from '@/lib/scribe/tools/recognize-pattern-in-history';
+import { env } from '@/lib/env';
+import { parseJsonField } from '@/lib/graph/queries';
 import { wearableMetricNamesFor } from './metric-aliases';
 
 type Db = PrismaClient | Prisma.TransactionClient;
+
+/**
+ * Gate for the longitudinal READ behaviours added by plan 2026-06-10-002
+ * (observation-instance series + the lab↔wearable metric alias join).
+ * Instance WRITES are deliberately unconditional (gating them would create a
+ * backfill gap), but with the flag off every read surface must stay
+ * byte-for-byte pre-longitudinal (plan R8) — so the reader ignores instances
+ * and skips alias expansion until the flip. `process.env` first is the
+ * repo's test seam (matches ASK_DEEP_ENABLED in chat/turn.ts).
+ */
+function longitudinalReadsEnabled(): boolean {
+  return (process.env.LONGITUDINAL_GRAPH_ENABLED ?? env.LONGITUDINAL_GRAPH_ENABLED) === 'true';
+}
 
 export const MAX_TRAJECTORY_POINTS = 24;
 
@@ -133,30 +148,31 @@ async function loadBiomarkerSeries(
     select: { id: true, displayName: true, attributes: true },
   });
 
-  const conceptIds = nodes
-    .filter((n) => n.displayName.toLowerCase() === markerName.toLowerCase())
-    .map((n) => n.id);
-  if (conceptIds.length === 0) return [];
+  const concepts = nodes.filter(
+    (n) => n.displayName.toLowerCase() === markerName.toLowerCase(),
+  );
+  if (concepts.length === 0) return [];
 
   // Dated history lives on `observation` instances linked to the concept via
-  // INSTANCE_OF (longitudinal plan 2026-06-10-002). When instances exist they
-  // are the source of truth: the concept node's own `latestValue` is the
-  // CURRENT reading but its `collectionDate` is the FIRST-seen anchor, so
-  // emitting it as a point would pair a recent value with an old date. We
-  // therefore prefer instances and only fall back to the concept value for
-  // legacy/pre-migration markers that have no instances yet.
-  const instancePoints = await loadObservationInstances(db, userId, conceptIds, markerName);
-  if (instancePoints.length > 0) return instancePoints;
+  // INSTANCE_OF (longitudinal plan 2026-06-10-002). The fallback is
+  // PER-CONCEPT, not global: a concept WITH instances contributes its
+  // instance points (its own `latestValue`/`collectionDate` pair would mix a
+  // current value with the first-seen date), while a same-displayName concept
+  // WITHOUT instances (legacy/pre-migration) still contributes its anchor
+  // value — a global early-return would silently drop it.
+  const instancesByConcept = longitudinalReadsEnabled()
+    ? await loadObservationInstances(db, userId, concepts.map((n) => n.id), markerName)
+    : new Map<string, SeriesPoint[]>();
 
   const points: SeriesPoint[] = [];
-  for (const node of nodes) {
-    if (node.displayName.toLowerCase() !== markerName.toLowerCase()) continue;
-    let attrs: Record<string, unknown> | null = null;
-    try {
-      attrs = node.attributes ? JSON.parse(node.attributes) : null;
-    } catch { continue; }
-    if (!attrs) continue;
+  for (const node of concepts) {
+    const instancePoints = instancesByConcept.get(node.id);
+    if (instancePoints && instancePoints.length > 0) {
+      points.push(...instancePoints);
+      continue;
+    }
 
+    const attrs = parseJsonField(node.attributes);
     const value = typeof attrs.latestValue === 'number' ? attrs.latestValue
                 : typeof attrs.value === 'number' ? attrs.value
                 : null;
@@ -178,46 +194,46 @@ async function loadBiomarkerSeries(
 }
 
 /**
- * Dated lab-reading instances for a marker: `observation` nodes that are
- * INSTANCE_OF one of the marker's concept nodes. Each carries its own
- * value/unit/measuredAt, so this is the real multi-point lab series.
+ * Dated lab-reading instances for a marker, grouped by the concept node they
+ * are INSTANCE_OF. Each carries its own value/unit/measuredAt, so this is the
+ * real multi-point lab series.
  */
 async function loadObservationInstances(
   db: Db,
   userId: string,
   conceptIds: string[],
   markerName: string,
-): Promise<SeriesPoint[]> {
+): Promise<Map<string, SeriesPoint[]>> {
+  const byConcept = new Map<string, SeriesPoint[]>();
   const edges = await db.graphEdge.findMany({
     where: { userId, type: 'INSTANCE_OF', toNodeId: { in: conceptIds } },
-    select: { fromNodeId: true },
+    select: { fromNodeId: true, toNodeId: true },
   });
-  const instanceIds = edges.map((e) => e.fromNodeId);
-  if (instanceIds.length === 0) return [];
+  if (edges.length === 0) return byConcept;
+  const conceptByInstance = new Map(edges.map((e) => [e.fromNodeId, e.toNodeId]));
 
   const instances = await db.graphNode.findMany({
-    where: { userId, id: { in: instanceIds }, type: 'observation' },
-    select: { attributes: true },
+    where: { userId, id: { in: edges.map((e) => e.fromNodeId) }, type: 'observation' },
+    select: { id: true, attributes: true },
   });
 
-  const points: SeriesPoint[] = [];
   for (const inst of instances) {
-    let attrs: Record<string, unknown> | null = null;
-    try {
-      attrs = inst.attributes ? JSON.parse(inst.attributes) : null;
-    } catch { continue; }
-    if (!attrs) continue;
+    const attrs = parseJsonField(inst.attributes);
     const value = typeof attrs.value === 'number' ? attrs.value : null;
     const dateStr = typeof attrs.measuredAt === 'string' ? attrs.measuredAt : null;
     if (value === null || !dateStr) continue;
-    points.push({
+    const conceptId = conceptByInstance.get(inst.id);
+    if (!conceptId) continue;
+    const arr = byConcept.get(conceptId) ?? [];
+    arr.push({
       metric: markerName,
       value,
       unit: typeof attrs.unit === 'string' ? attrs.unit : '',
       timestamp: new Date(dateStr).toISOString(),
     });
+    byConcept.set(conceptId, arr);
   }
-  return points;
+  return byConcept;
 }
 
 /**
@@ -234,11 +250,15 @@ async function loadWearableSeries(
   userId: string,
   markerName: string,
 ): Promise<SeriesPoint[]> {
-  // Match the marker name AND its known wearable-metric aliases (e.g.
-  // "Ferritin" ↔ `ferritin_ng_ml`), so the lab and wearable stores actually
-  // merge (longitudinal plan 2026-06-10-002 U3). Aliases are explicit, not
-  // fuzzy; unit conflicts are still dropped by reconcileUnits downstream.
-  const metricNames = wearableMetricNamesFor(markerName);
+  // Match the marker name AND (flag-gated) its known wearable-metric aliases
+  // (e.g. "Ferritin" ↔ `ferritin_ng_ml`), so the lab and wearable stores
+  // actually merge (longitudinal plan 2026-06-10-002 U3). Aliases are
+  // explicit, not fuzzy; unit conflicts are still dropped by reconcileUnits
+  // downstream. Flag off → exact-name match only, the pre-longitudinal
+  // behaviour.
+  const metricNames = longitudinalReadsEnabled()
+    ? wearableMetricNamesFor(markerName)
+    : [markerName];
   const rows = await db.healthDataPoint.findMany({
     where: { userId, metric: { in: metricNames, mode: 'insensitive' } },
     orderBy: { timestamp: 'asc' },

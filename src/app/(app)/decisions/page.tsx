@@ -83,6 +83,19 @@ export default async function DecisionsPage() {
     createdAt: b.createdAt.toISOString(),
   }));
 
+  // "What changed since your last test" — only when the longitudinal surface
+  // is on AND the user has a previous panel to compare against (plan U7).
+  // Kicked off here so it runs concurrently with the trajectory counts below;
+  // a diff failure degrades to a hidden card, never a 500 on the whole page.
+  const panelDiffPromise: Promise<PanelDiff | null> =
+    env.LONGITUDINAL_GRAPH_ENABLED === 'true'
+      ? diffLatestPanels(prisma, user.id).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[decisions] panel diff failed (card hidden): ${msg}`);
+          return null;
+        })
+      : Promise.resolve(null);
+
   // Trajectory point-count per outcome marker (#5): only render "See trajectory"
   // when there are ≥2 points to chart. Computed once for the markers actually
   // referenced by an outcome-measured card.
@@ -103,12 +116,7 @@ export default async function DecisionsPage() {
 
   const hasContent = actions.length > 0 || unlinkedRows.length > 0;
 
-  // "What changed since your last test" — only when the longitudinal surface
-  // is on AND the user has a previous panel to compare against (plan U7).
-  let panelDiff: PanelDiff | null = null;
-  if (env.LONGITUDINAL_GRAPH_ENABLED === 'true') {
-    panelDiff = await diffLatestPanels(prisma, user.id);
-  }
+  const panelDiff = await panelDiffPromise;
   const showPanelDiff =
     panelDiff !== null && panelDiff.previousPanelAt !== null && panelDiff.changes.length > 0;
 
@@ -276,8 +284,11 @@ function TimelineCard({
 
 function fmtDate(d: Date | string): string {
   const date = typeof d === 'string' ? new Date(d) : d;
+  // Pinned to UTC: panel/action dates are date-ish instants stored at UTC
+  // midnight (reportCollectionDate); a server in a negative-offset timezone
+  // would otherwise render the previous day.
   return date.toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short',
+    day: 'numeric', month: 'short', timeZone: 'UTC',
   });
 }
 

@@ -16,6 +16,7 @@
 
 import { createHash } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { computeLabInstanceNodeIds } from './lab-instances';
 import {
   type EdgeType,
   type GraphEdgeRecord,
@@ -29,7 +30,13 @@ import {
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-function parseJsonField(raw: string | null): Record<string, unknown> {
+/**
+ * Tolerant JSON-object parse for String? JSON columns (GraphNode.attributes,
+ * GraphEdge.metadata). Shared by the graph read layer and the marker readers
+ * (panel diff, backfill) so attribute-parsing behaviour can't drift between
+ * consumers.
+ */
+export function parseJsonField(raw: string | null): Record<string, unknown> {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw);
@@ -137,6 +144,26 @@ export async function getSubgraphForTopic(
     });
     for (const n of newNodes) visitedNodes.set(n.id, n);
     frontier = nextFrontier;
+  }
+
+  // Drop lab-reading instances the BFS pulled in via INSTANCE_OF — topic
+  // subgraphs feed LLM prompts (compile, scribe search), and a data-rich user
+  // would otherwise inject one node per dated reading per marker into every
+  // prompt. Instances are leaves (INSTANCE_OF + SUPPORTS only), so removing
+  // them after expansion cannot disconnect anything else.
+  const instanceIds = computeLabInstanceNodeIds(
+    Array.from(visitedNodes.values()).map((n: any) => ({ id: n.id, type: n.type })),
+    Array.from(collectedEdges.values()).map((e: any) => ({
+      type: e.type,
+      fromNodeId: e.fromNodeId,
+      toNodeId: e.toNodeId,
+    })),
+  );
+  for (const id of Array.from(instanceIds)) visitedNodes.delete(id);
+  for (const [edgeId, e] of Array.from(collectedEdges.entries())) {
+    if (instanceIds.has(e.fromNodeId) || instanceIds.has(e.toNodeId)) {
+      collectedEdges.delete(edgeId);
+    }
   }
 
   // Always include SUPPORTS edges anchored to any visited node, so callers
