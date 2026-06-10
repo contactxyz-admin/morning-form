@@ -15,6 +15,7 @@ import {
 } from '@/lib/graph/visual-encoding';
 import {
   smooth,
+  pulseScale,
   entranceFrame,
   clampToBounds,
   fitTransform,
@@ -26,6 +27,18 @@ import {
 
 /** Entrance duration in seconds. */
 const ENTRANCE_DURATION_S = 0.7;
+
+/**
+ * One-shot "what changed" pulse (Plan 2026-06-10-003 U3-motion). Plays once
+ * after the entrance settles: a transient ring on changed biomarker nodes
+ * swells (pulseScale) and fades to invisible, leaving the static change-ring
+ * as the resting marker. Animates a child circle's r/opacity only — never the
+ * node's force-solved x/y, so the determinism contract holds — and ends at a
+ * frozen rest (opacity 0). Reduced-motion/SSR never start it; the static ring
+ * already carries the signal there.
+ */
+const PULSE_DURATION_S = 0.9;
+const PULSE_MAX_OPACITY = 0.55;
 
 /** Zoom scale extent (view-only — never affects solved positions). */
 const MIN_ZOOM = 0.3;
@@ -180,6 +193,11 @@ export function useGraphState(
   const simNodesRef = useRef<SimulationNode[]>([]);
   const simEdgesRef = useRef<SimulationEdge[]>([]);
   const animateRef = useRef<ReturnType<typeof animate> | null>(null);
+  // One-shot change-pulse handle (Plan 2026-06-10-003 U3-motion). Separate
+  // from animateRef: it animates child-circle r/opacity, not node position,
+  // so it can't conflict with the entrance/drag controller — but it MUST be
+  // torn down on the same paths (teardown + reduced-motion flip).
+  const pulseAnimateRef = useRef<ReturnType<typeof animate> | null>(null);
   // Flush-the-entrance-to-target callback for the CURRENT init. reset() calls
   // it (after stopping animateRef) so the entrance can't keep scattering nodes
   // while the camera transition runs (ADV-04). Set in initGraph, cleared in
@@ -480,6 +498,17 @@ export function useGraphState(
       .attr('fill', 'none')
       .attr('stroke-width', 1.5)
       .attr('pointer-events', 'none');
+    // Transient pulse ring — invisible at rest (opacity 0). Only the
+    // motion path below animates it; reduced-motion/SSR leave it at 0 so the
+    // static ring above is the whole signal. Same tone hue as the static ring.
+    changedSel
+      .append('circle')
+      .attr('class', (d) => `graph-node-change-pulse ${changeVisual(d.change!.classification).ringClass}`)
+      .attr('r', (d) => haloRadiusForTier(d.tier) + 2)
+      .attr('fill', 'none')
+      .attr('stroke-width', 2)
+      .attr('opacity', 0)
+      .attr('pointer-events', 'none');
     changedSel
       .append('circle')
       .attr('class', (d) => changeVisual(d.change!.classification).badgeFillClass)
@@ -606,6 +635,35 @@ export function useGraphState(
         },
       });
 
+      // ── One-shot change pulse (Plan 2026-06-10-003 U3-motion) ──
+      // Plays once, after the entrance settles, on the transient pulse rings
+      // appended above. Animates r/opacity only (never x/y), ends at opacity
+      // 0. The pulse circles inherit their parent node's datum, so per-node
+      // radius (tier) resolves in onUpdate.
+      pulseAnimateRef.current?.stop();
+      const pulseSel = zoomLayer.selectAll<SVGCircleElement, SimulationNode>(
+        'circle.graph-node-change-pulse',
+      );
+      if (!pulseSel.empty()) {
+        pulseAnimateRef.current = animate(0, 1, {
+          duration: PULSE_DURATION_S,
+          delay: ENTRANCE_DURATION_S,
+          ease: smooth,
+          onUpdate(alpha) {
+            if (isCancelled || pulseAnimateRef.current === null) return;
+            const s = pulseScale(alpha);
+            pulseSel
+              .attr('r', (d) => (haloRadiusForTier(d.tier) + 2) * s)
+              .attr('opacity', (1 - alpha) * PULSE_MAX_OPACITY);
+          },
+          onComplete() {
+            if (isCancelled || pulseAnimateRef.current === null) return;
+            pulseSel.attr('opacity', 0);
+            pulseAnimateRef.current = null;
+          },
+        });
+      }
+
       // Reduced-motion can flip mid-animation (OS setting toggled). On
       // reduce=true, stop the animation and snap to target.
       if (typeof window !== 'undefined' && window.matchMedia) {
@@ -614,6 +672,11 @@ export function useGraphState(
           if (e.matches && !isCancelled) {
             animateRef.current?.stop();
             animateRef.current = null;
+            // Stop the pulse too and clear it to the resting (invisible)
+            // state — the static change-ring remains as the signal.
+            pulseAnimateRef.current?.stop();
+            pulseAnimateRef.current = null;
+            pulseSel.attr('opacity', 0);
             paintTarget();
             flushToTarget();
           }
@@ -791,6 +854,10 @@ export function useGraphState(
       isCancelled = true;
       animateRef.current?.stop();
       animateRef.current = null;
+      // One-shot change pulse: stop + clear so a queued frame (or the
+      // delayed start) can't write to a wiped SVG after teardown / re-init.
+      pulseAnimateRef.current?.stop();
+      pulseAnimateRef.current = null;
       flushEntranceRef.current = null;
       // Clear BOTH drag timers so neither can fire after teardown / re-init
       // (a pending backstop or watchdog would otherwise touch the next sim).
