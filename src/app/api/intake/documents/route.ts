@@ -50,6 +50,9 @@ import {
   type ExtractedLabPanel,
 } from '@/lib/intake/lab-prompts';
 import { resolveBiomarker } from '@/lib/intake/biomarkers';
+import { buildLabObservationGraphInputs } from '@/lib/intake/lab-observations';
+import { diffLatestPanels } from '@/lib/markers/panel-diff';
+import { env } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 // Lab extraction runs one LLM call with a 90 s per-attempt timeout and up
@@ -188,6 +191,16 @@ export async function POST(req: Request) {
       ? new Date(panel.reportCollectionDate)
       : new Date();
 
+    // Dated observation instances: one per reading, parented to the concept
+    // node via INSTANCE_OF, so marker history accumulates across panels
+    // (longitudinal plan 2026-06-10-002 U2). The concept node's rolling
+    // latestValue/latestValueAt track currency (date-guarded in the merge);
+    // value/collectionDate stay the first-seen anchor.
+    const observations = buildLabObservationGraphInputs(
+      validBiomarkers,
+      panel.reportCollectionDate,
+    );
+
     const input: IngestExtractionInput = {
       document: {
         kind: 'lab_pdf',
@@ -202,22 +215,33 @@ export async function POST(req: Request) {
         },
       },
       chunks,
-      nodes: validBiomarkers.map((b) => ({
-        type: 'biomarker' as const,
-        canonicalKey: b.canonicalKey,
-        displayName: b.displayName,
-        attributes: {
-          value: b.value,
-          unit: b.unit,
-          referenceRangeLow: b.referenceRangeLow,
-          referenceRangeHigh: b.referenceRangeHigh,
-          flaggedOutOfRange: b.flaggedOutOfRange,
-          collectionDate: b.collectionDate ?? panel.reportCollectionDate,
-          registryKey: resolveBiomarker(b.displayName)?.canonicalKey ?? null,
-        },
-        supportingChunkIndices: b.supportingChunkIndices,
-      })),
-      edges: [],
+      nodes: [
+        ...validBiomarkers.map((b) => {
+          const readingDate = b.collectionDate ?? panel.reportCollectionDate;
+          const readingAt = readingDate ? new Date(readingDate) : null;
+          const latestValueAt =
+            readingAt && !Number.isNaN(readingAt.getTime()) ? readingAt.toISOString() : undefined;
+          return {
+            type: 'biomarker' as const,
+            canonicalKey: b.canonicalKey,
+            displayName: b.displayName,
+            attributes: {
+              value: b.value,
+              unit: b.unit,
+              referenceRangeLow: b.referenceRangeLow,
+              referenceRangeHigh: b.referenceRangeHigh,
+              flaggedOutOfRange: b.flaggedOutOfRange,
+              collectionDate: readingDate,
+              registryKey: resolveBiomarker(b.displayName)?.canonicalKey ?? null,
+              latestValue: b.value,
+              ...(latestValueAt ? { latestValueAt } : {}),
+            },
+            supportingChunkIndices: b.supportingChunkIndices,
+          };
+        }),
+        ...observations.nodes,
+      ],
+      edges: observations.edges,
     };
 
     const persisted = await ingestExtraction(prisma, user.id, input);
@@ -232,12 +256,32 @@ export async function POST(req: Request) {
 
     const promoted = await promoteTopics(user.id, validBiomarkers.map((b) => b.canonicalKey));
 
+    // "What changed since last test": when the longitudinal surface is on and
+    // this upload is a re-test (a prior panel exists), include the diff so the
+    // client can show it immediately. Flag-gated; absent otherwise (flag-off
+    // upload response stays byte-for-byte the previous shape). The diff runs
+    // AFTER the ingest transaction has committed, so its own failure must
+    // never convert a successful upload into an error response — degrade to
+    // an omitted `changes` block instead.
+    let changes: Awaited<ReturnType<typeof diffLatestPanels>> | undefined;
+    if (env.LONGITUDINAL_GRAPH_ENABLED === 'true') {
+      try {
+        changes = await diffLatestPanels(prisma, user.id);
+      } catch (diffErr) {
+        const msg = diffErr instanceof Error ? diffErr.message : String(diffErr);
+        console.error(`[API] intake/documents panel diff failed post-ingest (non-fatal): ${msg}`);
+      }
+    }
+
     return NextResponse.json({
       documentId: persisted.documentId,
       deduped: false,
       chunkCount: persisted.chunkIds.length,
-      biomarkerCount: persisted.nodeIds.length,
+      // Count extracted markers, not persisted node rows — the ingest now
+      // also writes one observation instance per dated reading.
+      biomarkerCount: validBiomarkers.length,
       promotedTopics: promoted,
+      ...(changes !== undefined ? { changes } : {}),
     });
   } catch (err) {
     const name = err instanceof Error ? err.name : 'UnknownError';

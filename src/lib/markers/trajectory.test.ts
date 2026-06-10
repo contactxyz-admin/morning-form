@@ -4,16 +4,28 @@
  * Test-first on the data-merge correctness. Pins: biomarker-only merge,
  * wearable merge, mixed merge, date-ordering, same-day dedupe, cap.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
-import { addNode } from '@/lib/graph/mutations';
+import { addEdge, addNode } from '@/lib/graph/mutations';
 import { buildMarkerTrajectory, MAX_TRAJECTORY_POINTS } from './trajectory';
 
 let prisma: PrismaClient;
+const originalLongitudinalFlag = process.env.LONGITUDINAL_GRAPH_ENABLED;
 
 beforeAll(async () => { prisma = await setupTestDb(); });
 afterAll(async () => { await teardownTestDb(); });
+
+// The longitudinal read behaviours (instance series + alias join) are
+// flag-gated; default the suite to flag-on, with dedicated flag-off tests
+// overriding per-case.
+beforeEach(() => {
+  process.env.LONGITUDINAL_GRAPH_ENABLED = 'true';
+});
+afterEach(() => {
+  if (originalLongitudinalFlag === undefined) delete process.env.LONGITUDINAL_GRAPH_ENABLED;
+  else process.env.LONGITUDINAL_GRAPH_ENABLED = originalLongitudinalFlag;
+});
 
 describe('buildMarkerTrajectory', () => {
   it('returns empty array for a user with no data', async () => {
@@ -140,6 +152,138 @@ describe('buildMarkerTrajectory', () => {
     const pts = await buildMarkerTrajectory(prisma, userId, 'HRV');
     expect(pts.map((p) => p.value)).not.toContain(88);
     expect(pts).toHaveLength(1);
+  });
+
+  it('reads dated observation instances as a multi-point lab series, preferring them over the concept anchor (longitudinal U3)', async () => {
+    const userId = await makeTestUser(prisma, 'traj-instances');
+    // Concept node as the post-U2 ingest leaves it: first-seen anchor +
+    // rolled current value.
+    const { id: conceptId } = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: {
+        value: 18,
+        collectionDate: '2026-04-01',
+        latestValue: 62,
+        latestValueAt: '2026-08-01',
+        unit: 'ug/L',
+      },
+    });
+    // Three dated instances linked via INSTANCE_OF.
+    for (const [val, date] of [
+      [18, '2026-04-01'],
+      [41, '2026-06-01'],
+      [62, '2026-08-01'],
+    ] as const) {
+      const { id: instId } = await addNode(prisma, userId, {
+        type: 'observation',
+        canonicalKey: `obs_ferritin_${date.replace(/-/g, '_')}`,
+        displayName: `Ferritin · ${date}`,
+        attributes: { value: val, unit: 'ug/L', measuredAt: new Date(date).toISOString() },
+        promoted: false,
+      });
+      await addEdge(prisma, userId, {
+        type: 'INSTANCE_OF',
+        fromNodeId: instId,
+        toNodeId: conceptId,
+      });
+    }
+
+    const pts = await buildMarkerTrajectory(prisma, userId, 'Ferritin');
+    // Three instance points, newest first — NOT a single anchor point, and
+    // no incoherent (latestValue@anchor-date) point.
+    expect(pts.map((p) => p.value)).toEqual([62, 41, 18]);
+    expect(pts[0].timestamp).toContain('2026-08');
+    expect(pts[2].timestamp).toContain('2026-04');
+  });
+
+  it('keeps the legacy anchor of a same-displayName concept that has NO instances (per-concept fallback)', async () => {
+    const userId = await makeTestUser(prisma, 'traj-mixed-concepts');
+    // Pre-migration concept: snake_case fallback key, anchor value, no instances.
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'serum_ferritin',
+      displayName: 'Ferritin',
+      attributes: { value: 18, unit: 'ug/L', collectionDate: '2026-02-01' },
+    });
+    // Post-feature concept under the registry key, with one dated instance.
+    const { id: conceptId } = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: { value: 41, unit: 'ug/L', collectionDate: '2026-06-01' },
+    });
+    const { id: instId } = await addNode(prisma, userId, {
+      type: 'observation',
+      canonicalKey: 'obs_ferritin_2026_06_01',
+      displayName: 'Ferritin · 2026-06-01',
+      attributes: { value: 41, unit: 'ug/L', measuredAt: new Date('2026-06-01').toISOString() },
+      promoted: false,
+    });
+    await addEdge(prisma, userId, { type: 'INSTANCE_OF', fromNodeId: instId, toNodeId: conceptId });
+
+    const pts = await buildMarkerTrajectory(prisma, userId, 'Ferritin');
+    // BOTH readings survive: the instance from the new concept AND the legacy
+    // anchor from the old one — a global instances-exist early-return would
+    // have dropped the 18.
+    expect(pts.map((p) => p.value).sort((a, b) => a - b)).toEqual([18, 41]);
+  });
+
+  it('flag off → instances and aliases are ignored: byte-for-byte pre-longitudinal behaviour', async () => {
+    process.env.LONGITUDINAL_GRAPH_ENABLED = '';
+    const userId = await makeTestUser(prisma, 'traj-flag-off');
+    const { id: conceptId } = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: { value: 18, unit: 'ug/L', collectionDate: '2026-04-01' },
+    });
+    // Instances exist (writes are unconditional) …
+    const { id: instId } = await addNode(prisma, userId, {
+      type: 'observation',
+      canonicalKey: 'obs_ferritin_2026_06_01',
+      displayName: 'Ferritin · 2026-06-01',
+      attributes: { value: 41, unit: 'ug/L', measuredAt: new Date('2026-06-01').toISOString() },
+      promoted: false,
+    });
+    await addEdge(prisma, userId, { type: 'INSTANCE_OF', fromNodeId: instId, toNodeId: conceptId });
+    // … and so does an alias-named wearable row.
+    await prisma.healthDataPoint.create({
+      data: {
+        userId, provider: 'manual', category: 'bloodwork',
+        metric: 'ferritin_ng_ml', value: 55, unit: 'ug/L', timestamp: new Date('2026-07-01'),
+      },
+    });
+
+    const pts = await buildMarkerTrajectory(prisma, userId, 'Ferritin');
+    // Only the concept anchor — the reader behaves exactly as before the
+    // longitudinal feature when the flag is off (plan R8).
+    expect(pts).toHaveLength(1);
+    expect(pts[0].value).toBe(18);
+  });
+
+  it('merges lab + wearable for the same marker via the metric alias map (longitudinal U3)', async () => {
+    const userId = await makeTestUser(prisma, 'traj-alias');
+    // Lab concept (no instances → legacy anchor point).
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: { latestValue: 25, unit: 'ug/L', collectionDate: '2026-03-01' },
+    });
+    // Wearable/seeded series under the persona-style metric name.
+    await prisma.healthDataPoint.createMany({
+      data: [
+        { userId, provider: 'manual', category: 'bloodwork', metric: 'ferritin_ng_ml', value: 41, unit: 'ug/L', timestamp: new Date('2026-05-01') },
+        { userId, provider: 'manual', category: 'bloodwork', metric: 'ferritin_ng_ml', value: 55, unit: 'ug/L', timestamp: new Date('2026-07-01') },
+      ],
+    });
+
+    const pts = await buildMarkerTrajectory(prisma, userId, 'Ferritin');
+    // The aliased wearable points merged with the lab anchor — exact-name
+    // join alone would have returned only the single lab point.
+    expect(pts.map((p) => p.value).sort((a, b) => a - b)).toEqual([25, 41, 55]);
   });
 
   it('returns 1 point when only 1 biomarker node exists', async () => {

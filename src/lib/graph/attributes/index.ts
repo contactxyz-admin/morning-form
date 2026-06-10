@@ -154,7 +154,41 @@ export const ROLLING_ATTRIBUTE_FIELDS: Partial<Record<NodeType, ReadonlySet<stri
   ]),
   mood: new Set(['currentRating', 'pattern']),
   energy: new Set(['currentRating', 'pattern']),
+  // Biomarker concept nodes track the *current* reading; dated history lives
+  // on `observation` instance nodes linked via INSTANCE_OF (longitudinal plan
+  // 2026-06-10-002 U1). `value`/`collectionDate` stay first-write-wins as the
+  // first-seen anchor. Rolling application is date-guarded — see
+  // `shouldApplyRollingFields`.
+  biomarker: new Set(['latestValue', 'latestValueAt', 'flaggedOutOfRange']),
 };
+
+/**
+ * Date guard for rolling-field application. Rolling fields are last-WRITE-
+ * wins by default, but for biomarkers "last write" must mean "most recent
+ * READING", so the currency rolls only for writes that carry a dated
+ * reading:
+ *
+ * - incoming has no parseable `latestValueAt` → NO rolling (falls back to
+ *   first-write-wins). This keeps every pre-existing writer byte-identical —
+ *   the intake narrative path writes `latestValue` undated, and a narrative
+ *   recall ("my ferritin was 18 last year") must never clobber a dated lab
+ *   value.
+ * - incoming dated, existing undated → roll (a dated reading beats no date).
+ * - both dated → roll only when the incoming reading is not older
+ *   (an upload of an OLD panel never replaces a newer current value).
+ */
+export function shouldApplyRollingFields(
+  nodeType: NodeType,
+  existing: Record<string, unknown>,
+  incoming: Record<string, unknown>,
+): boolean {
+  if (nodeType !== 'biomarker') return true;
+  const incomingAt = typeof incoming.latestValueAt === 'string' ? Date.parse(incoming.latestValueAt) : NaN;
+  if (Number.isNaN(incomingAt)) return false;
+  const existingAt = typeof existing.latestValueAt === 'string' ? Date.parse(existing.latestValueAt) : NaN;
+  if (Number.isNaN(existingAt)) return true;
+  return incomingAt >= existingAt;
+}
 
 /**
  * Validate attributes for a node being written. Throws

@@ -76,6 +76,14 @@ const optional = {
   // Gates the /decisions surface, lifecycle API, trajectory views, and outcome
   // snapshots. Flip in U6 after the visual audit gate.
   DECISIONS_ENABLED: process.env.DECISIONS_ENABLED ?? '',
+  // Longitudinal health graph (Plan 2026-06-10-002 Phase 0). Off by default.
+  // Gates the READ surfaces only — the "what changed since last test" panel
+  // diff (GET /api/markers/changes + the upload response's `changes` block
+  // + the /decisions card). Dated observation-instance WRITES on lab ingest
+  // are unconditional (additive, invisible until a read surface renders
+  // them; gating them would create a backfill gap). Flip after the visual
+  // audit gate.
+  LONGITUDINAL_GRAPH_ENABLED: process.env.LONGITUDINAL_GRAPH_ENABLED ?? '',
 };
 
 export const env = {

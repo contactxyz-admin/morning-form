@@ -25,7 +25,11 @@ import {
   type IngestExtractionInput,
   type IngestExtractionResult,
 } from './types';
-import { ROLLING_ATTRIBUTE_FIELDS, validateAttributesForWrite } from './attributes';
+import {
+  ROLLING_ATTRIBUTE_FIELDS,
+  shouldApplyRollingFields,
+  validateAttributesForWrite,
+} from './attributes';
 import { assertEdgeEndpoints } from './edge-validation';
 import type { NodeType } from './types';
 import { embedAndStoreChunk } from '@/lib/embeddings/pipeline';
@@ -61,10 +65,14 @@ function mergeAttributes(
   // can reflect the current state without walking every episode row —
   // but only when the incoming value carries real information. A re-
   // extraction that couldn't find a value (emits null / '' / []) must
-  // not wipe a previously-captured rolling field.
+  // not wipe a previously-captured rolling field. For biomarkers the
+  // rolling overwrite is additionally date-guarded: an upload of an OLDER
+  // panel must not replace a newer current value (see
+  // shouldApplyRollingFields).
   const rollingFields = ROLLING_ATTRIBUTE_FIELDS[nodeType];
+  const applyRolling = rollingFields ? shouldApplyRollingFields(nodeType, base, incoming) : false;
   for (const [k, v] of Object.entries(incoming)) {
-    if (rollingFields?.has(k)) {
+    if (rollingFields?.has(k) && applyRolling) {
       if (v === undefined || v === null) continue;
       if (typeof v === 'string' && v === '') continue;
       if (Array.isArray(v) && v.length === 0) continue;

@@ -342,6 +342,11 @@ model GraphEdge {
   @@index([userId, type])
   @@index([fromNodeId])
   @@index([toNodeId])
+  // Panel diff joins observation instances to their lab document via
+  // SUPPORTS(fromDocumentId) on every flag-on upload + /decisions render;
+  // without this the [userId, type] index forces a scan across ALL of the
+  // user's SUPPORTS edges (the highest-cardinality edge type).
+  @@index([userId, fromDocumentId])
 }
 
 model TopicPage {

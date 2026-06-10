@@ -22,7 +22,8 @@
     "test:watch": "vitest",
     "marketing:scaffold": "tsx scripts/marketing-scaffold.ts",
     "mcp:audit": "tsx scripts/metrics/mcp-audit.ts",
-    "scribe:fix-model": "tsx scripts/fix-scribe-model.ts"
+    "scribe:fix-model": "tsx scripts/fix-scribe-model.ts",
+    "markers:backfill-observations": "tsx scripts/backfill-lab-observations.ts"
   },
   "engines": {
     "node": "20.x"

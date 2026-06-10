@@ -16,8 +16,24 @@
 
 import type { PrismaClient, Prisma } from '@prisma/client';
 import type { SeriesPoint } from '@/lib/scribe/tools/recognize-pattern-in-history';
+import { env } from '@/lib/env';
+import { parseJsonField } from '@/lib/graph/queries';
+import { wearableMetricNamesFor } from './metric-aliases';
 
 type Db = PrismaClient | Prisma.TransactionClient;
+
+/**
+ * Gate for the longitudinal READ behaviours added by plan 2026-06-10-002
+ * (observation-instance series + the lab↔wearable metric alias join).
+ * Instance WRITES are deliberately unconditional (gating them would create a
+ * backfill gap), but with the flag off every read surface must stay
+ * byte-for-byte pre-longitudinal (plan R8) — so the reader ignores instances
+ * and skips alias expansion until the flip. `process.env` first is the
+ * repo's test seam (matches ASK_DEEP_ENABLED in chat/turn.ts).
+ */
+function longitudinalReadsEnabled(): boolean {
+  return (process.env.LONGITUDINAL_GRAPH_ENABLED ?? env.LONGITUDINAL_GRAPH_ENABLED) === 'true';
+}
 
 export const MAX_TRAJECTORY_POINTS = 24;
 
@@ -129,18 +145,34 @@ async function loadBiomarkerSeries(
 ): Promise<SeriesPoint[]> {
   const nodes = await db.graphNode.findMany({
     where: { userId, type: 'biomarker' },
-    select: { displayName: true, attributes: true },
+    select: { id: true, displayName: true, attributes: true },
   });
 
-  const points: SeriesPoint[] = [];
-  for (const node of nodes) {
-    if (node.displayName.toLowerCase() !== markerName.toLowerCase()) continue;
-    let attrs: Record<string, unknown> | null = null;
-    try {
-      attrs = node.attributes ? JSON.parse(node.attributes) : null;
-    } catch { continue; }
-    if (!attrs) continue;
+  const concepts = nodes.filter(
+    (n) => n.displayName.toLowerCase() === markerName.toLowerCase(),
+  );
+  if (concepts.length === 0) return [];
 
+  // Dated history lives on `observation` instances linked to the concept via
+  // INSTANCE_OF (longitudinal plan 2026-06-10-002). The fallback is
+  // PER-CONCEPT, not global: a concept WITH instances contributes its
+  // instance points (its own `latestValue`/`collectionDate` pair would mix a
+  // current value with the first-seen date), while a same-displayName concept
+  // WITHOUT instances (legacy/pre-migration) still contributes its anchor
+  // value — a global early-return would silently drop it.
+  const instancesByConcept = longitudinalReadsEnabled()
+    ? await loadObservationInstances(db, userId, concepts.map((n) => n.id), markerName)
+    : new Map<string, SeriesPoint[]>();
+
+  const points: SeriesPoint[] = [];
+  for (const node of concepts) {
+    const instancePoints = instancesByConcept.get(node.id);
+    if (instancePoints && instancePoints.length > 0) {
+      points.push(...instancePoints);
+      continue;
+    }
+
+    const attrs = parseJsonField(node.attributes);
     const value = typeof attrs.latestValue === 'number' ? attrs.latestValue
                 : typeof attrs.value === 'number' ? attrs.value
                 : null;
@@ -162,6 +194,49 @@ async function loadBiomarkerSeries(
 }
 
 /**
+ * Dated lab-reading instances for a marker, grouped by the concept node they
+ * are INSTANCE_OF. Each carries its own value/unit/measuredAt, so this is the
+ * real multi-point lab series.
+ */
+async function loadObservationInstances(
+  db: Db,
+  userId: string,
+  conceptIds: string[],
+  markerName: string,
+): Promise<Map<string, SeriesPoint[]>> {
+  const byConcept = new Map<string, SeriesPoint[]>();
+  const edges = await db.graphEdge.findMany({
+    where: { userId, type: 'INSTANCE_OF', toNodeId: { in: conceptIds } },
+    select: { fromNodeId: true, toNodeId: true },
+  });
+  if (edges.length === 0) return byConcept;
+  const conceptByInstance = new Map(edges.map((e) => [e.fromNodeId, e.toNodeId]));
+
+  const instances = await db.graphNode.findMany({
+    where: { userId, id: { in: edges.map((e) => e.fromNodeId) }, type: 'observation' },
+    select: { id: true, attributes: true },
+  });
+
+  for (const inst of instances) {
+    const attrs = parseJsonField(inst.attributes);
+    const value = typeof attrs.value === 'number' ? attrs.value : null;
+    const dateStr = typeof attrs.measuredAt === 'string' ? attrs.measuredAt : null;
+    if (value === null || !dateStr) continue;
+    const conceptId = conceptByInstance.get(inst.id);
+    if (!conceptId) continue;
+    const arr = byConcept.get(conceptId) ?? [];
+    arr.push({
+      metric: markerName,
+      value,
+      unit: typeof attrs.unit === 'string' ? attrs.unit : '',
+      timestamp: new Date(dateStr).toISOString(),
+    });
+    byConcept.set(conceptId, arr);
+  }
+  return byConcept;
+}
+
+/**
  * Wearable HealthDataPoint categories that are NOT lab-equivalent scalar
  * measurements and must never co-plot with a lab marker on one axis. `recovery`
  * (and similar composite scores) are derived 0–100 indices, not the physical
@@ -175,8 +250,17 @@ async function loadWearableSeries(
   userId: string,
   markerName: string,
 ): Promise<SeriesPoint[]> {
+  // Match the marker name AND (flag-gated) its known wearable-metric aliases
+  // (e.g. "Ferritin" ↔ `ferritin_ng_ml`), so the lab and wearable stores
+  // actually merge (longitudinal plan 2026-06-10-002 U3). Aliases are
+  // explicit, not fuzzy; unit conflicts are still dropped by reconcileUnits
+  // downstream. Flag off → exact-name match only, the pre-longitudinal
+  // behaviour.
+  const metricNames = longitudinalReadsEnabled()
+    ? wearableMetricNamesFor(markerName)
+    : [markerName];
   const rows = await db.healthDataPoint.findMany({
-    where: { userId, metric: { equals: markerName, mode: 'insensitive' } },
+    where: { userId, metric: { in: metricNames, mode: 'insensitive' } },
     orderBy: { timestamp: 'asc' },
     select: { metric: true, value: true, unit: true, timestamp: true, category: true },
   });
@@ -184,7 +268,10 @@ async function loadWearableSeries(
   return rows
     .filter((r) => !NON_LAB_EQUIVALENT_CATEGORIES.has(r.category.toLowerCase()))
     .map((r) => ({
-      metric: r.metric,
+      // Normalize aliased rows to the canonical marker name so unit
+      // reconciliation and same-day dedupe key consistently against the lab
+      // points (which carry the marker displayName).
+      metric: markerName,
       value: r.value,
       unit: r.unit,
       timestamp: r.timestamp.toISOString(),

@@ -235,8 +235,19 @@ describe('POST /api/intake/documents', () => {
     expect(doc?.kind).toBe('lab_pdf');
     expect(doc?.sourceRef).toBe('lab.pdf');
 
-    const nodes = await prisma.graphNode.findMany({ where: { userId } });
-    expect(nodes.map((n) => n.canonicalKey).sort()).toEqual(['ferritin', 'haemoglobin']);
+    const conceptNodes = await prisma.graphNode.findMany({
+      where: { userId, type: 'biomarker' },
+    });
+    expect(conceptNodes.map((n) => n.canonicalKey).sort()).toEqual(['ferritin', 'haemoglobin']);
+
+    // Each dated reading also lands as an observation instance (longitudinal U2).
+    const instanceNodes = await prisma.graphNode.findMany({
+      where: { userId, type: 'observation' },
+    });
+    expect(instanceNodes.map((n) => n.canonicalKey).sort()).toEqual([
+      'obs_ferritin_2026_04_01',
+      'obs_haemoglobin_2026_04_01',
+    ]);
 
     const ironPage = await prisma.topicPage.findUnique({
       where: { userId_topicKey: { userId, topicKey: 'iron' } },
@@ -506,6 +517,92 @@ describe('POST /api/intake/documents', () => {
       process.env.HYBRID_RETRIEVAL_ENABLED = 'false';
       process.env.EMBEDDING_PROVIDER = 'openai';
     }
+  });
+
+  it('accumulates dated observation instances across two panels and rolls the concept currency (longitudinal U2)', async () => {
+    const userId = await makeTestUser(prisma, 'docs-longitudinal');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    mockGetText.mockResolvedValue({
+      pages: [{ num: 1, text: LAB_PAGE_TEXT }],
+      text: '',
+      total: 1,
+    });
+
+    const ferritinReading = (value: number, date: string, flagged: boolean) => ({
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      value,
+      unit: 'ug/L',
+      referenceRangeLow: 30,
+      referenceRangeHigh: 400,
+      flaggedOutOfRange: flagged,
+      collectionDate: date,
+      supportingChunkIndices: [0],
+    });
+
+    // Panel 1 — April, ferritin low.
+    setExtraction({
+      biomarkers: [ferritinReading(18, '2026-04-01', true)],
+      reportCollectionDate: '2026-04-01',
+      labProvider: 'Medichecks',
+    });
+    const res1 = await POST(makeRequest({}));
+    expect(res1.status).toBe(200);
+    expect((await res1.json()).biomarkerCount).toBe(1);
+
+    // Panel 2 — June, ferritin recovering. Different bytes so contentHash
+    // dedup doesn't short-circuit the second ingest.
+    setExtraction({
+      biomarkers: [ferritinReading(41, '2026-06-01', false)],
+      reportCollectionDate: '2026-06-01',
+      labProvider: 'Medichecks',
+    });
+    const res2 = await POST(
+      makeRequest({
+        file: new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x32])], {
+          type: 'application/pdf',
+        }) as unknown as File,
+        fileName: 'lab-june.pdf',
+      }),
+    );
+    expect(res2.status).toBe(200);
+    expect((await res2.json()).biomarkerCount).toBe(1);
+
+    // ONE concept node, currency rolled to June, first-seen anchor intact.
+    const concepts = await prisma.graphNode.findMany({
+      where: { userId, type: 'biomarker' },
+    });
+    expect(concepts).toHaveLength(1);
+    const conceptAttrs = JSON.parse(concepts[0].attributes!);
+    expect(conceptAttrs.value).toBe(18);
+    expect(conceptAttrs.collectionDate).toBe('2026-04-01');
+    expect(conceptAttrs.latestValue).toBe(41);
+    expect(conceptAttrs.latestValueAt).toBe(new Date('2026-06-01').toISOString());
+    expect(conceptAttrs.flaggedOutOfRange).toBe(false);
+
+    // TWO dated instances, each linked to the concept via INSTANCE_OF.
+    const instances = await prisma.graphNode.findMany({
+      where: { userId, type: 'observation' },
+      orderBy: { canonicalKey: 'asc' },
+    });
+    expect(instances.map((n) => n.canonicalKey)).toEqual([
+      'obs_ferritin_2026_04_01',
+      'obs_ferritin_2026_06_01',
+    ]);
+    expect(instances.every((n) => !n.promoted)).toBe(true);
+
+    const instanceEdges = await prisma.graphEdge.findMany({
+      where: { userId, type: 'INSTANCE_OF' },
+    });
+    expect(instanceEdges).toHaveLength(2);
+    expect(instanceEdges.every((e) => e.toNodeId === concepts[0].id)).toBe(true);
+
+    // Instances carry provenance to their own panel's chunks.
+    const supports = await prisma.graphEdge.findMany({
+      where: { userId, type: 'SUPPORTS', fromNodeId: { in: instances.map((n) => n.id) } },
+    });
+    expect(supports.length).toBe(2);
   });
 });
 
