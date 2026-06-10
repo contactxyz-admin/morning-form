@@ -5,6 +5,7 @@ import * as d3 from 'd3';
 import { animate } from 'framer-motion';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { makeRng } from '../../../prisma/fixtures/synthetic/generators';
+import { changeDirectionGlyph } from '@/lib/markers/change-presentation';
 import {
   changeVisual,
   haloRadiusForTier,
@@ -82,17 +83,6 @@ const DRAG_MAX_MS = 30_000;
 export function computeMotionAllowed(win: Window | undefined = typeof window !== 'undefined' ? window : undefined): boolean {
   if (!win || typeof win.matchMedia !== 'function') return false;
   return !win.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-/**
- * Glyph for a change badge's direction. `new` (null direction) → '+';
- * up/down/flat → arrows. Pure; exported for the node-env unit test.
- */
-export function changeGlyph(direction: 'up' | 'down' | 'flat' | null): string {
-  if (direction === 'up') return '↑';
-  if (direction === 'down') return '↓';
-  if (direction === 'flat') return '→';
-  return '+';
 }
 
 /**
@@ -523,7 +513,7 @@ export function useGraphState(
       .attr('y', (d) => -radiusForTier(d.tier) * 0.9)
       .attr('text-anchor', 'middle')
       .attr('dy', '0.32em')
-      .text((d) => changeGlyph(d.change!.direction));
+      .text((d) => changeDirectionGlyph(d.change!.direction));
 
     // Tier-1 labels: always-on, sit below the dot.
     nodeGroups
