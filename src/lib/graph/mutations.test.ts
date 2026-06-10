@@ -289,10 +289,14 @@ describe('addSourceDocument dedup', () => {
 });
 
 async function eventuallyVectorEmbedding(sourceChunkId: string) {
-  for (let attempt = 0; attempt < 20; attempt++) {
+  // The embedding write is a post-commit fire-and-forget hook, so it can
+  // legitimately lag under CI contention (159 test files sharing one
+  // Postgres). The original 200ms budget flaked on the hosted runner
+  // (PR #160 run 27275420889) — give it ~2s.
+  for (let attempt = 0; attempt < 40; attempt++) {
     const row = await prisma.vectorEmbedding.findUnique({ where: { sourceChunkId } });
     if (row) return row;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
   return prisma.vectorEmbedding.findUnique({ where: { sourceChunkId } });
 }
