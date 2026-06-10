@@ -29,6 +29,25 @@ export const MEMBERSHIP_PRICE: Record<
 };
 
 /**
+ * Deck-aligned pricing for the not-yet-launched layers (Studios, Supply).
+ * Surfaced today only on the public demo's preview cards (plan
+ * 2026-06-10-001 R-F) — components import these, never literal price
+ * strings. US-only until either layer has a real market rollout.
+ */
+export const STUDIO_VISIT_PRICE = {
+  amount: 29900,
+  currency: 'USD',
+  display: '$299',
+} as const;
+
+export const SUPPLY_PRICE = {
+  amount: 6900,
+  currency: 'USD',
+  display: '$69',
+  period: 'month',
+} as const;
+
+/**
  * Cookie names. Centralised so middleware, route handlers, and the
  * market-banner / visit-beacon components all read/write the same keys.
  */
