@@ -383,5 +383,28 @@ describe('aggregateRecord', () => {
       const stale = result.nodes.find((n) => n.id === 'stale')!;
       expect(recent.score).toBeGreaterThan(stale.score);
     });
+
+    it('changedNodeIds lift saves a moved marker from the node cap (longitudinal follow-up)', () => {
+      const nodes = [
+        node('a', 'biomarker', 'ma', 'A'),
+        node('moved', 'biomarker', 'mb', 'B'),
+        node('c', 'biomarker', 'mc', 'C'),
+      ];
+      // All three score equally (promoted) and the cap keeps only one. The
+      // +2 change lift must make the moved marker the survivor.
+      const result = aggregateRecord({
+        topics: [],
+        nodes,
+        sources: [],
+        edges: [],
+        nodeCap: 1,
+        changedNodeIds: new Set(['moved']),
+      });
+
+      expect(result.truncated).toBe(true);
+      expect(result.nodes).toHaveLength(1);
+      expect(result.nodes[0].id).toBe('moved');
+      expect(result.nodes[0].tier).toBe(1); // promoted(3) + change(2) = 5
+    });
   });
 });

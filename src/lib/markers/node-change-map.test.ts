@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { GraphNodeWire } from '@/types/graph';
 import type { MarkerChange } from './panel-diff';
-import { applyChangesToWireNodes, buildChangeByJoinKey, changedNodeIds } from './node-change-map';
+import {
+  applyChangesToWireNodes,
+  buildChangeByJoinKey,
+  changedNodeIds,
+  meaningfulMoves,
+} from './node-change-map';
 
 function change(overrides: Partial<MarkerChange> = {}): MarkerChange {
   return {
@@ -111,5 +116,22 @@ describe('changedNodeIds', () => {
     const nodes = [wireNode({ id: 's', type: 'symptom', canonicalKey: 'ferritin' })];
     expect(changedNodeIds(nodes, [change()])).toEqual(new Set());
     expect(changedNodeIds([wireNode()], [])).toEqual(new Set());
+  });
+});
+
+describe('meaningfulMoves', () => {
+  it('drops stable changes (so re-tested-but-unchanged markers are not lifted)', () => {
+    const moves = meaningfulMoves([
+      change({ joinKey: 'a', classification: 'improved' }),
+      change({ joinKey: 'b', classification: 'stable' }),
+      change({ joinKey: 'c', classification: 'worsened' }),
+      change({ joinKey: 'd', classification: 'new', direction: null, beforeValue: null }),
+      change({ joinKey: 'e', classification: 'unclassified' }),
+    ]);
+    expect(moves.map((m) => m.joinKey).sort()).toEqual(['a', 'c', 'd', 'e']);
+  });
+
+  it('returns [] for an all-stable change set', () => {
+    expect(meaningfulMoves([change({ classification: 'stable' })])).toEqual([]);
   });
 });

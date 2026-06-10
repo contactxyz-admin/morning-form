@@ -35,6 +35,19 @@ export function buildChangeByJoinKey(changes: MarkerChange[]): Map<string, NodeC
   return m;
 }
 
+/**
+ * Changes that represent a meaningful move — the ones worth LIFTING a node's
+ * importance for. Excludes `stable` (in range both times / no net distance
+ * change): without this, re-testing a whole panel would lift every re-tested
+ * marker to tier 1 and flatten the importance hierarchy, lighting the graph
+ * up uniformly instead of highlighting what actually moved. (Decoration still
+ * shows `stable` on already-visible nodes — "re-tested, in range" is useful;
+ * only the importance promotion is withheld.)
+ */
+export function meaningfulMoves(changes: MarkerChange[]): MarkerChange[] {
+  return changes.filter((c) => c.classification !== 'stable');
+}
+
 /** Minimal node shape both GraphNodeRecord and GraphNodeWire satisfy. */
 type ChangeMatchableNode = {
   id: string;

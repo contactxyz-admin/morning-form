@@ -8,7 +8,11 @@ import {
 } from '@/lib/graph/queries';
 import { aggregateRecord } from '@/lib/record/aggregate';
 import { diffLatestPanels, type PanelDiff } from '@/lib/markers/panel-diff';
-import { applyChangesToWireNodes, changedNodeIds } from '@/lib/markers/node-change-map';
+import {
+  applyChangesToWireNodes,
+  changedNodeIds,
+  meaningfulMoves,
+} from '@/lib/markers/node-change-map';
 
 /**
  * GET /api/record
@@ -60,10 +64,13 @@ export async function GET() {
         : Promise.resolve(null as PanelDiff | null),
     ]);
 
-    // Lift changed markers' importance BEFORE the cap so a freshly-moved
-    // marker can't be dropped from the rendered set.
+    // Lift markers that MEANINGFULLY moved (excl. `stable`) BEFORE the cap so
+    // a freshly-moved marker can't be dropped from the rendered set — without
+    // promoting every re-tested-but-unchanged marker to tier 1.
     const changed =
-      diff && diff.previousPanelAt ? changedNodeIds(nodes, diff.changes) : undefined;
+      diff && diff.previousPanelAt
+        ? changedNodeIds(nodes, meaningfulMoves(diff.changes))
+        : undefined;
 
     // Recency map is computed only when there are nodes — otherwise the IN ()
     // would round-trip for nothing. Importance scoring still works without
