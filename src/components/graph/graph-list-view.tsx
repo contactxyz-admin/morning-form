@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { cn } from '@/lib/utils';
+import { changeDirectionGlyph } from '@/lib/markers/change-presentation';
 import type { GraphNodeWire, NodeChangeWire, NodeType, ImportanceTier } from '@/types/graph';
 
 /**
@@ -149,8 +150,7 @@ const CHANGE_CHIP_TONE: Record<string, string> = {
 };
 
 function ChangeChip({ change }: { change: NodeChangeWire }) {
-  const arrow =
-    change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : change.direction === 'flat' ? '→' : '';
+  const arrow = change.direction ? changeDirectionGlyph(change.direction) : '';
   const tone = CHANGE_CHIP_TONE[change.classification] ?? 'text-text-tertiary';
   return (
     <span className={cn('mt-1 inline-block font-mono text-[10px] uppercase tracking-[0.08em]', tone)}>

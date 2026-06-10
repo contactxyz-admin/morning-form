@@ -9,6 +9,10 @@ import { cn } from '@/lib/utils';
 import type { GraphNodeWire, NodeType } from '@/types/graph';
 import type { SourceDocumentKind } from '@/lib/graph/types';
 import { kindLabel } from '@/lib/record/source-view';
+import {
+  changeClassificationLabel,
+  changeDirectionGlyph,
+} from '@/lib/markers/change-presentation';
 import type { TopicReference } from '@/lib/topics/node-topics';
 
 interface ProvenanceItemWire {
@@ -205,16 +209,6 @@ export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTop
   );
 }
 
-// Range-relative, descriptive labels — never value-judgements (matches the
-// /decisions card vocabulary). Plan 2026-06-10-003 U4.
-const CHANGE_LABEL: Record<string, string> = {
-  improved: 'Toward range',
-  worsened: 'Away from range',
-  stable: 'In range',
-  new: 'New reading',
-  unclassified: 'Changed',
-};
-
 function fmtChangeDate(iso: string | null): string {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('en-GB', {
@@ -228,7 +222,9 @@ function fmtChangeDate(iso: string | null): string {
 function ChangeSince({ node }: { node: GraphNodeWire }) {
   const change = node.change;
   if (!change) return null;
-  const arrow = change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : change.direction === 'flat' ? '→' : '';
+  // `new` (null direction) has no before-value, so its glyph isn't rendered
+  // inline below — the empty string keeps the before/after row clean.
+  const arrow = change.direction ? changeDirectionGlyph(change.direction) : '';
   return (
     <section>
       <SectionLabel>Since your last test</SectionLabel>
@@ -243,7 +239,7 @@ function ChangeSince({ node }: { node: GraphNodeWire }) {
         )}
         {change.unit && <span className="text-text-tertiary"> {change.unit}</span>}
         <span className="ml-2 inline-flex rounded-full bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
-          {CHANGE_LABEL[change.classification] ?? 'Changed'}
+          {changeClassificationLabel(change.classification)}
         </span>
       </p>
       {(change.beforeAt || change.afterAt) && (

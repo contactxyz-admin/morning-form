@@ -6,16 +6,9 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import * as d3 from 'd3';
-import { changeGlyph, computeMotionAllowed } from './use-graph-state';
-
-describe('changeGlyph', () => {
-  it('maps directions to arrows and `new` (null) to plus', () => {
-    expect(changeGlyph('up')).toBe('↑');
-    expect(changeGlyph('down')).toBe('↓');
-    expect(changeGlyph('flat')).toBe('→');
-    expect(changeGlyph(null)).toBe('+');
-  });
-});
+import { computeMotionAllowed } from './use-graph-state';
+// changeGlyph moved to @/lib/markers/change-presentation (changeDirectionGlyph),
+// tested there — the canvas badge consumes it.
 
 describe('computeMotionAllowed', () => {
   it('returns false when window is undefined (SSR / node)', () => {

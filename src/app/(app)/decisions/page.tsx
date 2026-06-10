@@ -17,6 +17,10 @@ import type { Action, BookingRequest, ActionOutcome } from '@prisma/client';
 import { buildMarkerTrajectory } from '@/lib/markers/trajectory';
 import { diffLatestPanels, type MarkerChange, type PanelDiff } from '@/lib/markers/panel-diff';
 import {
+  changeClassificationLabel,
+  changeDirectionGlyph,
+} from '@/lib/markers/change-presentation';
+import {
   BookingStatusList,
   type BookingRow,
 } from '@/app/reveal/priorities/marker/[name]/booking-status-client';
@@ -292,22 +296,16 @@ function fmtDate(d: Date | string): string {
   });
 }
 
-// Descriptive, range-relative styling — never "good/bad", just toward/away
-// from the reference interval (matches classifyChange's vocabulary).
-const CHANGE_STYLES: Record<MarkerChange['classification'], { chip: string; label: string }> = {
-  improved: { chip: 'bg-emerald-100 text-emerald-800', label: 'Toward range' },
-  worsened: { chip: 'bg-amber-100 text-amber-800', label: 'Away from range' },
-  stable: { chip: 'bg-gray-100 text-gray-600', label: 'In range' },
-  unclassified: { chip: 'bg-gray-100 text-gray-600', label: 'Changed' },
-  new: { chip: 'bg-blue-100 text-blue-800', label: 'New' },
+// Chip colours per classification — descriptive, range-relative (never
+// "good/bad"). Labels + arrow glyphs come from the shared change-presentation
+// vocabulary so they can't drift from the canvas/list surfaces.
+const CHANGE_CHIP_STYLE: Record<MarkerChange['classification'], string> = {
+  improved: 'bg-emerald-100 text-emerald-800',
+  worsened: 'bg-amber-100 text-amber-800',
+  stable: 'bg-gray-100 text-gray-600',
+  unclassified: 'bg-gray-100 text-gray-600',
+  new: 'bg-blue-100 text-blue-800',
 };
-
-function arrow(direction: MarkerChange['direction']): string {
-  if (direction === 'up') return '↑';
-  if (direction === 'down') return '↓';
-  if (direction === 'flat') return '→';
-  return '';
-}
 
 function PanelDiffCard({ diff }: { diff: PanelDiff }) {
   return (
@@ -320,22 +318,21 @@ function PanelDiffCard({ diff }: { diff: PanelDiff }) {
       </p>
       <ul className="mt-4 space-y-2">
         {diff.changes.map((c) => {
-          const style = CHANGE_STYLES[c.classification];
           return (
             <li key={c.marker} className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate text-body text-text-primary">{c.marker}</span>
               <span className="shrink-0 flex items-center gap-2 font-mono text-[11px]">
                 <span className="text-text-primary">
                   {c.beforeValue != null && (
-                    <span className="text-text-tertiary">{c.beforeValue} {arrow(c.direction)} </span>
+                    <span className="text-text-tertiary">{c.beforeValue} {changeDirectionGlyph(c.direction)} </span>
                   )}
                   <span className="font-semibold">{c.afterValue}</span>
                   {c.unit && <span className="text-text-tertiary"> {c.unit}</span>}
                 </span>
                 <span
-                  className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${style.chip}`}
+                  className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${CHANGE_CHIP_STYLE[c.classification]}`}
                 >
-                  {style.label}
+                  {changeClassificationLabel(c.classification)}
                 </span>
               </span>
             </li>
