@@ -107,6 +107,40 @@ export function selectionStrokeClass(type: NodeType): string {
 }
 
 /**
+ * "What changed since the last panel" tone for a biomarker node
+ * (Plan 2026-06-10-003 U2). Range-relative + descriptive: improved/worsened
+ * are read relative to the reference interval, not as value-judgements.
+ * Returns the pulse/static-ring stroke + the badge fill. Total over a plain
+ * string (defaults to the neutral tone) so it can't throw on an unexpected
+ * classification — mirrors the `?? 'data'` fallback above.
+ *
+ * MUST stay mirrored in the tailwind.config.ts safelist — these classes are
+ * referenced from src/lib and are JIT-dropped otherwise (the documented
+ * content-glob trap).
+ */
+export interface ChangeVisual {
+  readonly ringClass: string;
+  readonly badgeFillClass: string;
+}
+
+const CHANGE_VISUAL_NEUTRAL: ChangeVisual = {
+  ringClass: 'stroke-text-tertiary/70',
+  badgeFillClass: 'fill-text-tertiary',
+};
+
+const CHANGE_VISUAL_BY_CLASSIFICATION: Record<string, ChangeVisual> = {
+  improved: { ringClass: 'stroke-positive', badgeFillClass: 'fill-positive' },
+  worsened: { ringClass: 'stroke-alert', badgeFillClass: 'fill-alert' },
+  new: { ringClass: 'stroke-accent', badgeFillClass: 'fill-accent' },
+  stable: CHANGE_VISUAL_NEUTRAL,
+  unclassified: CHANGE_VISUAL_NEUTRAL,
+};
+
+export function changeVisual(classification: string): ChangeVisual {
+  return CHANGE_VISUAL_BY_CLASSIFICATION[classification] ?? CHANGE_VISUAL_NEUTRAL;
+}
+
+/**
  * Halo ring radius — node radius + 4, matching the forceCollide padding in
  * use-graph-state.ts so a halo can never overlap a neighbouring dot.
  */

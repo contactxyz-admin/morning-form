@@ -23,6 +23,30 @@ vi.mock('@/lib/graph/queries', () => ({
   getLatestSupportCapturedAt: (...args: unknown[]) => getLatestSupportCapturedAt(...args),
 }));
 
+// Longitudinal change-decoration (plan 2026-06-10-003 U1). Stub the panel
+// diff and a dynamic LONGITUDINAL_GRAPH_ENABLED flag; all other env fields
+// pass through to the real env so unrelated readers (registry, importance)
+// are unaffected.
+const { diffLatestPanelsMock, envState } = vi.hoisted(() => ({
+  diffLatestPanelsMock: vi.fn(),
+  envState: { LONGITUDINAL_GRAPH_ENABLED: '' },
+}));
+vi.mock('@/lib/markers/panel-diff', () => ({
+  diffLatestPanels: (...args: unknown[]) => diffLatestPanelsMock(...args),
+}));
+vi.mock('@/lib/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/env')>();
+  return {
+    ...actual,
+    env: new Proxy(actual.env as Record<string, unknown>, {
+      get: (target, prop) =>
+        prop === 'LONGITUDINAL_GRAPH_ENABLED'
+          ? envState.LONGITUDINAL_GRAPH_ENABLED
+          : (target as Record<string, unknown>)[prop as string],
+    }),
+  };
+});
+
 import { GET } from './route';
 
 function makeNode(id: string, canonicalKey: string): GraphNodeRecord {
@@ -61,7 +85,31 @@ describe('GET /api/record', () => {
     sourceDocumentFindMany.mockResolvedValue([]);
     topicPageFindMany.mockResolvedValue([]);
     getLatestSupportCapturedAt.mockResolvedValue(new Map());
+    envState.LONGITUDINAL_GRAPH_ENABLED = '';
+    diffLatestPanelsMock.mockResolvedValue(null);
   });
+
+  function ferritinDiff() {
+    return {
+      latestPanelAt: '2026-06-01T00:00:00.000Z',
+      previousPanelAt: '2026-04-01T00:00:00.000Z',
+      changes: [
+        {
+          marker: 'Ferritin',
+          joinKey: 'ferritin',
+          unit: 'ug/L',
+          beforeValue: 18,
+          beforeAt: '2026-04-01T00:00:00.000Z',
+          afterValue: 41,
+          afterAt: '2026-06-01T00:00:00.000Z',
+          referenceLow: 30,
+          referenceHigh: 400,
+          direction: 'up' as const,
+          classification: 'improved' as const,
+        },
+      ],
+    };
+  }
 
   it('401 when unauthenticated', async () => {
     getCurrentUser.mockResolvedValue(null);
@@ -149,5 +197,72 @@ describe('GET /api/record', () => {
     const body = await res.json();
     expect(typeof body.nodes[0].createdAt).toBe('string');
     expect(body.nodes[0].createdAt).toBe('2026-05-01T00:00:00.000Z');
+  });
+
+  it('flag ON: decorates the matching biomarker node with its change (longitudinal U1)', async () => {
+    envState.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    diffLatestPanelsMock.mockResolvedValue(ferritinDiff());
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body.nodes[0].change).toMatchObject({
+      classification: 'improved',
+      direction: 'up',
+      beforeValue: 18,
+      afterValue: 41,
+      unit: 'ug/L',
+    });
+    // The reference range is dropped from the wire decoration.
+    expect(body.nodes[0].change).not.toHaveProperty('referenceLow');
+  });
+
+  it('flag OFF: never calls the diff and emits no change field (byte-for-byte parity)', async () => {
+    envState.LONGITUDINAL_GRAPH_ENABLED = '';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    // Even if the diff would return changes, the flag-off path must not call it.
+    diffLatestPanelsMock.mockResolvedValue(ferritinDiff());
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(diffLatestPanelsMock).not.toHaveBeenCalled();
+    expect(body.nodes[0]).not.toHaveProperty('change');
+  });
+
+  it('flag ON but diff throws: degrades to no decoration, not a 500', async () => {
+    envState.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    diffLatestPanelsMock.mockRejectedValue(new Error('diff boom'));
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.nodes[0]).not.toHaveProperty('change');
+  });
+
+  it('flag ON, only one panel (no previous): no decoration', async () => {
+    envState.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    diffLatestPanelsMock.mockResolvedValue({
+      latestPanelAt: '2026-06-01T00:00:00.000Z',
+      previousPanelAt: null,
+      changes: [{ ...ferritinDiff().changes[0], classification: 'new', direction: null, beforeValue: null, beforeAt: null }],
+    });
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body.nodes[0]).not.toHaveProperty('change');
   });
 });

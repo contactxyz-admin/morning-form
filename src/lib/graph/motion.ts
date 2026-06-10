@@ -18,6 +18,27 @@ function clamp(t: number): number {
   return t;
 }
 
+// ── Change pulse (Plan 2026-06-10-003 U2) ──
+
+/** Default peak scale for the one-shot change pulse (subtle — clinically calm). */
+export const PULSE_PEAK = 1.18;
+
+/**
+ * One-shot pulse scale for a node that changed since the last panel.
+ * `easedAlpha` is normalized time [0,1]; the scale rises from 1 to `peak` at
+ * the midpoint and returns to 1 at the end (a single swell, no residual).
+ *
+ * Applied as a transform-scale on the node's own `<g>` — NEVER to the
+ * force-solved x/y — so the converged layout (the determinism contract from
+ * Plan 2026-06-08-001) is untouched and the animation ends at a frozen rest.
+ */
+export function pulseScale(easedAlpha: number, peak: number = PULSE_PEAK): number {
+  const t = clamp(easedAlpha);
+  // sin(pi*t): 0 at the ends, 1 at t=0.5 — a symmetric swell that returns to
+  // exactly 1 so there is no lingering scale once the animation completes.
+  return 1 + (peak - 1) * Math.sin(Math.PI * t);
+}
+
 // ── Frame stepper ──
 
 export interface MotionPoint {
