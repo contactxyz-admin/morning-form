@@ -25,6 +25,30 @@ function matchesTopic(node: GraphNodeRecord, patterns: string[]): boolean {
 }
 
 /**
+ * Lab-reading history instances: `observation` nodes that are INSTANCE_OF a
+ * `biomarker` concept (longitudinal plan 2026-06-10-002 U6). These are dated
+ * points behind a marker's trajectory, not graph concepts — they would flood
+ * the canvas and the recent-activity log and consume the node cap. We exclude
+ * them from the vault payload entirely; history surfaces via trajectories and
+ * the panel diff instead. Standalone vital-sign observations (T4 — no
+ * INSTANCE_OF to a biomarker) are NOT affected.
+ */
+function computeLabInstanceIds(
+  nodes: GraphNodeRecord[],
+  edges: AggregateInput['edges'],
+): Set<string> {
+  const typeById = new Map(nodes.map((n) => [n.id, n.type]));
+  const ids = new Set<string>();
+  for (const e of edges) {
+    if (e.type !== 'INSTANCE_OF') continue;
+    if (typeById.get(e.fromNodeId) === 'observation' && typeById.get(e.toNodeId) === 'biomarker') {
+      ids.add(e.fromNodeId);
+    }
+  }
+  return ids;
+}
+
+/**
  * Pure aggregator powering the unified `GET /api/record` endpoint (and the
  * legacy `/api/record/index` route during the Phase 2 transition). Kept
  * Prisma-free so tests can exercise the full surface with synthetic fixtures
@@ -39,8 +63,21 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
   const configs = listTopicConfigs();
   const topicRowByKey = new Map(input.topics.map((t) => [t.topicKey, t]));
 
+  // Strip lab-reading history instances before anything else sees them — the
+  // canvas/list, importance scoring + cap, type counts, and the activity log
+  // all operate on graph concepts, not trajectory points (plan U6).
+  const labInstanceIds = computeLabInstanceIds(input.nodes, input.edges);
+  const graphNodes =
+    labInstanceIds.size > 0 ? input.nodes.filter((n) => !labInstanceIds.has(n.id)) : input.nodes;
+  const graphEdges =
+    labInstanceIds.size > 0
+      ? input.edges.filter(
+          (e) => !labInstanceIds.has(e.fromNodeId) && !labInstanceIds.has(e.toNodeId),
+        )
+      : input.edges;
+
   const topics: TopicStatus[] = configs.map((config) => {
-    const matchingNodes = input.nodes.filter(
+    const matchingNodes = graphNodes.filter(
       (n) =>
         config.relevantNodeTypes.includes(n.type) &&
         matchesTopic(n, config.canonicalKeyPatterns),
@@ -48,7 +85,7 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
     const matchingNodeIds = new Set(matchingNodes.map((n) => n.id));
 
     const sourceIds = new Set<string>();
-    for (const edge of input.edges) {
+    for (const edge of graphEdges) {
       if (!edge.fromDocumentId) continue;
       if (matchingNodeIds.has(edge.fromNodeId) || matchingNodeIds.has(edge.toNodeId)) {
         sourceIds.add(edge.fromDocumentId);
@@ -90,7 +127,7 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
       targetHref: `/topics/${t.topicKey}`,
     });
   }
-  for (const n of input.nodes) {
+  for (const n of graphNodes) {
     activities.push({
       _sortTs: n.createdAt.getTime(),
       ts: n.createdAt.toISOString(),
@@ -113,7 +150,7 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
   // shape (string timestamps) so clients consume it directly without an
   // adapter pass.
   const nodeCap = input.nodeCap ?? DEFAULT_NODE_CAP;
-  const totalNodes = input.nodes.length;
+  const totalNodes = graphNodes.length;
 
   let nodes: GraphNodeWire[] = [];
   let edges: GraphEdgeWire[] = [];
@@ -122,12 +159,12 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
 
   if (totalNodes > 0) {
     const scores = computeImportance({
-      nodes: input.nodes,
-      edges: input.edges,
+      nodes: graphNodes,
+      edges: graphEdges,
       recencyMap: input.recencyMap,
     });
 
-    const scoredPairs: Array<{ record: GraphNodeRecord; score: number }> = input.nodes.map(
+    const scoredPairs: Array<{ record: GraphNodeRecord; score: number }> = graphNodes.map(
       (record) => {
         const s = scores.get(record.id)!;
         return { record, score: s.score };
@@ -144,7 +181,7 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
     });
 
     const keptIds = new Set(nodes.map((n) => n.id));
-    edges = input.edges
+    edges = graphEdges
       .filter((e) => keptIds.has(e.fromNodeId) && keptIds.has(e.toNodeId))
       .map(edgeRecordToWire);
 

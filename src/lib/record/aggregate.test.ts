@@ -333,6 +333,33 @@ describe('aggregateRecord', () => {
       expect(result.nodeTypeCounts.intervention).toBe(1);
     });
 
+    it('excludes lab-reading observation instances (INSTANCE_OF a biomarker) from the canvas, counts, and activity (longitudinal U6)', () => {
+      const nodes = [
+        node('concept', 'biomarker', 'ferritin', 'Ferritin'),
+        node('obs1', 'observation', 'obs_ferritin_2026_04_01', 'Ferritin · 2026-04-01'),
+        node('obs2', 'observation', 'obs_ferritin_2026_06_01', 'Ferritin · 2026-06-01'),
+        // A standalone vital-sign observation (no INSTANCE_OF to a biomarker)
+        // must NOT be filtered.
+        node('vital', 'observation', 'bp_systolic', 'Systolic BP'),
+      ];
+      const edges = [
+        edge('obs1', 'concept', null, 'INSTANCE_OF'),
+        edge('obs2', 'concept', null, 'INSTANCE_OF'),
+      ];
+
+      const result = aggregateRecord({ topics: [], nodes, sources: [], edges });
+
+      const ids = result.nodes.map((n) => n.id).sort();
+      expect(ids).toEqual(['concept', 'vital']);
+      // Counts reflect graph concepts, not history points.
+      expect(result.totalNodes).toBe(2);
+      expect(result.graphSummary.nodeCount).toBe(2);
+      expect(result.nodeTypeCounts.observation).toBe(1); // only the vital
+      expect(result.nodeTypeCounts.biomarker).toBe(1);
+      // Instances don't appear in the recent-activity log either.
+      expect(result.recentActivity.some((a) => a.label.includes('· 2026-'))).toBe(false);
+    });
+
     it('recencyMap (when supplied) lifts the score of recent nodes', () => {
       const recentDate = new Date(); // very recent → within recency window
       const nodes = [
