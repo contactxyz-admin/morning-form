@@ -16,6 +16,7 @@
 
 import type { PrismaClient, Prisma } from '@prisma/client';
 import { parseJsonField } from '@/lib/graph/queries';
+import { markerJoinKey } from './marker-key';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -36,6 +37,12 @@ export type ChangeClassification =
 
 export interface MarkerChange {
   marker: string;
+  /**
+   * The marker's canonical join key (registryKey ?? canonicalKey, lowercased)
+   * — the stable identity callers use to map a change back onto its graph
+   * concept node without re-matching on the display name (plan 2026-06-10-003).
+   */
+  joinKey: string;
   unit: string;
   beforeValue: number | null;
   beforeAt: string | null;
@@ -136,6 +143,7 @@ export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDif
     if (!before) {
       changes.push({
         marker: after.marker,
+        joinKey,
         unit: after.unit,
         beforeValue: null,
         beforeAt: null,
@@ -156,6 +164,7 @@ export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDif
     );
     changes.push({
       marker: after.marker,
+      joinKey,
       unit: after.unit,
       beforeValue: before.value,
       beforeAt: before.measuredAt,
@@ -255,11 +264,7 @@ async function loadPanelInstances(
     if (!concept) continue;
 
     const cAttrs = parseJsonField(concept.attributes);
-    const joinKey = (
-      typeof cAttrs.registryKey === 'string' && cAttrs.registryKey
-        ? cAttrs.registryKey
-        : concept.canonicalKey
-    ).toLowerCase();
+    const joinKey = markerJoinKey(concept.canonicalKey, cAttrs.registryKey);
 
     out.set(joinKey, {
       marker: concept.displayName,

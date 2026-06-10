@@ -6,6 +6,7 @@ import {
   type NodeType,
 } from './types';
 import {
+  changeVisual,
   haloRadiusForTier,
   labelVisibleByDefault,
   radiusForTier,
@@ -13,6 +14,23 @@ import {
   visualForEdge,
   visualForNode,
 } from './visual-encoding';
+
+describe('changeVisual', () => {
+  it('maps improved/worsened/new to distinct tones', () => {
+    expect(changeVisual('improved')).toEqual({ ringClass: 'stroke-positive', badgeFillClass: 'fill-positive' });
+    expect(changeVisual('worsened')).toEqual({ ringClass: 'stroke-alert', badgeFillClass: 'fill-alert' });
+    expect(changeVisual('new')).toEqual({ ringClass: 'stroke-accent', badgeFillClass: 'fill-accent' });
+  });
+
+  it('treats stable and unclassified as the neutral tone', () => {
+    expect(changeVisual('stable')).toEqual(changeVisual('unclassified'));
+    expect(changeVisual('stable').badgeFillClass).toBe('fill-text-tertiary');
+  });
+
+  it('defaults an unknown classification to neutral rather than throwing', () => {
+    expect(changeVisual('wat')).toEqual(changeVisual('stable'));
+  });
+});
 
 describe('visualForNode', () => {
   it('returns one of the 4 visual classes for every NodeType', () => {

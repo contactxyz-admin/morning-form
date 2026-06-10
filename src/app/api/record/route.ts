@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import { prisma } from '@/lib/db';
+import { env } from '@/lib/env';
 import {
   getFullGraphForUser,
   getLatestSupportCapturedAt,
 } from '@/lib/graph/queries';
 import { aggregateRecord } from '@/lib/record/aggregate';
+import { diffLatestPanels } from '@/lib/markers/panel-diff';
+import { applyChangesToWireNodes } from '@/lib/markers/node-change-map';
 
 /**
  * GET /api/record
@@ -62,6 +65,22 @@ export async function GET() {
     // belongs here behind a separate rollout flag after grounding + latency
     // canary gates are met.
     const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap });
+
+    // "What changed since last panel" decoration on biomarker nodes
+    // (longitudinal plan 2026-06-10-003 U1). Flag-gated; runs after the cap
+    // so it only decorates rendered nodes. A diff failure must not 500 the
+    // vault — degrade to no decoration (flag-off → the payload is untouched).
+    if (env.LONGITUDINAL_GRAPH_ENABLED === 'true') {
+      try {
+        const diff = await diffLatestPanels(prisma, user.id);
+        if (diff && diff.previousPanelAt) {
+          applyChangesToWireNodes(index.nodes, diff.changes);
+        }
+      } catch (diffErr) {
+        const msg = diffErr instanceof Error ? diffErr.message : String(diffErr);
+        console.error(`[API] record panel-diff decoration failed (non-fatal): ${msg}`);
+      }
+    }
 
     return NextResponse.json(index, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {

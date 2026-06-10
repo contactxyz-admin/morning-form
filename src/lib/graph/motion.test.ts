@@ -4,6 +4,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   smooth,
+  pulseScale,
+  PULSE_PEAK,
   edgeOpacity,
   entranceFrame,
   clampToBounds,
@@ -12,6 +14,30 @@ import {
   boundsFromNodes,
   type ZoomFilterEvent,
 } from './motion';
+
+describe('pulseScale', () => {
+  it('starts and ends at exactly 1 (one-shot, no residual scale)', () => {
+    expect(pulseScale(0)).toBe(1);
+    expect(pulseScale(1)).toBeCloseTo(1, 10);
+  });
+
+  it('peaks at the midpoint', () => {
+    expect(pulseScale(0.5)).toBeCloseTo(PULSE_PEAK, 10);
+  });
+
+  it('is >= 1 across the interval (a swell, never a shrink)', () => {
+    for (let t = 0; t <= 1.0001; t += 0.05) expect(pulseScale(t)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('clamps out-of-range alpha to the rest scale', () => {
+    expect(pulseScale(-1)).toBe(1);
+    expect(pulseScale(2)).toBeCloseTo(1, 10);
+  });
+
+  it('respects a custom peak', () => {
+    expect(pulseScale(0.5, 1.5)).toBeCloseTo(1.5, 10);
+  });
+});
 
 describe('smooth', () => {
   it('is 0 at t=0 and 1 at t=1', () => {

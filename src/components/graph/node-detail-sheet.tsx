@@ -193,6 +193,7 @@ export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTop
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+              {node?.change && <ChangeSince node={node} />}
               <Attributes node={node} />
               <Provenance state={state} />
               {node && <AppearsIn nodeId={node.id} hydratedTopics={hydratedTopics} />}
@@ -201,6 +202,67 @@ export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTop
         </>
       )}
     </AnimatePresence>
+  );
+}
+
+// Range-relative, descriptive labels — never value-judgements (matches the
+// /decisions card vocabulary). Plan 2026-06-10-003 U4.
+const CHANGE_LABEL: Record<string, string> = {
+  improved: 'Toward range',
+  worsened: 'Away from range',
+  stable: 'In range',
+  new: 'New reading',
+  unclassified: 'Changed',
+};
+
+function fmtChangeDate(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function ChangeSince({ node }: { node: GraphNodeWire }) {
+  const change = node.change;
+  if (!change) return null;
+  const arrow = change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : change.direction === 'flat' ? '→' : '';
+  return (
+    <section>
+      <SectionLabel>Since your last test</SectionLabel>
+      <p className="mt-3 font-mono text-body text-text-primary">
+        {change.beforeValue != null ? (
+          <>
+            <span className="text-text-tertiary">{change.beforeValue} {arrow} </span>
+            <span className="font-semibold">{change.afterValue}</span>
+          </>
+        ) : (
+          <span className="font-semibold">{change.afterValue}</span>
+        )}
+        {change.unit && <span className="text-text-tertiary"> {change.unit}</span>}
+        <span className="ml-2 inline-flex rounded-full bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
+          {CHANGE_LABEL[change.classification] ?? 'Changed'}
+        </span>
+      </p>
+      {(change.beforeAt || change.afterAt) && (
+        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
+          {change.beforeAt ? `${fmtChangeDate(change.beforeAt)} → ` : ''}
+          {fmtChangeDate(change.afterAt)}
+        </p>
+      )}
+      <Link
+        href={`/decisions/marker/${encodeURIComponent(node.displayName)}`}
+        className="mt-3 inline-block font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary hover:text-text-secondary transition-colors"
+      >
+        See trajectory →
+      </Link>
+      <p className="mt-3 text-caption text-text-tertiary leading-relaxed">
+        Described relative to this marker&rsquo;s reference range — information to discuss with a
+        clinician, not medical advice.
+      </p>
+    </section>
   );
 }
 

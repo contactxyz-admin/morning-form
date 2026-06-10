@@ -36,6 +36,14 @@ const config: Config = {
     // stroke-positive/80 already listed above)
     'stroke-alert/80',
     'stroke-text-tertiary/70',
+    // Change-decoration tones (Plan 2026-06-10-003 — changeVisual() in
+    // src/lib/graph/visual-encoding.ts): the panel-change ring + badge fill.
+    'stroke-positive',
+    'fill-positive',
+    'stroke-alert',
+    'fill-alert',
+    'fill-accent',
+    'fill-text-tertiary',
   ],
   theme: {
     extend: {

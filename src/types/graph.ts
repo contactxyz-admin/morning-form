@@ -6,8 +6,26 @@
 
 import type { EdgeType, NodeType } from '@/lib/graph/types';
 import type { ImportanceTier } from '@/lib/graph/importance';
+import type { ChangeClassification, ChangeDirection } from '@/lib/markers/panel-diff';
 
 export type { EdgeType, NodeType, ImportanceTier };
+
+/**
+ * "What changed since the last panel" for a biomarker node, attached by the
+ * record route when LONGITUDINAL_GRAPH_ENABLED is on (plan 2026-06-10-003).
+ * Range-relative + descriptive — no causal/diagnostic framing. Type-only
+ * import of the classification unions keeps the vocabulary single-sourced in
+ * panel-diff without a runtime dependency.
+ */
+export interface NodeChangeWire {
+  direction: ChangeDirection | null; // null for `new` (no prior value)
+  classification: ChangeClassification;
+  beforeValue: number | null;
+  beforeAt: string | null;
+  afterValue: number;
+  afterAt: string;
+  unit: string;
+}
 
 export interface GraphNodeWire {
   id: string;
@@ -22,6 +40,12 @@ export interface GraphNodeWire {
   updatedAt: string;
   tier: ImportanceTier;
   score: number;
+  /**
+   * Present only on biomarker nodes that moved vs the previous panel, and
+   * only when the longitudinal read surface is enabled. Absent otherwise —
+   * flag-off responses are byte-for-byte the pre-feature shape.
+   */
+  change?: NodeChangeWire;
 }
 
 export interface GraphEdgeWire {

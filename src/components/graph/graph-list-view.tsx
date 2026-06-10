@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/section-label';
 import { cn } from '@/lib/utils';
-import type { GraphNodeWire, NodeType, ImportanceTier } from '@/types/graph';
+import type { GraphNodeWire, NodeChangeWire, NodeType, ImportanceTier } from '@/types/graph';
 
 /**
  * Mobile/default list view for the Health Graph.
@@ -122,6 +122,7 @@ export function GraphListView({ nodes, onNodeClick }: Props) {
                     </span>
                     <TierDot tier={node.tier} />
                   </div>
+                  {node.change && <ChangeChip change={node.change} />}
                   {node.promoted && (
                     <span className="mt-1 inline-block font-mono text-[10px] uppercase tracking-[0.08em] text-accent/70">
                       Promoted
@@ -134,6 +135,28 @@ export function GraphListView({ nodes, onNodeClick }: Props) {
         </section>
       ))}
     </div>
+  );
+}
+
+// Static "what changed since last panel" chip — mobile parity for the canvas
+// badge (Plan 2026-06-10-003 U4). Range-relative + descriptive, no motion.
+const CHANGE_CHIP_TONE: Record<string, string> = {
+  improved: 'text-positive',
+  worsened: 'text-alert',
+  new: 'text-accent',
+  stable: 'text-text-tertiary',
+  unclassified: 'text-text-tertiary',
+};
+
+function ChangeChip({ change }: { change: NodeChangeWire }) {
+  const arrow =
+    change.direction === 'up' ? '↑' : change.direction === 'down' ? '↓' : change.direction === 'flat' ? '→' : '';
+  const tone = CHANGE_CHIP_TONE[change.classification] ?? 'text-text-tertiary';
+  return (
+    <span className={cn('mt-1 inline-block font-mono text-[10px] uppercase tracking-[0.08em]', tone)}>
+      {change.beforeValue != null ? `${change.beforeValue} ${arrow} ${change.afterValue}` : `${arrow} ${change.afterValue}`}
+      {change.unit ? ` ${change.unit}` : ''}
+    </span>
   );
 }
 
