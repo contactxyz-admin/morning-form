@@ -120,10 +120,22 @@ lab series.
   vitals observations unaffected.
 - [x] **U7: "What changed" card on `/decisions`** — server-rendered card atop
   the timeline (flag-gated, renders only when a previous panel exists).
-  Visual audit before flag flip (gate, per repo convention).
+  *Visual audit + the prod flag-flip remain (gate, per repo convention) — the
+  code ships dark behind `LONGITUDINAL_GRAPH_ENABLED`.*
 - [x] **U8: Backfill** — `src/lib/markers/backfill-observations.ts` (lib, tested)
-  + `scripts/backfill-lab-observations.ts` runner; emits instances from
-  existing concept nodes' stored value+collectionDate; idempotent by key.
+  + `scripts/backfill-lab-observations.ts` runner (+ `markers:backfill-observations`
+  npm alias); emits instances from existing concept nodes' stored
+  value+collectionDate; idempotent by key.
+
+### Remaining before flag flip (not code units)
+
+- Visual audit of the `/decisions` panel-diff card (desktop + mobile) — the
+  one gate code review can't cover. The flag stays **off in prod** until then.
+- Demo persona fixture: add dated `observation` instances (the seed bypasses
+  the ingest path) so the demo shows multi-point lab trajectories. Deferred
+  task noted in Scope Boundaries.
+- Run the backfill (`markers:backfill-observations`) in prod after the flip so
+  existing single-value markers gain their anchor point.
 
 ## System-Wide Impact
 
