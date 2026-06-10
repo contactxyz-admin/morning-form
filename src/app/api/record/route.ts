@@ -7,8 +7,8 @@ import {
   getLatestSupportCapturedAt,
 } from '@/lib/graph/queries';
 import { aggregateRecord } from '@/lib/record/aggregate';
-import { diffLatestPanels } from '@/lib/markers/panel-diff';
-import { applyChangesToWireNodes } from '@/lib/markers/node-change-map';
+import { diffLatestPanels, type PanelDiff } from '@/lib/markers/panel-diff';
+import { applyChangesToWireNodes, changedNodeIds } from '@/lib/markers/node-change-map';
 
 /**
  * GET /api/record
@@ -35,7 +35,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     }
 
-    const [{ nodes, edges }, sources, topics] = await Promise.all([
+    // "What changed since last panel" diff (longitudinal plan 2026-06-10-003).
+    // Computed IN the parallel batch (not serially after aggregate) so it adds
+    // no latency to the hot vault path; it short-circuits cheaply for users
+    // with <2 lab panels. Flag-off → never runs. A diff failure degrades to
+    // null (no lift, no decoration) — it must never 500 the vault.
+    const longitudinal = env.LONGITUDINAL_GRAPH_ENABLED === 'true';
+    const [{ nodes, edges }, sources, topics, diff] = await Promise.all([
       getFullGraphForUser(prisma, user.id),
       prisma.sourceDocument.findMany({
         where: { userId: user.id },
@@ -45,7 +51,19 @@ export async function GET() {
         where: { userId: user.id },
         select: { topicKey: true, status: true, updatedAt: true },
       }),
+      longitudinal
+        ? diffLatestPanels(prisma, user.id).catch((diffErr: unknown) => {
+            const msg = diffErr instanceof Error ? diffErr.message : String(diffErr);
+            console.error(`[API] record panel-diff failed (non-fatal): ${msg}`);
+            return null as PanelDiff | null;
+          })
+        : Promise.resolve(null as PanelDiff | null),
     ]);
+
+    // Lift changed markers' importance BEFORE the cap so a freshly-moved
+    // marker can't be dropped from the rendered set.
+    const changed =
+      diff && diff.previousPanelAt ? changedNodeIds(nodes, diff.changes) : undefined;
 
     // Recency map is computed only when there are nodes — otherwise the IN ()
     // would round-trip for nothing. Importance scoring still works without
@@ -64,22 +82,11 @@ export async function GET() {
     // Keep the vault index importance-first for PR7; a future semantic boost
     // belongs here behind a separate rollout flag after grounding + latency
     // canary gates are met.
-    const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap });
+    const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap, changedNodeIds: changed });
 
-    // "What changed since last panel" decoration on biomarker nodes
-    // (longitudinal plan 2026-06-10-003 U1). Flag-gated; runs after the cap
-    // so it only decorates rendered nodes. A diff failure must not 500 the
-    // vault — degrade to no decoration (flag-off → the payload is untouched).
-    if (env.LONGITUDINAL_GRAPH_ENABLED === 'true') {
-      try {
-        const diff = await diffLatestPanels(prisma, user.id);
-        if (diff && diff.previousPanelAt) {
-          applyChangesToWireNodes(index.nodes, diff.changes);
-        }
-      } catch (diffErr) {
-        const msg = diffErr instanceof Error ? diffErr.message : String(diffErr);
-        console.error(`[API] record panel-diff decoration failed (non-fatal): ${msg}`);
-      }
+    // Decorate the (now cap-surviving) biomarker nodes with their change.
+    if (diff && diff.previousPanelAt) {
+      applyChangesToWireNodes(index.nodes, diff.changes);
     }
 
     return NextResponse.json(index, { headers: { 'Cache-Control': 'no-store' } });

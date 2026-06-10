@@ -113,6 +113,12 @@ export interface AggregateInput {
    * specifics aren't under test.
    */
   recencyMap?: Map<string, Date | null>;
+  /**
+   * Node ids that changed since the user's last panel. Lifts their importance
+   * so a freshly-moved marker survives the node cap (plan 2026-06-10-003
+   * follow-up). Supplied flag-on by the route; omit otherwise.
+   */
+  changedNodeIds?: ReadonlySet<string>;
   /** Defaults to 200 (matches the previous `/api/graph` cap). */
   nodeCap?: number;
 }

@@ -21,7 +21,11 @@ interface Props {
 }
 
 export default async function MarkerTrajectoryPage({ params }: Props) {
-  if (env.DECISIONS_ENABLED !== 'true') {
+  // Reachable when EITHER flag is on. The trajectory IS the longitudinal
+  // feature, and the canvas "See trajectory" link appears whenever
+  // LONGITUDINAL_GRAPH_ENABLED is on — gating only on DECISIONS_ENABLED would
+  // dead-link it to /home when Decisions is off (plan 2026-06-10-003 follow-up).
+  if (env.DECISIONS_ENABLED !== 'true' && env.LONGITUDINAL_GRAPH_ENABLED !== 'true') {
     redirect('/home');
   }
 

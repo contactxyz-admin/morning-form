@@ -35,6 +35,34 @@ export function buildChangeByJoinKey(changes: MarkerChange[]): Map<string, NodeC
   return m;
 }
 
+/** Minimal node shape both GraphNodeRecord and GraphNodeWire satisfy. */
+type ChangeMatchableNode = {
+  id: string;
+  type: string;
+  canonicalKey: string;
+  attributes: Record<string, unknown>;
+};
+
+/**
+ * Ids of biomarker nodes that changed — used to lift their importance BEFORE
+ * the node cap so a freshly-moved marker can't be dropped (plan
+ * 2026-06-10-003 follow-up). Runs on the raw node records (pre-aggregate),
+ * matching the same join key as the decoration.
+ */
+export function changedNodeIds(
+  nodes: ReadonlyArray<ChangeMatchableNode>,
+  changes: MarkerChange[],
+): Set<string> {
+  const ids = new Set<string>();
+  if (changes.length === 0) return ids;
+  const keys = new Set(changes.map((c) => c.joinKey));
+  for (const node of nodes) {
+    if (node.type !== 'biomarker') continue;
+    if (keys.has(markerJoinKey(node.canonicalKey, node.attributes?.registryKey))) ids.add(node.id);
+  }
+  return ids;
+}
+
 /**
  * Attach `change` to each biomarker wire node whose join key matches a change.
  * Mutates and returns the same array (cheap; the route owns these objects).

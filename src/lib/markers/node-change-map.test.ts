@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GraphNodeWire } from '@/types/graph';
 import type { MarkerChange } from './panel-diff';
-import { applyChangesToWireNodes, buildChangeByJoinKey } from './node-change-map';
+import { applyChangesToWireNodes, buildChangeByJoinKey, changedNodeIds } from './node-change-map';
 
 function change(overrides: Partial<MarkerChange> = {}): MarkerChange {
   return {
@@ -93,5 +93,23 @@ describe('applyChangesToWireNodes', () => {
     const nodes = [wireNode({ canonicalKey: 'hba1c' })];
     applyChangesToWireNodes(nodes, [change({ joinKey: 'ferritin' })]);
     expect(nodes[0].change).toBeUndefined();
+  });
+});
+
+describe('changedNodeIds', () => {
+  it('returns ids of biomarker nodes whose join key matches a change', () => {
+    const nodes = [
+      wireNode({ id: 'a', canonicalKey: 'ferritin' }),
+      wireNode({ id: 'b', canonicalKey: 'serum_ferritin', attributes: { registryKey: 'ferritin' } }),
+      wireNode({ id: 'c', canonicalKey: 'hba1c' }),
+    ];
+    const ids = changedNodeIds(nodes, [change({ joinKey: 'ferritin' })]);
+    expect(ids).toEqual(new Set(['a', 'b'])); // both ferritin variants; not hba1c
+  });
+
+  it('never includes a non-biomarker node, and is empty with no changes', () => {
+    const nodes = [wireNode({ id: 's', type: 'symptom', canonicalKey: 'ferritin' })];
+    expect(changedNodeIds(nodes, [change()])).toEqual(new Set());
+    expect(changedNodeIds([wireNode()], [])).toEqual(new Set());
   });
 });

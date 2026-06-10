@@ -144,6 +144,7 @@ export function aggregateRecord(input: AggregateInput): RecordIndex {
       nodes: graphNodes,
       edges: graphEdges,
       recencyMap: input.recencyMap,
+      changedNodeIds: input.changedNodeIds,
     });
 
     const scoredPairs: Array<{ record: GraphNodeRecord; score: number }> = graphNodes.map(
