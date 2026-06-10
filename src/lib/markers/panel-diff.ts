@@ -101,10 +101,12 @@ export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDif
   const prevDoc = docs[1] ?? null;
 
   const latest = await loadPanelInstances(db, userId, latestDoc.id);
-  const previous = prevDoc ? await loadPanelInstances(db, userId, prevDoc.id) : new Map();
+  const previous = prevDoc
+    ? await loadPanelInstances(db, userId, prevDoc.id)
+    : new Map<string, InstanceRow>();
 
   const changes: MarkerChange[] = [];
-  for (const [marker, after] of latest) {
+  for (const [marker, after] of Array.from(latest.entries())) {
     const before = previous.get(marker);
     if (!before) {
       changes.push({

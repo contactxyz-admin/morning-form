@@ -15,6 +15,7 @@ import { getCurrentUser } from '@/lib/session';
 import { env } from '@/lib/env';
 import type { Action, BookingRequest, ActionOutcome } from '@prisma/client';
 import { buildMarkerTrajectory } from '@/lib/markers/trajectory';
+import { diffLatestPanels, type MarkerChange, type PanelDiff } from '@/lib/markers/panel-diff';
 import {
   BookingStatusList,
   type BookingRow,
@@ -102,6 +103,15 @@ export default async function DecisionsPage() {
 
   const hasContent = actions.length > 0 || unlinkedRows.length > 0;
 
+  // "What changed since your last test" — only when the longitudinal surface
+  // is on AND the user has a previous panel to compare against (plan U7).
+  let panelDiff: PanelDiff | null = null;
+  if (env.LONGITUDINAL_GRAPH_ENABLED === 'true') {
+    panelDiff = await diffLatestPanels(prisma, user.id);
+  }
+  const showPanelDiff =
+    panelDiff !== null && panelDiff.previousPanelAt !== null && panelDiff.changes.length > 0;
+
   return (
     <div className="min-h-screen bg-bg px-5 sm:px-8 pt-16 pb-32">
       <div className="max-w-xl mx-auto">
@@ -111,6 +121,8 @@ export default async function DecisionsPage() {
         <p className="mt-2 text-body text-text-secondary leading-relaxed">
           Actions you&rsquo;ve chosen to act on — from suggestion to outcome.
         </p>
+
+        {showPanelDiff && panelDiff && <PanelDiffCard diff={panelDiff} />}
 
         {!hasContent ? (
           <div className="mt-16 text-center">
@@ -267,6 +279,64 @@ function fmtDate(d: Date | string): string {
   return date.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short',
   });
+}
+
+// Descriptive, range-relative styling — never "good/bad", just toward/away
+// from the reference interval (matches classifyChange's vocabulary).
+const CHANGE_STYLES: Record<MarkerChange['classification'], { chip: string; label: string }> = {
+  improved: { chip: 'bg-emerald-100 text-emerald-800', label: 'Toward range' },
+  worsened: { chip: 'bg-amber-100 text-amber-800', label: 'Away from range' },
+  stable: { chip: 'bg-gray-100 text-gray-600', label: 'In range' },
+  unclassified: { chip: 'bg-gray-100 text-gray-600', label: 'Changed' },
+  new: { chip: 'bg-blue-100 text-blue-800', label: 'New' },
+};
+
+function arrow(direction: MarkerChange['direction']): string {
+  if (direction === 'up') return '↑';
+  if (direction === 'down') return '↓';
+  if (direction === 'flat') return '→';
+  return '';
+}
+
+function PanelDiffCard({ diff }: { diff: PanelDiff }) {
+  return (
+    <div className="mt-8 border border-border rounded-card p-5 bg-surface">
+      <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
+        What changed since your last test
+      </p>
+      <p className="mt-1 text-caption text-text-secondary">
+        {fmtDate(diff.previousPanelAt!)} → {fmtDate(diff.latestPanelAt)}
+      </p>
+      <ul className="mt-4 space-y-2">
+        {diff.changes.map((c) => {
+          const style = CHANGE_STYLES[c.classification];
+          return (
+            <li key={c.marker} className="flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-body text-text-primary">{c.marker}</span>
+              <span className="shrink-0 flex items-center gap-2 font-mono text-[11px]">
+                <span className="text-text-primary">
+                  {c.beforeValue != null && (
+                    <span className="text-text-tertiary">{c.beforeValue} {arrow(c.direction)} </span>
+                  )}
+                  <span className="font-semibold">{c.afterValue}</span>
+                  {c.unit && <span className="text-text-tertiary"> {c.unit}</span>}
+                </span>
+                <span
+                  className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${style.chip}`}
+                >
+                  {style.label}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-4 text-caption text-text-tertiary leading-relaxed">
+        Changes are described relative to each marker&rsquo;s reference range. This is
+        information to help you prepare for a conversation with a clinician, not medical advice.
+      </p>
+    </div>
+  );
 }
 
 function safeJsonParse(v: string | null): string[] {
