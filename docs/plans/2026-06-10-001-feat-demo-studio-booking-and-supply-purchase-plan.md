@@ -74,6 +74,13 @@ The demo's chat tab (`src/app/demo/ask/page.tsx`) is four single-turn Q/A swaps 
 - Exact card microcopy (slot labels, confirmation lines, preview tags) — authored against the scan patterns, joins the copy-review pass (U4).
 - Slot count and rendering at 320px (2 vs 3 slots; chip wrap) — visual audit decides.
 
+### Resolved During Implementation
+- **Slot identity is locale-independent**: `DemoSlot.id` encodes the date (`slot-2026-6-11`) so tests assert exactly regardless of ICU formatting; labels render via `Intl.DateTimeFormat('en-GB')` ("Thu 11 Jun · 8:40").
+- **Confirm affordance reuses `Button` (primary, sm)**; slot chips reuse the surface's existing chip classes — no new visual primitives.
+- **Card header rows wrap** (`flex-wrap`) so the preview tag and price tag break cleanly inside the 85% column at 320px.
+- **Visual audit performed locally** (headless Chromium): desktop 1280px + mobile 320px, all four card states (booking pre/booked, supply pre/ordered) — slot chips wrap without truncation; screenshots ready for the PR description.
+- **Bubble `id` doubles as the React key and the scroll-anchor** — sequence ids stay unique (tested) so keys never collide across chips.
+
 ### Open for Reuben
 - **Studio city**: default **"Morning Form Studio — SoHo, New York"** (deck is US-first; NYC is a named warm-partnership city). London instead is a one-string change in the content module.
 - **Supply product name**: placeholder **"Form Supply — Recovery Stack"** (ties to the persona's sleep/HRV arc). Naming is brand strategy; flag before the PR merges.
@@ -82,7 +89,7 @@ The demo's chat tab (`src/app/demo/ask/page.tsx`) is four single-turn Q/A swaps 
 
 ## Implementation Units
 
-- [ ] **Unit 1: Pricing constants + sequence engine + content**
+- [x] **Unit 1: Pricing constants + sequence engine + content**
 
 **Goal:** The two sequences exist as data + a pure state machine, fully tested, scan-covered.
 
@@ -105,7 +112,7 @@ The demo's chat tab (`src/app/demo/ask/page.tsx`) is four single-turn Q/A swaps 
 
 **Verification:** `npx vitest run src/lib/demo src/lib/compliance` green.
 
-- [ ] **Unit 2: Studio booking card + sequence wiring**
+- [x] **Unit 2: Studio booking card + sequence wiring**
 
 **Goal:** R-A end-to-end on `/demo/ask`.
 
@@ -125,7 +132,7 @@ The demo's chat tab (`src/app/demo/ask/page.tsx`) is four single-turn Q/A swaps 
 
 **Verification:** Visual audit screenshots (desktop + mobile) of pre-pick and booked states on the PR.
 
-- [ ] **Unit 3: Supply order card + sequence wiring**
+- [x] **Unit 3: Supply order card + sequence wiring**
 
 **Goal:** R-B end-to-end on `/demo/ask`.
 
@@ -146,7 +153,7 @@ The demo's chat tab (`src/app/demo/ask/page.tsx`) is four single-turn Q/A swaps 
 
 **Verification:** Visual audit screenshots of pre-confirm and ordered states; full vitest suite green.
 
-- [ ] **Unit 4: Copy, honesty, and audit pass (the gate)**
+- [x] **Unit 4: Copy, honesty, and audit pass (the gate)**
 
 **Goal:** The surface tells the truth and looks institutional; the PR carries the proof.
 
