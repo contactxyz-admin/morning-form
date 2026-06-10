@@ -93,6 +93,90 @@ describe('addNode dedup + merge', () => {
     expect(row?.displayName).toBe('Haemoglobin');
   });
 
+  it('rolls biomarker currency forward when the incoming reading is dated and newer', async () => {
+    const userId = await makeTestUser(prisma, 'addnode-roll-fwd');
+    const first = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: {
+        value: 18,
+        collectionDate: '2026-04-01',
+        latestValue: 18,
+        latestValueAt: '2026-04-01',
+        flaggedOutOfRange: true,
+        unit: 'ug/L',
+      },
+    });
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'ferritin',
+      displayName: 'Ferritin',
+      attributes: {
+        value: 41,
+        collectionDate: '2026-06-01',
+        latestValue: 41,
+        latestValueAt: '2026-06-01',
+        flaggedOutOfRange: false,
+      },
+    });
+    const attrs = JSON.parse(
+      (await prisma.graphNode.findUnique({ where: { id: first.id } }))!.attributes!,
+    );
+    // Rolling currency moved to the newer reading…
+    expect(attrs.latestValue).toBe(41);
+    expect(attrs.latestValueAt).toBe('2026-06-01');
+    expect(attrs.flaggedOutOfRange).toBe(false);
+    // …while the first-seen anchor stays first-write-wins.
+    expect(attrs.value).toBe(18);
+    expect(attrs.collectionDate).toBe('2026-04-01');
+  });
+
+  it('does not let an OLDER dated reading clobber a newer biomarker currency (out-of-order upload)', async () => {
+    const userId = await makeTestUser(prisma, 'addnode-roll-guard');
+    const first = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'hba1c',
+      displayName: 'HbA1c',
+      attributes: { latestValue: 5.7, latestValueAt: '2026-02-10', flaggedOutOfRange: false },
+    });
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'hba1c',
+      displayName: 'HbA1c',
+      attributes: { latestValue: 6.1, latestValueAt: '2025-09-15', flaggedOutOfRange: true },
+    });
+    const attrs = JSON.parse(
+      (await prisma.graphNode.findUnique({ where: { id: first.id } }))!.attributes!,
+    );
+    expect(attrs.latestValue).toBe(5.7);
+    expect(attrs.latestValueAt).toBe('2026-02-10');
+    expect(attrs.flaggedOutOfRange).toBe(false);
+  });
+
+  it('keeps first-write-wins for UNDATED latestValue writes (intake narrative path unchanged)', async () => {
+    const userId = await makeTestUser(prisma, 'addnode-roll-undated');
+    const first = await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'vitamin_d',
+      displayName: 'Vitamin D',
+      attributes: { latestValue: 42, latestValueAt: '2026-04-01' },
+    });
+    // An undated re-extraction (e.g. narrative recall) must not clobber a
+    // dated current value — shouldApplyRollingFields requires a dated reading.
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'vitamin_d',
+      displayName: 'Vitamin D',
+      attributes: { latestValue: 99 },
+    });
+    const attrs = JSON.parse(
+      (await prisma.graphNode.findUnique({ where: { id: first.id } }))!.attributes!,
+    );
+    expect(attrs.latestValue).toBe(42);
+    expect(attrs.latestValueAt).toBe('2026-04-01');
+  });
+
   it('treats (userId, type, canonicalKey) as the dedup key — same key in different types is allowed', async () => {
     const userId = await makeTestUser(prisma, 'addnode-types');
     const a = await addNode(prisma, userId, {

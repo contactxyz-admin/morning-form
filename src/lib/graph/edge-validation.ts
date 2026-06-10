@@ -29,6 +29,16 @@ import {
 export interface EdgeEndpointRule {
   readonly validFromTypes: readonly NodeType[] | null;
   readonly validToTypes: readonly NodeType[] | null;
+  /**
+   * Optional per-from-type narrowing of the target list. When a fromType
+   * appears here, its targets are checked against this list INSTEAD of
+   * `validToTypes`. Added for INSTANCE_OF when `observation` → `biomarker`
+   * joined (longitudinal plan 2026-06-10-002 U1): the flat from×to lists
+   * would have newly permitted nonsense pairs the original table rejected
+   * (e.g. intervention_event → biomarker), so the instance→parent relation
+   * is expressed pairwise.
+   */
+  readonly validPairs?: Partial<Record<NodeType, readonly NodeType[]>>;
 }
 
 export const EDGE_ENDPOINT_RULES: Record<EdgeType, EdgeEndpointRule> = {
@@ -38,8 +48,14 @@ export const EDGE_ENDPOINT_RULES: Record<EdgeType, EdgeEndpointRule> = {
   CONTRADICTS: { validFromTypes: null, validToTypes: null },
   TEMPORAL_SUCCEEDS: { validFromTypes: null, validToTypes: null },
   INSTANCE_OF: {
-    validFromTypes: ['intervention_event', 'symptom_episode'],
-    validToTypes: ['intervention', 'medication', 'lifestyle', 'symptom', 'mood', 'energy'],
+    validFromTypes: ['intervention_event', 'symptom_episode', 'observation'],
+    validToTypes: ['intervention', 'medication', 'lifestyle', 'symptom', 'mood', 'energy', 'biomarker'],
+    validPairs: {
+      intervention_event: ['intervention', 'medication', 'lifestyle'],
+      symptom_episode: ['symptom', 'mood', 'energy'],
+      // A dated lab reading instance pointing at its marker concept node.
+      observation: ['biomarker'],
+    },
   },
   OUTCOME_CHANGED: {
     validFromTypes: ['intervention_event'],
@@ -61,7 +77,10 @@ for (const edgeType of EDGE_TYPES) {
   if (!rule) {
     throw new Error(`EDGE_ENDPOINT_RULES missing entry for ${edgeType}`);
   }
-  for (const list of [rule.validFromTypes, rule.validToTypes]) {
+  const pairLists = rule.validPairs
+    ? [Object.keys(rule.validPairs) as NodeType[], ...Object.values(rule.validPairs)]
+    : [];
+  for (const list of [rule.validFromTypes, rule.validToTypes, ...pairLists]) {
     if (list === null) continue;
     for (const t of list) {
       if (!(NODE_TYPES as readonly string[]).includes(t)) {
@@ -83,6 +102,15 @@ export function assertEdgeEndpoints(
   const rule = EDGE_ENDPOINT_RULES[edgeType];
   if (rule.validFromTypes && !rule.validFromTypes.includes(fromType)) {
     throw new EdgeEndpointViolation(edgeType, fromType, toType, 'invalid_from');
+  }
+  // Pairwise narrowing wins over the flat to-list when the fromType has an
+  // entry — see the validPairs doc comment.
+  const pairTargets = rule.validPairs?.[fromType];
+  if (pairTargets) {
+    if (!pairTargets.includes(toType)) {
+      throw new EdgeEndpointViolation(edgeType, fromType, toType, 'invalid_to');
+    }
+    return;
   }
   if (rule.validToTypes && !rule.validToTypes.includes(toType)) {
     throw new EdgeEndpointViolation(edgeType, fromType, toType, 'invalid_to');

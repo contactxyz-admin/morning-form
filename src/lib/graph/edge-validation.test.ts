@@ -48,6 +48,18 @@ describe('T8 edge-endpoint rule table', () => {
     );
   });
 
+  it('INSTANCE_OF accepts observation → biomarker (dated lab reading) and nothing else from observation', () => {
+    expect(() => assertEdgeEndpoints('INSTANCE_OF', 'observation', 'biomarker')).not.toThrow();
+    // Pairwise narrowing: observation instances only parent to biomarkers —
+    // the flat to-list (which includes symptom/mood/etc.) must not leak in.
+    expect(() => assertEdgeEndpoints('INSTANCE_OF', 'observation', 'symptom')).toThrow(
+      EdgeEndpointViolation,
+    );
+    expect(() => assertEdgeEndpoints('INSTANCE_OF', 'observation', 'intervention')).toThrow(
+      EdgeEndpointViolation,
+    );
+  });
+
   it('OUTCOME_CHANGED only accepts intervention_event → measurable nodes', () => {
     expect(() => assertEdgeEndpoints('OUTCOME_CHANGED', 'intervention_event', 'symptom')).not.toThrow();
     expect(() => assertEdgeEndpoints('OUTCOME_CHANGED', 'intervention_event', 'biomarker')).not.toThrow();

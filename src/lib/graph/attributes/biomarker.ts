@@ -17,6 +17,11 @@ export const BiomarkerAttributesSchema = z
   .object({
     value: z.number().optional(),
     latestValue: z.number().optional(),
+    // ISO date of the reading `latestValue` came from. Rolling (last-write-
+    // wins, date-guarded) alongside latestValue/flaggedOutOfRange so the
+    // concept node tracks "current" while dated history lives on
+    // `observation` instance nodes (longitudinal plan 2026-06-10-002 U1).
+    latestValueAt: z.string().optional(),
     unit: z.string().optional(),
     referenceRangeLow: z.number().nullable().optional(),
     referenceRangeHigh: z.number().nullable().optional(),
