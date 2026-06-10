@@ -10,7 +10,7 @@
  */
 
 import { Button } from '@/components/ui/button';
-import { SUPPLY_PRICE } from '@/lib/marketing/constants';
+import { DEMO_SUPPLY_PRICE } from '@/lib/marketing/constants';
 import {
   DEMO_SUPPLY_PRODUCT,
   SUPPLY_ORDER_REFERENCE,
@@ -29,7 +29,7 @@ export function SupplyOrderCard({ ordered, onConfirm }: Props) {
           {DEMO_SUPPLY_PRODUCT.previewTag}
         </p>
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-          {SUPPLY_PRICE.display} / {SUPPLY_PRICE.period}
+          {DEMO_SUPPLY_PRICE.display} / {DEMO_SUPPLY_PRICE.period}
         </p>
       </div>
 

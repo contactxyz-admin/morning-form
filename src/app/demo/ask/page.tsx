@@ -18,7 +18,7 @@
  * safe to share publicly.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { StudioBookingCard } from '@/components/demo/studio-booking-card';
 import { SupplyOrderCard } from '@/components/demo/supply-order-card';
@@ -37,8 +37,9 @@ export default function DemoAskPage() {
   const sequence =
     DEMO_ASK_SEQUENCES.find((s) => s.id === activeId) ?? DEMO_ASK_SEQUENCES[0];
 
-  // Computed once per visit — deterministic given `now`, never stale.
-  const slots = useMemo(() => upcomingSlots(new Date()), []);
+  // Recomputed on every chip selection so a tab left open past midnight
+  // never offers yesterday's "upcoming" slots (review finding, 2026-06-10).
+  const [slots, setSlots] = useState(() => upcomingSlots(new Date()));
   const items = buildSequenceItems(sequence, seqState, slots);
 
   // Autoscroll parity with MessageList: follow the conversation as it
@@ -51,8 +52,9 @@ export default function DemoAskPage() {
   const selectSequence = (id: string) => {
     setActiveId(id);
     // Switching chips resets the sequence — same mental model as the
-    // original turn swap.
+    // original turn swap — and refreshes the slot dates.
     setSeqState(INITIAL_SEQUENCE_STATE);
+    setSlots(upcomingSlots(new Date()));
   };
 
   return (
@@ -84,9 +86,11 @@ export default function DemoAskPage() {
               type="button"
               onClick={() => selectSequence(s.id)}
               className={
+                // globals.css suppresses the native outline globally, so
+                // interactive elements must restore their own focus ring.
                 s.id === activeId
-                  ? 'rounded-chip border border-text-primary bg-text-primary px-4 py-2 text-caption text-surface transition-[color,border-color,background-color] duration-300 ease-spring'
-                  : 'rounded-chip border border-border bg-surface px-4 py-2 text-caption text-text-secondary hover:border-border-strong hover:text-text-primary transition-[color,border-color] duration-300 ease-spring'
+                  ? 'rounded-chip border border-text-primary bg-text-primary px-4 py-2 text-caption text-surface transition-[color,border-color,background-color] duration-300 ease-spring focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-button-focus'
+                  : 'rounded-chip border border-border bg-surface px-4 py-2 text-caption text-text-secondary hover:border-border-strong hover:text-text-primary transition-[color,border-color] duration-300 ease-spring focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-button-focus'
               }
               aria-pressed={s.id === activeId}
             >
@@ -102,10 +106,10 @@ export default function DemoAskPage() {
                 <StudioBookingCard
                   key={`${sequence.id}-studio-card`}
                   slots={item.slots}
-                  pickedSlotId={item.pickedSlotId}
-                  onPickSlot={(slotId) =>
+                  pickedSlot={item.pickedSlot}
+                  onPickSlot={(slot) =>
                     setSeqState((s) =>
-                      advanceSequence(sequence, s, { type: 'pick-slot', slotId }),
+                      advanceSequence(sequence, s, { type: 'pick-slot', slot }),
                     )
                   }
                 />

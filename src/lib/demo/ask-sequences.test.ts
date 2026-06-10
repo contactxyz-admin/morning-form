@@ -57,17 +57,19 @@ describe('upcomingSlots', () => {
 });
 
 describe('advanceSequence', () => {
+  const slots = upcomingSlots(new Date(2026, 5, 10));
+
   it('books the studio sequence on pick-slot, exactly once', () => {
     const after = advanceSequence(booking(), INITIAL_SEQUENCE_STATE, {
       type: 'pick-slot',
-      slotId: 'slot-2026-6-11',
+      slot: slots[0],
     });
-    expect(after).toEqual({ stage: 'completed', pickedSlotId: 'slot-2026-6-11' });
+    expect(after).toEqual({ stage: 'completed', pickedSlot: slots[0] });
 
     // Completed is terminal — a second pick does not re-book.
     const repeat = advanceSequence(booking(), after, {
       type: 'pick-slot',
-      slotId: 'slot-2026-6-12',
+      slot: slots[1],
     });
     expect(repeat).toBe(after);
   });
@@ -76,7 +78,7 @@ describe('advanceSequence', () => {
     const after = advanceSequence(supply(), INITIAL_SEQUENCE_STATE, {
       type: 'confirm-order',
     });
-    expect(after.stage).toBe('completed');
+    expect(after).toEqual({ stage: 'completed', pickedSlot: null });
     expect(advanceSequence(supply(), after, { type: 'confirm-order' })).toBe(after);
   });
 
@@ -87,7 +89,7 @@ describe('advanceSequence', () => {
     expect(
       advanceSequence(supply(), INITIAL_SEQUENCE_STATE, {
         type: 'pick-slot',
-        slotId: 'slot-2026-6-11',
+        slot: slots[0],
       }),
     ).toBe(INITIAL_SEQUENCE_STATE);
     expect(
@@ -116,7 +118,7 @@ describe('buildSequenceItems', () => {
     expect(items.map((i) => i.kind)).toEqual(['bubble', 'bubble', 'studio-card']);
     const card = items[2];
     if (card.kind !== 'studio-card') throw new Error('expected studio card');
-    expect(card.pickedSlotId).toBeNull();
+    expect(card.pickedSlot).toBeNull();
     expect(card.slots).toHaveLength(3);
   });
 
@@ -124,7 +126,7 @@ describe('buildSequenceItems', () => {
     const picked = slots[1];
     const state = advanceSequence(booking(), INITIAL_SEQUENCE_STATE, {
       type: 'pick-slot',
-      slotId: picked.id,
+      slot: picked,
     });
     const items = buildSequenceItems(booking(), state, slots);
     expect(items.map((i) => i.kind)).toEqual([
@@ -135,7 +137,9 @@ describe('buildSequenceItems', () => {
     ]);
     const card = items[2];
     if (card.kind !== 'studio-card') throw new Error('expected studio card');
-    expect(card.pickedSlotId).toBe(picked.id);
+    // The card and the confirmation read the SAME object — divergence between
+    // the two render paths is structurally impossible (review finding).
+    expect(card.pickedSlot).toBe(picked);
     const confirmation = items[3];
     if (confirmation.kind !== 'bubble') throw new Error('expected confirmation bubble');
     expect(confirmation.bubble.content).toContain(picked.label);

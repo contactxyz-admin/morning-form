@@ -7,14 +7,16 @@
  * that advances the conversation when tapped. Everything here is
  * deterministic client-side fiction: no LLM, no DB, no payment.
  *
- * This module lives under `src/lib` (a static-copy SCAN_ROOT) so every
- * line of demo copy passes the compliance scan. Do NOT rename it to
- * anything containing "fixtures" — the scan walker skips such files and
- * the copy would silently go unscanned.
+ * `src/lib/demo` is a static-copy SCAN_ROOT (added alongside this module
+ * — src/lib at large is NOT scanned) so every line of demo copy passes
+ * the compliance scan. Do NOT rename this file to anything containing
+ * "fixtures" — the scan walker skips such files and the copy would
+ * silently go unscanned. A wiring test in static-copy.test.ts pins both.
  */
 
 import type { BubbleModel } from '@/components/chat/message-bubble';
 import type { Referral } from '@/lib/chat/types';
+import type { Citation } from '@/lib/topics/types';
 
 export type DemoTopicKey =
   | 'general'
@@ -83,17 +85,18 @@ const SLOT_DATE_FORMAT = new Intl.DateTimeFormat('en-GB', {
   month: 'short',
 });
 
-export function upcomingSlots(now: Date, count = 3): readonly DemoSlot[] {
+/** One slot per upcoming weekday, one time each — always SLOT_TIMES.length slots. */
+export function upcomingSlots(now: Date): readonly DemoSlot[] {
   const slots: DemoSlot[] = [];
   const cursor = new Date(now);
   cursor.setHours(0, 0, 0, 0);
-  while (slots.length < count) {
+  while (slots.length < SLOT_TIMES.length) {
     cursor.setDate(cursor.getDate() + 1);
     const day = cursor.getDay();
     if (day === 0 || day === 6) continue;
     slots.push({
       id: `slot-${cursor.getFullYear()}-${cursor.getMonth() + 1}-${cursor.getDate()}`,
-      label: `${SLOT_DATE_FORMAT.format(cursor)} · ${SLOT_TIMES[slots.length % SLOT_TIMES.length]}`,
+      label: `${SLOT_DATE_FORMAT.format(cursor)} · ${SLOT_TIMES[slots.length]}`,
     });
   }
   return slots;
@@ -106,16 +109,22 @@ export function upcomingSlots(now: Date, count = 3): readonly DemoSlot[] {
 
 export interface SequenceState {
   readonly stage: 'answered' | 'completed';
-  readonly pickedSlotId: string | null;
+  /**
+   * The slot the user tapped, stored whole. Carrying the object (not an
+   * id to re-resolve) means the card and the confirmation bubble read
+   * the same value by construction — no lookup, no fallback, no way for
+   * the two render paths to disagree (review finding, 2026-06-10).
+   */
+  readonly pickedSlot: DemoSlot | null;
 }
 
 export const INITIAL_SEQUENCE_STATE: SequenceState = {
   stage: 'answered',
-  pickedSlotId: null,
+  pickedSlot: null,
 };
 
 export type SequenceEvent =
-  | { readonly type: 'pick-slot'; readonly slotId: string }
+  | { readonly type: 'pick-slot'; readonly slot: DemoSlot }
   | { readonly type: 'confirm-order' };
 
 /**
@@ -130,10 +139,10 @@ export function advanceSequence(
 ): SequenceState {
   if (state.stage === 'completed') return state;
   if (sequence.interaction === 'studio-booking' && event.type === 'pick-slot') {
-    return { stage: 'completed', pickedSlotId: event.slotId };
+    return { stage: 'completed', pickedSlot: event.slot };
   }
   if (sequence.interaction === 'supply-order' && event.type === 'confirm-order') {
-    return { stage: 'completed', pickedSlotId: null };
+    return { stage: 'completed', pickedSlot: null };
   }
   return state;
 }
@@ -147,7 +156,7 @@ export type DemoAskItem =
   | {
       readonly kind: 'studio-card';
       readonly slots: readonly DemoSlot[];
-      readonly pickedSlotId: string | null;
+      readonly pickedSlot: DemoSlot | null;
     }
   | { readonly kind: 'supply-card'; readonly ordered: boolean };
 
@@ -156,6 +165,7 @@ function assistantBubble(
   content: string,
   topicKey: DemoTopicKey,
   referrals: readonly Referral[] = [],
+  citations: readonly Citation[] = [],
 ): BubbleModel {
   return {
     role: 'assistant',
@@ -163,7 +173,7 @@ function assistantBubble(
     content,
     topicKey,
     classification: 'clinical-safe',
-    citations: [],
+    citations,
     referrals,
   };
 }
@@ -185,19 +195,22 @@ export function buildSequenceItems(
         sequence.answer,
         sequence.topicKey,
         sequence.referrals,
+        // Honors the never[] contract: today this is always empty, and the
+        // type stops a sequence from carrying a real Citation; if that
+        // contract is ever relaxed, the citations flow through here.
+        sequence.citations ?? [],
       ),
     },
   ];
 
   if (sequence.interaction === 'studio-booking') {
-    items.push({ kind: 'studio-card', slots, pickedSlotId: state.pickedSlotId });
-    if (state.stage === 'completed') {
-      const picked = slots.find((s) => s.id === state.pickedSlotId) ?? slots[0];
+    items.push({ kind: 'studio-card', slots, pickedSlot: state.pickedSlot });
+    if (state.stage === 'completed' && state.pickedSlot) {
       items.push({
         kind: 'bubble',
         bubble: assistantBubble(
           `${sequence.id}-confirm`,
-          studioBookingConfirmation(picked),
+          studioBookingConfirmation(state.pickedSlot),
           sequence.topicKey,
         ),
       });

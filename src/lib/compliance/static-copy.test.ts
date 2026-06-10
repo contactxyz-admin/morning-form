@@ -31,6 +31,12 @@ const SCAN_ROOTS = [
   // surface as priority-marker content — descriptive register, never
   // directive.
   'content/test-routes',
+  // Demo chat sequence copy (Plan 2026-06-10-001). The canned /demo/ask
+  // copy moved out of src/app (scanned) into this lib module — without
+  // this root it would be silently unscanned (review catch). Scoped to
+  // src/lib/demo deliberately: wider src/lib roots would trip on policy
+  // modules that quote forbidden phrases by design.
+  'src/lib/demo',
 ];
 
 // Files that are allowed to mention these strings because that is their job.
@@ -208,5 +214,14 @@ describe('static copy guardrail', () => {
     const doseHit = DOSE_PATTERN.test(planted);
     const directiveHit = DIRECTIVE_PATTERNS.some((d) => d.pattern.test(planted));
     expect(drugHit || doseHit || directiveHit).toBe(true);
+  });
+
+  it('wires src/lib/demo into the scan so the canned demo-chat copy stays covered (Plan 2026-06-10-001)', () => {
+    expect(SCAN_ROOTS).toContain('src/lib/demo');
+    // The root actually contributes the sequence module to the scan set —
+    // catches a reverted SCAN_ROOTS entry or a rename into the walker's
+    // skip-list (filenames containing "fixtures" are skipped by design).
+    const scanned = collectFiles().map((f) => relative(ROOT, f).replace(/\\/g, '/'));
+    expect(scanned).toContain('src/lib/demo/ask-sequences.ts');
   });
 });

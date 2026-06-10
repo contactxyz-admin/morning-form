@@ -32,15 +32,18 @@ export const MEMBERSHIP_PRICE: Record<
  * Deck-aligned pricing for the not-yet-launched layers (Studios, Supply).
  * Surfaced today only on the public demo's preview cards (plan
  * 2026-06-10-001 R-F) — components import these, never literal price
- * strings. US-only until either layer has a real market rollout.
+ * strings. The DEMO_ prefix is deliberate: these are preview fiction, and
+ * a grep must never confuse them with launched pricing like
+ * MEMBERSHIP_PRICE. When a layer ships, add its real constant and retire
+ * the DEMO_ one.
  */
-export const STUDIO_VISIT_PRICE = {
+export const DEMO_STUDIO_VISIT_PRICE = {
   amount: 29900,
   currency: 'USD',
   display: '$299',
 } as const;
 
-export const SUPPLY_PRICE = {
+export const DEMO_SUPPLY_PRICE = {
   amount: 6900,
   currency: 'USD',
   display: '$69',
