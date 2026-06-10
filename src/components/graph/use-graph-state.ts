@@ -6,6 +6,7 @@ import { animate } from 'framer-motion';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { makeRng } from '../../../prisma/fixtures/synthetic/generators';
 import {
+  changeVisual,
   haloRadiusForTier,
   radiusForTier,
   selectionStrokeClass,
@@ -68,6 +69,17 @@ const DRAG_MAX_MS = 30_000;
 export function computeMotionAllowed(win: Window | undefined = typeof window !== 'undefined' ? window : undefined): boolean {
   if (!win || typeof win.matchMedia !== 'function') return false;
   return !win.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * Glyph for a change badge's direction. `new` (null direction) → '+';
+ * up/down/flat → arrows. Pure; exported for the node-env unit test.
+ */
+export function changeGlyph(direction: 'up' | 'down' | 'flat' | null): string {
+  if (direction === 'up') return '↑';
+  if (direction === 'down') return '↓';
+  if (direction === 'flat') return '→';
+  return '+';
 }
 
 /**
@@ -226,7 +238,10 @@ export function useGraphState(
   // actually changes shape, not on every parent re-render.
   const dataSignature = useMemo(() => {
     const n = nodes
-      .map((x) => `${x.id}:${x.tier}:${x.score.toFixed(3)}`)
+      // `change?.classification` is in the signature so the canvas re-inits
+      // when the "what changed since last panel" decoration appears/changes
+      // (Plan 2026-06-10-003 U3), not only on id/tier/score shifts.
+      .map((x) => `${x.id}:${x.tier}:${x.score.toFixed(3)}:${x.change?.classification ?? ''}`)
       .sort()
       .join('|');
     const e = edges
@@ -450,6 +465,36 @@ export function useGraphState(
         return `${v.fillClass} ${v.strokeClass}`;
       })
       .attr('stroke-width', 1.4);
+
+    // ── "What changed since last panel" decoration (Plan 2026-06-10-003 U3) ──
+    // Static, build-verifiable: a tone ring just outside the dot + a small
+    // direction badge, on biomarker nodes the record route decorated. The
+    // animated one-shot pulse is a separate, visual-audit-gated unit; this
+    // static signal already makes the graph show what changed. Tone classes
+    // come from src/lib (changeVisual) → safelisted in tailwind.config.ts.
+    const changedSel = nodeGroups.filter((d) => Boolean(d.change));
+    changedSel
+      .append('circle')
+      .attr('class', (d) => `graph-node-change-ring ${changeVisual(d.change!.classification).ringClass}`)
+      .attr('r', (d) => haloRadiusForTier(d.tier) + 2)
+      .attr('fill', 'none')
+      .attr('stroke-width', 1.5)
+      .attr('pointer-events', 'none');
+    changedSel
+      .append('circle')
+      .attr('class', (d) => changeVisual(d.change!.classification).badgeFillClass)
+      .attr('cx', (d) => radiusForTier(d.tier) * 0.9)
+      .attr('cy', (d) => -radiusForTier(d.tier) * 0.9)
+      .attr('r', 5)
+      .attr('pointer-events', 'none');
+    changedSel
+      .append('text')
+      .attr('class', 'fill-white text-[8px] font-bold pointer-events-none')
+      .attr('x', (d) => radiusForTier(d.tier) * 0.9)
+      .attr('y', (d) => -radiusForTier(d.tier) * 0.9)
+      .attr('text-anchor', 'middle')
+      .attr('dy', '0.32em')
+      .text((d) => changeGlyph(d.change!.direction));
 
     // Tier-1 labels: always-on, sit below the dot.
     nodeGroups
