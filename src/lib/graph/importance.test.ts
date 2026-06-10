@@ -51,6 +51,33 @@ describe('computeImportance', () => {
     expect(score.tier).toBe(2);
   });
 
+  it('a changed-since-last-panel node gets +2 and clears into tier 1', () => {
+    const node = makeNode({ id: 'n1', promoted: true });
+    const result = computeImportance({
+      nodes: [node],
+      edges: [],
+      changedNodeIds: new Set(['n1']),
+    });
+    const score = result.get('n1')!;
+    expect(score.components.change).toBe(2);
+    // promoted (3) + change (2) = 5 ≥ 4 → tier 1, so a moved marker survives
+    // the node cap and reads as prominent.
+    expect(score.score).toBe(5);
+    expect(score.tier).toBe(1);
+  });
+
+  it('change lift applies only to listed ids; others get 0', () => {
+    const a = makeNode({ id: 'a' });
+    const b = makeNode({ id: 'b' });
+    const result = computeImportance({
+      nodes: [a, b],
+      edges: [],
+      changedNodeIds: new Set(['a']),
+    });
+    expect(result.get('a')!.components.change).toBe(2);
+    expect(result.get('b')!.components.change).toBe(0);
+  });
+
   it('promoted + high degree reaches tier 1', () => {
     const hub = makeNode({ id: 'hub', promoted: true });
     const others = Array.from({ length: 5 }, (_, i) => makeNode({ id: `n${i}` }));

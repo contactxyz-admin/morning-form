@@ -36,6 +36,47 @@ export function buildChangeByJoinKey(changes: MarkerChange[]): Map<string, NodeC
 }
 
 /**
+ * Changes that represent a meaningful move — the ones worth LIFTING a node's
+ * importance for. Excludes `stable` (in range both times / no net distance
+ * change): without this, re-testing a whole panel would lift every re-tested
+ * marker to tier 1 and flatten the importance hierarchy, lighting the graph
+ * up uniformly instead of highlighting what actually moved. (Decoration still
+ * shows `stable` on already-visible nodes — "re-tested, in range" is useful;
+ * only the importance promotion is withheld.)
+ */
+export function meaningfulMoves(changes: MarkerChange[]): MarkerChange[] {
+  return changes.filter((c) => c.classification !== 'stable');
+}
+
+/** Minimal node shape both GraphNodeRecord and GraphNodeWire satisfy. */
+type ChangeMatchableNode = {
+  id: string;
+  type: string;
+  canonicalKey: string;
+  attributes: Record<string, unknown>;
+};
+
+/**
+ * Ids of biomarker nodes that changed — used to lift their importance BEFORE
+ * the node cap so a freshly-moved marker can't be dropped (plan
+ * 2026-06-10-003 follow-up). Runs on the raw node records (pre-aggregate),
+ * matching the same join key as the decoration.
+ */
+export function changedNodeIds(
+  nodes: ReadonlyArray<ChangeMatchableNode>,
+  changes: MarkerChange[],
+): Set<string> {
+  const ids = new Set<string>();
+  if (changes.length === 0) return ids;
+  const keys = new Set(changes.map((c) => c.joinKey));
+  for (const node of nodes) {
+    if (node.type !== 'biomarker') continue;
+    if (keys.has(markerJoinKey(node.canonicalKey, node.attributes?.registryKey))) ids.add(node.id);
+  }
+  return ids;
+}
+
+/**
  * Attach `change` to each biomarker wire node whose join key matches a change.
  * Mutates and returns the same array (cheap; the route owns these objects).
  * Non-biomarker nodes are never decorated.

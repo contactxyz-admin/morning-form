@@ -5,6 +5,10 @@
  *   - promoted flag          +3  (schema-authored high-signal node)
  *   - log-scaled degree      0-2 (connection density in the current graph)
  *   - recency                +1  (has a SUPPORTS chunk captured within N days)
+ *   - changed-since-last-panel +2 (a biomarker that moved vs the prior panel —
+ *                                  plan 2026-06-10-003 follow-up: so a marker
+ *                                  the user just saw move can't be hidden below
+ *                                  the 200-node cap)
  *
  * Thresholds: tier 1 ≥ 4, tier 2 ≥ 2, tier 3 < 2.
  *
@@ -28,6 +32,12 @@ export interface ImportanceInputs {
   edges: GraphEdgeRecord[];
   /** nodeId -> latest supporting-doc capturedAt (null/absent if none). */
   recencyMap?: Map<string, Date | null>;
+  /**
+   * Node ids that changed since the user's last panel (longitudinal feature).
+   * Each gets `CHANGE_LIFT` added so a freshly-moved marker stays in the
+   * importance-ranked, capped node set rather than being silently dropped.
+   */
+  changedNodeIds?: ReadonlySet<string>;
   asOf?: Date;
   recencyWindowDays?: number;
 }
@@ -39,11 +49,16 @@ export interface ImportanceResult {
     promoted: number;
     degree: number;
     recency: number;
+    change: number;
   };
 }
 
 const DEFAULT_RECENCY_WINDOW_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Importance bonus for a node that changed since the last panel. +2 lifts a
+ *  standard promoted biomarker (3) clear into tier 1 (≥4), so it survives the
+ *  node cap and reads as prominent. */
+const CHANGE_LIFT = 2;
 
 function isRecent(
   capturedAt: Date | null | undefined,
@@ -92,7 +107,9 @@ export function computeImportance(
       ? 1
       : 0;
 
-    const score = promotedScore + degreeScore + recencyScore;
+    const changeScore = inputs.changedNodeIds?.has(node.id) ? CHANGE_LIFT : 0;
+
+    const score = promotedScore + degreeScore + recencyScore + changeScore;
     results.set(node.id, {
       tier: tierFromScore(score),
       score,
@@ -100,6 +117,7 @@ export function computeImportance(
         promoted: promotedScore,
         degree: degreeScore,
         recency: recencyScore,
+        change: changeScore,
       },
     });
   }
