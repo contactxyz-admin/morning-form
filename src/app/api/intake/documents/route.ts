@@ -51,6 +51,8 @@ import {
 } from '@/lib/intake/lab-prompts';
 import { resolveBiomarker } from '@/lib/intake/biomarkers';
 import { buildLabObservationGraphInputs } from '@/lib/intake/lab-observations';
+import { diffLatestPanels } from '@/lib/markers/panel-diff';
+import { env } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 // Lab extraction runs one LLM call with a 90 s per-attempt timeout and up
@@ -254,6 +256,15 @@ export async function POST(req: Request) {
 
     const promoted = await promoteTopics(user.id, validBiomarkers.map((b) => b.canonicalKey));
 
+    // "What changed since last test": when the longitudinal surface is on and
+    // this upload is a re-test (a prior panel exists), include the diff so the
+    // client can show it immediately. Flag-gated; absent otherwise (flag-off
+    // upload response stays byte-for-byte the previous shape).
+    let changes: Awaited<ReturnType<typeof diffLatestPanels>> | undefined;
+    if (env.LONGITUDINAL_GRAPH_ENABLED === 'true') {
+      changes = await diffLatestPanels(prisma, user.id);
+    }
+
     return NextResponse.json({
       documentId: persisted.documentId,
       deduped: false,
@@ -262,6 +273,7 @@ export async function POST(req: Request) {
       // also writes one observation instance per dated reading.
       biomarkerCount: validBiomarkers.length,
       promotedTopics: promoted,
+      ...(changes !== undefined ? { changes } : {}),
     });
   } catch (err) {
     const name = err instanceof Error ? err.name : 'UnknownError';
