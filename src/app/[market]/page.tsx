@@ -7,9 +7,14 @@ import { TrendIllustration } from '@/components/marketing/illustrations/trend-il
 import { RecordPreview } from '@/components/marketing/record-preview';
 import { FaqBlock } from '@/components/marketing/faq-block';
 import { isMarket } from '@/lib/marketing/market';
-import { type Market } from '@/lib/marketing/constants';
+import { MARKET_CLINICIAN, SOURCE_NAMES, type Market } from '@/lib/marketing/constants';
 import { TrackMount } from '@/lib/funnel/track-mount';
 import { FUNNEL_EVENTS } from '@/lib/funnel/event';
+
+// The page renders only fixture data and static copy; pin static
+// generation explicitly (like /demo) so a future layout refactor can't
+// silently flip the fixture work onto the request path.
+export const dynamic = 'force-static';
 
 type CardKey = 'Trend' | 'Read' | 'Action';
 
@@ -37,25 +42,6 @@ const MARKET_LABEL: Record<Market, string> = {
   uk: 'UK',
   us: 'US',
 };
-
-// Per-market clinician word — "GP" reads native in the UK, "doctor" in the US.
-const MARKET_CLINICIAN: Record<Market, string> = {
-  uk: 'GP',
-  us: 'doctor',
-};
-
-/** Sources a visitor can connect or upload today — names mirror
- *  HEALTH_PROVIDERS (src/lib/health/providers.ts), limited to providers
- *  with a working path (Garmin is pending approval, Google Fit is legacy). */
-const SOURCE_NAMES: ReadonlyArray<string> = [
-  'Apple Health',
-  'Whoop',
-  'Oura',
-  'Fitbit',
-  'Dexcom',
-  'FreeStyle Libre',
-  'Blood panels (PDF)',
-];
 
 const FAQ_ENTRIES: ReadonlyArray<{ question: string; answer: string }> = [
   {
@@ -221,8 +207,8 @@ export default function LandingPage({ params }: MarketHomeProps) {
           {[
             {
               n: '01',
-              title: `A longitudinal record your ${clinician} doesn’t have`,
-              body: `Most ${clinician === 'GP' ? 'GPs see' : 'doctors see'} you for ten minutes every two years, on a single snapshot. Morning Form builds the thread — month over month, panel over panel — so the pattern surfaces months before the symptom would have sent you in.`,
+              title: `A longitudinal record your ${clinician.singular} doesn’t have`,
+              body: `Most ${clinician.plural} see you for ten minutes every two years, on a single snapshot. Morning Form builds the thread — month over month, panel over panel — so the pattern surfaces months before the symptom would have sent you in.`,
             },
             {
               n: '02',
@@ -338,10 +324,10 @@ export default function LandingPage({ params }: MarketHomeProps) {
           an inverted band gives the page its one deliberate rhythm break. */}
       <section className="bg-text-primary">
         <div className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 max-w-[1400px] mx-auto">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#86868B] mb-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-whisper mb-5">
             The other half of the product
           </p>
-          <h2 className="font-display font-light text-display sm:text-display-xl text-[#FBFBFD] max-w-3xl -tracking-[0.04em] leading-[1.02]">
+          <h2 className="font-display font-light text-display sm:text-display-xl text-bg max-w-3xl -tracking-[0.04em] leading-[1.02]">
             What Morning Form refuses to do.
           </h2>
 
@@ -369,11 +355,11 @@ export default function LandingPage({ params }: MarketHomeProps) {
               },
             ].map((r) => (
               <div key={r.n}>
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#86868B]">{r.n}</span>
-                <h3 className="mt-4 font-display font-normal text-heading text-[#FBFBFD] -tracking-[0.02em]">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-whisper">{r.n}</span>
+                <h3 className="mt-4 font-display font-normal text-heading text-bg -tracking-[0.02em]">
                   {r.title}
                 </h3>
-                <p className="mt-3 text-body text-[#A1A1A6] leading-relaxed">{r.body}</p>
+                <p className="mt-3 text-body text-text-inverse-muted leading-relaxed">{r.body}</p>
               </div>
             ))}
           </div>
@@ -420,16 +406,11 @@ export default function LandingPage({ params }: MarketHomeProps) {
           >
             Morning Form
           </Link>
-          <div className="flex flex-col gap-3 sm:items-end">
-            <div className="flex flex-wrap gap-7">
-              <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
-              <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
-              <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
-            </div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-              © 2026 Morning Form
-            </p>
-          </div>
+          {/* Privacy / Safety & clinical / Contact links removed until those
+              routes exist — they 404'd. Restore alongside the real pages. */}
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary sm:text-right">
+            © 2026 Morning Form
+          </p>
         </div>
       </footer>
     </div>

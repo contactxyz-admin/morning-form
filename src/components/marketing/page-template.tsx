@@ -37,7 +37,7 @@ export function PageTemplate({ page }: PageTemplateProps) {
         </Link>
         <nav className="hidden sm:flex items-center gap-6">
           <Link href={`/${page.market}`} className={NAV_LINK_CLASS}>Home</Link>
-          <Link href="/demo" className={NAV_LINK_CLASS}>See a demo</Link>
+          <Link href="/demo" className={NAV_LINK_CLASS}>Live demo</Link>
           <Link href="/sign-in" className={NAV_LINK_CLASS}>Sign in</Link>
         </nav>
         <Link
@@ -111,11 +111,8 @@ export function PageTemplate({ page }: PageTemplateProps) {
             Morning Form
           </Link>
           <div className="flex flex-col gap-3 sm:items-end">
-            <div className="flex flex-wrap gap-7">
-              <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
-              <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
-              <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
-            </div>
+            {/* Privacy / Safety & clinical / Contact links removed until those
+                routes exist — they 404'd. Restore alongside the real pages. */}
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
               Last reviewed {new Date(page.lastReviewedAt).toLocaleDateString(page.market === 'uk' ? 'en-GB' : 'en-US')}
             </p>

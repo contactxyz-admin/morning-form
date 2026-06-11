@@ -51,6 +51,34 @@ export const DEMO_SUPPLY_PRICE = {
 } as const;
 
 /**
+ * Per-market clinician vocabulary — "GP" reads native in the UK,
+ * "doctor" in the US. Both forms live here so page copy never re-derives
+ * the plural from the singular.
+ */
+export const MARKET_CLINICIAN: Record<Market, { singular: string; plural: string }> = {
+  uk: { singular: 'GP', plural: 'GPs' },
+  us: { singular: 'doctor', plural: 'doctors' },
+};
+
+/**
+ * Sources a visitor can connect or upload today, as shown on the landing
+ * page. Device names mirror HEALTH_PROVIDERS (src/lib/health/providers.ts),
+ * limited to providers with a working path — Garmin is pending partner
+ * approval and Google Fit is a deprecated legacy path, so neither is
+ * advertised. record-preview.test.ts pins each device name against the
+ * provider registry so a rename or removal there fails loudly here.
+ */
+export const SOURCE_NAMES: ReadonlyArray<string> = [
+  'Apple Health',
+  'Whoop',
+  'Oura',
+  'Fitbit',
+  'Dexcom',
+  'FreeStyle Libre',
+  'Blood panels (PDF)',
+];
+
+/**
  * Cookie names. Centralised so middleware, route handlers, and the
  * market-banner / visit-beacon components all read/write the same keys.
  */

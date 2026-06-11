@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { Sparkline } from '@/components/demo/sparkline';
 import {
   arrowFor,
+  downsample,
   formatValue,
   getMetricSummary,
   type PersonaMetricSummary,
 } from '@/lib/demo/persona-summary';
+import { PREVIEW_METRICS } from './record-preview-metrics';
 
 /**
  * RecordPreview — the landing hero's product shot.
@@ -21,28 +23,25 @@ import {
  * confuse a five-second scan).
  */
 
-const PREVIEW_METRICS: ReadonlyArray<{ metric: string; source: string }> = [
-  { metric: 'systolic_bp_mmhg_morning', source: 'Daily readings' },
-  { metric: 'hrv_ms', source: 'Wearable' },
-  { metric: 'total_sleep_hours', source: 'Wearable' },
-  { metric: 'hscrp_mg_l', source: 'Blood panel' },
-];
-
 /** The 90-point demo series reads as noise at the preview's 34px row
- *  height; thin daily series to every 3rd point so the trend, not the
- *  jitter, carries. Keeps endpoints and remaps the inflection index. */
+ *  height; resample to 31 points so the trend, not the jitter, carries.
+ *  Uses the data layer's downsample (uniform spacing, both endpoints
+ *  kept) and the same proportional inflection remap persona-summary
+ *  applies, so the dashed rule stays on the true timeline. */
+const PREVIEW_POINTS = 31;
+
 function thinForPreview(summary: PersonaMetricSummary): {
   values: readonly number[];
   inflectionIndex: number;
 } {
   const { values, inflectionIndex } = summary;
-  if (values.length <= 32) return { values, inflectionIndex };
-  const step = 3;
-  const thinned = values.filter((_, i) => i % step === 0);
-  if ((values.length - 1) % step !== 0) thinned.push(values[values.length - 1]);
+  const thinned = downsample(values, PREVIEW_POINTS);
+  if (thinned.length === values.length) return { values, inflectionIndex };
   return {
     values: thinned,
-    inflectionIndex: Math.min(Math.round(inflectionIndex / step), thinned.length - 1),
+    inflectionIndex: Math.round(
+      (inflectionIndex / (values.length - 1)) * (thinned.length - 1),
+    ),
   };
 }
 
@@ -82,7 +81,7 @@ export function RecordPreview({ className }: { className?: string }) {
               </p>
               <span
                 className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
-                  summary.direction === 'improved' ? 'text-positive' : 'text-caution'
+                  summary.direction === 'improved' ? 'text-positive-deep' : 'text-caution'
                 }`}
               >
                 {arrowFor(summary)} {summary.direction === 'improved' ? 'Improved' : 'Worsened'}
@@ -91,7 +90,11 @@ export function RecordPreview({ className }: { className?: string }) {
             <div className="mt-2 flex items-end gap-4">
               <Sparkline
                 {...thinForPreview(summary)}
-                improvement={summary.improvement}
+                // Sparkline colours the post-inflection stroke positive
+                // whenever `improvement` is supplied; only supply it when
+                // the series actually improved, so a worsened series can
+                // never pair a green stroke with the caution chip above.
+                improvement={summary.direction === 'improved' ? summary.improvement : undefined}
                 height={34}
                 ariaLabel={`${summary.displayName} 24 month trend`}
                 className="flex-1 min-w-0"
