@@ -1,5 +1,6 @@
-import Link from 'next/link';
 import { Sparkline } from '@/components/demo/sparkline';
+import { TrackedLink } from '@/lib/funnel/tracked-link';
+import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 import {
   arrowFor,
   downsample,
@@ -54,8 +55,10 @@ export function RecordPreview({ className }: { className?: string }) {
   if (rows.length === 0) return null;
 
   return (
-    <Link
+    <TrackedLink
       href="/demo"
+      event={FUNNEL_EVENTS.DEMO_CLICKED}
+      eventProperties={{ placement: 'record_preview' }}
       aria-label="Open the live demo record"
       className={`group block rounded-card border border-border bg-surface shadow-hairline transition-[border-color,box-shadow] duration-450 ease-spring hover:border-border-strong hover:shadow-card-hover ${className ?? ''}`}
     >
@@ -119,6 +122,6 @@ export function RecordPreview({ className }: { className?: string }) {
           Open the demo →
         </span>
       </div>
-    </Link>
+    </TrackedLink>
   );
 }

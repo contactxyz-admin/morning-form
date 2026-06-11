@@ -111,8 +111,11 @@ export function PageTemplate({ page }: PageTemplateProps) {
             Morning Form
           </Link>
           <div className="flex flex-col gap-3 sm:items-end">
-            {/* Privacy / Safety & clinical / Contact links removed until those
-                routes exist — they 404'd. Restore alongside the real pages. */}
+            <div className="flex flex-wrap gap-7">
+              <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
+              <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
+              <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
+            </div>
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
               Last reviewed {new Date(page.lastReviewedAt).toLocaleDateString(page.market === 'uk' ? 'en-GB' : 'en-US')}
             </p>

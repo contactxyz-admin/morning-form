@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { MARKETS } from '@/lib/marketing/constants';
 import { getAllSlugs } from '@/lib/marketing/slug-allowlist';
-import { buildCanonicalUrl } from '@/lib/marketing/seo';
+import { buildCanonicalUrl, getCanonicalOrigin } from '@/lib/marketing/seo';
 
 /**
  * Single combined sitemap for both markets.
@@ -30,5 +30,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
-  return [...homepages, ...anchorPages];
+  // Market-neutral trust pages (src/app/(info)/*) — linked from every
+  // marketing footer; indexed deliberately, unlike the noindex /demo.
+  const infoPages: MetadataRoute.Sitemap = ['/privacy', '/safety', '/contact'].map((path) => ({
+    url: `${getCanonicalOrigin()}${path}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly',
+    priority: 0.3,
+  }));
+
+  return [...homepages, ...anchorPages, ...infoPages];
 }

@@ -7,8 +7,10 @@ import { TrendIllustration } from '@/components/marketing/illustrations/trend-il
 import { RecordPreview } from '@/components/marketing/record-preview';
 import { FaqBlock } from '@/components/marketing/faq-block';
 import { isMarket } from '@/lib/marketing/market';
+import { HOME_FAQ } from '../../../content/marketing/home-faq';
 import { MARKET_CLINICIAN, SOURCE_NAMES, type Market } from '@/lib/marketing/constants';
 import { TrackMount } from '@/lib/funnel/track-mount';
+import { TrackedLink } from '@/lib/funnel/tracked-link';
 import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 // The page renders only fixture data and static copy; pin static
@@ -43,38 +45,8 @@ const MARKET_LABEL: Record<Market, string> = {
   us: 'US',
 };
 
-const FAQ_ENTRIES: ReadonlyArray<{ question: string; answer: string }> = [
-  {
-    question: 'Is this medical advice?',
-    answer:
-      'No. Morning Form reads and explains your own data, and points you to a clinician when a marker needs one. It never diagnoses, and it never replaces your clinician — it gives you a better record to bring them.',
-  },
-  {
-    question: 'Which devices and apps work?',
-    answer:
-      'Whoop, Oura, Fitbit, Dexcom and FreeStyle Libre connect from the web; Apple Health connects through the iPhone app. Any blood panel can be uploaded as a PDF, whoever ran it.',
-  },
-  {
-    question: 'I don’t have a wearable — can I still use it?',
-    answer:
-      'Yes. Upload a blood panel, or begin with the assessment and daily check-ins. The record builds from whatever you give it, and gets sharper with each source you add.',
-  },
-  {
-    question: 'Is my data private?',
-    answer:
-      'Your record is yours. It is never sold and never used for advertising, and you can export the whole thing — or delete it — from settings at any time.',
-  },
-  {
-    question: 'What happens if something looks wrong?',
-    answer:
-      'When a marker crosses a threshold that needs a real clinician, Morning Form flags it clearly, explains it in plain English, and recommends you speak to one. Flags are never buried, and never sold around.',
-  },
-  {
-    question: 'What does it cost?',
-    answer:
-      'Nothing while we are in private beta — no card required. Membership pricing will be announced at launch, and beta members will hear it first.',
-  },
-];
+// FAQ copy lives in content/ (schema-validated, editorial provenance) —
+// see content/marketing/home-faq.ts.
 
 export default function LandingPage({ params }: MarketHomeProps) {
   if (!isMarket(params.market)) notFound();
@@ -134,12 +106,14 @@ export default function LandingPage({ params }: MarketHomeProps) {
               <Link href="/sign-in">
                 <Button size="lg">Get started</Button>
               </Link>
-              <Link
+              <TrackedLink
                 href="/demo"
+                event={FUNNEL_EVENTS.DEMO_CLICKED}
+                eventProperties={{ placement: 'hero' }}
                 className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
               >
                 Explore the live demo →
-              </Link>
+              </TrackedLink>
             </div>
             <p className="mt-5 text-caption text-text-tertiary">
               Free while in private beta · no card required
@@ -367,7 +341,7 @@ export default function LandingPage({ params }: MarketHomeProps) {
       </section>
 
       {/* FAQ — the objections a data product must answer before the ask. */}
-      <FaqBlock entries={FAQ_ENTRIES} />
+      <FaqBlock entries={HOME_FAQ.entries} />
 
       {/* Final CTA — restate the value, ink only, low-commitment ask. */}
       <section className="px-6 sm:px-10 lg:px-16 py-32 sm:py-44 border-t border-border max-w-[1400px] mx-auto">
@@ -382,12 +356,14 @@ export default function LandingPage({ params }: MarketHomeProps) {
           <Link href="/sign-in">
             <Button size="lg">Get started</Button>
           </Link>
-          <Link
+          <TrackedLink
             href="/demo"
+            event={FUNNEL_EVENTS.DEMO_CLICKED}
+            eventProperties={{ placement: 'final_cta' }}
             className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
           >
             See a sample record →
-          </Link>
+          </TrackedLink>
           <Link
             href="/sign-in"
             className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
@@ -406,11 +382,16 @@ export default function LandingPage({ params }: MarketHomeProps) {
           >
             Morning Form
           </Link>
-          {/* Privacy / Safety & clinical / Contact links removed until those
-              routes exist — they 404'd. Restore alongside the real pages. */}
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary sm:text-right">
-            © 2026 Morning Form
-          </p>
+          <div className="flex flex-col gap-3 sm:items-end">
+            <div className="flex flex-wrap gap-7">
+              <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
+              <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
+              <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
+            </div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+              © 2026 Morning Form
+            </p>
+          </div>
         </div>
       </footer>
     </div>
