@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DemoTab } from '@/components/demo/demo-tab';
+import { TrackMount } from '@/lib/funnel/track-mount';
+import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 /**
  * Public `/demo` layout — no auth, no session, no app chrome.
@@ -27,6 +29,10 @@ const TABS: ReadonlyArray<{ label: string; href: string }> = [
 export default function DemoLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-bg text-text-primary grain-page flex flex-col">
+      {/* Layouts persist across the demo tabs, so this fires once per
+          entry into /demo — the arrival counterpart to the landing
+          page's DEMO_CLICKED CTAs. The event path records the entry tab. */}
+      <TrackMount event={FUNNEL_EVENTS.DEMO_VIEWED} />
       <header className="px-5 sm:px-8 pt-8 pb-5 border-b border-border/60">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <Link

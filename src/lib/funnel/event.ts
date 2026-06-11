@@ -29,6 +29,14 @@ export const FUNNEL_EVENTS = {
   ASSESSMENT_STARTED: 'assessment_started',
   ASSESSMENT_COMPLETED: 'assessment_completed',
   REVEAL_VIEWED: 'reveal_viewed',
+  // Demo funnel (landing redesign 2026-06-11): DEMO_CLICKED fires from
+  // the landing page's demo CTAs with a `placement` property ('hero' |
+  // 'record_preview' | 'final_cta') so the report can tell which
+  // surface earned the visit. DEMO_VIEWED fires once per entry into the
+  // public /demo surface (layout mount — tab switches within the demo
+  // do not re-fire). Market is derivable from the event `path`.
+  DEMO_CLICKED: 'demo_clicked',
+  DEMO_VIEWED: 'demo_viewed',
   SIGN_IN_COMPLETED: 'sign_in_completed',
   FIRST_ASK_SENT: 'first_ask_sent',
 } as const;
