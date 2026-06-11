@@ -82,6 +82,11 @@ function nodeToWire(
     updatedAt: timestamp,
     tier: tierFromDegree(degree),
     score: maxDegree === 0 ? 0 : degree / maxDegree,
+    // Pass the fixture's hand-authored panel-change decoration straight
+    // through to the wire node (absent on nodes that didn't move — keeps the
+    // wire shape byte-identical to the live record route for undecorated
+    // nodes). Only biomarker fixture nodes carry it.
+    ...(node.change ? { change: node.change } : {}),
   };
 }
 

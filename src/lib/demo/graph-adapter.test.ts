@@ -62,6 +62,34 @@ describe('adaptDemoFixture', () => {
     }
   });
 
+  describe('panel-change decoration passthrough', () => {
+    it('passes a fixture node.change through to the wire node', () => {
+      // The fixture decorates four biomarker nodes; each must arrive on the
+      // wire node verbatim so the canvas ring/badge + detail sheet light up.
+      const decorated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => n.change);
+      expect(decorated.length).toBeGreaterThan(0);
+      for (const fixtureNode of decorated) {
+        const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
+        expect(wire!.change).toEqual(fixtureNode.change);
+      }
+    });
+
+    it('omits change on nodes the fixture did not decorate', () => {
+      const undecorated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => !n.change);
+      for (const fixtureNode of undecorated) {
+        const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
+        expect(wire!.change).toBeUndefined();
+      }
+    });
+
+    it('covers all four visible change tones for the audit', () => {
+      const classes = new Set(
+        adapted.graph.nodes.flatMap((n) => (n.change ? [n.change.classification] : [])),
+      );
+      expect(classes).toEqual(new Set(['improved', 'worsened', 'stable', 'new']));
+    });
+  });
+
   describe('provenance lookup', () => {
     it('contains an entry for every node', () => {
       for (const node of adapted.graph.nodes) {

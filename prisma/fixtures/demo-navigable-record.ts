@@ -26,6 +26,8 @@
  * (rule-out evidence for energy-fatigue narrative).
  */
 
+import type { NodeChangeWire } from '@/types/graph';
+
 export interface DemoSourceChunk {
   /** Stable key used to build a deterministic chunk id for upsert. */
   chunkKey: string;
@@ -54,6 +56,16 @@ export interface DemoNode {
   canonicalKey: string;
   displayName: string;
   attributes?: Record<string, unknown>;
+  /**
+   * Optional "what changed since the last panel" decoration for biomarker
+   * nodes, mirroring the wire field the authed record route attaches when
+   * LONGITUDINAL_GRAPH_ENABLED is on. The demo has no DB to diff, so the
+   * fixture carries the change directly; the graph adapter passes it through
+   * to `GraphNodeWire.change` so the public `/demo/record` graph showcases the
+   * longitudinal ring/badge/pulse + detail-sheet before→after without an
+   * authed PDF-upload path. Synthetic, range-relative, descriptive only.
+   */
+  change?: NodeChangeWire;
 }
 
 export interface DemoEdge {

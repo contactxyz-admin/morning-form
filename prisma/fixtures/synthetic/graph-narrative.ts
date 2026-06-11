@@ -240,15 +240,80 @@ const NODES: DemoNode[] = [
   { nodeKey: 'cond-impaired-sleep', type: 'condition', canonicalKey: 'impaired-sleep-continuity', displayName: 'Impaired sleep continuity' },
 
   // Biomarkers
-  { nodeKey: 'bm-hba1c', type: 'biomarker', canonicalKey: 'hba1c', displayName: 'HbA1c' },
+  // `change` decorations (longitudinal demo): synthetic before→after across
+  // the two lab panels (2024-04-20 → 2026-02-10), one per visible tone so the
+  // /demo/record audit exercises every change-ring colour, badge glyph, and
+  // the detail-sheet "Since your last test" panel without an authed upload.
+  // Range-relative + descriptive only — never a clinical value judgement.
+  {
+    nodeKey: 'bm-hba1c',
+    type: 'biomarker',
+    canonicalKey: 'hba1c',
+    displayName: 'HbA1c',
+    // stable → neutral-gray ring + `→` badge (the marginal-contrast watch-item)
+    change: {
+      direction: 'flat',
+      classification: 'stable',
+      beforeValue: 5.7,
+      beforeAt: '2024-04-20T09:00:00.000Z',
+      afterValue: 5.7,
+      afterAt: '2026-02-10T09:00:00.000Z',
+      unit: '%',
+    },
+  },
   { nodeKey: 'bm-fasting-glucose', type: 'biomarker', canonicalKey: 'fasting-glucose', displayName: 'Fasting glucose' },
   { nodeKey: 'bm-total-chol', type: 'biomarker', canonicalKey: 'total-cholesterol', displayName: 'Total cholesterol' },
-  { nodeKey: 'bm-ldl', type: 'biomarker', canonicalKey: 'ldl', displayName: 'LDL cholesterol' },
+  {
+    nodeKey: 'bm-ldl',
+    type: 'biomarker',
+    canonicalKey: 'ldl',
+    displayName: 'LDL cholesterol',
+    // worsened → alert ring + `↑` badge (moved away from the reference interval)
+    change: {
+      direction: 'up',
+      classification: 'worsened',
+      beforeValue: 3.1,
+      beforeAt: '2024-04-20T09:00:00.000Z',
+      afterValue: 3.6,
+      afterAt: '2026-02-10T09:00:00.000Z',
+      unit: 'mmol/L',
+    },
+  },
   { nodeKey: 'bm-hdl', type: 'biomarker', canonicalKey: 'hdl', displayName: 'HDL cholesterol' },
   { nodeKey: 'bm-tg', type: 'biomarker', canonicalKey: 'triglycerides', displayName: 'Triglycerides' },
-  { nodeKey: 'bm-ferritin', type: 'biomarker', canonicalKey: 'ferritin', displayName: 'Ferritin' },
+  {
+    nodeKey: 'bm-ferritin',
+    type: 'biomarker',
+    canonicalKey: 'ferritin',
+    displayName: 'Ferritin',
+    // improved → positive ring + `↑` badge (moved toward the reference interval)
+    change: {
+      direction: 'up',
+      classification: 'improved',
+      beforeValue: 42,
+      beforeAt: '2024-04-20T09:00:00.000Z',
+      afterValue: 71,
+      afterAt: '2026-02-10T09:00:00.000Z',
+      unit: 'µg/L',
+    },
+  },
   { nodeKey: 'bm-tsh', type: 'biomarker', canonicalKey: 'tsh', displayName: 'TSH' },
-  { nodeKey: 'bm-free-test', type: 'biomarker', canonicalKey: 'free-testosterone', displayName: 'Free testosterone' },
+  {
+    nodeKey: 'bm-free-test',
+    type: 'biomarker',
+    canonicalKey: 'free-testosterone',
+    displayName: 'Free testosterone',
+    // new → accent ring + `+` badge (measured only in the latest panel)
+    change: {
+      direction: null,
+      classification: 'new',
+      beforeValue: null,
+      beforeAt: null,
+      afterValue: 19.5,
+      afterAt: '2026-02-10T09:00:00.000Z',
+      unit: 'pg/mL',
+    },
+  },
   { nodeKey: 'bm-hscrp', type: 'biomarker', canonicalKey: 'hscrp', displayName: 'hsCRP' },
   { nodeKey: 'bm-systolic-bp', type: 'biomarker', canonicalKey: 'systolic-bp', displayName: 'Systolic BP' },
   { nodeKey: 'bm-diastolic-bp', type: 'biomarker', canonicalKey: 'diastolic-bp', displayName: 'Diastolic BP' },
@@ -340,7 +405,10 @@ const EDGES: DemoEdge[] = [
 ];
 
 export const METABOLIC_PERSONA_GRAPH: DemoRecordFixture = {
-  version: '1',
+  // v2: longitudinal `change` decorations on four biomarker nodes (HbA1c,
+  // LDL, Ferritin, Free testosterone) so /demo/record showcases the panel-
+  // change ring/badge/pulse + detail-sheet before→after.
+  version: '2',
   sources: SOURCES,
   nodes: NODES,
   edges: EDGES,
