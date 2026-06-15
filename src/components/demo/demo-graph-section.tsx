@@ -106,9 +106,12 @@ export function DemoGraphSection({ fixture }: Props) {
     // time scrubber dims them in step with the data they cite (plan
     // 2026-06-15-001). Hub id === source id (synthesizeSourceNodes).
     const capturedByKey = new Map(wireSources.map((s) => [s.id, s.capturedAt]));
-    const hubNodes = synthesizeSourceNodes(wireSources, 'demo', scoreCeiling).map(
-      (hub) => ({ ...hub, firstSeenAt: capturedByKey.get(hub.id) }),
-    );
+    const hubNodes = synthesizeSourceNodes(wireSources, 'demo', scoreCeiling).map((hub) => {
+      const seen = capturedByKey.get(hub.id);
+      // Conditional spread (not `firstSeenAt: seen`) so a miss omits the key
+      // entirely, matching nodeToWire's additive "absent → always present".
+      return seen ? { ...hub, firstSeenAt: seen } : hub;
+    });
     return [...adapted.graph.nodes, ...hubNodes];
   }, [adapted, fixture]);
 
@@ -126,7 +129,11 @@ export function DemoGraphSection({ fixture }: Props) {
   // the full graph (today's view); dragging back ghosts not-yet-known nodes.
   const stops = useMemo(() => scrubberStops(canvasNodes), [canvasNodes]);
   const [stopIndex, setStopIndex] = useState(() => Math.max(0, stops.length - 1));
-  const asOfEpoch = stops.length > 0 ? (stops[stopIndex] ?? stops[stops.length - 1]) : null;
+  // Clamp once: if `stops` ever shrinks below a persisted index, every read
+  // (epoch + labels + slider value) stays in range — no `undefined` reaching
+  // formatStop. Single source instead of a per-read `?? fallback`.
+  const activeIndex = stops.length > 0 ? Math.min(stopIndex, stops.length - 1) : 0;
+  const asOfEpoch = stops.length > 0 ? stops[activeIndex] : null;
   const formatStop = (epoch: number) => format(new Date(epoch), 'MMM yyyy');
 
   const rawEntity = searchParams.get('entity');
@@ -238,17 +245,17 @@ export function DemoGraphSection({ fixture }: Props) {
           <div className="mt-4">
             <div className="mb-1.5 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
               <span>The record over time</span>
-              <span className="text-text-secondary">as of {formatStop(stops[stopIndex])}</span>
+              <span className="text-text-secondary">as of {formatStop(stops[activeIndex])}</span>
             </div>
             <input
               type="range"
               min={0}
               max={stops.length - 1}
               step={1}
-              value={stopIndex}
+              value={activeIndex}
               onChange={(e) => setStopIndex(Number(e.target.value))}
               aria-label="Show the record as of an earlier date"
-              aria-valuetext={`As of ${formatStop(stops[stopIndex])}`}
+              aria-valuetext={`As of ${formatStop(stops[activeIndex])}`}
               className="w-full cursor-pointer accent-text-primary"
             />
             <div className="mt-1 flex justify-between font-mono text-[10px] text-text-tertiary">
