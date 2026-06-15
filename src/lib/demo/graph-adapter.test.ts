@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { METABOLIC_PERSONA_GRAPH } from '../../../prisma/fixtures/synthetic/graph-narrative';
+import { scrubberStops } from '../graph/as-of';
 import { adaptDemoFixture } from './graph-adapter';
 
 describe('adaptDemoFixture', () => {
@@ -113,6 +114,19 @@ describe('adaptDemoFixture', () => {
       });
       const wire = undated.graph.nodes[0];
       expect('firstSeenAt' in wire).toBe(false);
+    });
+  });
+
+  describe('time-scrubber stops (fixture narrative)', () => {
+    it('grows the graph through 5 distinct dated stops, latest last', () => {
+      // Four firstSeenAt birth-dates (2024-04, 2024-05, 2025-05, 2025-08) plus
+      // the 2026-02 recheck where the change rings come due = 5 stops.
+      const stops = scrubberStops(adapted.graph.nodes);
+      expect(stops).toHaveLength(5);
+      // strictly increasing
+      expect([...stops].sort((a, b) => a - b)).toEqual(stops);
+      expect(stops[stops.length - 1]).toBe(Date.parse('2026-02-10T09:00:00.000Z'));
+      expect(stops[0]).toBe(Date.parse('2024-04-20T09:00:00.000Z'));
     });
   });
 

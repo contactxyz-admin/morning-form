@@ -16,10 +16,12 @@
  * docs/plans/2026-05-16-001-feat-navigable-record-demo-plan.md (U5).
  */
 
-import { useCallback, useEffect, useMemo, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { format } from 'date-fns';
 import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
+import { scrubberStops } from '@/lib/graph/as-of';
 import { adaptDemoFixture, type AdaptedDemoFixture } from '@/lib/demo/graph-adapter';
 import {
   referencedSourceDocumentIds,
@@ -100,7 +102,13 @@ export function DemoGraphSection({ fixture }: Props) {
       (max, n) => Math.max(max, n.score),
       0,
     );
-    const hubNodes = synthesizeSourceNodes(wireSources, 'demo', scoreCeiling);
+    // Source dots carry their document's capturedAt as firstSeenAt so the
+    // time scrubber dims them in step with the data they cite (plan
+    // 2026-06-15-001). Hub id === source id (synthesizeSourceNodes).
+    const capturedByKey = new Map(wireSources.map((s) => [s.id, s.capturedAt]));
+    const hubNodes = synthesizeSourceNodes(wireSources, 'demo', scoreCeiling).map(
+      (hub) => ({ ...hub, firstSeenAt: capturedByKey.get(hub.id) }),
+    );
     return [...adapted.graph.nodes, ...hubNodes];
   }, [adapted, fixture]);
 
@@ -112,6 +120,14 @@ export function DemoGraphSection({ fixture }: Props) {
     const synthesised = synthesizeSourceEdges(adapted.graph.edges, graphNodeIds, sourceIds);
     return [...adapted.graph.edges, ...synthesised];
   }, [adapted, canvasNodes]);
+
+  // Time scrubber (plan 2026-06-15-001): the sorted distinct evidence dates
+  // the graph grew through. Defaults to the latest stop, so the page loads as
+  // the full graph (today's view); dragging back ghosts not-yet-known nodes.
+  const stops = useMemo(() => scrubberStops(canvasNodes), [canvasNodes]);
+  const [stopIndex, setStopIndex] = useState(() => Math.max(0, stops.length - 1));
+  const asOfEpoch = stops.length > 0 ? (stops[stopIndex] ?? stops[stops.length - 1]) : null;
+  const formatStop = (epoch: number) => format(new Date(epoch), 'MMM yyyy');
 
   const rawEntity = searchParams.get('entity');
   const validatedEntity =
@@ -214,11 +230,36 @@ export function DemoGraphSection({ fixture }: Props) {
           onNodeClick={handleNodeClick}
           selectedNodeId={openNode?.id ?? null}
           nodeInteractive={isNodeInteractive}
+          asOfEpoch={asOfEpoch}
           className="w-full h-auto"
           ariaLabel={`Health graph — ${canvasNodes.length} nodes, ${canvasEdges.length} edges. Tap any node to see its sources.`}
         />
+        {stops.length > 1 && (
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+              <span>The record over time</span>
+              <span className="text-text-secondary">as of {formatStop(stops[stopIndex])}</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={stops.length - 1}
+              step={1}
+              value={stopIndex}
+              onChange={(e) => setStopIndex(Number(e.target.value))}
+              aria-label="Show the record as of an earlier date"
+              aria-valuetext={`As of ${formatStop(stops[stopIndex])}`}
+              className="w-full cursor-pointer accent-text-primary"
+            />
+            <div className="mt-1 flex justify-between font-mono text-[10px] text-text-tertiary">
+              <span>{formatStop(stops[0])}</span>
+              <span>{formatStop(stops[stops.length - 1])}</span>
+            </div>
+          </div>
+        )}
         <p className="mt-3 text-caption text-text-tertiary">
           Tap a node to see what grounds it. Hover to highlight what it&apos;s connected to.
+          {stops.length > 1 ? ' Drag the timeline to watch the record build.' : ''}
         </p>
         <GraphLegend />
       </section>
