@@ -131,7 +131,7 @@ changeVisibleAsOf(change, asOfEpoch) -> boolean
 
 ## Implementation Units
 
-- [ ] **Unit 1: Temporal fixture data + adapter/wire passthrough**
+- [x] **Unit 1: Temporal fixture data + adapter/wire passthrough**
 
 **Goal:** Give every demo node a "first known" date and carry it to the canvas, so an as-of test has data to act on. Author the dates so the graph tells a grow-over-time story.
 
@@ -161,7 +161,7 @@ changeVisibleAsOf(change, asOfEpoch) -> boolean
 
 **Verification:** adapter test green; the demo page still renders today's full graph at the default (latest) stop with no visible change.
 
-- [ ] **Unit 2: As-of dimming engine in the canvas (opt-in, prod-safe)**
+- [x] **Unit 2: As-of dimming engine in the canvas (opt-in, prod-safe)**
 
 **Goal:** Add the `asOfEpoch` prop and the imperative opacity effect that dims un-born nodes/edges and hides not-yet-due change rings — without re-initializing the graph.
 
@@ -198,7 +198,7 @@ changeVisibleAsOf(change, asOfEpoch) -> boolean
 
 **Verification:** `as-of.ts` tests green; with `asOfEpoch` unset, canvas render is identical to today (parity); positions provably unchanged when `asOfEpoch` varies.
 
-- [ ] **Unit 3: Demo scrubber control + wiring**
+- [x] **Unit 3: Demo scrubber control + wiring**
 
 **Goal:** The visible scrubber — a native range slider over the persona's evidence dates, with a date label, wired to drive the canvas's `asOfEpoch`.
 
