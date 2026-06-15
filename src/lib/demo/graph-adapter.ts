@@ -82,6 +82,14 @@ function nodeToWire(
     updatedAt: timestamp,
     tier: tierFromDegree(degree),
     score: maxDegree === 0 ? 0 : degree / maxDegree,
+    // Pass the fixture's hand-authored panel-change decoration straight
+    // through to the wire node (absent on nodes that didn't move — keeps the
+    // wire shape byte-identical to the live record route for undecorated
+    // nodes). Only biomarker fixture nodes carry it.
+    ...(node.change ? { change: node.change } : {}),
+    // Earliest-evidence date for the time scrubber (plan 2026-06-15-001).
+    // Same additive passthrough as `change`; absent → "always present".
+    ...(node.firstSeenAt ? { firstSeenAt: node.firstSeenAt } : {}),
   };
 }
 

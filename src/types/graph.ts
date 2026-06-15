@@ -46,6 +46,13 @@ export interface GraphNodeWire {
    * flag-off responses are byte-for-byte the pre-feature shape.
    */
   change?: NodeChangeWire;
+  /**
+   * ISO date of the node's earliest evidence. Populated only by the demo
+   * adapter to drive the `/demo/record` time scrubber (plan 2026-06-15-001);
+   * the authed record route never sets it, so flag-off responses stay
+   * byte-for-byte the pre-feature shape. Absent → "always present".
+   */
+  firstSeenAt?: string;
 }
 
 export interface GraphEdgeWire {

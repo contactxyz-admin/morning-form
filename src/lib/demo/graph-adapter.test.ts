@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { METABOLIC_PERSONA_GRAPH } from '../../../prisma/fixtures/synthetic/graph-narrative';
+import { scrubberStops } from '../graph/as-of';
 import { adaptDemoFixture } from './graph-adapter';
 
 describe('adaptDemoFixture', () => {
@@ -60,6 +61,73 @@ describe('adaptDemoFixture', () => {
     for (const edge of adapted.graph.edges) {
       expect(edge.id).toBe(`${edge.fromNodeId}__${edge.type}__${edge.toNodeId}`);
     }
+  });
+
+  describe('panel-change decoration passthrough', () => {
+    it('passes a fixture node.change through to the wire node', () => {
+      // The fixture decorates four biomarker nodes; each must arrive on the
+      // wire node verbatim so the canvas ring/badge + detail sheet light up.
+      const decorated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => n.change);
+      expect(decorated.length).toBeGreaterThan(0);
+      for (const fixtureNode of decorated) {
+        const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
+        expect(wire!.change).toEqual(fixtureNode.change);
+      }
+    });
+
+    it('omits change on nodes the fixture did not decorate', () => {
+      const undecorated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => !n.change);
+      for (const fixtureNode of undecorated) {
+        const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
+        expect(wire!.change).toBeUndefined();
+      }
+    });
+
+    it('covers all four visible change tones for the audit', () => {
+      const classes = new Set(
+        adapted.graph.nodes.flatMap((n) => (n.change ? [n.change.classification] : [])),
+      );
+      expect(classes).toEqual(new Set(['improved', 'worsened', 'stable', 'new']));
+    });
+  });
+
+  describe('firstSeenAt passthrough (time scrubber)', () => {
+    it('passes a fixture node.firstSeenAt through to the wire node verbatim', () => {
+      const dated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => n.firstSeenAt);
+      expect(dated.length).toBeGreaterThan(0);
+      for (const fixtureNode of dated) {
+        const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
+        expect(wire!.firstSeenAt).toBe(fixtureNode.firstSeenAt);
+      }
+    });
+
+    it('omits firstSeenAt (no `undefined` key) when the fixture node lacks it', () => {
+      // Byte-shape parity: an undated node must not carry firstSeenAt at all,
+      // so the wire stays identical to the authed record route's shape.
+      const undated = adaptDemoFixture({
+        version: 'test',
+        sources: [],
+        nodes: [
+          { nodeKey: 'x', type: 'biomarker', canonicalKey: 'x', displayName: 'X' },
+        ],
+        edges: [],
+      });
+      const wire = undated.graph.nodes[0];
+      expect('firstSeenAt' in wire).toBe(false);
+    });
+  });
+
+  describe('time-scrubber stops (fixture narrative)', () => {
+    it('grows the graph through 5 distinct dated stops, latest last', () => {
+      // Four firstSeenAt birth-dates (2024-04, 2024-05, 2025-05, 2025-08) plus
+      // the 2026-02 recheck where the change rings come due = 5 stops.
+      const stops = scrubberStops(adapted.graph.nodes);
+      expect(stops).toHaveLength(5);
+      // strictly increasing
+      expect([...stops].sort((a, b) => a - b)).toEqual(stops);
+      expect(stops[stops.length - 1]).toBe(Date.parse('2026-02-10T09:00:00.000Z'));
+      expect(stops[0]).toBe(Date.parse('2024-04-20T09:00:00.000Z'));
+    });
   });
 
   describe('provenance lookup', () => {

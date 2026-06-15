@@ -162,6 +162,9 @@ describe('GET /api/record', () => {
       tier: expect.any(Number),
       score: expect.any(Number),
     });
+    // Prod-parity guard (R5, plan 2026-06-15-001): firstSeenAt is a demo-only
+    // field set by the graph adapter — the authed route must never emit it.
+    expect(body.nodes[0]).not.toHaveProperty('firstSeenAt');
     expect(body.truncated).toBe(false);
     expect(getLatestSupportCapturedAt).toHaveBeenCalledTimes(1);
   });

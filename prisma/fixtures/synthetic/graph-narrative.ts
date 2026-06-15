@@ -230,50 +230,129 @@ const SOURCES: DemoSource[] = [
   },
 ];
 
+// Time-scrubber stops (plan 2026-06-15-001): each node's `firstSeenAt` is the
+// capturedAt of the earliest source that introduces it, so dragging `asOf`
+// back through these dates makes the graph grow exactly as the record was
+// built. Four distinct birth-dates here; the 2026-02-10 recheck adds no new
+// nodes but is the stop where the `change` rings come due (see change.afterAt).
+const T_BASELINE = '2024-04-20T09:00:00.000Z'; // annual labs — most biomarkers + conditions
+const T_GP = '2024-05-12T10:30:00.000Z'; // GP encounter — BP, weight, BMI, hypertension
+const T_WEARABLE = '2025-05-30T00:00:00.000Z'; // first wearable window — sleep + HRV cluster
+const T_INTERVENTION = '2025-08-15T18:00:00.000Z'; // coached programme starts
+
 const NODES: DemoNode[] = [
   // Conditions / risk states
-  { nodeKey: 'cond-prediabetes', type: 'condition', canonicalKey: 'prediabetes', displayName: 'Prediabetes (HbA1c 5.7–6.4%)' },
-  { nodeKey: 'cond-mild-dyslipidaemia', type: 'condition', canonicalKey: 'mild-dyslipidaemia', displayName: 'Mild dyslipidaemia' },
-  { nodeKey: 'cond-stage1-htn', type: 'condition', canonicalKey: 'stage1-hypertension', displayName: 'Stage 1 hypertension (boundary)' },
-  { nodeKey: 'cond-low-normal-test', type: 'condition', canonicalKey: 'low-normal-testosterone', displayName: 'Low-normal free testosterone' },
-  { nodeKey: 'cond-low-normal-ferritin', type: 'condition', canonicalKey: 'low-normal-ferritin', displayName: 'Low-normal ferritin' },
-  { nodeKey: 'cond-impaired-sleep', type: 'condition', canonicalKey: 'impaired-sleep-continuity', displayName: 'Impaired sleep continuity' },
+  { nodeKey: 'cond-prediabetes', type: 'condition', canonicalKey: 'prediabetes', displayName: 'Prediabetes (HbA1c 5.7–6.4%)', firstSeenAt: T_BASELINE },
+  { nodeKey: 'cond-mild-dyslipidaemia', type: 'condition', canonicalKey: 'mild-dyslipidaemia', displayName: 'Mild dyslipidaemia', firstSeenAt: T_BASELINE },
+  { nodeKey: 'cond-stage1-htn', type: 'condition', canonicalKey: 'stage1-hypertension', displayName: 'Stage 1 hypertension (boundary)', firstSeenAt: T_GP },
+  { nodeKey: 'cond-low-normal-test', type: 'condition', canonicalKey: 'low-normal-testosterone', displayName: 'Low-normal free testosterone', firstSeenAt: T_BASELINE },
+  { nodeKey: 'cond-low-normal-ferritin', type: 'condition', canonicalKey: 'low-normal-ferritin', displayName: 'Low-normal ferritin', firstSeenAt: T_BASELINE },
+  { nodeKey: 'cond-impaired-sleep', type: 'condition', canonicalKey: 'impaired-sleep-continuity', displayName: 'Impaired sleep continuity', firstSeenAt: T_WEARABLE },
 
   // Biomarkers
-  { nodeKey: 'bm-hba1c', type: 'biomarker', canonicalKey: 'hba1c', displayName: 'HbA1c' },
-  { nodeKey: 'bm-fasting-glucose', type: 'biomarker', canonicalKey: 'fasting-glucose', displayName: 'Fasting glucose' },
-  { nodeKey: 'bm-total-chol', type: 'biomarker', canonicalKey: 'total-cholesterol', displayName: 'Total cholesterol' },
-  { nodeKey: 'bm-ldl', type: 'biomarker', canonicalKey: 'ldl', displayName: 'LDL cholesterol' },
-  { nodeKey: 'bm-hdl', type: 'biomarker', canonicalKey: 'hdl', displayName: 'HDL cholesterol' },
-  { nodeKey: 'bm-tg', type: 'biomarker', canonicalKey: 'triglycerides', displayName: 'Triglycerides' },
-  { nodeKey: 'bm-ferritin', type: 'biomarker', canonicalKey: 'ferritin', displayName: 'Ferritin' },
-  { nodeKey: 'bm-tsh', type: 'biomarker', canonicalKey: 'tsh', displayName: 'TSH' },
-  { nodeKey: 'bm-free-test', type: 'biomarker', canonicalKey: 'free-testosterone', displayName: 'Free testosterone' },
-  { nodeKey: 'bm-hscrp', type: 'biomarker', canonicalKey: 'hscrp', displayName: 'hsCRP' },
-  { nodeKey: 'bm-systolic-bp', type: 'biomarker', canonicalKey: 'systolic-bp', displayName: 'Systolic BP' },
-  { nodeKey: 'bm-diastolic-bp', type: 'biomarker', canonicalKey: 'diastolic-bp', displayName: 'Diastolic BP' },
-  { nodeKey: 'bm-weight', type: 'biomarker', canonicalKey: 'weight', displayName: 'Body weight' },
-  { nodeKey: 'bm-bmi', type: 'biomarker', canonicalKey: 'bmi', displayName: 'BMI' },
+  // `change` decorations (longitudinal demo): synthetic before→after across
+  // the two lab panels (2024-04-20 → 2026-02-10), one per visible tone so the
+  // /demo/record audit exercises every change-ring colour, badge glyph, and
+  // the detail-sheet "Since your last test" panel without an authed upload.
+  // Range-relative + descriptive only — never a clinical value judgement.
+  {
+    nodeKey: 'bm-hba1c',
+    type: 'biomarker',
+    canonicalKey: 'hba1c',
+    displayName: 'HbA1c',
+    firstSeenAt: T_BASELINE,
+    // stable → neutral-gray ring + `→` badge (the marginal-contrast watch-item)
+    change: {
+      direction: 'flat',
+      classification: 'stable',
+      beforeValue: 5.7,
+      beforeAt: '2024-04-20T09:00:00.000Z',
+      afterValue: 5.7,
+      afterAt: '2026-02-10T09:00:00.000Z',
+      unit: '%',
+    },
+  },
+  { nodeKey: 'bm-fasting-glucose', type: 'biomarker', canonicalKey: 'fasting-glucose', displayName: 'Fasting glucose', firstSeenAt: T_BASELINE },
+  { nodeKey: 'bm-total-chol', type: 'biomarker', canonicalKey: 'total-cholesterol', displayName: 'Total cholesterol', firstSeenAt: T_BASELINE },
+  {
+    nodeKey: 'bm-ldl',
+    type: 'biomarker',
+    canonicalKey: 'ldl',
+    displayName: 'LDL cholesterol',
+    firstSeenAt: T_BASELINE,
+    // worsened → alert ring + `↑` badge (moved away from the reference interval)
+    change: {
+      direction: 'up',
+      classification: 'worsened',
+      beforeValue: 3.1,
+      beforeAt: '2024-04-20T09:00:00.000Z',
+      afterValue: 3.6,
+      afterAt: '2026-02-10T09:00:00.000Z',
+      unit: 'mmol/L',
+    },
+  },
+  { nodeKey: 'bm-hdl', type: 'biomarker', canonicalKey: 'hdl', displayName: 'HDL cholesterol', firstSeenAt: T_BASELINE },
+  { nodeKey: 'bm-tg', type: 'biomarker', canonicalKey: 'triglycerides', displayName: 'Triglycerides', firstSeenAt: T_BASELINE },
+  {
+    nodeKey: 'bm-ferritin',
+    type: 'biomarker',
+    canonicalKey: 'ferritin',
+    displayName: 'Ferritin',
+    firstSeenAt: T_BASELINE,
+    // improved → positive ring + `↑` badge (moved toward the reference interval)
+    change: {
+      direction: 'up',
+      classification: 'improved',
+      beforeValue: 42,
+      beforeAt: '2024-04-20T09:00:00.000Z',
+      afterValue: 71,
+      afterAt: '2026-02-10T09:00:00.000Z',
+      unit: 'µg/L',
+    },
+  },
+  { nodeKey: 'bm-tsh', type: 'biomarker', canonicalKey: 'tsh', displayName: 'TSH', firstSeenAt: T_BASELINE },
+  {
+    nodeKey: 'bm-free-test',
+    type: 'biomarker',
+    canonicalKey: 'free-testosterone',
+    displayName: 'Free testosterone',
+    firstSeenAt: T_BASELINE,
+    // new → accent ring + `+` badge (measured only in the latest panel)
+    change: {
+      direction: null,
+      classification: 'new',
+      beforeValue: null,
+      beforeAt: null,
+      afterValue: 19.5,
+      afterAt: '2026-02-10T09:00:00.000Z',
+      unit: 'pg/mL',
+    },
+  },
+  { nodeKey: 'bm-hscrp', type: 'biomarker', canonicalKey: 'hscrp', displayName: 'hsCRP', firstSeenAt: T_BASELINE },
+  { nodeKey: 'bm-systolic-bp', type: 'biomarker', canonicalKey: 'systolic-bp', displayName: 'Systolic BP', firstSeenAt: T_GP },
+  { nodeKey: 'bm-diastolic-bp', type: 'biomarker', canonicalKey: 'diastolic-bp', displayName: 'Diastolic BP', firstSeenAt: T_GP },
+  { nodeKey: 'bm-weight', type: 'biomarker', canonicalKey: 'weight', displayName: 'Body weight', firstSeenAt: T_GP },
+  { nodeKey: 'bm-bmi', type: 'biomarker', canonicalKey: 'bmi', displayName: 'BMI', firstSeenAt: T_GP },
 
   // Sleep / recovery metric windows
-  { nodeKey: 'mw-sleep-eff-90', type: 'metric_window', canonicalKey: 'sleep-efficiency-90d', displayName: 'Sleep efficiency (90d)' },
-  { nodeKey: 'mw-total-sleep-90', type: 'metric_window', canonicalKey: 'total-sleep-90d', displayName: 'Total sleep (90d)' },
-  { nodeKey: 'mw-hrv-90', type: 'metric_window', canonicalKey: 'hrv-90d', displayName: 'HRV (90d)' },
+  { nodeKey: 'mw-sleep-eff-90', type: 'metric_window', canonicalKey: 'sleep-efficiency-90d', displayName: 'Sleep efficiency (90d)', firstSeenAt: T_WEARABLE },
+  { nodeKey: 'mw-total-sleep-90', type: 'metric_window', canonicalKey: 'total-sleep-90d', displayName: 'Total sleep (90d)', firstSeenAt: T_WEARABLE },
+  { nodeKey: 'mw-hrv-90', type: 'metric_window', canonicalKey: 'hrv-90d', displayName: 'HRV (90d)', firstSeenAt: T_WEARABLE },
 
   // Symptoms
-  { nodeKey: 'sym-fatigue', type: 'symptom', canonicalKey: 'fatigue-afternoon', displayName: 'Afternoon fatigue' },
-  { nodeKey: 'sym-broken-sleep', type: 'symptom', canonicalKey: 'broken-sleep', displayName: 'Broken sleep' },
-  { nodeKey: 'sym-low-libido', type: 'symptom', canonicalKey: 'low-libido', displayName: 'Reduced libido' },
+  { nodeKey: 'sym-fatigue', type: 'symptom', canonicalKey: 'fatigue-afternoon', displayName: 'Afternoon fatigue', firstSeenAt: T_BASELINE },
+  { nodeKey: 'sym-broken-sleep', type: 'symptom', canonicalKey: 'broken-sleep', displayName: 'Broken sleep', firstSeenAt: T_WEARABLE },
+  { nodeKey: 'sym-low-libido', type: 'symptom', canonicalKey: 'low-libido', displayName: 'Reduced libido', firstSeenAt: T_BASELINE },
 
   // Interventions / lifestyle
-  { nodeKey: 'int-resistance-training', type: 'intervention', canonicalKey: 'resistance-training-3wk', displayName: 'Resistance training (3×/week)' },
-  { nodeKey: 'int-mediterranean-diet', type: 'intervention', canonicalKey: 'mediterranean-diet', displayName: 'Mediterranean-pattern diet' },
-  { nodeKey: 'int-caffeine-cutoff', type: 'intervention', canonicalKey: 'caffeine-cutoff-14', displayName: 'Caffeine cutoff at 14:00' },
-  { nodeKey: 'int-step-target', type: 'intervention', canonicalKey: 'daily-step-target-8000', displayName: 'Daily step target 8,000' },
+  { nodeKey: 'int-resistance-training', type: 'intervention', canonicalKey: 'resistance-training-3wk', displayName: 'Resistance training (3×/week)', firstSeenAt: T_INTERVENTION },
+  { nodeKey: 'int-mediterranean-diet', type: 'intervention', canonicalKey: 'mediterranean-diet', displayName: 'Mediterranean-pattern diet', firstSeenAt: T_INTERVENTION },
+  { nodeKey: 'int-caffeine-cutoff', type: 'intervention', canonicalKey: 'caffeine-cutoff-14', displayName: 'Caffeine cutoff at 14:00', firstSeenAt: T_INTERVENTION },
+  { nodeKey: 'int-step-target', type: 'intervention', canonicalKey: 'daily-step-target-8000', displayName: 'Daily step target 8,000', firstSeenAt: T_INTERVENTION },
 
-  // Self-report
-  { nodeKey: 'mood-week', type: 'mood', canonicalKey: 'mood-weekly', displayName: 'Mood (weekly self-report)' },
-  { nodeKey: 'energy-week', type: 'energy', canonicalKey: 'energy-weekly', displayName: 'Energy (weekly self-report)' },
+  // Self-report (present from the start of the record)
+  { nodeKey: 'mood-week', type: 'mood', canonicalKey: 'mood-weekly', displayName: 'Mood (weekly self-report)', firstSeenAt: T_BASELINE },
+  { nodeKey: 'energy-week', type: 'energy', canonicalKey: 'energy-weekly', displayName: 'Energy (weekly self-report)', firstSeenAt: T_BASELINE },
 ];
 
 const EDGES: DemoEdge[] = [
@@ -340,7 +419,12 @@ const EDGES: DemoEdge[] = [
 ];
 
 export const METABOLIC_PERSONA_GRAPH: DemoRecordFixture = {
-  version: '1',
+  // v2: longitudinal `change` decorations on four biomarker nodes (HbA1c,
+  // LDL, Ferritin, Free testosterone) so /demo/record showcases the panel-
+  // change ring/badge/pulse + detail-sheet before→after.
+  // v3: per-node `firstSeenAt` dates so the /demo/record time scrubber can
+  // grow the graph across the persona's timeline (plan 2026-06-15-001).
+  version: '3',
   sources: SOURCES,
   nodes: NODES,
   edges: EDGES,
