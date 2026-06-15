@@ -501,14 +501,17 @@ export function useGraphState(
       .attr('pointer-events', 'none');
     changedSel
       .append('circle')
-      .attr('class', (d) => changeVisual(d.change!.classification).badgeFillClass)
+      // `graph-node-change-badge` is a stable, non-visual hook so the demo
+      // time-scrubber can hide the badge until its change date (graph-canvas
+      // as-of effect); the badgeFillClass carries the tone.
+      .attr('class', (d) => `graph-node-change-badge ${changeVisual(d.change!.classification).badgeFillClass}`)
       .attr('cx', (d) => radiusForTier(d.tier) * 0.9)
       .attr('cy', (d) => -radiusForTier(d.tier) * 0.9)
       .attr('r', 5)
       .attr('pointer-events', 'none');
     changedSel
       .append('text')
-      .attr('class', 'fill-white text-[8px] font-bold pointer-events-none')
+      .attr('class', 'graph-node-change-badge fill-white text-[8px] font-bold pointer-events-none')
       .attr('x', (d) => radiusForTier(d.tier) * 0.9)
       .attr('y', (d) => -radiusForTier(d.tier) * 0.9)
       .attr('text-anchor', 'middle')

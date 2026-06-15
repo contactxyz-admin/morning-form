@@ -29,7 +29,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { edgeOpacity } from '@/lib/graph/motion';
+import { asOfVisibility, changeVisibleAsOf } from '@/lib/graph/as-of';
 import { useGraphState } from './use-graph-state';
+
+// Opacity for a node not yet "born" as-of the scrubber date — a faint ghost
+// that keeps the layout legible without reading as present. Tunable in the
+// visual audit (plan 2026-06-15-001).
+const AS_OF_DIM = '0.08';
 
 export interface GraphCanvasProps {
   readonly nodes: readonly GraphNodeWire[];
@@ -54,6 +60,14 @@ export interface GraphCanvasProps {
    * Defaults to all-interactive.
    */
   readonly nodeInteractive?: (node: GraphNodeWire) => boolean;
+  /**
+   * Time-scrubber "as of" date, epoch ms. When set, nodes whose `firstSeenAt`
+   * postdates it dim (with their edges), and a node's change ring stays hidden
+   * until the date reaches its change `afterAt`. `null`/omitted → no temporal
+   * dimming, i.e. today's render (the authed `/graph` never sets it; demo only).
+   * Plan 2026-06-15-001.
+   */
+  readonly asOfEpoch?: number | null;
 }
 
 const DEFAULT_SEED = 0x4d6f6e64; // 'Mond' — arbitrary but stable.
@@ -69,9 +83,14 @@ export function GraphCanvas({
   ariaLabel,
   selectedNodeId = null,
   nodeInteractive,
+  asOfEpoch = null,
 }: GraphCanvasProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
+  // id → temporal metadata for the as-of dimming pass below. Rebuilt only when
+  // the node set changes (stable in the demo's memoized canvasNodes).
+  const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
   // Emphasis = hover while the pointer is on a node, falling back to the
   // persistent selection (the open detail surface) at rest. Hover stays
@@ -89,37 +108,62 @@ export function GraphCanvas({
     nodeInteractive,
   });
 
-  // Imperatively dim non-neighbour nodes / edges when a node is
-  // focused. We don't re-render the simulation — just toggle classes
-  // on the existing DOM. This is the seam pattern: run physics in the
-  // hook, do interaction overlays via D3 selection refs.
+  // Imperatively dim nodes / edges. Two composed sources, both opacity-only on
+  // the existing DOM (the seam pattern: physics in the hook, overlays via
+  // selection). (1) Hover/focus emphasis dims non-neighbours. (2) The demo
+  // time-scrubber (`asOfEpoch`) ghosts nodes not yet "born" as-of that date,
+  // dims their edges, and hides change rings until due. The time-ghost wins
+  // over emphasis. `asOfEpoch == null` (authed path / scrubber off) makes the
+  // time pass a no-op, so this is byte-for-byte today's behaviour.
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
-    if (!emphasisNodeId) {
-      svg.querySelectorAll('[data-node-id], [data-edge-id]').forEach((el) => {
-        (el as SVGElement).style.opacity = '';
-      });
-      svg.querySelectorAll('.graph-node-label-hover').forEach((el) => {
-        (el as SVGTextElement).style.opacity = '';
-      });
-      return;
-    }
+    const hasEmphasis = Boolean(emphasisNodeId);
+    const timeDimmed = (id: string) =>
+      asOfVisibility(nodeById.get(id)?.firstSeenAt, asOfEpoch) === 'dimmed';
+
     svg.querySelectorAll<SVGGElement>('[data-node-id]').forEach((el) => {
       const id = el.getAttribute('data-node-id') ?? '';
-      el.style.opacity = neighbourIds.has(id) ? '1' : '0.2';
-      // Surface the hover-only label for the focused node + its
-      // neighbours, so the labels only crowd the canvas where they're
-      // actually wanted.
+      const ghost = timeDimmed(id);
+      // Emphasis opacity ('' = untouched at rest), then the time-ghost overrides.
+      el.style.opacity = ghost
+        ? AS_OF_DIM
+        : hasEmphasis
+          ? neighbourIds.has(id)
+            ? '1'
+            : '0.2'
+          : '';
       const hoverLabel = el.querySelector<SVGTextElement>('.graph-node-label-hover');
-      if (hoverLabel) hoverLabel.style.opacity = neighbourIds.has(id) ? '1' : '0';
+      if (hoverLabel) {
+        hoverLabel.style.opacity = ghost
+          ? '0'
+          : hasEmphasis
+            ? neighbourIds.has(id)
+              ? '1'
+              : '0'
+            : '';
+      }
+      // Change ring/badge/pulse: hidden until asOf reaches the change date.
+      const changeShown = changeVisibleAsOf(nodeById.get(id)?.change, asOfEpoch);
+      el.querySelectorAll<SVGElement>(
+        '.graph-node-change-ring, .graph-node-change-pulse, .graph-node-change-badge',
+      ).forEach((c) => {
+        // '' restores the element's own resting opacity (the pulse rests at 0,
+        // the ring/badge at full) so we never clobber the pulse animation.
+        c.style.opacity = changeShown ? '' : '0';
+      });
     });
     svg.querySelectorAll<SVGElement>('[data-from-id]').forEach((el) => {
       const fromId = el.getAttribute('data-from-id') ?? '';
       const toId = el.getAttribute('data-to-id') ?? '';
-      el.style.opacity = edgeOpacity(fromId, toId, neighbourIds);
+      el.style.opacity =
+        timeDimmed(fromId) || timeDimmed(toId)
+          ? AS_OF_DIM
+          : hasEmphasis
+            ? edgeOpacity(fromId, toId, neighbourIds)
+            : '';
     });
-  }, [emphasisNodeId, neighbourIds]);
+  }, [emphasisNodeId, neighbourIds, asOfEpoch, nodeById]);
 
   // Selection halo + aria-current, mirrored from the `?entity=` URL state.
   // Same imperative seam as the dim effect: attribute toggles on existing
