@@ -66,6 +66,15 @@ export interface DemoNode {
    * authed PDF-upload path. Synthetic, range-relative, descriptive only.
    */
   change?: NodeChangeWire;
+  /**
+   * ISO date of the earliest evidence that introduced this node — drives the
+   * `/demo/record` time scrubber (plan 2026-06-15-001). Dragging `asOf` before
+   * this date dims the node (and its edges); the graph visibly grows over the
+   * persona's timeline. Demo-only and additive: the adapter passes it through
+   * to `GraphNodeWire.firstSeenAt`, which the authed path never populates.
+   * Absent → "always known" (never dims).
+   */
+  firstSeenAt?: string;
 }
 
 export interface DemoEdge {

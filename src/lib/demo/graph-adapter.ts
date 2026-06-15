@@ -87,6 +87,9 @@ function nodeToWire(
     // wire shape byte-identical to the live record route for undecorated
     // nodes). Only biomarker fixture nodes carry it.
     ...(node.change ? { change: node.change } : {}),
+    // Earliest-evidence date for the time scrubber (plan 2026-06-15-001).
+    // Same additive passthrough as `change`; absent → "always present".
+    ...(node.firstSeenAt ? { firstSeenAt: node.firstSeenAt } : {}),
   };
 }
 

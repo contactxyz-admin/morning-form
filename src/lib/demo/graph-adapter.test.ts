@@ -90,6 +90,32 @@ describe('adaptDemoFixture', () => {
     });
   });
 
+  describe('firstSeenAt passthrough (time scrubber)', () => {
+    it('passes a fixture node.firstSeenAt through to the wire node verbatim', () => {
+      const dated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => n.firstSeenAt);
+      expect(dated.length).toBeGreaterThan(0);
+      for (const fixtureNode of dated) {
+        const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
+        expect(wire!.firstSeenAt).toBe(fixtureNode.firstSeenAt);
+      }
+    });
+
+    it('omits firstSeenAt (no `undefined` key) when the fixture node lacks it', () => {
+      // Byte-shape parity: an undated node must not carry firstSeenAt at all,
+      // so the wire stays identical to the authed record route's shape.
+      const undated = adaptDemoFixture({
+        version: 'test',
+        sources: [],
+        nodes: [
+          { nodeKey: 'x', type: 'biomarker', canonicalKey: 'x', displayName: 'X' },
+        ],
+        edges: [],
+      });
+      const wire = undated.graph.nodes[0];
+      expect('firstSeenAt' in wire).toBe(false);
+    });
+  });
+
   describe('provenance lookup', () => {
     it('contains an entry for every node', () => {
       for (const node of adapted.graph.nodes) {
