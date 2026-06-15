@@ -87,3 +87,24 @@ export type MarketingCta = z.infer<typeof CtaSchema>;
 export function defineMarketingPage(input: unknown): MarketingPage {
   return MarketingPageSchema.parse(input);
 }
+
+/**
+ * FAQ fragment for the market homepages. Full marketing pages carry
+ * their provenance inside MarketingPageSchema; the landing FAQ is a
+ * fragment rather than a page, so it gets its own slim schema with the
+ * same editorial-provenance fields. Content lives at
+ * content/marketing/home-faq.ts — inside the static-copy compliance
+ * scan roots AND validated here at import.
+ */
+export const HomeFaqSchema = z.object({
+  entries: z.array(FaqEntrySchema).min(1),
+  publishedAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'must be ISO date'),
+  lastReviewedAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), 'must be ISO date'),
+  reviewerKey: z.string().min(1),
+});
+
+export type HomeFaq = z.infer<typeof HomeFaqSchema>;
+
+export function defineHomeFaq(input: unknown): HomeFaq {
+  return HomeFaqSchema.parse(input);
+}

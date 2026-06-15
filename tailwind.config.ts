@@ -65,6 +65,9 @@ const config: Config = {
         'text-secondary': '#424245',
         'text-tertiary': '#6E6E73',
         'text-whisper': '#86868B',
+        // Secondary text on inverted (ink) surfaces — Apple's dark-mode
+        // mid grey, ~6.5:1 on text-primary. Headings on ink use `bg`.
+        'text-inverse-muted': '#A1A1A6',
         // Accent — desaturated graphite for focus rings and active states.
         // Held back from any warm/colourful read.
         accent: {
@@ -86,6 +89,11 @@ const config: Config = {
         positive: {
           DEFAULT: '#248A3D',
           light: '#E8F4EC',
+          // DEFAULT lands ~4.0:1 on white — fine for ≥18px text and
+          // non-text strokes (3:1), short of AA's 4.5:1 for small text.
+          // `deep` (~5.8:1) backs sub-14px positive labels, e.g. the
+          // landing RecordPreview chips.
+          deep: '#1B7434',
         },
         caution: {
           DEFAULT: '#AD6200',
