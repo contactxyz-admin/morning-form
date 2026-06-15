@@ -6,6 +6,9 @@ import {
   smooth,
   pulseScale,
   PULSE_PEAK,
+  lerp,
+  easeOutBack,
+  staggeredAlpha,
   edgeOpacity,
   entranceFrame,
   clampToBounds,
@@ -14,6 +17,61 @@ import {
   boundsFromNodes,
   type ZoomFilterEvent,
 } from './motion';
+
+describe('lerp', () => {
+  it('returns endpoints at alpha 0 and 1', () => {
+    expect(lerp(2, 10, 0)).toBe(2);
+    expect(lerp(2, 10, 1)).toBe(10);
+  });
+  it('interpolates linearly at the midpoint', () => {
+    expect(lerp(0, 10, 0.5)).toBe(5);
+    expect(lerp(1, 0.08, 0.5)).toBeCloseTo(0.54, 10);
+  });
+});
+
+describe('easeOutBack', () => {
+  it('lands at exactly 0→0 and 1→1 (no residual)', () => {
+    expect(easeOutBack(0)).toBeCloseTo(0, 10);
+    expect(easeOutBack(1)).toBeCloseTo(1, 10);
+  });
+  it('overshoots past 1 before settling', () => {
+    // somewhere in the back half it exceeds 1 (the "life" on landing)
+    const overshoots = [0.6, 0.7, 0.8, 0.9].some((t) => easeOutBack(t) > 1);
+    expect(overshoots).toBe(true);
+  });
+  it('clamps out-of-range input', () => {
+    expect(easeOutBack(-1)).toBeCloseTo(0, 10);
+    expect(easeOutBack(2)).toBeCloseTo(1, 10);
+  });
+});
+
+describe('staggeredAlpha', () => {
+  it('lagRatio 0 → every item gets the global alpha (no stagger)', () => {
+    for (let i = 0; i < 4; i++) expect(staggeredAlpha(0.42, i, 4, 0)).toBe(0.42);
+  });
+  it('count <= 1 → global alpha unchanged', () => {
+    expect(staggeredAlpha(0.3, 0, 1, 0.5)).toBe(0.3);
+  });
+  it('globalAlpha 1 → all items finished (1)', () => {
+    for (let i = 0; i < 5; i++) expect(staggeredAlpha(1, i, 5, 0.5)).toBe(1);
+  });
+  it('with stagger, earlier items lead later ones', () => {
+    // at a mid global alpha, item 0 is further along than the last item
+    const first = staggeredAlpha(0.5, 0, 4, 0.6);
+    const last = staggeredAlpha(0.5, 3, 4, 0.6);
+    expect(first).toBeGreaterThan(last);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(last).toBeGreaterThanOrEqual(0);
+  });
+  it('all locals stay within [0,1]', () => {
+    for (let g = 0; g <= 1.0001; g += 0.1)
+      for (let i = 0; i < 4; i++) {
+        const v = staggeredAlpha(g, i, 4, 0.5);
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+  });
+});
 
 describe('pulseScale', () => {
   it('starts and ends at exactly 1 (one-shot, no residual scale)', () => {
