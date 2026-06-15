@@ -27,15 +27,21 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { animate } from 'framer-motion';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
-import { edgeOpacity } from '@/lib/graph/motion';
-import { asOfVisibility, changeVisibleAsOf } from '@/lib/graph/as-of';
-import { useGraphState } from './use-graph-state';
+import { edgeOpacity, smooth, lerp, easeOutBack, staggeredAlpha } from '@/lib/graph/motion';
+import { asOfVisibility, changeVisibleAsOf, composeNodeOpacity } from '@/lib/graph/as-of';
+import { useGraphState, computeMotionAllowed } from './use-graph-state';
 
 // Opacity for a node not yet "born" as-of the scrubber date — a faint ghost
 // that keeps the layout legible without reading as present. Tunable in the
 // visual audit (plan 2026-06-15-001).
 const AS_OF_DIM = '0.08';
+const AS_OF_DIM_NUM = 0.08;
+// Scrub-transition tuning (plan 2026-06-16-001) — all dial-in-the-audit feel.
+const SCRUB_DURATION = 0.55; // seconds for a stop→stop eased transition
+const BIRTH_SCALE = 0.8; // a revealed node grows from here to 1 (grow-in)
+const LAG_RATIO = 0.15; // Manim lag_ratio — same-stop births stagger subtly
 
 export interface GraphCanvasProps {
   readonly nodes: readonly GraphNodeWire[];
@@ -92,6 +98,12 @@ export function GraphCanvas({
   // the node set changes (stable in the demo's memoized canvasNodes).
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
+  // Eased scrub transition (plan 2026-06-16-001): a cancellable opacity+scale
+  // tween that runs only when `asOfEpoch` actually changes with motion allowed.
+  // `prevAsOfRef === undefined` marks the first paint (no tween on mount).
+  const scrubTweenRef = useRef<ReturnType<typeof animate> | null>(null);
+  const prevAsOfRef = useRef<number | null | undefined>(undefined);
+
   // Emphasis = hover while the pointer is on a node, falling back to the
   // persistent selection (the open detail surface) at rest. Hover stays
   // transient and unchanged; selection keeps the neighbourhood lit after
@@ -115,6 +127,10 @@ export function GraphCanvas({
   // dims their edges, and hides change rings until due. The time-ghost wins
   // over emphasis. `asOfEpoch == null` (authed path / scrubber off) makes the
   // time pass a no-op, so this is byte-for-byte today's behaviour.
+  //
+  // When `asOfEpoch` *changes* (a scrub) with motion allowed, the time-opacity
+  // (and a grow-in scale on newly-revealed nodes) EASES to the target instead
+  // of cutting — `paintInstant` is the canonical end-state the tween lands on.
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -122,47 +138,150 @@ export function GraphCanvas({
     const timeDimmed = (id: string) =>
       asOfVisibility(nodeById.get(id)?.firstSeenAt, asOfEpoch) === 'dimmed';
 
-    svg.querySelectorAll<SVGGElement>('[data-node-id]').forEach((el) => {
-      const id = el.getAttribute('data-node-id') ?? '';
-      const ghost = timeDimmed(id);
-      // Emphasis opacity ('' = untouched at rest), then the time-ghost overrides.
-      el.style.opacity = ghost
-        ? AS_OF_DIM
-        : hasEmphasis
-          ? neighbourIds.has(id)
-            ? '1'
-            : '0.2'
-          : '';
-      const hoverLabel = el.querySelector<SVGTextElement>('.graph-node-label-hover');
-      if (hoverLabel) {
-        hoverLabel.style.opacity = ghost
-          ? '0'
+    // Canonical instant paint — today's behaviour verbatim. Used for the
+    // prod/null path, hover-only changes, reduced-motion, and as the tween's
+    // exact landing state (so the eased and instant paths agree byte-for-byte).
+    const paintInstant = () => {
+      svg.querySelectorAll<SVGGElement>('[data-node-id]').forEach((el) => {
+        const id = el.getAttribute('data-node-id') ?? '';
+        const ghost = timeDimmed(id);
+        el.style.opacity = ghost
+          ? AS_OF_DIM
           : hasEmphasis
             ? neighbourIds.has(id)
               ? '1'
-              : '0'
+              : '0.2'
             : '';
-      }
-      // Change ring/badge/pulse: hidden until asOf reaches the change date.
+        // Strip any in-flight grow-in scale: restore the position-only transform.
+        const base = el.getAttribute('data-base-transform');
+        if (base) el.setAttribute('transform', base);
+        const hoverLabel = el.querySelector<SVGTextElement>('.graph-node-label-hover');
+        if (hoverLabel) {
+          hoverLabel.style.opacity = ghost
+            ? '0'
+            : hasEmphasis
+              ? neighbourIds.has(id)
+                ? '1'
+                : '0'
+              : '';
+        }
+        const changeShown = changeVisibleAsOf(nodeById.get(id)?.change, asOfEpoch);
+        el.querySelectorAll<SVGElement>(
+          '.graph-node-change-ring, .graph-node-change-pulse, .graph-node-change-badge',
+        ).forEach((c) => {
+          c.style.opacity = changeShown ? '' : '0';
+        });
+      });
+      svg.querySelectorAll<SVGElement>('[data-from-id]').forEach((el) => {
+        const fromId = el.getAttribute('data-from-id') ?? '';
+        const toId = el.getAttribute('data-to-id') ?? '';
+        el.style.opacity =
+          timeDimmed(fromId) || timeDimmed(toId)
+            ? AS_OF_DIM
+            : hasEmphasis
+              ? edgeOpacity(fromId, toId, neighbourIds)
+              : '';
+      });
+    };
+
+    const prev = prevAsOfRef.current;
+    const asOfChanged = prev !== undefined && prev !== asOfEpoch && asOfEpoch != null;
+    prevAsOfRef.current = asOfEpoch;
+
+    // Not a scrub (prod/null, first paint, hover, reduced-motion) → instant.
+    if (!asOfChanged || !computeMotionAllowed()) {
+      // A scrub tween is mid-flight and only hover changed → let it finish.
+      if (!asOfChanged && scrubTweenRef.current) return;
+      scrubTweenRef.current?.stop();
+      scrubTweenRef.current = null;
+      paintInstant();
+      return;
+    }
+
+    // ── Eased scrub transition ──────────────────────────────────────────────
+    // Numeric targets matching paintInstant's logic; ease opacity start→end and
+    // grow newly-revealed nodes in. Scale via `translate(x,y) scale(s)` on the
+    // group (local origin = node centre) so the converged position is preserved.
+    const nodeTarget = (id: string) =>
+      composeNodeOpacity(timeDimmed(id), hasEmphasis, neighbourIds.has(id), AS_OF_DIM_NUM);
+
+    const nodeEls = Array.from(svg.querySelectorAll<SVGGElement>('[data-node-id]'));
+    const nodeFrames = nodeEls.map((el) => {
+      const id = el.getAttribute('data-node-id') ?? '';
+      const start = parseFloat(el.style.opacity || '1');
+      const end = nodeTarget(id);
+      // Position-only transform: prefer the cached base (a prior interrupted
+      // tween may have left a `scale()` on `transform`), else the current one.
+      const base = el.getAttribute('data-base-transform') ?? el.getAttribute('transform') ?? '';
+      el.setAttribute('data-base-transform', base);
+      return { el, id, start, end, base, reveal: start < 0.5 && end >= 0.5 };
+    });
+    // Stagger only the revealing nodes (Manim lag_ratio), deterministic order.
+    const revealOrder = new Map(
+      nodeFrames
+        .filter((f) => f.reveal)
+        .sort((a, b) => {
+          const ta = nodeById.get(a.id)?.tier ?? 9;
+          const tb = nodeById.get(b.id)?.tier ?? 9;
+          return ta - tb || a.id.localeCompare(b.id);
+        })
+        .map((f, i) => [f.id, i] as const),
+    );
+    const revealCount = revealOrder.size;
+
+    const edgeFrames = Array.from(svg.querySelectorAll<SVGElement>('[data-from-id]')).map(
+      (el) => {
+        const fromId = el.getAttribute('data-from-id') ?? '';
+        const toId = el.getAttribute('data-to-id') ?? '';
+        const start = parseFloat(el.style.opacity || '1');
+        const end =
+          timeDimmed(fromId) || timeDimmed(toId)
+            ? AS_OF_DIM_NUM
+            : hasEmphasis
+              ? Number(edgeOpacity(fromId, toId, neighbourIds))
+              : 1;
+        return { el, start, end };
+      },
+    );
+
+    // Change rings + hover labels don't ease — set them to final up front.
+    nodeEls.forEach((el) => {
+      const id = el.getAttribute('data-node-id') ?? '';
       const changeShown = changeVisibleAsOf(nodeById.get(id)?.change, asOfEpoch);
       el.querySelectorAll<SVGElement>(
         '.graph-node-change-ring, .graph-node-change-pulse, .graph-node-change-badge',
-      ).forEach((c) => {
-        // '' restores the element's own resting opacity (the pulse rests at 0,
-        // the ring/badge at full) so we never clobber the pulse animation.
-        c.style.opacity = changeShown ? '' : '0';
-      });
+      ).forEach((c) => (c.style.opacity = changeShown ? '' : '0'));
     });
-    svg.querySelectorAll<SVGElement>('[data-from-id]').forEach((el) => {
-      const fromId = el.getAttribute('data-from-id') ?? '';
-      const toId = el.getAttribute('data-to-id') ?? '';
-      el.style.opacity =
-        timeDimmed(fromId) || timeDimmed(toId)
-          ? AS_OF_DIM
-          : hasEmphasis
-            ? edgeOpacity(fromId, toId, neighbourIds)
-            : '';
+
+    scrubTweenRef.current?.stop();
+    scrubTweenRef.current = animate(0, 1, {
+      duration: SCRUB_DURATION,
+      ease: 'linear', // we apply `smooth` (and the stagger) ourselves, per node
+      onUpdate: (g: number) => {
+        nodeFrames.forEach((f) => {
+          const local = f.reveal
+            ? staggeredAlpha(g, revealOrder.get(f.id) ?? 0, revealCount, LAG_RATIO)
+            : g;
+          f.el.style.opacity = String(lerp(f.start, f.end, smooth(local)));
+          if (f.reveal) {
+            const s = lerp(BIRTH_SCALE, 1, easeOutBack(local));
+            f.el.setAttribute('transform', `${f.base} scale(${s})`);
+          }
+        });
+        edgeFrames.forEach((e) => {
+          e.el.style.opacity = String(lerp(e.start, e.end, smooth(g)));
+        });
+      },
+      onComplete: () => {
+        scrubTweenRef.current = null;
+        paintInstant(); // land exactly on the canonical end-state, strip scale
+      },
     });
+
+    return () => {
+      scrubTweenRef.current?.stop();
+      scrubTweenRef.current = null;
+    };
   }, [emphasisNodeId, neighbourIds, asOfEpoch, nodeById]);
 
   // Selection halo + aria-current, mirrored from the `?entity=` URL state.

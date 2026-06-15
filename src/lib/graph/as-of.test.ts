@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeChangeWire } from '@/types/graph';
-import { asOfVisibility, changeVisibleAsOf, scrubberStops } from './as-of';
+import {
+  asOfVisibility,
+  changeVisibleAsOf,
+  scrubberStops,
+  composeNodeOpacity,
+} from './as-of';
 
 const BASELINE = '2024-04-20T09:00:00.000Z';
 const RECHECK = '2026-02-10T09:00:00.000Z';
@@ -60,6 +65,21 @@ describe('changeVisibleAsOf', () => {
 
   it('asOfEpoch null (scrubber off) → show', () => {
     expect(changeVisibleAsOf(change, null)).toBe(true);
+  });
+});
+
+describe('composeNodeOpacity (scrubber target)', () => {
+  const DIM = 0.08;
+  it('present + no emphasis → full', () => {
+    expect(composeNodeOpacity(false, false, false, DIM)).toBe(1);
+  });
+  it('time-dimmed wins over hover emphasis', () => {
+    expect(composeNodeOpacity(true, true, true, DIM)).toBe(DIM);
+    expect(composeNodeOpacity(true, false, false, DIM)).toBe(DIM);
+  });
+  it('present + hovering a neighbour → full, non-neighbour → 0.2', () => {
+    expect(composeNodeOpacity(false, true, true, DIM)).toBe(1);
+    expect(composeNodeOpacity(false, true, false, DIM)).toBe(0.2);
   });
 });
 
