@@ -192,7 +192,7 @@ Replace `CAUSES` with safe vocabulary; grade evidence by source strength; surfac
 
 **Verification:** the four contradictions are gone and re-deriving from readings reproduces them; deleting the `change` field still compiles (nothing authors tones).
 
-- [ ] **Unit 3: Honest, realistic persona (Phase 2)**
+- [x] **Unit 3: Honest, realistic persona (Phase 2)**
 
 **Goal:** Re-author the records so the derived tones show a clinically realistic mix: ≥1 improves, ≥1 cardiometabolic marker worsens, ≥1 borderline/needs-monitoring, ≥1 genuinely new in 2026.
 

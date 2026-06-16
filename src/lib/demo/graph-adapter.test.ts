@@ -112,16 +112,22 @@ describe('adaptDemoFixture', () => {
       }
     });
 
-    it('the four previously-contradictory markers now derive honest tones', () => {
-      // The lifestyle-recovery persona: HbA1c & LDL cross into range (improved);
-      // ferritin & free-T move within range both times (stable — the range
-      // method cannot claim "improved"). No fabricated "new" or inverted tone.
+    it('derives an honest clinical mix from source (CMO persona 2026-06-16)', () => {
+      // One credible change (LDL-C rose above the attention threshold), one
+      // newly captured signal (ApoB), plus the within-range recovery markers —
+      // every tone derived from the recorded values, none authored.
       const tone = (id: string) =>
         adapted.graph.nodes.find((n) => n.id === id)!.change!.classification;
+      expect(tone('bm-ldl')).toBe('worsened'); // 2.7 → 3.4, above attention threshold
+      expect(tone('bm-apob')).toBe('new'); // first measured in 2026, no trend
       expect(tone('bm-hba1c')).toBe('improved');
-      expect(tone('bm-ldl')).toBe('improved');
       expect(tone('bm-ferritin')).toBe('stable');
       expect(tone('bm-free-test')).toBe('stable');
+      // The honest mix the CMO asked for spans worsened + new + improved + stable.
+      const tones = new Set(
+        adapted.graph.nodes.flatMap((n) => (n.change ? [n.change.classification] : [])),
+      );
+      expect(tones).toEqual(new Set(['worsened', 'new', 'improved', 'stable']));
     });
   });
 

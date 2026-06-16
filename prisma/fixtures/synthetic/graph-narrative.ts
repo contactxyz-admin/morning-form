@@ -46,7 +46,7 @@ const SOURCES: DemoSource[] = [
       {
         chunkKey: 'syn-2024-04-lipids',
         index: 2,
-        text: 'Total cholesterol 5.6, LDL 3.6, HDL 1.05, triglycerides 2.1 (mmol/L). LDL above NICE primary-prevention target; HDL low; TG borderline. Atherogenic pattern.',
+        text: 'Total cholesterol 4.6, LDL 2.7, HDL 1.35, triglycerides 1.0 (mmol/L). Lipid panel within optimal range at baseline.',
         offsetStart: 231,
         offsetEnd: 400,
         pageNumber: 1,
@@ -178,7 +178,7 @@ const SOURCES: DemoSource[] = [
       {
         chunkKey: 'syn-2026-02-lipids',
         index: 1,
-        text: 'Total cholesterol 4.9, LDL 2.9, HDL 1.25, triglycerides 1.4 (mmol/L). Meaningful improvement across the lipid panel.',
+        text: 'Total cholesterol 5.4, LDL 3.4, HDL 1.3, triglycerides 1.3 (mmol/L). LDL-C has risen above MorningForm’s attention threshold (3.0) since the 2024 baseline. This is not a diagnosis or a treatment trigger — worth reviewing alongside the full lipid profile, family history, training, diet and overall CVD risk with a clinician.',
         offsetStart: 111,
         offsetEnd: 240,
         pageNumber: 1,
@@ -197,6 +197,14 @@ const SOURCES: DemoSource[] = [
         text: 'Free testosterone 11.8 pg/mL. Up from 9.5 — within the comfortable mid-range now. Likely a downstream effect of weight loss + sleep + training.',
         offsetStart: 351,
         offsetEnd: 510,
+        pageNumber: 1,
+      },
+      {
+        chunkKey: 'syn-2026-02-apob',
+        index: 4,
+        text: 'ApoB 0.98 g/L — newly added to this baseline panel. Quantifies the number of atherogenic particles and adds context to LDL-C; no prior value to trend yet.',
+        offsetStart: 511,
+        offsetEnd: 670,
         pageNumber: 1,
       },
     ],
@@ -244,7 +252,9 @@ const T_RECHECK = '2026-02-10T09:00:00.000Z'; // post-intervention recheck labs 
 const NODES: DemoNode[] = [
   // Conditions / risk states
   { nodeKey: 'cond-prediabetes', type: 'condition', canonicalKey: 'prediabetes', displayName: 'Prediabetes (HbA1c 5.7–6.4%)', firstSeenAt: T_BASELINE },
-  { nodeKey: 'cond-mild-dyslipidaemia', type: 'condition', canonicalKey: 'mild-dyslipidaemia', displayName: 'Mild dyslipidaemia', firstSeenAt: T_BASELINE },
+  // Attention item, not a diagnosis: LDL-C rose above MorningForm's attention
+  // threshold in the 2026 baseline (firstSeen 2026, not 2024) — CMO direction.
+  { nodeKey: 'cond-mild-dyslipidaemia', type: 'condition', canonicalKey: 'ldl-attention', displayName: 'LDL above attention threshold', firstSeenAt: T_RECHECK },
   { nodeKey: 'cond-stage1-htn', type: 'condition', canonicalKey: 'stage1-hypertension', displayName: 'Stage 1 hypertension (boundary)', firstSeenAt: T_GP },
   { nodeKey: 'cond-low-normal-test', type: 'condition', canonicalKey: 'low-normal-testosterone', displayName: 'Low-normal free testosterone', firstSeenAt: T_BASELINE },
   { nodeKey: 'cond-low-normal-ferritin', type: 'condition', canonicalKey: 'low-normal-ferritin', displayName: 'Low-normal ferritin', firstSeenAt: T_BASELINE },
@@ -277,11 +287,24 @@ const NODES: DemoNode[] = [
     canonicalKey: 'ldl',
     displayName: 'LDL cholesterol',
     firstSeenAt: T_BASELINE,
-    // 3.6 (above optimal) → 2.9 (optimal). Derives: improved.
+    // 2.7 (within range) → 3.4 (above). Derives: worsened. referenceHigh 3.0 is
+    // a MorningForm *attention* threshold (worth reviewing), NOT a clinical
+    // treatment threshold — UK lipid decisions use broader CVD risk, non-HDL
+    // targets and family history, not one LDL number (CMO direction 2026-06-16).
     readings: [
-      { value: 3.6, unit: 'mmol/L', at: T_BASELINE, referenceLow: null, referenceHigh: 3.0 },
-      { value: 2.9, unit: 'mmol/L', at: T_RECHECK, referenceLow: null, referenceHigh: 3.0 },
+      { value: 2.7, unit: 'mmol/L', at: T_BASELINE, referenceLow: null, referenceHigh: 3.0 },
+      { value: 3.4, unit: 'mmol/L', at: T_RECHECK, referenceLow: null, referenceHigh: 3.0 },
     ],
+  },
+  {
+    nodeKey: 'bm-apob',
+    type: 'biomarker',
+    canonicalKey: 'apob',
+    displayName: 'ApoB',
+    firstSeenAt: T_RECHECK, // newly captured in the 2026 baseline — no prior panel
+    // One reading → derives `new` ("new baseline captured", not "worsened").
+    // Adds atherogenic-particle context to LDL-C; no personal trend yet.
+    readings: [{ value: 0.98, unit: 'g/L', at: T_RECHECK, referenceLow: null, referenceHigh: 0.9 }],
   },
   { nodeKey: 'bm-hdl', type: 'biomarker', canonicalKey: 'hdl', displayName: 'HDL cholesterol', firstSeenAt: T_BASELINE },
   { nodeKey: 'bm-tg', type: 'biomarker', canonicalKey: 'triglycerides', displayName: 'Triglycerides', firstSeenAt: T_BASELINE },
@@ -346,10 +369,10 @@ const EDGES: DemoEdge[] = [
   { type: 'SUPPORTS', fromNodeKey: 'bm-fasting-glucose', toNodeKey: 'cond-prediabetes', fromChunkKey: 'syn-2024-04-fasting-glucose', fromSourceKey: 'syn-lab-2024-04' },
 
   // Lipid pattern
-  { type: 'SUPPORTS', fromNodeKey: 'bm-total-chol', toNodeKey: 'cond-mild-dyslipidaemia', fromChunkKey: 'syn-2024-04-lipids', fromSourceKey: 'syn-lab-2024-04' },
-  { type: 'SUPPORTS', fromNodeKey: 'bm-ldl', toNodeKey: 'cond-mild-dyslipidaemia', fromChunkKey: 'syn-2024-04-lipids', fromSourceKey: 'syn-lab-2024-04' },
-  { type: 'SUPPORTS', fromNodeKey: 'bm-hdl', toNodeKey: 'cond-mild-dyslipidaemia', fromChunkKey: 'syn-2024-04-lipids', fromSourceKey: 'syn-lab-2024-04' },
-  { type: 'SUPPORTS', fromNodeKey: 'bm-tg', toNodeKey: 'cond-mild-dyslipidaemia', fromChunkKey: 'syn-2024-04-lipids', fromSourceKey: 'syn-lab-2024-04' },
+  // 2024 lipids were optimal; only LDL-C (and the newly-captured ApoB) point at
+  // the 2026 attention item — grounded in the 2026 panel, not the 2024 baseline.
+  { type: 'SUPPORTS', fromNodeKey: 'bm-ldl', toNodeKey: 'cond-mild-dyslipidaemia', fromChunkKey: 'syn-2026-02-lipids', fromSourceKey: 'syn-lab-2026-02' },
+  { type: 'SUPPORTS', fromNodeKey: 'bm-apob', toNodeKey: 'cond-mild-dyslipidaemia', fromChunkKey: 'syn-2026-02-apob', fromSourceKey: 'syn-lab-2026-02' },
 
   // BP / hypertension
   { type: 'SUPPORTS', fromNodeKey: 'bm-systolic-bp', toNodeKey: 'cond-stage1-htn', fromChunkKey: 'syn-2024-05-summary', fromSourceKey: 'syn-gp-2024-05' },
@@ -416,7 +439,10 @@ export const METABOLIC_PERSONA_GRAPH: DemoRecordFixture = {
   // v4: biomarker `readings` replace hand-authored `change`; the ring is
   // derived via classifyChange so it can't contradict its source (plan
   // 2026-06-16-002).
-  version: '4',
+  // v5: honest cardiometabolic mix (CMO direction 2026-06-16) — LDL-C 2.7→3.4
+  // (worsened, above the MorningForm attention threshold), ApoB newly captured
+  // (0.98 g/L, no trend); 2024 lipids reframed to an optimal baseline.
+  version: '5',
   sources: SOURCES,
   nodes: NODES,
   edges: EDGES,
