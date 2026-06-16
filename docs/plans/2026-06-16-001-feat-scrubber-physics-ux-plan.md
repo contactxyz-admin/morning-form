@@ -126,7 +126,7 @@ Apr2024  •      •          •            •                 •      Feb20
 
 ## Implementation Units
 
-- [ ] **Unit 1: Motion vocabulary — rate, interp, stagger primitives**
+- [x] **Unit 1: Motion vocabulary — rate, interp, stagger primitives**
 
 **Goal:** Add the few pure primitives the eased transition needs, alongside the existing `smooth`/`pulseScale`.
 
@@ -156,7 +156,7 @@ Apr2024  •      •          •            •                 •      Feb20
 
 **Verification:** motion tests green; no behavioral change to existing consumers of `smooth`/`pulseScale`.
 
-- [ ] **Unit 2: Eased scrub transition + grow-in (the physics core)**
+- [x] **Unit 2: Eased scrub transition + grow-in (the physics core)**
 
 **Goal:** Replace the hard opacity cut with a cancellable eased tween on `asOf` change: nodes/edges fade and revealed nodes grow in — composing with the instant hover-dim, reduced-motion- and prod-parity-safe.
 
@@ -190,7 +190,7 @@ Apr2024  •      •          •            •                 •      Feb20
 
 **Verification:** pure compose tests green; converged positions provably unchanged during/after a transition (characterization holds); reduced-motion + null-`asOfEpoch` paths instant; visual audit confirms the eased fade + grow-in feel.
 
-- [ ] **Unit 3: Staggered same-stop reveal (Manim lag_ratio)**
+- [x] **Unit 3: Staggered same-stop reveal (Manim lag_ratio)**
 
 **Goal:** Nodes sharing a birth date reveal in a slight cascade rather than simultaneously, for an organic "grow."
 
@@ -217,7 +217,7 @@ Apr2024  •      •          •            •                 •      Feb20
 
 **Verification:** ordering test green; audit shows a subtle, pleasing cascade; reduced-motion collapses it to instant.
 
-- [ ] **Unit 4: Timeline control UX — ticks, readout, play/pause, keyboard**
+- [x] **Unit 4: Timeline control UX — ticks, readout, play/pause, keyboard**
 
 **Goal:** Turn the plain slider into a timeline: dated tick marks, a prominent "as of" readout, a play/pause auto-advance, and keyboard control — native input kept as the accessible backbone.
 
