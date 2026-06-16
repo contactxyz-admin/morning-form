@@ -142,7 +142,7 @@ The three-tier flag treatments (distinct, non-alarming), the escalation→handov
 
 ## Implementation Units
 
-- [ ] **Unit 1: Clinical interpretation engine + CMO matrix (Phase A)**
+- [x] **Unit 1: Clinical interpretation engine + CMO matrix (Phase A)**
 
 **Goal:** A pure engine that maps each marker's derived change to the four consumer dimensions + flag, from a CMO-authored data table.
 
@@ -172,7 +172,7 @@ The three-tier flag treatments (distinct, non-alarming), the escalation→handov
 
 **Verification:** every CMO matrix row reproduced exactly; dimensions can disagree with movement; defaults conservative.
 
-- [ ] **Unit 2: Attach interpretation to demo nodes (Phase A)**
+- [x] **Unit 2: Attach interpretation to demo nodes (Phase A)**
 
 **Goal:** The adapter computes + attaches `interpretation` per biomarker node, additively.
 
@@ -193,7 +193,7 @@ The three-tier flag treatments (distinct, non-alarming), the escalation→handov
 
 **Verification:** decorated nodes carry interpretation; undecorated unchanged; deterministic.
 
-- [ ] **Unit 3: Enriched marker card (detail sheet) (Phase B)**
+- [x] **Unit 3: Enriched marker card (detail sheet) (Phase B)**
 
 **Goal:** Render the four consumer dimensions + plain-English + next-step + flag chip in the detail sheet, with the "not a diagnosis" framing.
 
@@ -218,7 +218,7 @@ The three-tier flag treatments (distinct, non-alarming), the escalation→handov
 
 **Verification:** label tests green; the card shows the four dimensions + next-step honestly; CMO audit confirms tone.
 
-- [ ] **Unit 4: Top authority cue (Phase B)**
+- [x] **Unit 4: Top authority cue (Phase B)**
 
 **Goal:** The one-line trust banner on `/demo/record`.
 

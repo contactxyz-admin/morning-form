@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
 import { cn } from '@/lib/utils';
-import type { EvidenceGrade, GraphNodeWire, NodeType } from '@/types/graph';
+import type { EvidenceGrade, FlagTier, GraphNodeWire, NodeType } from '@/types/graph';
 import type { SourceDocumentKind } from '@/lib/graph/types';
 import { kindLabel } from '@/lib/record/source-view';
 import {
@@ -23,6 +23,18 @@ const EVIDENCE_LABELS: Record<EvidenceGrade, string> = {
   device: 'Wearable estimate',
   self_reported: 'Self-reported',
   inferred: 'Inferred link',
+};
+
+// Flag tier → calm, plain-English chip (CMO direction 2026-06-16). Distinct but
+// never alarming; most markers sit in attention / clinician-discussion. Classes
+// are safelisted in tailwind.config.ts.
+const FLAG_CHIPS: Record<FlagTier, { label: string; className: string }> = {
+  attention: { label: 'Worth watching', className: 'bg-surface text-text-secondary' },
+  clinician_discussion: {
+    label: 'Worth discussing with a GP',
+    className: 'bg-caution/12 text-caution',
+  },
+  escalation: { label: 'Needs clinical review', className: 'bg-alert/12 text-alert' },
 };
 
 interface ProvenanceItemWire {
@@ -213,6 +225,7 @@ export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTop
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
               {node?.change && <ChangeSince node={node} />}
+              {node?.interpretation && <Interpretation node={node} />}
               <Attributes node={node} />
               <Provenance state={state} />
               {node && <AppearsIn nodeId={node.id} hydratedTopics={hydratedTopics} />}
@@ -273,6 +286,63 @@ function ChangeSince({ node }: { node: GraphNodeWire }) {
         Described relative to this marker&rsquo;s reference range — information to discuss with a
         clinician, not medical advice.
       </p>
+    </section>
+  );
+}
+
+// The consumer "what this means" card (plan 2026-06-16-003): the CMO's four
+// dimensions — "what changed" is the ChangeSince section above; this adds where
+// it is now / how clear / what to do next, in plain English, with a calm flag.
+// Escalation never shows a user-facing interpretation — it hands over to a
+// clinician (nothing diagnostic is presented as a conclusion).
+function Interpretation({ node }: { node: GraphNodeWire }) {
+  const i = node.interpretation;
+  if (!i) return null;
+  const chip = FLAG_CHIPS[i.flag];
+  const Chip = (
+    <span
+      className={cn(
+        'inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
+        chip.className,
+      )}
+    >
+      {chip.label}
+    </span>
+  );
+
+  if (i.flag === 'escalation') {
+    return (
+      <section>
+        <SectionLabel>What this means</SectionLabel>
+        <div className="mt-3">{Chip}</div>
+        <p className="mt-3 text-body text-text-primary leading-relaxed">
+          This result needs review by a clinician before it&rsquo;s interpreted here — we&rsquo;ve
+          flagged it for clinician handover.
+        </p>
+      </section>
+    );
+  }
+
+  const rows: Array<[string, string]> = [
+    ['Where it is now', i.whereItIsNow],
+    ['How clear the signal is', i.signalClarity],
+    ['What to do next', i.nextStep],
+  ];
+  return (
+    <section>
+      <SectionLabel>What this means</SectionLabel>
+      <div className="mt-3">{Chip}</div>
+      <p className="mt-3 text-body text-text-primary leading-relaxed">{i.plainEnglish}</p>
+      <dl className="mt-4 space-y-3">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
+              {label}
+            </dt>
+            <dd className="mt-0.5 text-caption text-text-secondary leading-relaxed">{value}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

@@ -255,6 +255,12 @@ export function DemoGraphSection({ fixture }: Props) {
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary mb-3">
           The graph — interactive
         </p>
+        {/* Authority cue (plan 2026-06-16-003) — sets the performance-baseline,
+            not-a-diagnosis frame before any marker is read. Verbatim CMO copy. */}
+        <p className="mb-4 text-caption text-text-secondary leading-relaxed">
+          Built from verified lab results, wearable trends and your intake. Flagged items are for
+          tracking or clinician discussion, not diagnosis.
+        </p>
         <GraphCanvas
           nodes={canvasNodes}
           edges={canvasEdges}
