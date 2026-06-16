@@ -21,7 +21,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
-import { scrubberStops } from '@/lib/graph/as-of';
+import { scrubberStops, asOfVisibility } from '@/lib/graph/as-of';
 import { tickPosition, nextPlayIndex } from '@/lib/graph/scrubber';
 import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
 import { adaptDemoFixture, type AdaptedDemoFixture } from '@/lib/demo/graph-adapter';
@@ -262,7 +262,7 @@ export function DemoGraphSection({ fixture }: Props) {
           Built from verified lab results, wearable trends and your intake. Flagged items are for
           tracking or clinician discussion, not diagnosis.
         </p>
-        <PriorityCluster nodes={canvasNodes} />
+        <PriorityCluster nodes={canvasNodes} asOfEpoch={asOfEpoch} />
         <GraphCanvas
           nodes={canvasNodes}
           edges={canvasEdges}
@@ -365,9 +365,19 @@ export function DemoGraphSection({ fixture }: Props) {
 // ponytail: members hardcoded for the one cluster; tag the fixture if a second appears.
 const PRIORITY_CLUSTER_MEMBERS = ['bm-ldl', 'bm-apob'];
 
-function PriorityCluster({ nodes }: { nodes: readonly GraphNodeWire[] }) {
+function PriorityCluster({
+  nodes,
+  asOfEpoch,
+}: {
+  nodes: readonly GraphNodeWire[];
+  asOfEpoch: number | null;
+}) {
   const members = PRIORITY_CLUSTER_MEMBERS.map((id) => nodes.find((n) => n.id === id)).filter(
-    (n): n is GraphNodeWire => Boolean(n?.change),
+    // Only members already measured as-of the scrubber date — so ApoB (first
+    // captured in 2026) doesn't appear in the cluster while the canvas dims it
+    // as not-yet-born (keeps the cluster honest with the timeline).
+    (n): n is GraphNodeWire =>
+      Boolean(n?.change) && asOfVisibility(n!.firstSeenAt, asOfEpoch) === 'present',
   );
   if (members.length === 0) return null;
   return (

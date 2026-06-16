@@ -35,6 +35,7 @@ interface MarkerRule {
 /** Default "where it is now" from the latest value's position vs the range. */
 function positionLabel(c: Ctx): string {
   if (c.change.classification === 'new') return 'New baseline captured';
+  if (c.low == null && c.high == null) return 'No reference range';
   if (c.high != null && c.value > c.high) return 'Above attention threshold';
   if (c.low != null && c.value < c.low) return 'Below range';
   return 'Within range';
@@ -42,8 +43,14 @@ function positionLabel(c: Ctx): string {
 
 const aboveThreshold = (c: Ctx) => c.high != null && c.value > c.high;
 
+// Markers with an authored rule (typed so a misspelt key is a COMPILE error,
+// not a silent fall-through to DEFAULT_RULE on the demo screen).
+type AuthoredKey = 'ldl' | 'apob' | 'ferritin' | 'hba1c' | 'free-testosterone';
+
 // ── CMO-authored matrix (verbatim copy, 2026-06-16) ──
-const MATRIX: Record<string, MarkerRule> = {
+// (free-testosterone copy is engineer-drafted in the CMO's calm style — flag it
+//  in the audit for sign-off; it must not over-flag a benign in-range marker.)
+const MATRIX: Partial<Record<AuthoredKey, MarkerRule>> = {
   ldl: {
     signalClarity: 'Medium–High',
     nextStep:
@@ -55,12 +62,21 @@ const MATRIX: Record<string, MarkerRule> = {
     flag: (c) => (aboveThreshold(c) ? 'clinician_discussion' : 'attention'),
   },
   apob: {
-    whereItIsNow: () => 'New baseline captured',
+    // `new` is handled by positionLabel → "New baseline captured"; no override
+    // needed (a future second reading then derives a real trend honestly).
     signalClarity: 'Medium',
     nextStep:
       'Use as a reference point for future retesting; review alongside LDL-C, non-HDL, triglycerides and family history.',
     plainEnglish: () =>
       'ApoB is newly captured in this baseline, so there’s no trend yet — it adds context to LDL-C by helping quantify the number of atherogenic particles.',
+    flag: 'attention',
+  },
+  'free-testosterone': {
+    signalClarity: 'Context-dependent',
+    nextStep:
+      'Interpret alongside total testosterone, SHBG, sleep and training load with a clinician.',
+    plainEnglish: () =>
+      'Free testosterone is within range; it’s interpreted alongside total testosterone, SHBG, sleep and training rather than on its own.',
     flag: 'attention',
   },
   ferritin: {
@@ -99,7 +115,7 @@ export function interpret(
   change: NodeChangeWire,
   latest: { value: number; low: number | null; high: number | null },
 ): NodeInterpretation {
-  const rule = MATRIX[canonicalKey] ?? DEFAULT_RULE;
+  const rule = MATRIX[canonicalKey as AuthoredKey] ?? DEFAULT_RULE;
   const ctx: Ctx = { change, value: latest.value, low: latest.low, high: latest.high };
   return {
     whereItIsNow: rule.whereItIsNow ? rule.whereItIsNow(ctx) : positionLabel(ctx),

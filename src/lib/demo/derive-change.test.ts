@@ -48,6 +48,12 @@ describe('deriveChange', () => {
     expect(c.direction).toBe('up'); // value moved up, but stayed in range
   });
 
+  it('flat — same value both times → flat direction, stable', () => {
+    const c = deriveChange([r(42, A, 30, 400), r(42, B, 30, 400)])!;
+    expect(c.direction).toBe('flat');
+    expect(c.classification).toBe('stable');
+  });
+
   it('unclassified — no reference range to judge against', () => {
     const c = deriveChange([r(100, A), r(120, B)])!;
     expect(c.classification).toBe('unclassified');

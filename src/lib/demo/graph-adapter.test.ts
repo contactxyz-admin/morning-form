@@ -149,6 +149,15 @@ describe('adaptDemoFixture', () => {
       expect(apob.interpretation!.whereItIsNow).toBe('New baseline captured');
       expect(apob.interpretation!.flag).toBe('attention');
     });
+    // Matrix completeness: no fixture biomarker may fall through to the DEFAULT
+    // rule ('Low' clarity) — that would over-flag a benign marker on the demo.
+    it('every biomarker with a change has an authored interpretation (none hits DEFAULT)', () => {
+      const biomarkers = adapted.graph.nodes.filter((n) => n.type === 'biomarker' && n.change);
+      expect(biomarkers.length).toBeGreaterThan(0);
+      for (const n of biomarkers) {
+        expect(n.interpretation!.signalClarity).not.toBe('Low');
+      }
+    });
   });
 
   describe('evidence grading (plan 2026-06-16-002 R9)', () => {

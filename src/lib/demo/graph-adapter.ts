@@ -20,7 +20,7 @@ import type {
 } from '../../../prisma/fixtures/demo-navigable-record';
 import type { ImportanceTier } from '../graph/importance';
 import type { EdgeType, GraphEdgeWire, GraphNodeWire, GraphResponse } from '../../types/graph';
-import { deriveChange } from './derive-change';
+import { deriveChange, latestReading } from './derive-change';
 import { evidenceGrade } from './evidence-grade';
 import { interpret } from '../markers/clinical-interpretation';
 
@@ -78,9 +78,7 @@ function nodeToWire(
   const change = deriveChange(node.readings);
   // Consumer interpretation (the four CMO dimensions + flag) from the change +
   // the latest reading's range (plan 2026-06-16-003). Only nodes with a change.
-  const latest = node.readings?.length
-    ? [...node.readings].sort((a, b) => a.at.localeCompare(b.at)).at(-1)!
-    : undefined;
+  const latest = latestReading(node.readings);
   const interpretation =
     change && latest
       ? interpret(node.canonicalKey, change, {
@@ -186,11 +184,12 @@ export function adaptDemoFixture(fixture: DemoRecordFixture): AdaptedDemoFixture
       }
     }
 
-    provenanceByNodeId.set(node.id, { node, chunks, sources });
     // Evidence grade = the strongest source grounding this node (plan
-    // 2026-06-16-002 R9). No grounding sources → inferred. Mutates the freshly
-    // built wire node; the authed path never sets this field.
+    // 2026-06-16-002 R9). No grounding sources → inferred. Set BEFORE the
+    // provenance entry so the stored node already carries the grade (no reliance
+    // on later in-place mutation). The authed path never sets this field.
     node.evidenceGrade = evidenceGrade(sources.map((s) => s.kind));
+    provenanceByNodeId.set(node.id, { node, chunks, sources });
   }
 
   const nodeTypeCounts: Record<string, number> = {};

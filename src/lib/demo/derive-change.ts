@@ -21,6 +21,15 @@ import type { DemoReading } from '../../../prisma/fixtures/demo-navigable-record
  * - ≥2 readings → classify the latest two via `classifyChange` against the
  *   latest panel's reference range.
  */
+/** The most recent reading by date, or undefined if there are none. */
+export function latestReading(
+  readings: readonly DemoReading[] | undefined,
+): DemoReading | undefined {
+  if (!readings || readings.length === 0) return undefined;
+  const sorted = [...readings].sort((a, b) => a.at.localeCompare(b.at));
+  return sorted[sorted.length - 1];
+}
+
 export function deriveChange(
   readings: readonly DemoReading[] | undefined,
 ): NodeChangeWire | undefined {

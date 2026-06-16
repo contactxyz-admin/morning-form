@@ -170,7 +170,7 @@ const SOURCES: DemoSource[] = [
       {
         chunkKey: 'syn-2026-02-hba1c',
         index: 0,
-        text: 'HbA1c: 5.7% (reference <5.7). Down from 6.1 at the 2025-Q3 recheck — out of the prediabetes band.',
+        text: 'HbA1c: 5.7% (reference <5.7). Down from 5.9% at the 2024 baseline — back within range.',
         offsetStart: 0,
         offsetEnd: 110,
         pageNumber: 1,

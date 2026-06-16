@@ -26,7 +26,6 @@ const EVIDENCE_LABELS: Record<EvidenceGrade, string> = {
   inferred: 'Inferred link',
 };
 
-
 interface ProvenanceItemWire {
   chunkId: string;
   documentId: string;

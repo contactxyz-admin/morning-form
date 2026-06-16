@@ -58,6 +58,16 @@ describe('interpret — CMO matrix', () => {
     expect(i.flag).toBe('attention');
   });
 
+  it('free-testosterone is calm/attention, never over-flagged (in-range recovering marker)', () => {
+    const i = interpret('free-testosterone', change('stable', 'up'), {
+      value: 11.8,
+      low: 9.3,
+      high: 26.5,
+    });
+    expect(i.flag).toBe('attention'); // NOT clinician_discussion / DEFAULT
+    expect(i.whereItIsNow).toBe('Within range');
+  });
+
   it('unknown marker → conservative default, never false-favourable', () => {
     const i = interpret('mystery-marker', change('improved', 'down'), {
       value: 5,
@@ -68,5 +78,20 @@ describe('interpret — CMO matrix', () => {
     expect(i.flag).toBe('clinician_discussion');
     expect(i.nextStep).toContain('clinician');
     expect(i.whereItIsNow).not.toMatch(/favourable|normal|good/i);
+  });
+
+  describe('positionLabel branches (via interpret on an unknown marker)', () => {
+    it('below range', () => {
+      const i = interpret('x', change('worsened', 'down'), { value: 5, low: 10, high: 20 });
+      expect(i.whereItIsNow).toBe('Below range');
+    });
+    it('no reference range → not "Within range" (never false-reassuring)', () => {
+      const i = interpret('x', change('unclassified', 'up'), { value: 5, low: null, high: null });
+      expect(i.whereItIsNow).toBe('No reference range');
+    });
+    it('new short-circuits regardless of position', () => {
+      const i = interpret('x', change('new', null), { value: 99, low: null, high: 50 });
+      expect(i.whereItIsNow).toBe('New baseline captured');
+    });
   });
 });

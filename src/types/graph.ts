@@ -6,7 +6,7 @@
 
 import type { EdgeType, NodeType } from '@/lib/graph/types';
 import type { ImportanceTier } from '@/lib/graph/importance';
-import type { ChangeClassification, ChangeDirection } from '@/lib/markers/panel-diff';
+import type { ChangeClassification, ChangeDirection } from '@/lib/markers/classify-change';
 
 export type { EdgeType, NodeType, ImportanceTier };
 
