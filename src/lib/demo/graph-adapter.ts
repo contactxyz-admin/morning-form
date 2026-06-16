@@ -22,6 +22,7 @@ import type { ImportanceTier } from '../graph/importance';
 import type { EdgeType, GraphEdgeWire, GraphNodeWire, GraphResponse } from '../../types/graph';
 import { deriveChange } from './derive-change';
 import { evidenceGrade } from './evidence-grade';
+import { interpret } from '../markers/clinical-interpretation';
 
 /** Pre-built per-node provenance lookup, used to feed NodeDetailSheet without an authed fetch. */
 export interface DemoNodeProvenance {
@@ -75,6 +76,19 @@ function nodeToWire(
   // shared range-relative classifier (plan 2026-06-16-002). The fixture never
   // authors a tone, so the ring can't contradict its cited source.
   const change = deriveChange(node.readings);
+  // Consumer interpretation (the four CMO dimensions + flag) from the change +
+  // the latest reading's range (plan 2026-06-16-003). Only nodes with a change.
+  const latest = node.readings?.length
+    ? [...node.readings].sort((a, b) => a.at.localeCompare(b.at)).at(-1)!
+    : undefined;
+  const interpretation =
+    change && latest
+      ? interpret(node.canonicalKey, change, {
+          value: latest.value,
+          low: latest.referenceLow,
+          high: latest.referenceHigh,
+        })
+      : undefined;
   return {
     id: node.nodeKey,
     userId: 'demo',
@@ -91,6 +105,8 @@ function nodeToWire(
     // Derived change ring/badge (absent on nodes with no readings — keeps the
     // wire shape byte-identical to the live record route for undecorated nodes).
     ...(change ? { change } : {}),
+    // Consumer interpretation (additive; authed path never sets it).
+    ...(interpretation ? { interpretation } : {}),
     // Earliest-evidence date for the time scrubber (plan 2026-06-15-001).
     ...(node.firstSeenAt ? { firstSeenAt: node.firstSeenAt } : {}),
   };

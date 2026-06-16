@@ -131,6 +131,26 @@ describe('adaptDemoFixture', () => {
     });
   });
 
+  describe('consumer interpretation (plan 2026-06-16-003 R6/R7)', () => {
+    it('attaches an interpretation to every node with a change, and none without', () => {
+      for (const node of adapted.graph.nodes) {
+        if (node.change) expect(node.interpretation).toBeDefined();
+        else expect(node.interpretation).toBeUndefined();
+      }
+    });
+    it('LDL-C carries the above-attention-threshold clinician-discussion interpretation', () => {
+      const ldl = adapted.graph.nodes.find((n) => n.id === 'bm-ldl')!;
+      expect(ldl.interpretation!.whereItIsNow).toBe('Above attention threshold');
+      expect(ldl.interpretation!.flag).toBe('clinician_discussion');
+      expect(ldl.interpretation!.nextStep).toContain('lipid');
+    });
+    it('ApoB carries the new-baseline attention interpretation (no trend)', () => {
+      const apob = adapted.graph.nodes.find((n) => n.id === 'bm-apob')!;
+      expect(apob.interpretation!.whereItIsNow).toBe('New baseline captured');
+      expect(apob.interpretation!.flag).toBe('attention');
+    });
+  });
+
   describe('evidence grading (plan 2026-06-16-002 R9)', () => {
     it('grades every node by its strongest grounding source', () => {
       for (const node of adapted.graph.nodes) {

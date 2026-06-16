@@ -60,6 +60,12 @@ export interface GraphNodeWire {
    * from the node's strongest supporting source); the authed path never sets it.
    */
   evidenceGrade?: EvidenceGrade;
+  /**
+   * Consumer-facing clinical interpretation (the four CMO dimensions + flag).
+   * Demo-only and additive — derived by the interpretation engine from the
+   * node's change; the authed path never sets it (plan 2026-06-16-003).
+   */
+  interpretation?: NodeInterpretation;
 }
 
 /**
@@ -68,6 +74,30 @@ export interface GraphNodeWire {
  * relationship (no grounding source). Demo-only (plan 2026-06-16-002 R9).
  */
 export type EvidenceGrade = 'lab' | 'clinician' | 'device' | 'self_reported' | 'inferred';
+
+/**
+ * Three-tier flag taxonomy (CMO direction 2026-06-16) — kept visually distinct,
+ * never blurred. Most of the product lives in `attention` + `clinician_discussion`;
+ * `escalation` hides the user-facing interpretation and routes to clinician
+ * handover (nothing diagnostic is shown as a conclusion).
+ */
+export type FlagTier = 'attention' | 'clinician_discussion' | 'escalation';
+
+/**
+ * Consumer-facing clinical interpretation of a marker's derived change — the
+ * four dimensions the CMO specified (plan 2026-06-16-003), derived from a
+ * CMO-authored matrix. Demo-only and additive; the authed path never sets it.
+ * `whereItIsNow` = status · the trend ("what changed") is the node's `change`,
+ * not duplicated here · `signalClarity` = how clear the signal is · `nextStep`
+ * = what to do next (verbatim CMO copy).
+ */
+export interface NodeInterpretation {
+  whereItIsNow: string;
+  signalClarity: string;
+  nextStep: string;
+  flag: FlagTier;
+  plainEnglish: string;
+}
 
 export interface GraphEdgeWire {
   id: string;
