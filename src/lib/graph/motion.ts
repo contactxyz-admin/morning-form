@@ -39,6 +39,47 @@ export function pulseScale(easedAlpha: number, peak: number = PULSE_PEAK): numbe
   return 1 + (peak - 1) * Math.sin(Math.PI * t);
 }
 
+// ── Scrub-transition vocabulary (Plan 2026-06-16-001 — Manim-grade scrubber) ──
+// (`lerp` is exported below, next to its original definition.)
+
+/**
+ * Ease-out-back: overshoots past 1 in the middle then settles to exactly 1 at
+ * t=1 — a node "grows in" with a touch of life (Manim `back`). Clamped input.
+ */
+export function easeOutBack(t: number): number {
+  const c = clamp(t);
+  const s = 1.70158;
+  const x = c - 1;
+  return 1 + (s + 1) * x * x * x + s * x * x;
+}
+
+/**
+ * Manim `lag_ratio` schedule. Given the global tween alpha, returns item `i`'s
+ * LOCAL linear alpha so a group reveals in a stagger: each item animates over
+ * its own sub-window of the timeline, item 0 first. `lagRatio` is the fraction
+ * of one item's duration to wait before the next starts.
+ *
+ * - `lagRatio = 0` (or `count <= 1`) → every item gets the global alpha (no
+ *   stagger), degrading to a simultaneous reveal.
+ * - `globalAlpha = 1` → every item at 1 (all finished).
+ *
+ * The caller applies a rate function (e.g. `smooth`) to the returned local
+ * alpha — schedule and easing stay decoupled.
+ */
+export function staggeredAlpha(
+  globalAlpha: number,
+  index: number,
+  count: number,
+  lagRatio: number,
+): number {
+  const g = clamp(globalAlpha);
+  if (count <= 1 || lagRatio <= 0) return g;
+  const span = 1 + (count - 1) * lagRatio; // total duration in item-duration units
+  const start = (index * lagRatio) / span;
+  const end = (index * lagRatio + 1) / span;
+  return clamp((g - start) / (end - start));
+}
+
 // ── Frame stepper ──
 
 export interface MotionPoint {
@@ -79,7 +120,8 @@ export function entranceFrame(
   });
 }
 
-function lerp(a: number, b: number, t: number): number {
+/** Linear interpolation a→b by t. (t eased upstream — Manim model.) */
+export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 

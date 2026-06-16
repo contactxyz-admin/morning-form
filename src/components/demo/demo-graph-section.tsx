@@ -16,12 +16,13 @@
  * docs/plans/2026-05-16-001-feat-navigable-record-demo-plan.md (U5).
  */
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { scrubberStops } from '@/lib/graph/as-of';
+import { tickPosition, nextPlayIndex } from '@/lib/graph/scrubber';
 import { adaptDemoFixture, type AdaptedDemoFixture } from '@/lib/demo/graph-adapter';
 import {
   referencedSourceDocumentIds,
@@ -136,6 +137,31 @@ export function DemoGraphSection({ fixture }: Props) {
   const asOfEpoch = stops.length > 0 ? stops[activeIndex] : null;
   const formatStop = (epoch: number) => format(new Date(epoch), 'MMM yyyy');
 
+  // Play mode (plan 2026-06-16-001): auto-advance through the stops so the
+  // record builds itself. Each step ~ the eased transition + a dwell. Stops at
+  // the end; pressing play from the end restarts from the first stop.
+  const [playing, setPlaying] = useState(false);
+  // Live index for the interval to read (deps exclude stopIndex so the timer
+  // isn't recreated every step) — avoids a stale closure AND keeps setState out
+  // of an updater function.
+  const stopIndexRef = useRef(activeIndex);
+  stopIndexRef.current = activeIndex;
+  useEffect(() => {
+    if (!playing) return;
+    const STEP_MS = 1100; // ≈ SCRUB_DURATION (0.55s) + dwell
+    const id = setInterval(() => {
+      const next = nextPlayIndex(stopIndexRef.current, stops.length);
+      if (next == null) setPlaying(false); // reached the end
+      else setStopIndex(next);
+    }, STEP_MS);
+    return () => clearInterval(id);
+  }, [playing, stops.length]);
+
+  const togglePlay = useCallback(() => {
+    if (!playing && activeIndex >= stops.length - 1) setStopIndex(0); // restart from start
+    setPlaying((p) => !p);
+  }, [playing, activeIndex, stops.length]);
+
   const rawEntity = searchParams.get('entity');
   const validatedEntity =
     rawEntity && rawEntity.length <= ENTITY_MAX_LEN && ENTITY_PATTERN.test(rawEntity)
@@ -243,22 +269,55 @@ export function DemoGraphSection({ fixture }: Props) {
         />
         {stops.length > 1 && (
           <div className="mt-4">
-            <div className="mb-1.5 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-              <span>The record over time</span>
-              <span className="text-text-secondary">as of {formatStop(stops[activeIndex])}</span>
+            <div className="mb-2 flex items-baseline justify-between">
+              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+                The record over time
+              </span>
+              <span className="font-mono text-sm tabular-nums text-text-primary">
+                as of {formatStop(stops[activeIndex])}
+              </span>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={stops.length - 1}
-              step={1}
-              value={activeIndex}
-              onChange={(e) => setStopIndex(Number(e.target.value))}
-              aria-label="Show the record as of an earlier date"
-              aria-valuetext={`As of ${formatStop(stops[activeIndex])}`}
-              className="w-full cursor-pointer accent-text-primary"
-            />
-            <div className="mt-1 flex justify-between font-mono text-[10px] text-text-tertiary">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={togglePlay}
+                aria-label={playing ? 'Pause' : 'Play through the timeline'}
+                aria-pressed={playing}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border text-[10px] text-text-secondary transition-colors hover:bg-surface-warm"
+              >
+                {playing ? '❚❚' : '▶'}
+              </button>
+              <div className="relative flex-1">
+                {/* Dated stop ticks under the thumb (decorative — the input is
+                    the accessible control). Inset matches the thumb's travel. */}
+                <div className="pointer-events-none absolute inset-x-[7px] top-1/2 -translate-y-1/2" aria-hidden>
+                  {stops.map((s, i) => (
+                    <span
+                      key={s}
+                      className={`absolute h-2 w-px -translate-x-1/2 ${
+                        i === activeIndex ? 'bg-text-primary' : 'bg-text-tertiary/40'
+                      }`}
+                      style={{ left: `${tickPosition(s, stops[0], stops[stops.length - 1])}%` }}
+                    />
+                  ))}
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={stops.length - 1}
+                  step={1}
+                  value={activeIndex}
+                  onChange={(e) => {
+                    setStopIndex(Number(e.target.value));
+                    setPlaying(false); // a manual drag takes over from autoplay
+                  }}
+                  aria-label="Show the record as of an earlier date"
+                  aria-valuetext={`As of ${formatStop(stops[activeIndex])}`}
+                  className="relative w-full cursor-pointer accent-text-primary"
+                />
+              </div>
+            </div>
+            <div className="mt-1 flex justify-between pl-10 font-mono text-[10px] text-text-tertiary">
               <span>{formatStop(stops[0])}</span>
               <span>{formatStop(stops[stops.length - 1])}</span>
             </div>
@@ -266,7 +325,7 @@ export function DemoGraphSection({ fixture }: Props) {
         )}
         <p className="mt-3 text-caption text-text-tertiary">
           Tap a node to see what grounds it. Hover to highlight what it&apos;s connected to.
-          {stops.length > 1 ? ' Drag the timeline to watch the record build.' : ''}
+          {stops.length > 1 ? ' Drag the timeline — or press play — to watch the record build.' : ''}
         </p>
         <GraphLegend />
       </section>

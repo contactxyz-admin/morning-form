@@ -71,3 +71,20 @@ export function scrubberStops(
   }
   return Array.from(set).sort((a, b) => a - b);
 }
+
+/**
+ * Composed node opacity for the scrubber (plan 2026-06-16-001): the time-ghost
+ * wins over hover emphasis. Returns a number in `[0,1]` — the eased-tween
+ * target. (The authed/null path keeps its own `''`-reset instant logic in
+ * graph-canvas and never calls this.)
+ */
+export function composeNodeOpacity(
+  timeDimmed: boolean,
+  hasEmphasis: boolean,
+  isNeighbour: boolean,
+  dim: number,
+): number {
+  if (timeDimmed) return dim;
+  if (hasEmphasis) return isNeighbour ? 1 : 0.2;
+  return 1;
+}
