@@ -26,7 +26,19 @@
  * (rule-out evidence for energy-fatigue narrative).
  */
 
-import type { NodeChangeWire } from '@/types/graph';
+/**
+ * A single recorded biomarker reading from one panel. The change ring is
+ * DERIVED from a node's readings (plan 2026-06-16-002) — the fixture never
+ * authors a tone, so a visual state can never contradict its cited source.
+ */
+export interface DemoReading {
+  value: number;
+  unit: string;
+  /** ISO date of the panel this reading came from. */
+  at: string;
+  referenceLow: number | null;
+  referenceHigh: number | null;
+}
 
 export interface DemoSourceChunk {
   /** Stable key used to build a deterministic chunk id for upsert. */
@@ -57,15 +69,13 @@ export interface DemoNode {
   displayName: string;
   attributes?: Record<string, unknown>;
   /**
-   * Optional "what changed since the last panel" decoration for biomarker
-   * nodes, mirroring the wire field the authed record route attaches when
-   * LONGITUDINAL_GRAPH_ENABLED is on. The demo has no DB to diff, so the
-   * fixture carries the change directly; the graph adapter passes it through
-   * to `GraphNodeWire.change` so the public `/demo/record` graph showcases the
-   * longitudinal ring/badge/pulse + detail-sheet before→after without an
-   * authed PDF-upload path. Synthetic, range-relative, descriptive only.
+   * Recorded biomarker readings (chronological). The graph adapter DERIVES the
+   * `GraphNodeWire.change` ring/badge from these via `classifyChange` — the
+   * fixture never authors a tone, so the ring can't contradict its cited source
+   * (plan 2026-06-16-002). Values/units/dates must match the node's source
+   * chunks. Biomarker nodes only; absent → no change decoration.
    */
-  change?: NodeChangeWire;
+  readings?: DemoReading[];
   /**
    * ISO date of the earliest evidence that introduced this node — drives the
    * `/demo/record` time scrubber (plan 2026-06-15-001). Dragging `asOf` before
@@ -79,12 +89,14 @@ export interface DemoNode {
 
 export interface DemoEdge {
   /**
-   * Constrained to the canonical `EDGE_TYPES` in `src/lib/graph/types.ts`.
-   * Demo-only semantic types (DIAGNOSES, TREATS, CORRELATES_WITH) collapse
-   * to ASSOCIATED_WITH — the graph model is intentionally narrow and
-   * non-canonical strings are invisible to typed consumers.
+   * Constrained to the canonical `EDGE_TYPES` in `src/lib/graph/types.ts`, minus
+   * `CAUSES`: the demo never asserts proven causation (plan 2026-06-16-002 R8).
+   * Condition→symptom links are non-causal associations ("may contribute to")
+   * rendered as ASSOCIATED_WITH. Demo-only richer semantics (diagnosed-by,
+   * may-contribute-to, …) collapse to ASSOCIATED_WITH — the graph model is
+   * intentionally narrow and non-canonical strings are invisible to typed consumers.
    */
-  type: 'SUPPORTS' | 'ASSOCIATED_WITH' | 'CAUSES' | 'CONTRADICTS' | 'TEMPORAL_SUCCEEDS';
+  type: 'SUPPORTS' | 'ASSOCIATED_WITH' | 'CONTRADICTS' | 'TEMPORAL_SUCCEEDS';
   fromNodeKey: string;
   toNodeKey: string;
   /** When present, edge is grounded to this chunk. */

@@ -44,6 +44,12 @@ const config: Config = {
     'fill-alert',
     'fill-accent',
     'fill-text-tertiary',
+    // Flag-tier chips (plan 2026-06-16-003 — FLAG_PRESENTATION in
+    // src/lib/markers/flag-presentation.ts): calm, distinct, never alarming.
+    'bg-caution/12',
+    'text-caution',
+    'bg-alert/12',
+    'text-alert',
   ],
   theme: {
     extend: {

@@ -86,9 +86,31 @@ describe('generatePersonaData', () => {
 });
 
 describe('METABOLIC_PERSONA_GRAPH', () => {
-  it('contains 30+ nodes and 40+ edges', () => {
+  // Truth-integrity (plan 2026-06-16-002): every decorated biomarker's recorded
+  // reading values must (a) match the pinned cited values and (b) appear in a
+  // source chunk's text — no fabricated values, no source/display drift.
+  it('biomarker readings match their pinned cited values + appear in a source chunk', () => {
+    const PINNED: Record<string, number[]> = {
+      'bm-ldl': [2.7, 3.4],
+      'bm-hba1c': [5.9, 5.7],
+      'bm-ferritin': [42, 68],
+      'bm-free-test': [9.5, 11.8],
+      'bm-apob': [0.98],
+    };
+    const allChunkText = METABOLIC_PERSONA_GRAPH.sources
+      .flatMap((s) => s.chunks.map((c) => c.text))
+      .join(' ');
+    for (const [nodeKey, expected] of Object.entries(PINNED)) {
+      const node = METABOLIC_PERSONA_GRAPH.nodes.find((n) => n.nodeKey === nodeKey)!;
+      const values = (node.readings ?? []).map((r) => r.value);
+      expect(values).toEqual(expected);
+      for (const v of expected) expect(allChunkText).toContain(String(v));
+    }
+  });
+
+  it('contains 30+ nodes and 38+ edges', () => {
     expect(METABOLIC_PERSONA_GRAPH.nodes.length).toBeGreaterThanOrEqual(30);
-    expect(METABOLIC_PERSONA_GRAPH.edges.length).toBeGreaterThanOrEqual(40);
+    expect(METABOLIC_PERSONA_GRAPH.edges.length).toBeGreaterThanOrEqual(38);
   });
 
   it('every edge resolves both endpoints to nodes in the fixture', () => {
@@ -120,9 +142,10 @@ describe('METABOLIC_PERSONA_GRAPH', () => {
         .filter((n) => n.type === 'condition')
         .map((n) => n.canonicalKey),
     );
-    // Cardiometabolic
+    // Cardiometabolic (LDL-C attention item replaced the dyslipidaemia
+    // diagnosis per the CMO persona reframe — attention, not diagnosis)
     expect(condKeys.has('prediabetes')).toBe(true);
-    expect(condKeys.has('mild-dyslipidaemia')).toBe(true);
+    expect(condKeys.has('ldl-attention')).toBe(true);
     // Sleep-recovery
     expect(condKeys.has('impaired-sleep-continuity')).toBe(true);
     // Hormonal-endocrine

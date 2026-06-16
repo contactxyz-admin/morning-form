@@ -20,6 +20,9 @@ import type {
 } from '../../../prisma/fixtures/demo-navigable-record';
 import type { ImportanceTier } from '../graph/importance';
 import type { EdgeType, GraphEdgeWire, GraphNodeWire, GraphResponse } from '../../types/graph';
+import { deriveChange, latestReading } from './derive-change';
+import { evidenceGrade } from './evidence-grade';
+import { interpret } from '../markers/clinical-interpretation';
 
 /** Pre-built per-node provenance lookup, used to feed NodeDetailSheet without an authed fetch. */
 export interface DemoNodeProvenance {
@@ -69,6 +72,21 @@ function nodeToWire(
   maxDegree: number,
   timestamp: string,
 ): GraphNodeWire {
+  // DERIVE the change decoration from the node's recorded readings via the
+  // shared range-relative classifier (plan 2026-06-16-002). The fixture never
+  // authors a tone, so the ring can't contradict its cited source.
+  const change = deriveChange(node.readings);
+  // Consumer interpretation (the four CMO dimensions + flag) from the change +
+  // the latest reading's range (plan 2026-06-16-003). Only nodes with a change.
+  const latest = latestReading(node.readings);
+  const interpretation =
+    change && latest
+      ? interpret(node.canonicalKey, change, {
+          value: latest.value,
+          low: latest.referenceLow,
+          high: latest.referenceHigh,
+        })
+      : undefined;
   return {
     id: node.nodeKey,
     userId: 'demo',
@@ -82,13 +100,12 @@ function nodeToWire(
     updatedAt: timestamp,
     tier: tierFromDegree(degree),
     score: maxDegree === 0 ? 0 : degree / maxDegree,
-    // Pass the fixture's hand-authored panel-change decoration straight
-    // through to the wire node (absent on nodes that didn't move — keeps the
-    // wire shape byte-identical to the live record route for undecorated
-    // nodes). Only biomarker fixture nodes carry it.
-    ...(node.change ? { change: node.change } : {}),
+    // Derived change ring/badge (absent on nodes with no readings — keeps the
+    // wire shape byte-identical to the live record route for undecorated nodes).
+    ...(change ? { change } : {}),
+    // Consumer interpretation (additive; authed path never sets it).
+    ...(interpretation ? { interpretation } : {}),
     // Earliest-evidence date for the time scrubber (plan 2026-06-15-001).
-    // Same additive passthrough as `change`; absent → "always present".
     ...(node.firstSeenAt ? { firstSeenAt: node.firstSeenAt } : {}),
   };
 }
@@ -167,6 +184,11 @@ export function adaptDemoFixture(fixture: DemoRecordFixture): AdaptedDemoFixture
       }
     }
 
+    // Evidence grade = the strongest source grounding this node (plan
+    // 2026-06-16-002 R9). No grounding sources → inferred. Set BEFORE the
+    // provenance entry so the stored node already carries the grade (no reliance
+    // on later in-place mutation). The authed path never sets this field.
+    node.evidenceGrade = evidenceGrade(sources.map((s) => s.kind));
     provenanceByNodeId.set(node.id, { node, chunks, sources });
   }
 

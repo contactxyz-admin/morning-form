@@ -63,31 +63,123 @@ describe('adaptDemoFixture', () => {
     }
   });
 
-  describe('panel-change decoration passthrough', () => {
-    it('passes a fixture node.change through to the wire node', () => {
-      // The fixture decorates four biomarker nodes; each must arrive on the
-      // wire node verbatim so the canvas ring/badge + detail sheet light up.
-      const decorated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => n.change);
-      expect(decorated.length).toBeGreaterThan(0);
-      for (const fixtureNode of decorated) {
+  describe('change decoration is DERIVED from source (no authored tones)', () => {
+    it('derives a change ring for every node that carries readings', () => {
+      const withReadings = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => n.readings?.length);
+      expect(withReadings.length).toBeGreaterThan(0);
+      for (const fixtureNode of withReadings) {
         const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
-        expect(wire!.change).toEqual(fixtureNode.change);
+        expect(wire!.change).toBeDefined();
       }
     });
 
-    it('omits change on nodes the fixture did not decorate', () => {
-      const undecorated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => !n.change);
-      for (const fixtureNode of undecorated) {
+    it('omits change on nodes with no readings', () => {
+      const noReadings = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => !n.readings?.length);
+      for (const fixtureNode of noReadings) {
         const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
         expect(wire!.change).toBeUndefined();
       }
     });
 
-    it('covers all four visible change tones for the audit', () => {
-      const classes = new Set(
+    // ── Anti-regression guard (plan 2026-06-16-002 R1/R3) ──
+    // No derived ring may contradict the readings it was computed from: the
+    // direction must agree with the sign of (after − before), and the
+    // before/after values + unit must be the node's actual recorded readings.
+    it('NEVER contradicts the source: direction + values match the readings', () => {
+      for (const fixtureNode of METABOLIC_PERSONA_GRAPH.nodes) {
+        const readings = fixtureNode.readings;
+        if (!readings?.length) continue;
+        const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
+        const change = wire!.change!;
+        const sorted = [...readings].sort((a, b) => a.at.localeCompare(b.at));
+        const after = sorted[sorted.length - 1];
+        const before = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
+
+        // after/unit always reflect the latest reading.
+        expect(change.afterValue).toBe(after.value);
+        expect(change.unit).toBe(after.unit);
+
+        if (!before) {
+          expect(change.classification).toBe('new');
+          expect(change.beforeValue).toBeNull();
+          expect(change.direction).toBeNull();
+          continue;
+        }
+        expect(change.beforeValue).toBe(before.value);
+        const expected =
+          after.value > before.value ? 'up' : after.value < before.value ? 'down' : 'flat';
+        expect(change.direction).toBe(expected); // a red "worsened" on an ↑ that improved is now impossible
+      }
+    });
+
+    it('derives an honest clinical mix from source (CMO persona 2026-06-16)', () => {
+      // One credible change (LDL-C rose above the attention threshold), one
+      // newly captured signal (ApoB), plus the within-range recovery markers —
+      // every tone derived from the recorded values, none authored.
+      const tone = (id: string) =>
+        adapted.graph.nodes.find((n) => n.id === id)!.change!.classification;
+      expect(tone('bm-ldl')).toBe('worsened'); // 2.7 → 3.4, above attention threshold
+      expect(tone('bm-apob')).toBe('new'); // first measured in 2026, no trend
+      expect(tone('bm-hba1c')).toBe('improved');
+      expect(tone('bm-ferritin')).toBe('stable');
+      expect(tone('bm-free-test')).toBe('stable');
+      // The honest mix the CMO asked for spans worsened + new + improved + stable.
+      const tones = new Set(
         adapted.graph.nodes.flatMap((n) => (n.change ? [n.change.classification] : [])),
       );
-      expect(classes).toEqual(new Set(['improved', 'worsened', 'stable', 'new']));
+      expect(tones).toEqual(new Set(['worsened', 'new', 'improved', 'stable']));
+    });
+  });
+
+  describe('consumer interpretation (plan 2026-06-16-003 R6/R7)', () => {
+    it('attaches an interpretation to every node with a change, and none without', () => {
+      for (const node of adapted.graph.nodes) {
+        if (node.change) expect(node.interpretation).toBeDefined();
+        else expect(node.interpretation).toBeUndefined();
+      }
+    });
+    it('LDL-C carries the above-attention-threshold clinician-discussion interpretation', () => {
+      const ldl = adapted.graph.nodes.find((n) => n.id === 'bm-ldl')!;
+      expect(ldl.interpretation!.whereItIsNow).toBe('Above attention threshold');
+      expect(ldl.interpretation!.flag).toBe('clinician_discussion');
+      expect(ldl.interpretation!.nextStep).toContain('lipid');
+    });
+    it('ApoB carries the new-baseline attention interpretation (no trend)', () => {
+      const apob = adapted.graph.nodes.find((n) => n.id === 'bm-apob')!;
+      expect(apob.interpretation!.whereItIsNow).toBe('New baseline captured');
+      expect(apob.interpretation!.flag).toBe('attention');
+    });
+    // Matrix completeness: no fixture biomarker may fall through to the DEFAULT
+    // rule ('Low' clarity) — that would over-flag a benign marker on the demo.
+    it('every biomarker with a change has an authored interpretation (none hits DEFAULT)', () => {
+      const biomarkers = adapted.graph.nodes.filter((n) => n.type === 'biomarker' && n.change);
+      expect(biomarkers.length).toBeGreaterThan(0);
+      for (const n of biomarkers) {
+        expect(n.interpretation!.signalClarity).not.toBe('Low');
+      }
+    });
+  });
+
+  describe('evidence grading (plan 2026-06-16-002 R9)', () => {
+    it('grades every node by its strongest grounding source', () => {
+      for (const node of adapted.graph.nodes) {
+        expect(node.evidenceGrade).toBeDefined();
+      }
+    });
+    it('a lab-grounded biomarker grades above a self-report/inferred node', () => {
+      const rank = { lab: 4, clinician: 3, device: 2, self_reported: 1, inferred: 0 };
+      const ferritin = adapted.graph.nodes.find((n) => n.id === 'bm-ferritin')!;
+      const fatigue = adapted.graph.nodes.find((n) => n.id === 'sym-fatigue')!;
+      // ferritin is grounded in a lab panel; fatigue is linked only by association.
+      expect(ferritin.evidenceGrade).toBe('lab');
+      expect(rank[ferritin.evidenceGrade!]).toBeGreaterThan(rank[fatigue.evidenceGrade!]);
+    });
+  });
+
+  describe('no causal overclaim (plan 2026-06-16-002 R8)', () => {
+    it('the fixture asserts no proven causation — no CAUSES edges', () => {
+      const causal = METABOLIC_PERSONA_GRAPH.edges.filter((e) => e.type === ('CAUSES' as string));
+      expect(causal).toHaveLength(0);
     });
   });
 

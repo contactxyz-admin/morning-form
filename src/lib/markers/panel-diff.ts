@@ -17,6 +17,14 @@
 import type { PrismaClient, Prisma } from '@prisma/client';
 import { parseJsonField } from '@/lib/graph/queries';
 import { markerJoinKey } from './marker-key';
+import { classifyChange, distanceToRange } from './classify-change';
+import type { ChangeDirection, ChangeClassification } from './classify-change';
+
+// Re-exported for back-compat: the pure classifier + its types now live in
+// `classify-change.ts` (Prisma-free) so the demo can bundle them too. Existing
+// `from '.../panel-diff'` importers keep working.
+export { classifyChange, distanceToRange };
+export type { ChangeDirection, ChangeClassification };
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -26,14 +34,6 @@ type Db = PrismaClient | Prisma.TransactionClient;
  * upload history can't turn the diff into a full-table walk.
  */
 const MAX_PANEL_SCAN = 12;
-
-export type ChangeDirection = 'up' | 'down' | 'flat';
-export type ChangeClassification =
-  | 'improved' // moved toward / further into the reference interval
-  | 'worsened' // moved away from the reference interval
-  | 'stable' // in range both times, or no net distance change
-  | 'unclassified' // no reference range to judge against — direction only
-  | 'new'; // measured in the latest panel only (no prior value)
 
 export interface MarkerChange {
   marker: string;
@@ -58,35 +58,6 @@ export interface PanelDiff {
   latestPanelAt: string;
   previousPanelAt: string | null;
   changes: MarkerChange[];
-}
-
-/** Distance from `x` to the `[low, high]` interval; 0 when inside it. */
-function distanceToRange(x: number, low: number | null, high: number | null): number {
-  if (low != null && x < low) return low - x;
-  if (high != null && x > high) return x - high;
-  return 0;
-}
-
-/**
- * Pure range-relative change classifier. `improved` = closer to the reference
- * interval; `worsened` = further from it; `stable` = no net distance change
- * (incl. in-range both times); `unclassified` = no usable range.
- */
-export function classifyChange(
-  before: number,
-  after: number,
-  low: number | null,
-  high: number | null,
-): { direction: ChangeDirection; classification: ChangeClassification } {
-  const direction: ChangeDirection = after > before ? 'up' : after < before ? 'down' : 'flat';
-  if (low == null && high == null) {
-    return { direction, classification: 'unclassified' };
-  }
-  const dBefore = distanceToRange(before, low, high);
-  const dAfter = distanceToRange(after, low, high);
-  if (dAfter < dBefore) return { direction, classification: 'improved' };
-  if (dAfter > dBefore) return { direction, classification: 'worsened' };
-  return { direction, classification: 'stable' };
 }
 
 interface InstanceRow {

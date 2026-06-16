@@ -6,14 +6,25 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
 import { cn } from '@/lib/utils';
-import type { GraphNodeWire, NodeType } from '@/types/graph';
+import type { EvidenceGrade, GraphNodeWire, NodeType } from '@/types/graph';
 import type { SourceDocumentKind } from '@/lib/graph/types';
 import { kindLabel } from '@/lib/record/source-view';
 import {
   changeClassificationLabel,
   changeDirectionGlyph,
 } from '@/lib/markers/change-presentation';
+import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
 import type { TopicReference } from '@/lib/topics/node-topics';
+
+// Evidence grade → human label (plan 2026-06-16-002 R9). Distinguishes a
+// validated lab from a wearable estimate, a self-report, or an inferred link.
+const EVIDENCE_LABELS: Record<EvidenceGrade, string> = {
+  lab: 'Lab result',
+  clinician: 'Clinician record',
+  device: 'Wearable estimate',
+  self_reported: 'Self-reported',
+  inferred: 'Inferred link',
+};
 
 interface ProvenanceItemWire {
   chunkId: string;
@@ -179,6 +190,11 @@ export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTop
                     Promoted node · Tier {node.tier}
                   </p>
                 )}
+                {node?.evidenceGrade && (
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
+                    Evidence: {EVIDENCE_LABELS[node.evidenceGrade]}
+                  </p>
+                )}
               </div>
               <button
                 type="button"
@@ -198,6 +214,7 @@ export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTop
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
               {node?.change && <ChangeSince node={node} />}
+              {node?.interpretation && <Interpretation node={node} />}
               <Attributes node={node} />
               <Provenance state={state} />
               {node && <AppearsIn nodeId={node.id} hydratedTopics={hydratedTopics} />}
@@ -258,6 +275,63 @@ function ChangeSince({ node }: { node: GraphNodeWire }) {
         Described relative to this marker&rsquo;s reference range — information to discuss with a
         clinician, not medical advice.
       </p>
+    </section>
+  );
+}
+
+// The consumer "what this means" card (plan 2026-06-16-003): the CMO's four
+// dimensions — "what changed" is the ChangeSince section above; this adds where
+// it is now / how clear / what to do next, in plain English, with a calm flag.
+// Escalation never shows a user-facing interpretation — it hands over to a
+// clinician (nothing diagnostic is presented as a conclusion).
+function Interpretation({ node }: { node: GraphNodeWire }) {
+  const i = node.interpretation;
+  if (!i) return null;
+  const chip = FLAG_PRESENTATION[i.flag];
+  const Chip = (
+    <span
+      className={cn(
+        'inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
+        chip.chipClass,
+      )}
+    >
+      {chip.label}
+    </span>
+  );
+
+  if (i.flag === 'escalation') {
+    return (
+      <section>
+        <SectionLabel>What this means</SectionLabel>
+        <div className="mt-3">{Chip}</div>
+        <p className="mt-3 text-body text-text-primary leading-relaxed">
+          This result needs review by a clinician before it&rsquo;s interpreted here — we&rsquo;ve
+          flagged it for clinician handover.
+        </p>
+      </section>
+    );
+  }
+
+  const rows: Array<[string, string]> = [
+    ['Where it is now', i.whereItIsNow],
+    ['How clear the signal is', i.signalClarity],
+    ['What to do next', i.nextStep],
+  ];
+  return (
+    <section>
+      <SectionLabel>What this means</SectionLabel>
+      <div className="mt-3">{Chip}</div>
+      <p className="mt-3 text-body text-text-primary leading-relaxed">{i.plainEnglish}</p>
+      <dl className="mt-4 space-y-3">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
+              {label}
+            </dt>
+            <dd className="mt-0.5 text-caption text-text-secondary leading-relaxed">{value}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
