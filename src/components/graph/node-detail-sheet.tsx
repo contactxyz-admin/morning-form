@@ -6,13 +6,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
 import { cn } from '@/lib/utils';
-import type { EvidenceGrade, FlagTier, GraphNodeWire, NodeType } from '@/types/graph';
+import type { EvidenceGrade, GraphNodeWire, NodeType } from '@/types/graph';
 import type { SourceDocumentKind } from '@/lib/graph/types';
 import { kindLabel } from '@/lib/record/source-view';
 import {
   changeClassificationLabel,
   changeDirectionGlyph,
 } from '@/lib/markers/change-presentation';
+import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
 import type { TopicReference } from '@/lib/topics/node-topics';
 
 // Evidence grade → human label (plan 2026-06-16-002 R9). Distinguishes a
@@ -25,17 +26,6 @@ const EVIDENCE_LABELS: Record<EvidenceGrade, string> = {
   inferred: 'Inferred link',
 };
 
-// Flag tier → calm, plain-English chip (CMO direction 2026-06-16). Distinct but
-// never alarming; most markers sit in attention / clinician-discussion. Classes
-// are safelisted in tailwind.config.ts.
-const FLAG_CHIPS: Record<FlagTier, { label: string; className: string }> = {
-  attention: { label: 'Worth watching', className: 'bg-surface text-text-secondary' },
-  clinician_discussion: {
-    label: 'Worth discussing with a GP',
-    className: 'bg-caution/12 text-caution',
-  },
-  escalation: { label: 'Needs clinical review', className: 'bg-alert/12 text-alert' },
-};
 
 interface ProvenanceItemWire {
   chunkId: string;
@@ -298,12 +288,12 @@ function ChangeSince({ node }: { node: GraphNodeWire }) {
 function Interpretation({ node }: { node: GraphNodeWire }) {
   const i = node.interpretation;
   if (!i) return null;
-  const chip = FLAG_CHIPS[i.flag];
+  const chip = FLAG_PRESENTATION[i.flag];
   const Chip = (
     <span
       className={cn(
         'inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em]',
-        chip.className,
+        chip.chipClass,
       )}
     >
       {chip.label}

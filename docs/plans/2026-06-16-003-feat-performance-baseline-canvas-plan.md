@@ -237,7 +237,7 @@ The three-tier flag treatments (distinct, non-alarming), the escalation→handov
 
 **Verification:** the cue renders above the graph; copy matches the CMO verbatim.
 
-- [ ] **Unit 5: "Cardiometabolic baseline" priority cluster (Phase B)**
+- [x] **Unit 5: "Cardiometabolic baseline" priority cluster (Phase B)**
 
 **Goal:** Surface the one priority cluster (LDL-C ↑, ApoB new, full lipid context) — not all-nodes-equal — without a dashboard grid.
 
@@ -261,7 +261,7 @@ The three-tier flag treatments (distinct, non-alarming), the escalation→handov
 
 **Verification:** membership test green; one calm priority cluster present; CMO audit confirms it's not a cockpit.
 
-- [ ] **Unit 6: Flag-tier distinctness + escalation handover + audit (Phase C)**
+- [x] **Unit 6: Flag-tier distinctness + escalation handover + audit (Phase C)**
 
 **Goal:** Three visually-distinct, non-alarming flag treatments; escalation routes to clinician handover; the mandatory visual + regulatory-language audit.
 

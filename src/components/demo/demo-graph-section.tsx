@@ -23,6 +23,7 @@ import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { scrubberStops } from '@/lib/graph/as-of';
 import { tickPosition, nextPlayIndex } from '@/lib/graph/scrubber';
+import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
 import { adaptDemoFixture, type AdaptedDemoFixture } from '@/lib/demo/graph-adapter';
 import {
   referencedSourceDocumentIds,
@@ -261,6 +262,7 @@ export function DemoGraphSection({ fixture }: Props) {
           Built from verified lab results, wearable trends and your intake. Flagged items are for
           tracking or clinician discussion, not diagnosis.
         </p>
+        <PriorityCluster nodes={canvasNodes} />
         <GraphCanvas
           nodes={canvasNodes}
           edges={canvasEdges}
@@ -356,6 +358,53 @@ export function DemoGraphSection({ fixture }: Props) {
  * survive even if a future refactor moves visual-encoding.ts outside
  * the scanned tree.
  */
+// The ONE priority cluster (plan 2026-06-16-003 R10) — "Cardiometabolic
+// baseline" surfaced above the graph so the clinically-salient story isn't
+// buried among equal nodes. A compact card, not a dashboard grid. Membership is
+// CMO-declared (the cardiometabolic markers), not an inferred risk score.
+// ponytail: members hardcoded for the one cluster; tag the fixture if a second appears.
+const PRIORITY_CLUSTER_MEMBERS = ['bm-ldl', 'bm-apob'];
+
+function PriorityCluster({ nodes }: { nodes: readonly GraphNodeWire[] }) {
+  const members = PRIORITY_CLUSTER_MEMBERS.map((id) => nodes.find((n) => n.id === id)).filter(
+    (n): n is GraphNodeWire => Boolean(n?.change),
+  );
+  if (members.length === 0) return null;
+  return (
+    <div className="mb-4 rounded-card border border-border bg-surface/60 p-3.5">
+      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
+        Cardiometabolic baseline
+      </p>
+      <ul className="mt-2.5 space-y-2">
+        {members.map((n) => {
+          const c = n.change!;
+          const flag = n.interpretation?.flag;
+          return (
+            <li key={n.id} className="flex items-baseline justify-between gap-3">
+              <span className="text-caption text-text-primary">
+                <span className="font-medium">{n.displayName}</span>{' '}
+                <span className="font-mono text-text-secondary">
+                  {c.afterValue} {c.unit}
+                  {c.classification === 'new' ? ' · new baseline' : c.direction === 'up' ? ' ↑' : c.direction === 'down' ? ' ↓' : ''}
+                </span>
+              </span>
+              {flag && (
+                <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em] text-text-tertiary">
+                  {FLAG_PRESENTATION[flag].label}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-2.5 text-caption text-text-tertiary leading-relaxed">
+        Worth watching because one lipid marker has moved upward and a new particle marker has been
+        captured — a tracking and clinician-discussion signal, not a diagnosis.
+      </p>
+    </div>
+  );
+}
+
 function GraphLegend() {
   const items: Array<{ label: string; fill: string; stroke: string }> = [
     { label: 'Clinical', fill: 'fill-alert/15', stroke: 'stroke-alert/70' },
