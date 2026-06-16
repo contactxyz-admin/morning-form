@@ -89,12 +89,14 @@ export interface DemoNode {
 
 export interface DemoEdge {
   /**
-   * Constrained to the canonical `EDGE_TYPES` in `src/lib/graph/types.ts`.
-   * Demo-only semantic types (DIAGNOSES, TREATS, CORRELATES_WITH) collapse
-   * to ASSOCIATED_WITH — the graph model is intentionally narrow and
-   * non-canonical strings are invisible to typed consumers.
+   * Constrained to the canonical `EDGE_TYPES` in `src/lib/graph/types.ts`, minus
+   * `CAUSES`: the demo never asserts proven causation (plan 2026-06-16-002 R8).
+   * Condition→symptom links are non-causal associations ("may contribute to")
+   * rendered as ASSOCIATED_WITH. Demo-only richer semantics (diagnosed-by,
+   * may-contribute-to, …) collapse to ASSOCIATED_WITH — the graph model is
+   * intentionally narrow and non-canonical strings are invisible to typed consumers.
    */
-  type: 'SUPPORTS' | 'ASSOCIATED_WITH' | 'CAUSES' | 'CONTRADICTS' | 'TEMPORAL_SUCCEEDS';
+  type: 'SUPPORTS' | 'ASSOCIATED_WITH' | 'CONTRADICTS' | 'TEMPORAL_SUCCEEDS';
   fromNodeKey: string;
   toNodeKey: string;
   /** When present, edge is grounded to this chunk. */

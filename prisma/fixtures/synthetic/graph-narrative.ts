@@ -356,21 +356,25 @@ const EDGES: DemoEdge[] = [
   { type: 'SUPPORTS', fromNodeKey: 'bm-diastolic-bp', toNodeKey: 'cond-stage1-htn', fromChunkKey: 'syn-2024-05-summary', fromSourceKey: 'syn-gp-2024-05' },
 
   // Iron / fatigue
+  // No `CAUSES`: these condition→symptom links are non-causal associations
+  // ("may contribute to"), not proven causation — ferritin 42 isn't even
+  // deficient, so attributing fatigue to it is a hypothesis (plan 2026-06-16-002
+  // R8). Rendered as ASSOCIATED_WITH (the canonical safe relation).
   { type: 'SUPPORTS', fromNodeKey: 'bm-ferritin', toNodeKey: 'cond-low-normal-ferritin', fromChunkKey: 'syn-2024-04-ferritin', fromSourceKey: 'syn-lab-2024-04' },
-  { type: 'CAUSES', fromNodeKey: 'cond-low-normal-ferritin', toNodeKey: 'sym-fatigue' },
+  { type: 'ASSOCIATED_WITH', fromNodeKey: 'cond-low-normal-ferritin', toNodeKey: 'sym-fatigue' },
 
   // Hormonal
   { type: 'SUPPORTS', fromNodeKey: 'bm-free-test', toNodeKey: 'cond-low-normal-test', fromChunkKey: 'syn-2024-04-testosterone', fromSourceKey: 'syn-lab-2024-04' },
   { type: 'CONTRADICTS', fromNodeKey: 'bm-tsh', toNodeKey: 'cond-low-normal-test', fromChunkKey: 'syn-2024-04-thyroid', fromSourceKey: 'syn-lab-2024-04' },
-  { type: 'CAUSES', fromNodeKey: 'cond-low-normal-test', toNodeKey: 'sym-low-libido' },
-  { type: 'CAUSES', fromNodeKey: 'cond-low-normal-test', toNodeKey: 'sym-fatigue' },
+  { type: 'ASSOCIATED_WITH', fromNodeKey: 'cond-low-normal-test', toNodeKey: 'sym-low-libido' },
+  { type: 'ASSOCIATED_WITH', fromNodeKey: 'cond-low-normal-test', toNodeKey: 'sym-fatigue' },
 
   // Sleep cluster
   { type: 'SUPPORTS', fromNodeKey: 'mw-sleep-eff-90', toNodeKey: 'cond-impaired-sleep', fromChunkKey: 'syn-2025-q2-sleep', fromSourceKey: 'syn-wearable-2025-q2' },
   { type: 'SUPPORTS', fromNodeKey: 'mw-total-sleep-90', toNodeKey: 'cond-impaired-sleep', fromChunkKey: 'syn-2025-q2-sleep', fromSourceKey: 'syn-wearable-2025-q2' },
   { type: 'SUPPORTS', fromNodeKey: 'mw-hrv-90', toNodeKey: 'cond-impaired-sleep', fromChunkKey: 'syn-2025-q2-hrv', fromSourceKey: 'syn-wearable-2025-q2' },
-  { type: 'CAUSES', fromNodeKey: 'cond-impaired-sleep', toNodeKey: 'sym-broken-sleep' },
-  { type: 'CAUSES', fromNodeKey: 'cond-impaired-sleep', toNodeKey: 'sym-fatigue' },
+  { type: 'ASSOCIATED_WITH', fromNodeKey: 'cond-impaired-sleep', toNodeKey: 'sym-broken-sleep' },
+  { type: 'ASSOCIATED_WITH', fromNodeKey: 'cond-impaired-sleep', toNodeKey: 'sym-fatigue' },
   { type: 'ASSOCIATED_WITH', fromNodeKey: 'cond-impaired-sleep', toNodeKey: 'cond-low-normal-test' },
 
   // Cross-cluster: metabolic load → sleep + recovery

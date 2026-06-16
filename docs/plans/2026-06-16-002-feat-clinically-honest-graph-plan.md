@@ -287,7 +287,7 @@ Replace `CAUSES` with safe vocabulary; grade evidence by source strength; surfac
 
 **Verification:** encoding tests green; audit confirms legibility; safelist holds.
 
-- [ ] **Unit 7: Safe relationship vocabulary — replace CAUSES (Phase 4)**
+- [x] **Unit 7: Safe relationship vocabulary — replace CAUSES (Phase 4)**
 
 **Goal:** Remove causal overclaim; relationships use non-causal language unless proven.
 

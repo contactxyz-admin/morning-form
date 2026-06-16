@@ -125,6 +125,13 @@ describe('adaptDemoFixture', () => {
     });
   });
 
+  describe('no causal overclaim (plan 2026-06-16-002 R8)', () => {
+    it('the fixture asserts no proven causation — no CAUSES edges', () => {
+      const causal = METABOLIC_PERSONA_GRAPH.edges.filter((e) => e.type === ('CAUSES' as string));
+      expect(causal).toHaveLength(0);
+    });
+  });
+
   describe('firstSeenAt passthrough (time scrubber)', () => {
     it('passes a fixture node.firstSeenAt through to the wire node verbatim', () => {
       const dated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => n.firstSeenAt);
