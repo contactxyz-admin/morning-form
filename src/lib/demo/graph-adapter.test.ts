@@ -63,31 +63,65 @@ describe('adaptDemoFixture', () => {
     }
   });
 
-  describe('panel-change decoration passthrough', () => {
-    it('passes a fixture node.change through to the wire node', () => {
-      // The fixture decorates four biomarker nodes; each must arrive on the
-      // wire node verbatim so the canvas ring/badge + detail sheet light up.
-      const decorated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => n.change);
-      expect(decorated.length).toBeGreaterThan(0);
-      for (const fixtureNode of decorated) {
+  describe('change decoration is DERIVED from source (no authored tones)', () => {
+    it('derives a change ring for every node that carries readings', () => {
+      const withReadings = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => n.readings?.length);
+      expect(withReadings.length).toBeGreaterThan(0);
+      for (const fixtureNode of withReadings) {
         const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
-        expect(wire!.change).toEqual(fixtureNode.change);
+        expect(wire!.change).toBeDefined();
       }
     });
 
-    it('omits change on nodes the fixture did not decorate', () => {
-      const undecorated = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => !n.change);
-      for (const fixtureNode of undecorated) {
+    it('omits change on nodes with no readings', () => {
+      const noReadings = METABOLIC_PERSONA_GRAPH.nodes.filter((n) => !n.readings?.length);
+      for (const fixtureNode of noReadings) {
         const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
         expect(wire!.change).toBeUndefined();
       }
     });
 
-    it('covers all four visible change tones for the audit', () => {
-      const classes = new Set(
-        adapted.graph.nodes.flatMap((n) => (n.change ? [n.change.classification] : [])),
-      );
-      expect(classes).toEqual(new Set(['improved', 'worsened', 'stable', 'new']));
+    // ── Anti-regression guard (plan 2026-06-16-002 R1/R3) ──
+    // No derived ring may contradict the readings it was computed from: the
+    // direction must agree with the sign of (after − before), and the
+    // before/after values + unit must be the node's actual recorded readings.
+    it('NEVER contradicts the source: direction + values match the readings', () => {
+      for (const fixtureNode of METABOLIC_PERSONA_GRAPH.nodes) {
+        const readings = fixtureNode.readings;
+        if (!readings?.length) continue;
+        const wire = adapted.graph.nodes.find((n) => n.id === fixtureNode.nodeKey);
+        const change = wire!.change!;
+        const sorted = [...readings].sort((a, b) => a.at.localeCompare(b.at));
+        const after = sorted[sorted.length - 1];
+        const before = sorted.length >= 2 ? sorted[sorted.length - 2] : null;
+
+        // after/unit always reflect the latest reading.
+        expect(change.afterValue).toBe(after.value);
+        expect(change.unit).toBe(after.unit);
+
+        if (!before) {
+          expect(change.classification).toBe('new');
+          expect(change.beforeValue).toBeNull();
+          expect(change.direction).toBeNull();
+          continue;
+        }
+        expect(change.beforeValue).toBe(before.value);
+        const expected =
+          after.value > before.value ? 'up' : after.value < before.value ? 'down' : 'flat';
+        expect(change.direction).toBe(expected); // a red "worsened" on an ↑ that improved is now impossible
+      }
+    });
+
+    it('the four previously-contradictory markers now derive honest tones', () => {
+      // The lifestyle-recovery persona: HbA1c & LDL cross into range (improved);
+      // ferritin & free-T move within range both times (stable — the range
+      // method cannot claim "improved"). No fabricated "new" or inverted tone.
+      const tone = (id: string) =>
+        adapted.graph.nodes.find((n) => n.id === id)!.change!.classification;
+      expect(tone('bm-hba1c')).toBe('improved');
+      expect(tone('bm-ldl')).toBe('improved');
+      expect(tone('bm-ferritin')).toBe('stable');
+      expect(tone('bm-free-test')).toBe('stable');
     });
   });
 

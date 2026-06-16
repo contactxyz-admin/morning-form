@@ -239,6 +239,7 @@ const T_BASELINE = '2024-04-20T09:00:00.000Z'; // annual labs — most biomarker
 const T_GP = '2024-05-12T10:30:00.000Z'; // GP encounter — BP, weight, BMI, hypertension
 const T_WEARABLE = '2025-05-30T00:00:00.000Z'; // first wearable window — sleep + HRV cluster
 const T_INTERVENTION = '2025-08-15T18:00:00.000Z'; // coached programme starts
+const T_RECHECK = '2026-02-10T09:00:00.000Z'; // post-intervention recheck labs (latest panel)
 
 const NODES: DemoNode[] = [
   // Conditions / risk states
@@ -249,28 +250,24 @@ const NODES: DemoNode[] = [
   { nodeKey: 'cond-low-normal-ferritin', type: 'condition', canonicalKey: 'low-normal-ferritin', displayName: 'Low-normal ferritin', firstSeenAt: T_BASELINE },
   { nodeKey: 'cond-impaired-sleep', type: 'condition', canonicalKey: 'impaired-sleep-continuity', displayName: 'Impaired sleep continuity', firstSeenAt: T_WEARABLE },
 
-  // Biomarkers
-  // `change` decorations (longitudinal demo): synthetic before→after across
-  // the two lab panels (2024-04-20 → 2026-02-10), one per visible tone so the
-  // /demo/record audit exercises every change-ring colour, badge glyph, and
-  // the detail-sheet "Since your last test" panel without an authed upload.
-  // Range-relative + descriptive only — never a clinical value judgement.
+  // Biomarkers — each decorated node carries its RECORDED `readings`, not a
+  // hand-authored tone. The change ring/badge is *derived* from these values
+  // via the same range-relative classifier the authed record route uses
+  // (`classifyChange`), so a ring can never contradict its cited source
+  // (plan 2026-06-16-002). Values + units + dates + reference ranges below
+  // match the source chunks in SOURCES exactly. Reference ranges are standard
+  // guideline values pending CMO sign-off (LDL high = optimal <3.0 mmol/L proxy).
   {
     nodeKey: 'bm-hba1c',
     type: 'biomarker',
     canonicalKey: 'hba1c',
     displayName: 'HbA1c',
     firstSeenAt: T_BASELINE,
-    // stable → neutral-gray ring + `→` badge (the marginal-contrast watch-item)
-    change: {
-      direction: 'flat',
-      classification: 'stable',
-      beforeValue: 5.7,
-      beforeAt: '2024-04-20T09:00:00.000Z',
-      afterValue: 5.7,
-      afterAt: '2026-02-10T09:00:00.000Z',
-      unit: '%',
-    },
+    // 5.9 (prediabetes band) → 5.7 (boundary). Derives: improved (crossed into range).
+    readings: [
+      { value: 5.9, unit: '%', at: T_BASELINE, referenceLow: null, referenceHigh: 5.7 },
+      { value: 5.7, unit: '%', at: T_RECHECK, referenceLow: null, referenceHigh: 5.7 },
+    ],
   },
   { nodeKey: 'bm-fasting-glucose', type: 'biomarker', canonicalKey: 'fasting-glucose', displayName: 'Fasting glucose', firstSeenAt: T_BASELINE },
   { nodeKey: 'bm-total-chol', type: 'biomarker', canonicalKey: 'total-cholesterol', displayName: 'Total cholesterol', firstSeenAt: T_BASELINE },
@@ -280,16 +277,11 @@ const NODES: DemoNode[] = [
     canonicalKey: 'ldl',
     displayName: 'LDL cholesterol',
     firstSeenAt: T_BASELINE,
-    // worsened → alert ring + `↑` badge (moved away from the reference interval)
-    change: {
-      direction: 'up',
-      classification: 'worsened',
-      beforeValue: 3.1,
-      beforeAt: '2024-04-20T09:00:00.000Z',
-      afterValue: 3.6,
-      afterAt: '2026-02-10T09:00:00.000Z',
-      unit: 'mmol/L',
-    },
+    // 3.6 (above optimal) → 2.9 (optimal). Derives: improved.
+    readings: [
+      { value: 3.6, unit: 'mmol/L', at: T_BASELINE, referenceLow: null, referenceHigh: 3.0 },
+      { value: 2.9, unit: 'mmol/L', at: T_RECHECK, referenceLow: null, referenceHigh: 3.0 },
+    ],
   },
   { nodeKey: 'bm-hdl', type: 'biomarker', canonicalKey: 'hdl', displayName: 'HDL cholesterol', firstSeenAt: T_BASELINE },
   { nodeKey: 'bm-tg', type: 'biomarker', canonicalKey: 'triglycerides', displayName: 'Triglycerides', firstSeenAt: T_BASELINE },
@@ -299,16 +291,13 @@ const NODES: DemoNode[] = [
     canonicalKey: 'ferritin',
     displayName: 'Ferritin',
     firstSeenAt: T_BASELINE,
-    // improved → positive ring + `↑` badge (moved toward the reference interval)
-    change: {
-      direction: 'up',
-      classification: 'improved',
-      beforeValue: 42,
-      beforeAt: '2024-04-20T09:00:00.000Z',
-      afterValue: 71,
-      afterAt: '2026-02-10T09:00:00.000Z',
-      unit: 'µg/L',
-    },
+    // 42 → 68 ng/mL, both within the lab range (30–400). Derives: stable —
+    // the range method cannot call an in-range→in-range move "improved" (the
+    // low-normal→recovered clinical nuance is Phase 3's interpretation layer).
+    readings: [
+      { value: 42, unit: 'ng/mL', at: T_BASELINE, referenceLow: 30, referenceHigh: 400 },
+      { value: 68, unit: 'ng/mL', at: T_RECHECK, referenceLow: 30, referenceHigh: 400 },
+    ],
   },
   { nodeKey: 'bm-tsh', type: 'biomarker', canonicalKey: 'tsh', displayName: 'TSH', firstSeenAt: T_BASELINE },
   {
@@ -317,16 +306,12 @@ const NODES: DemoNode[] = [
     canonicalKey: 'free-testosterone',
     displayName: 'Free testosterone',
     firstSeenAt: T_BASELINE,
-    // new → accent ring + `+` badge (measured only in the latest panel)
-    change: {
-      direction: null,
-      classification: 'new',
-      beforeValue: null,
-      beforeAt: null,
-      afterValue: 19.5,
-      afterAt: '2026-02-10T09:00:00.000Z',
-      unit: 'pg/mL',
-    },
+    // 9.5 → 11.8 pg/mL, both within range (9.3–26.5). Measured in BOTH panels,
+    // so it can never be labelled "new". Derives: stable (in range both times).
+    readings: [
+      { value: 9.5, unit: 'pg/mL', at: T_BASELINE, referenceLow: 9.3, referenceHigh: 26.5 },
+      { value: 11.8, unit: 'pg/mL', at: T_RECHECK, referenceLow: 9.3, referenceHigh: 26.5 },
+    ],
   },
   { nodeKey: 'bm-hscrp', type: 'biomarker', canonicalKey: 'hscrp', displayName: 'hsCRP', firstSeenAt: T_BASELINE },
   { nodeKey: 'bm-systolic-bp', type: 'biomarker', canonicalKey: 'systolic-bp', displayName: 'Systolic BP', firstSeenAt: T_GP },
@@ -424,7 +409,10 @@ export const METABOLIC_PERSONA_GRAPH: DemoRecordFixture = {
   // change ring/badge/pulse + detail-sheet before→after.
   // v3: per-node `firstSeenAt` dates so the /demo/record time scrubber can
   // grow the graph across the persona's timeline (plan 2026-06-15-001).
-  version: '3',
+  // v4: biomarker `readings` replace hand-authored `change`; the ring is
+  // derived via classifyChange so it can't contradict its source (plan
+  // 2026-06-16-002).
+  version: '4',
   sources: SOURCES,
   nodes: NODES,
   edges: EDGES,

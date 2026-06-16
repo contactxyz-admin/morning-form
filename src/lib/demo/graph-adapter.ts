@@ -20,6 +20,7 @@ import type {
 } from '../../../prisma/fixtures/demo-navigable-record';
 import type { ImportanceTier } from '../graph/importance';
 import type { EdgeType, GraphEdgeWire, GraphNodeWire, GraphResponse } from '../../types/graph';
+import { deriveChange } from './derive-change';
 
 /** Pre-built per-node provenance lookup, used to feed NodeDetailSheet without an authed fetch. */
 export interface DemoNodeProvenance {
@@ -69,6 +70,10 @@ function nodeToWire(
   maxDegree: number,
   timestamp: string,
 ): GraphNodeWire {
+  // DERIVE the change decoration from the node's recorded readings via the
+  // shared range-relative classifier (plan 2026-06-16-002). The fixture never
+  // authors a tone, so the ring can't contradict its cited source.
+  const change = deriveChange(node.readings);
   return {
     id: node.nodeKey,
     userId: 'demo',
@@ -82,13 +87,10 @@ function nodeToWire(
     updatedAt: timestamp,
     tier: tierFromDegree(degree),
     score: maxDegree === 0 ? 0 : degree / maxDegree,
-    // Pass the fixture's hand-authored panel-change decoration straight
-    // through to the wire node (absent on nodes that didn't move — keeps the
-    // wire shape byte-identical to the live record route for undecorated
-    // nodes). Only biomarker fixture nodes carry it.
-    ...(node.change ? { change: node.change } : {}),
+    // Derived change ring/badge (absent on nodes with no readings — keeps the
+    // wire shape byte-identical to the live record route for undecorated nodes).
+    ...(change ? { change } : {}),
     // Earliest-evidence date for the time scrubber (plan 2026-06-15-001).
-    // Same additive passthrough as `change`; absent → "always present".
     ...(node.firstSeenAt ? { firstSeenAt: node.firstSeenAt } : {}),
   };
 }
