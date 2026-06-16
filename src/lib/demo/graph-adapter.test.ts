@@ -125,6 +125,22 @@ describe('adaptDemoFixture', () => {
     });
   });
 
+  describe('evidence grading (plan 2026-06-16-002 R9)', () => {
+    it('grades every node by its strongest grounding source', () => {
+      for (const node of adapted.graph.nodes) {
+        expect(node.evidenceGrade).toBeDefined();
+      }
+    });
+    it('a lab-grounded biomarker grades above a self-report/inferred node', () => {
+      const rank = { lab: 4, clinician: 3, device: 2, self_reported: 1, inferred: 0 };
+      const ferritin = adapted.graph.nodes.find((n) => n.id === 'bm-ferritin')!;
+      const fatigue = adapted.graph.nodes.find((n) => n.id === 'sym-fatigue')!;
+      // ferritin is grounded in a lab panel; fatigue is linked only by association.
+      expect(ferritin.evidenceGrade).toBe('lab');
+      expect(rank[ferritin.evidenceGrade!]).toBeGreaterThan(rank[fatigue.evidenceGrade!]);
+    });
+  });
+
   describe('no causal overclaim (plan 2026-06-16-002 R8)', () => {
     it('the fixture asserts no proven causation — no CAUSES edges', () => {
       const causal = METABOLIC_PERSONA_GRAPH.edges.filter((e) => e.type === ('CAUSES' as string));

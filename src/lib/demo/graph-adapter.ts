@@ -21,6 +21,7 @@ import type {
 import type { ImportanceTier } from '../graph/importance';
 import type { EdgeType, GraphEdgeWire, GraphNodeWire, GraphResponse } from '../../types/graph';
 import { deriveChange } from './derive-change';
+import { evidenceGrade } from './evidence-grade';
 
 /** Pre-built per-node provenance lookup, used to feed NodeDetailSheet without an authed fetch. */
 export interface DemoNodeProvenance {
@@ -170,6 +171,10 @@ export function adaptDemoFixture(fixture: DemoRecordFixture): AdaptedDemoFixture
     }
 
     provenanceByNodeId.set(node.id, { node, chunks, sources });
+    // Evidence grade = the strongest source grounding this node (plan
+    // 2026-06-16-002 R9). No grounding sources → inferred. Mutates the freshly
+    // built wire node; the authed path never sets this field.
+    node.evidenceGrade = evidenceGrade(sources.map((s) => s.kind));
   }
 
   const nodeTypeCounts: Record<string, number> = {};

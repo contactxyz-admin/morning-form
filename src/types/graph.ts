@@ -53,7 +53,21 @@ export interface GraphNodeWire {
    * byte-for-byte the pre-feature shape. Absent → "always present".
    */
   firstSeenAt?: string;
+  /**
+   * Strength of the evidence grounding this node — so a validated lab doesn't
+   * render with the same authority as a self-reported symptom or an inferred
+   * link (plan 2026-06-16-002 R9). Populated only by the demo adapter (derived
+   * from the node's strongest supporting source); the authed path never sets it.
+   */
+  evidenceGrade?: EvidenceGrade;
 }
+
+/**
+ * Evidence strength, strongest → weakest: a validated lab panel outranks a
+ * clinician record, a wearable estimate, a patient self-report, and an inferred
+ * relationship (no grounding source). Demo-only (plan 2026-06-16-002 R9).
+ */
+export type EvidenceGrade = 'lab' | 'clinician' | 'device' | 'self_reported' | 'inferred';
 
 export interface GraphEdgeWire {
   id: string;

@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
 import { cn } from '@/lib/utils';
-import type { GraphNodeWire, NodeType } from '@/types/graph';
+import type { EvidenceGrade, GraphNodeWire, NodeType } from '@/types/graph';
 import type { SourceDocumentKind } from '@/lib/graph/types';
 import { kindLabel } from '@/lib/record/source-view';
 import {
@@ -14,6 +14,16 @@ import {
   changeDirectionGlyph,
 } from '@/lib/markers/change-presentation';
 import type { TopicReference } from '@/lib/topics/node-topics';
+
+// Evidence grade → human label (plan 2026-06-16-002 R9). Distinguishes a
+// validated lab from a wearable estimate, a self-report, or an inferred link.
+const EVIDENCE_LABELS: Record<EvidenceGrade, string> = {
+  lab: 'Lab result',
+  clinician: 'Clinician record',
+  device: 'Wearable estimate',
+  self_reported: 'Self-reported',
+  inferred: 'Inferred link',
+};
 
 interface ProvenanceItemWire {
   chunkId: string;
@@ -177,6 +187,11 @@ export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTop
                 {node?.promoted && (
                   <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.08em] text-accent/70">
                     Promoted node · Tier {node.tier}
+                  </p>
+                )}
+                {node?.evidenceGrade && (
+                  <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
+                    Evidence: {EVIDENCE_LABELS[node.evidenceGrade]}
                   </p>
                 )}
               </div>

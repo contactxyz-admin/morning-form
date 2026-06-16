@@ -311,7 +311,7 @@ Replace `CAUSES` with safe vocabulary; grade evidence by source strength; surfac
 
 **Verification:** no causal overclaim remains; edge-validation green; authed schema valid.
 
-- [ ] **Unit 8: Evidence grading by source strength (Phase 4)**
+- [x] **Unit 8: Evidence grading by source strength (Phase 4)**
 
 **Goal:** Render node/edge authority proportional to its strongest supporting source.
 
