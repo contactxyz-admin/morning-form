@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tickPosition, nextPlayIndex } from './scrubber';
+import { tickPosition, nextPlayIndex, revealStaggerOrder } from './scrubber';
 
 describe('tickPosition', () => {
   it('places the earliest stop at 0% and the latest at 100%', () => {
@@ -26,5 +26,38 @@ describe('nextPlayIndex', () => {
   it('returns null when there is nothing to play (<= 1 stop)', () => {
     expect(nextPlayIndex(0, 1)).toBeNull();
     expect(nextPlayIndex(0, 0)).toBeNull();
+  });
+});
+
+describe('revealStaggerOrder', () => {
+  it('orders by tier ascending, then id', () => {
+    const order = revealStaggerOrder([
+      { id: 'b', tier: 2 },
+      { id: 'a', tier: 1 },
+      { id: 'c', tier: 1 },
+    ]);
+    expect(order.get('a')).toBe(0); // tier 1, id 'a'
+    expect(order.get('c')).toBe(1); // tier 1, id 'c'
+    expect(order.get('b')).toBe(2); // tier 2 last
+  });
+  it('a single revealing node gets index 0', () => {
+    expect(revealStaggerOrder([{ id: 'x', tier: 3 }]).get('x')).toBe(0);
+  });
+  it('is deterministic — same input → same order', () => {
+    const input = [
+      { id: 'n2', tier: 1 },
+      { id: 'n1', tier: 1 },
+    ];
+    expect(Array.from(revealStaggerOrder(input).entries())).toEqual(
+      Array.from(revealStaggerOrder(input).entries()),
+    );
+  });
+  it('does not mutate the input array', () => {
+    const input = [
+      { id: 'b', tier: 2 },
+      { id: 'a', tier: 1 },
+    ];
+    revealStaggerOrder(input);
+    expect(input[0].id).toBe('b'); // original order preserved
   });
 });

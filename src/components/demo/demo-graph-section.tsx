@@ -16,7 +16,7 @@
  * docs/plans/2026-05-16-001-feat-navigable-record-demo-plan.md (U5).
  */
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { GraphCanvas } from '@/components/graph/graph-canvas';
@@ -141,28 +141,26 @@ export function DemoGraphSection({ fixture }: Props) {
   // record builds itself. Each step ~ the eased transition + a dwell. Stops at
   // the end; pressing play from the end restarts from the first stop.
   const [playing, setPlaying] = useState(false);
+  // Live index for the interval to read (deps exclude stopIndex so the timer
+  // isn't recreated every step) — avoids a stale closure AND keeps setState out
+  // of an updater function.
+  const stopIndexRef = useRef(activeIndex);
+  stopIndexRef.current = activeIndex;
   useEffect(() => {
     if (!playing) return;
     const STEP_MS = 1100; // ≈ SCRUB_DURATION (0.55s) + dwell
     const id = setInterval(() => {
-      setStopIndex((i) => {
-        const next = nextPlayIndex(i, stops.length);
-        if (next == null) {
-          setPlaying(false);
-          return i;
-        }
-        return next;
-      });
+      const next = nextPlayIndex(stopIndexRef.current, stops.length);
+      if (next == null) setPlaying(false); // reached the end
+      else setStopIndex(next);
     }, STEP_MS);
     return () => clearInterval(id);
   }, [playing, stops.length]);
 
   const togglePlay = useCallback(() => {
-    setPlaying((p) => {
-      if (!p && activeIndex >= stops.length - 1) setStopIndex(0); // restart from start
-      return !p;
-    });
-  }, [activeIndex, stops.length]);
+    if (!playing && activeIndex >= stops.length - 1) setStopIndex(0); // restart from start
+    setPlaying((p) => !p);
+  }, [playing, activeIndex, stops.length]);
 
   const rawEntity = searchParams.get('entity');
   const validatedEntity =

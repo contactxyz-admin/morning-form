@@ -31,15 +31,20 @@ import { animate } from 'framer-motion';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
 import { edgeOpacity, smooth, lerp, easeOutBack, staggeredAlpha } from '@/lib/graph/motion';
 import { asOfVisibility, changeVisibleAsOf, composeNodeOpacity } from '@/lib/graph/as-of';
+import { revealStaggerOrder } from '@/lib/graph/scrubber';
 import { useGraphState, computeMotionAllowed } from './use-graph-state';
 
 // Opacity for a node not yet "born" as-of the scrubber date — a faint ghost
 // that keeps the layout legible without reading as present. Tunable in the
-// visual audit (plan 2026-06-15-001).
-const AS_OF_DIM = '0.08';
+// visual audit (plan 2026-06-15-001). One source of truth; string form derived.
 const AS_OF_DIM_NUM = 0.08;
+const AS_OF_DIM = String(AS_OF_DIM_NUM);
 // Scrub-transition tuning (plan 2026-06-16-001) — all dial-in-the-audit feel.
 const SCRUB_DURATION = 0.55; // seconds for a stop→stop eased transition
+// A node counts as "revealing" (gets the grow-in) only if it starts near the
+// time-ghost floor — not merely below 0.5, which would wrongly grow-in a
+// hover-dimmed (0.2) or mid-interrupted node that was already present.
+const REVEAL_FLOOR = AS_OF_DIM_NUM + 0.04;
 const BIRTH_SCALE = 0.8; // a revealed node grows from here to 1 (grow-in)
 const LAG_RATIO = 0.15; // Manim lag_ratio — same-stop births stagger subtly
 
@@ -152,9 +157,15 @@ export function GraphCanvas({
               ? '1'
               : '0.2'
             : '';
-        // Strip any in-flight grow-in scale: restore the position-only transform.
-        const base = el.getAttribute('data-base-transform');
-        if (base) el.setAttribute('transform', base);
+        // Strip an in-flight grow-in scale back to the position-only transform —
+        // but ONLY when a scale is actually present, so we never clobber a
+        // translate written by a node drag (data-base-transform would be stale).
+        const live = el.getAttribute('transform') ?? '';
+        if (live.includes('scale(')) {
+          const base =
+            el.getAttribute('data-base-transform') ?? live.replace(/\s*scale\([^)]*\)/, '');
+          el.setAttribute('transform', base);
+        }
         const hoverLabel = el.querySelector<SVGTextElement>('.graph-node-label-hover');
         if (hoverLabel) {
           hoverLabel.style.opacity = ghost
@@ -189,9 +200,10 @@ export function GraphCanvas({
     prevAsOfRef.current = asOfEpoch;
 
     // Not a scrub (prod/null, first paint, hover, reduced-motion) → instant.
+    // A hover change mid-scrub lands here too: the effect cleanup stops the
+    // in-flight tween and we snap to the canonical end-state (acceptable — a
+    // hover during a 0.55s scrub just completes it instantly).
     if (!asOfChanged || !computeMotionAllowed()) {
-      // A scrub tween is mid-flight and only hover changed → let it finish.
-      if (!asOfChanged && scrubTweenRef.current) return;
       scrubTweenRef.current?.stop();
       scrubTweenRef.current = null;
       paintInstant();
@@ -214,20 +226,15 @@ export function GraphCanvas({
       // tween may have left a `scale()` on `transform`), else the current one.
       const base = el.getAttribute('data-base-transform') ?? el.getAttribute('transform') ?? '';
       el.setAttribute('data-base-transform', base);
-      return { el, id, start, end, base, reveal: start < 0.5 && end >= 0.5 };
+      return { el, id, start, end, base, reveal: start <= REVEAL_FLOOR && end >= 0.5 };
     });
     // Stagger only the revealing nodes (Manim lag_ratio), deterministic order.
-    const revealOrder = new Map(
+    const order = revealStaggerOrder(
       nodeFrames
         .filter((f) => f.reveal)
-        .sort((a, b) => {
-          const ta = nodeById.get(a.id)?.tier ?? 9;
-          const tb = nodeById.get(b.id)?.tier ?? 9;
-          return ta - tb || a.id.localeCompare(b.id);
-        })
-        .map((f, i) => [f.id, i] as const),
+        .map((f) => ({ id: f.id, tier: nodeById.get(f.id)?.tier ?? 9 })),
     );
-    const revealCount = revealOrder.size;
+    const revealCount = order.size;
 
     const edgeFrames = Array.from(svg.querySelectorAll<SVGElement>('[data-from-id]')).map(
       (el) => {
@@ -260,7 +267,7 @@ export function GraphCanvas({
       onUpdate: (g: number) => {
         nodeFrames.forEach((f) => {
           const local = f.reveal
-            ? staggeredAlpha(g, revealOrder.get(f.id) ?? 0, revealCount, LAG_RATIO)
+            ? staggeredAlpha(g, order.get(f.id) ?? 0, revealCount, LAG_RATIO)
             : g;
           f.el.style.opacity = String(lerp(f.start, f.end, smooth(local)));
           if (f.reveal) {

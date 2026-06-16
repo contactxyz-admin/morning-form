@@ -22,3 +22,18 @@ export function nextPlayIndex(index: number, count: number): number | null {
   if (count <= 1) return null;
   return index < count - 1 ? index + 1 : null;
 }
+
+/**
+ * Deterministic stagger order for the nodes a scrub reveals (Manim `lag_ratio`,
+ * plan 2026-06-16-001 U3): tier ascending, then id, so a cluster grows in a
+ * stable cascade. Returns `id → 0-based order index`.
+ */
+export function revealStaggerOrder(
+  items: readonly { id: string; tier: number }[],
+): Map<string, number> {
+  return new Map(
+    [...items]
+      .sort((a, b) => a.tier - b.tier || a.id.localeCompare(b.id))
+      .map((it, i) => [it.id, i] as const),
+  );
+}
