@@ -180,20 +180,26 @@ export function GraphCanvas({
             : '';
         // Filter-ghosted nodes leave the click/tab order so the kept set is
         // what you navigate (the time-ghost's interactivity is left as-is —
-        // scrubber parity). ponytail: a node filtered off while its detail
-        // sheet is open goes aria-hidden but the sheet stays open; revisit if
-        // open-sheet + filter-off combine awkwardly in practice.
-        // `aria-hidden` is the "was filter-ghosted" marker:
-        // when nothing is filtered (default / authed `/graph`) the else-branch
-        // is skipped entirely, so this writes nothing — byte-for-byte today's
-        // DOM. Restore from the node's own role on un-ghost.
+        // scrubber parity). `data-filtered` is the "was filter-ghosted" marker
+        // (not aria-hidden, so no other aria-hidden writer can confuse the
+        // restore): when nothing is filtered (default / authed `/graph`) the
+        // else-branch never runs and this writes nothing — byte-for-byte
+        // today's DOM. (A selected node whose class is filtered off has its
+        // detail sheet closed by the demo section, so aria-current and
+        // aria-hidden never coexist.)
         if (filtered) {
+          // Drop keyboard focus before hiding — the node <g> IS the focusable
+          // element, and aria-hidden on the focused element violates WCAG 4.1.2.
+          // The user toggled this class off, so dropping focus is expected.
+          if (el === document.activeElement) el.blur();
           el.style.pointerEvents = 'none';
           el.setAttribute('aria-hidden', 'true');
           el.setAttribute('tabindex', '-1');
-        } else if (el.getAttribute('aria-hidden') === 'true') {
+          el.setAttribute('data-filtered', 'true');
+        } else if (el.getAttribute('data-filtered') === 'true') {
           el.style.pointerEvents = '';
           el.removeAttribute('aria-hidden');
+          el.removeAttribute('data-filtered');
           if (el.getAttribute('role') === 'button') el.setAttribute('tabindex', '0');
           else el.removeAttribute('tabindex');
         }

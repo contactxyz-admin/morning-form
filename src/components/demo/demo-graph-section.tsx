@@ -214,6 +214,14 @@ export function DemoGraphSection({ fixture }: Props) {
     return adapted.provenanceByNodeId.get(validatedEntity)?.node ?? null;
   }, [adapted, validatedEntity]);
 
+  // If the viewer filters off the visual class of the node whose detail sheet
+  // is open, close the sheet — otherwise the canvas would ghost + aria-hide a
+  // node the open surface still describes (a conflicting aria-current /
+  // aria-hidden state). Clearing `?entity=` releases the selection cleanly.
+  useEffect(() => {
+    if (openNode && nodeGhosted(openNode)) updateUrl(null);
+  }, [openNode, nodeGhosted, updateUrl]);
+
   useEffect(() => {
     // Three clear-cases (use `!== null` instead of truthiness so the
     // empty-string case `?entity=` also triggers a clear — `&&` would
@@ -461,7 +469,7 @@ function GraphLegend({
               aria-pressed={shown}
               onClick={() => onToggle(item.visualClass)}
               title={shown ? `Hide ${item.label}` : `Show ${item.label}`}
-              className={`flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors focus-visible:shadow-ring-focus focus-visible:outline-none ${
+              className={`flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-button-focus ${
                 shown
                   ? 'border-border text-text-tertiary hover:bg-surface-warm'
                   : 'border-transparent text-text-tertiary/40 line-through'
