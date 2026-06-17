@@ -35,6 +35,12 @@ provenance, and frame everything as **information to discuss with a clinician,
 not a diagnosis**. Tapping a marker the report established drills into that
 marker's existing detail — a coherent source ⇄ marker loop.
 
+**Cross-surface (per the user's ask): the same presentation ships to the real
+record UI.** The source body is a **shared** component, so the authed
+`/record/source/[id]` page renders the identical "what this report established" +
+verbatim-excerpts experience — demo and real app stay one design, one component
+(see R8 / Unit 5).
+
 ## Problem Frame
 
 - `src/components/demo/demo-graph-section.tsx` passes `nodeInteractive={isNodeInteractive}`
@@ -132,15 +138,27 @@ exists in the fixture; this plan wires it through with a first-class design.
   the scrub date is ghosted and non-interactive). Health-node detail unchanged.
 - **R7 — Apple + clinical bar.** The presentation meets the Design & Clinical
   Principles above; verified in the mandatory visual audit.
+- **R8 — Cross-surface parity (real graph + UI).** The meaning-first source body
+  is a **shared `SourceDetailBody`** rendered by both the demo sheet and the
+  authed `/record/source/[id]` page, so the real record UI shows the same
+  "what this report established" + verbatim-excerpts presentation (fed by the
+  authed Prisma → `buildSourceView` on that page; by the fixture in the demo).
+  `ponytail:` one component, two data feeds — no forked presentation.
 
 ## Scope Boundaries
 
-- ❌ **Demo only.** No change to the authed `/record/source/[id]` page, the
-  authed `/graph`, or `vault-layout.tsx` (where source clicks already navigate
-  to the source page and work). We reuse only the **pure** `buildSourceView` /
-  `kindLabel`.
-- ❌ **No new route/page.** Reuse the existing sheet — no `/demo/record/source/[id]`.
-- ❌ **No network / Prisma** on the demo path; the fixture is the source of truth.
+- ✅ **Cross-surface parity is IN SCOPE (user ask: translate all demo work to the
+  real graph + UI).** The source-detail *presentation* is a **shared** component
+  (`SourceDetailBody`) used by **both** the demo sheet **and** the authed
+  `/record/source/[id]` page, so the real UI gains the same meaning-first body.
+  `ponytail:` the shared body is the single source of truth — if the demo body
+  evolves, the authed page inherits it; never fork the two.
+- ❌ **No change to the authed graph's source-click navigation.** On the authed
+  `/record?mode=map` a source click still opens the full `/record/source/[id]`
+  page (not a sheet) — we only change the **body** that page renders, not how
+  it's reached. (The demo uses the sheet because it has no per-source route.)
+- ❌ **No network / Prisma** on the *demo* path; the fixture is the source of
+  truth there. The authed page keeps its existing Prisma load → `buildSourceView`.
 - ❌ **No re-parsing of lab values from raw text.** Structured value/flag come
   from the existing graph nodes the report grounds; the chunk text is shown
   **verbatim** (provenance, not a parser).
@@ -150,14 +168,13 @@ exists in the fixture; this plan wires it through with a first-class design.
 
 ### Deferred to Separate Tasks
 
-- **Backport the richer "what this established" presentation to the authed
-  `/record/source/[id]` page** for cross-surface parity (extract a shared
-  `SourceDetailBody`). Out of scope here (demo is the reported gap); noted in
-  Future Considerations.
+- **Authed source-click opening the sheet instead of the full page.** The authed
+  graph keeps its page navigation; unifying the container (sheet everywhere) is a
+  separate UX call, deferred.
 - **Inline numeric parsing of values/reference ranges from chunk text** (we use
   the structured node data instead).
 - **A dedicated full-page demo source view** (rejected — the sheet is the right,
-  consistent surface).
+  consistent surface for the demo).
 
 ## Context & Research
 
@@ -334,12 +351,15 @@ adapter output.
 **Goal:** A presentational component rendering a `SourceView` + grounded-marker
 enrichment as the meaning-first, non-diagnostic source detail.
 
-**Requirements:** R3, R5, R7
+**Requirements:** R3, R5, R7, R8
 
 **Dependencies:** Unit 1
 
 **Files:**
-- Create: `src/components/graph/source-detail-body.tsx`.
+- Create: **`src/components/record/source-detail-body.tsx`** — a **shared**
+  component (not under `graph/`), since both the demo sheet (Unit 3) and the
+  authed `/record/source/[id]` page (Unit 5) render it. `ponytail:` shared
+  location = single source of truth for source presentation.
 - (Reuse) `kindLabel`, `EVIDENCE_LABELS`/evidence mapping, `FLAG_PRESENTATION`,
   `changeDirectionGlyph`, `SectionLabel`, the sheet card styling.
 
@@ -348,7 +368,9 @@ enrichment as the meaning-first, non-diagnostic source detail.
 `change` value/unit/direction + calm flag chip, each a button → `onOpenNode`) →
 "From the document" (verbatim chunk cards with page numbers) → non-diagnostic
 note. Sparse/empty sections omitted gracefully. Props: `{ sourceView, grounded:
-GraphNodeWire[], onOpenNode: (id) => void }`.
+GraphNodeWire[], onOpenNode?: (id) => void }`. `onOpenNode` is optional so the
+authed page (which links grounded markers via `<Link>`/router instead of the
+demo's `updateUrl`) can pass its own navigation or omit it.
 
 **Patterns to follow:** the existing `Provenance`/`Interpretation` card grammar
 in `node-detail-sheet.tsx`; design tokens; calm flag taxonomy; non-diagnostic copy.
@@ -415,6 +437,42 @@ filtered off → report not clickable.
 **Verification:** clicking any source node opens its detail; drill-down works;
 no regression to health-node open/close or the deep-link guard.
 
+- [ ] **Unit 5: Authed `/record/source/[id]` adopts the shared body (real-UI parity)**
+
+**Goal:** The authed source page renders the same meaning-first `SourceDetailBody`
+as the demo, so the real record UI gains the "what this report established"
+presentation (R8).
+
+**Requirements:** R8
+
+**Dependencies:** Unit 2
+
+**Files:**
+- Modify: `src/app/(app)/record/source/[id]/page.tsx` — replace the inline
+  `<SourceBody>` "Extracted nodes" + "Content" sections with the shared
+  `<SourceDetailBody>` (keep the page's own header/MeshGradient banner). Feed it
+  the `SourceView` already built from the authed Prisma load via `buildSourceView`,
+  plus the `grounded` nodes it already loads (the referenced `graphNode`s) for
+  the value/flag enrichment.
+- Possibly modify: `src/app/api/record/source/[id]/route.ts` — only if the
+  grounded markers' `change`/`interpretation` aren't already in the referenced-
+  node payload; extend the select minimally if needed.
+
+**Approach:** the page keeps its full-page chrome (banner, title) and swaps the
+body for the shared component. Grounded-marker rows link via the page's normal
+navigation (router/`<Link>` to the marker), not the demo's `updateUrl`. No change
+to how the page is reached (the authed graph still routes here on a source click).
+
+**Patterns to follow:** the existing `<SourceBody>` data flow in the page; the
+shared `SourceDetailBody` (Unit 2); authed navigation patterns in the page.
+
+**Test scenarios:** the authed page renders grounded markers (value/flag) + the
+verbatim chunks via the shared body; an owned source loads; unauth/not-found
+unchanged; a source grounding nothing shows excerpts only.
+
+**Verification:** authed `/record/source/[id]` shows the same body as the demo
+sheet (parity); no regression to auth/not-found; visual audit on a real record.
+
 ## System-Wide Impact
 
 - **Interaction graph:** source nodes join the same `?entity=` selection model
@@ -466,9 +524,9 @@ no regression to health-node open/close or the deep-link guard.
 
 ## Future Considerations
 
-- **Cross-surface parity:** extract a shared `SourceDetailBody` and adopt the
-  richer "what this report established" presentation on the authed
-  `/record/source/[id]` page.
+- **Cross-surface parity is now in scope** (Unit 5 — shared `SourceDetailBody` on
+  the authed page). What remains future: optionally unify the *container* so the
+  authed graph opens the sheet rather than the full page.
 - **From-the-document highlighting:** highlight the exact `offsetStart/offsetEnd`
   span within a chunk that grounds a tapped marker.
 - **Value/range extraction:** parse numeric values + reference ranges from chunk

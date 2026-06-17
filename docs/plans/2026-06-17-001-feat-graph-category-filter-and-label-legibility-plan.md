@@ -105,9 +105,13 @@ switching "Source" off will quiet.
 - ❌ No change to as-of semantics, the stop dates, the time-scrubber control,
   the priority cluster, the node-detail sheet, or `<GraphListView>` (the
   mobile list).
-- ❌ Not wired into the authed `/graph` interaction. The filter UI is demo-only
-  chrome; the new canvas prop defaults to a no-op so the authed canvas renders
-  unchanged.
+- ⚠️ The **original PR shipped the filter demo-only** (the `nodeGhosted` prop
+  defaults to a no-op, so the authed canvas was unchanged). Per the user's
+  follow-up ask — *translate all demo graph work to the real graph + UI* — the
+  authed translation is now tracked in **"Addendum (2026-06-17): translate to
+  the real graph + UI"** below (the label legibility already reaches the authed
+  graph for free; the filter needs porting). `ponytail:` this boundary is
+  superseded by the Addendum.
 - ❌ No new dependency.
 
 ### Deferred to Separate Tasks
@@ -121,7 +125,9 @@ switching "Source" off will quiet.
 - **Re-running the label de-collision after a drag.** v1 computes it once from
   the settled layout; transient label overlap while a node is actively dragged
   is acceptable.
-- **Porting the filter + label legibility to the authed `/graph`.**
+- **Porting the filter to the authed graph** — now **in scope** (no longer
+  deferred); see the Addendum below. (Label legibility already ships to the
+  authed graph via the shared hook + global CSS.)
 
 ## Context & Research
 
@@ -540,9 +546,81 @@ unchanged node positions + no halo artefacts.
   an animation seam, not new state.
 - **Persist filter (+ scrubber) state in the URL** so a shared link can deep-link
   a focused view, alongside `?entity=`.
-- **Port the filter + label legibility to the authed `/graph`** when its real
-  scrubber/longitudinal view ships — the predicate prop and the label helpers
-  are prod-safe by construction.
 - **Adaptive label declutter** (re-run de-collision after drag, or a true
   label-placement solver) if the bounded one-pass proves insufficient at higher
   densities.
+
+> Porting the filter to the authed graph is **no longer "future"** — it is the
+> Addendum below, promoted to in-scope at the user's request.
+
+## Addendum (2026-06-17): translate to the real graph + UI
+
+The original PR (#174) shipped the filter + label legibility **demo-only**. The
+user has since asked that **all of this demo graph work reach the real (authed)
+graph + UI** — i.e. `/record?mode=map` (`VaultMapMode` in
+`src/components/record/vault-layout.tsx`), which renders the same `<GraphCanvas>`.
+
+### What's already translated (free, by construction)
+
+- **Label legibility (halo + de-collision) is ALREADY LIVE on the authed graph.**
+  It lives in the shared hook `src/components/graph/use-graph-state.ts` and the
+  global `.graph-node-label` rule in `globals.css` — both used by the authed
+  canvas via the same `<GraphCanvas>`/`useGraphState`. **No code change needed;**
+  it just needs the same **visual-audit pass on a real record**. `ponytail:` this
+  was a happy side effect of putting the label work in the shared hook, not the
+  demo section — verify it reads well at authed data densities.
+
+### What still needs porting
+
+- **The category filter is demo-only.** `VaultMapMode` renders no legend/chips
+  at all, and never passes `nodeGhosted` to `<GraphCanvas>`. The canvas already
+  *supports* the prop (shipped in #174); porting is purely additive UI + state in
+  the authed surface. `ponytail:` reuse the exact `LEGEND_ITEMS` /
+  `toggleHiddenClass` / `nodeGhosted` plumbing from the demo — do NOT fork a
+  second filter implementation.
+
+### Addendum Requirements
+
+- **AR1** — `/record?mode=map` gains the **same multi-select toggle-chip legend**
+  as the demo (reusing `LEGEND_ITEMS` + `toggleHiddenClass`), with `hiddenClasses`
+  state lifted into `VaultMapMode`/`vault-layout` and a memoised `nodeGhosted`
+  predicate passed to the authed `<GraphCanvas>`. Same fade-to-ghost +
+  non-interactive behaviour (the canvas already implements it).
+- **AR2** — Authed parity for the a11y fixes already in the canvas (focus-blur on
+  ghost, `data-filtered` sentinel, opaque chip focus ring) — these live in the
+  shared canvas/chip code, so they come for free; confirm the chip styles read
+  correctly against the authed surface (`bg-record-grid` background, not the
+  demo's `surface-warm/40`).
+- **AR3** — Label legibility verified on the authed graph (no code change) at
+  real-record densities; halo colour still reads as a clean knockout over
+  `bg-record-grid`. `ponytail:` if the authed background differs enough that the
+  `theme(colors.bg)` halo muddies, lift the halo colour to a CSS variable rather
+  than hard-coding per surface.
+- **AR4** — No regression to the authed graph's existing behaviour (source-click
+  → `/record/source/[id]`, the list view, the deep-link guard, the importance
+  cap / truncation). The filter composes with these exactly as in the demo.
+
+### Addendum Implementation Units
+
+- [ ] **AU1: Authed category filter (real graph)**
+  - Modify `src/components/record/vault-layout.tsx` (`VaultMapMode`): add the
+    `hiddenClasses` state + memoised `nodeGhosted` (reuse `visualForNode` +
+    `toggleHiddenClass`), render the toggle-chip legend (reuse the demo's chip
+    markup — `ponytail:` extract a shared `GraphFilterLegend` component from
+    `demo-graph-section.tsx` so demo + authed share ONE legend, rather than
+    copy-paste), and pass `nodeGhosted` to `<GraphCanvas>`.
+  - Test: the shared legend/`toggleHiddenClass` are already unit-tested (Unit 1);
+    add a small render/interaction check if a shared component is extracted.
+  - Verify: authed filter ghosts classes identically to the demo; visual audit on
+    a real record.
+- [ ] **AU2: Authed label-legibility audit (no code)**
+  - Confirm halo + de-collision read well on `/record?mode=map`; only act
+    (AR3 fallback) if the audit shows a halo/background clash.
+
+### Addendum Scope
+
+- ❌ Still no force-layout retune, no node removal, no new dependency.
+- ❌ The authed graph keeps source-click → full source page (the source-detail
+  parity is owned by plan `2026-06-17-002` R8/Unit 5, not here).
+- ✅ Prefer **extracting a shared `GraphFilterLegend`** over duplicating the chip
+  UI, so demo + authed never drift (`ponytail`).
