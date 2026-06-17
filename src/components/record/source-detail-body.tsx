@@ -14,11 +14,12 @@
  * (never re-parsed from text); the excerpt is shown verbatim.
  */
 
-import type { GraphNodeWire, FlagTier } from '@/types/graph';
+import type { GraphNodeWire } from '@/types/graph';
 import type { SourceView } from '@/lib/record/source-view';
 import { SectionLabel } from '@/components/ui/section-label';
 import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
 import { changeDirectionGlyph } from '@/lib/markers/change-presentation';
+import { authorityLabel, flagRank } from '@/lib/record/source-detail';
 import { cn } from '@/lib/utils';
 
 /**
@@ -31,56 +32,6 @@ export interface SourceGroundedMarker {
   readonly displayName: string;
   readonly change?: GraphNodeWire['change'];
   readonly interpretation?: GraphNodeWire['interpretation'];
-}
-
-// Source kind → trust calibration. A verified lab reads differently from a
-// clinician note, a wearable estimate, or a self-report — the clinician's first
-// question. Self-contained + safe for every SourceDocumentKind (unknown → no
-// cue), so the shared body never couples to the demo-only evidence-grade util.
-function authorityLabel(kind: string): string {
-  switch (kind) {
-    case 'lab_pdf':
-    case 'private_lab_panel':
-    case 'longevity_panel':
-    case 'pathology_report':
-      return 'Verified lab result';
-    case 'genetics_report':
-    case 'microbiome_panel':
-    case 'stool_panel':
-      return 'Lab panel';
-    case 'at_home_test_result':
-      return 'At-home test';
-    case 'gp_record':
-    case 'gp_letter':
-    case 'specialist_letter':
-    case 'referral_letter':
-    case 'discharge_summary':
-      return 'Clinician record';
-    case 'imaging_report':
-      return 'Imaging report';
-    case 'body_composition_scan':
-    case 'dexa_scan':
-      return 'Body scan';
-    case 'wearable_window':
-      return 'Wearable estimate';
-    case 'intake_text':
-    case 'checkin':
-      return 'Self-reported';
-    default:
-      return '';
-  }
-}
-
-// Attention-first ordering — the clinically-salient readings surface first.
-// Never alarming, just ordered; markers with no flag sort last.
-const FLAG_PRIORITY: Record<FlagTier, number> = {
-  escalation: 0,
-  clinician_discussion: 1,
-  attention: 2,
-};
-function flagRank(m: SourceGroundedMarker): number {
-  const f = m.interpretation?.flag;
-  return f ? FLAG_PRIORITY[f] : 3;
 }
 
 interface Props {
@@ -96,7 +47,9 @@ interface Props {
 export function SourceDetailBody({ sourceView, grounded, onSelectNode }: Props) {
   const authority = authorityLabel(sourceView.kind);
   const established = [...grounded].sort(
-    (a, b) => flagRank(a) - flagRank(b) || a.displayName.localeCompare(b.displayName),
+    (a, b) =>
+      flagRank(a.interpretation?.flag) - flagRank(b.interpretation?.flag) ||
+      a.displayName.localeCompare(b.displayName),
   );
 
   return (
@@ -137,7 +90,9 @@ export function SourceDetailBody({ sourceView, grounded, onSelectNode }: Props) 
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
                     {sourceView.kindLabel}
-                    {chunk.pageNumber !== null ? ` · p.${chunk.pageNumber}` : ''}
+                    {chunk.pageNumber !== null
+                      ? ` · p.${chunk.pageNumber}`
+                      : ` · #${String(chunk.index + 1).padStart(2, '0')}`}
                   </span>
                 </div>
                 <p className="whitespace-pre-wrap text-body text-text-secondary leading-relaxed">

@@ -22,6 +22,9 @@ import type { TopicReference } from '@/lib/topics/node-topics';
 
 // Evidence grade → human label (plan 2026-06-16-002 R9). Distinguishes a
 // validated lab from a wearable estimate, a self-report, or an inferred link.
+// ponytail: this is grade-keyed (the derived EvidenceGrade); the source-detail
+// body has a kind-keyed twin (`authorityLabel` in src/lib/record/source-detail.ts).
+// Keep the copy in step if either changes.
 const EVIDENCE_LABELS: Record<EvidenceGrade, string> = {
   lab: 'Lab result',
   clinician: 'Clinician record',

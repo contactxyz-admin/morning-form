@@ -202,13 +202,13 @@ export function DemoGraphSection({ fixture }: Props) {
   const openNode = useMemo<GraphNodeWire | null>(() => {
     if (!validatedEntity) return null;
     // Health nodes carry provenance; source / lab-report hubs aren't in
-    // provenanceByNodeId, so fall back to the canvas node set — keeping
-    // `?entity=<sourceKey>` valid past the deep-link guard below.
-    return (
-      adapted.provenanceByNodeId.get(validatedEntity)?.node ??
-      nodeById.get(validatedEntity) ??
-      null
-    );
+    // provenanceByNodeId, so fall back to the canvas node set — scoped to
+    // source hubs so `?entity=<sourceKey>` stays valid past the deep-link guard
+    // while a bogus key still clears.
+    const healthNode = adapted.provenanceByNodeId.get(validatedEntity)?.node;
+    if (healthNode) return healthNode;
+    const hub = nodeById.get(validatedEntity);
+    return hub && hub.type === 'source_document' ? hub : null;
   }, [adapted, validatedEntity, nodeById]);
 
   // When the open node is a source / lab report, assemble the shared
@@ -246,12 +246,16 @@ export function DemoGraphSection({ fixture }: Props) {
 
   const handleNodeClick = useCallback(
     (node: GraphNodeWire) => {
-      // Every node opens a detail surface: health nodes resolve via
-      // provenanceByNodeId; source / lab-report nodes resolve via the canvas
-      // source hubs and render the shared source body (plan 2026-06-17-002).
+      // Don't open a node the timeline hasn't reached yet: a scrubber-dimmed
+      // (not-yet-captured) node shouldn't open its detail (plan 2026-06-17-002
+      // R6). Filter ghosts are already non-interactive via the canvas dim
+      // effect; the time-ghost only dims, so guard the click here.
+      if (asOfVisibility(node.firstSeenAt, asOfEpoch) !== 'present') return;
+      // Health nodes resolve via provenanceByNodeId; source / lab-report nodes
+      // resolve via the canvas source hubs and render the shared source body.
       updateUrl(node.id);
     },
-    [updateUrl],
+    [updateUrl, asOfEpoch],
   );
 
   const handleSheetClose = useCallback(() => {
