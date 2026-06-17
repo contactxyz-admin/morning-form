@@ -122,6 +122,72 @@ This is **not fatal** — but it is the **one decision that governs everything
 downstream**: regulatory lane, clinician staffing model, and every word of copy.
 **It must be resolved before planning** (see Outstanding Questions → Governing).
 
+## Competitive Moat — why we don't lose to Google / AMIE
+
+The threat is not a worse PCP; it is **Google AMIE** and frontier models —
+conversational diagnostic AI that already out-performs PCPs on diagnostic accuracy
+in research OSCEs (Tu et al., AMIE, 2024). **If Morning Form competes on
+*intelligence*, it loses:** a model lab will always have a better model. Amy's
+essay is the tell — the models "raised nearly every hypothesis" her specialist's
+NP did; **the intelligence was the easy, available part.** What cost her hundreds
+of hours was everything *around* it: getting the data out (browser automation,
+four sources, MyChart/Function won't export), longitudinal tracking, physical
+testing, sequencing, trust/verification.
+
+So the strategic move is to **treat frontier intelligence (AMIE included) as a
+commodity input we ride, not a competitor we fight.** Positioned as the
+data-and-orchestration layer it plugs into, *when AMIE gets better, we get better
+for free.* The moat is the three things a model company structurally can't or
+won't own:
+
+1. **The physical data-generation loop (primary).** A model substitutes for a
+   doctor's *reasoning*, not for a *blood draw*. Google has the model; it does not
+   have your blood over time. Owning the draw generates clean, structured,
+   longitudinal biomarker data — tied to identity, wearable stream, and
+   intervention history — that nobody can scrape or prompt their way to.
+   Intelligence is BYO; the feedstock is not.
+2. **The done-for-you orchestration + ops + clinician relationship.** AMIE is still
+   "show up and talk to it" — a better oracle. Nobody runs the loop: draws blood,
+   sequences tests, pulls the wearable, schedules the retest, closes it. Amy proved
+   the bottleneck is *labour and plumbing, not IQ* — a service/ops/physical-
+   footprint business a model lab won't grind out.
+3. **Trust, provenance, and regulatory posture.** A research-OSCE win is not a
+   deployable, liability-bearing, trusted service. "Every node grounded in a
+   citable record," clinician-in-the-loop handover, and the wellness-lane posture
+   are moats *because* they are slow and unglamorous. Hyperscalers have a
+   structural disincentive to take clinical liability and a health-data trust
+   problem (Google Health shut down; Haven died).
+
+**Honest caveats — the moat is the intersection, not any single leg:**
+- *Vs Function/Superpower:* they also own the draw and longitudinal bloods, so "own
+  the draw" alone isn't unique — our edge over them is leg 2 (they data-dump; we
+  run the loop).
+- *Vs Google/frontier:* they own the intelligence and could integrate downward
+  (Fitbit, Amazon One Medical), so "ride a commodity model" alone isn't unique —
+  our edge over them is legs 1 + 3 (intelligence, but no body and no trust-to-act).
+- Defensible = the **intersection** of all three, plus the **switching cost** of a
+  multi-year longitudinal record + clinical relationship. Be precise: this is a
+  *feedstock + switching-cost* moat, **not** a classic cross-user network effect
+  (health-data value is mostly per-user). Do not oversell network effects.
+
+**Where the moat lives in code (what to build):**
+- **Data layer** — ingestion/normalization that turns messy multi-source health
+  data (Amy's #1 pain) into one clean longitudinal structured record; own the pipes
+  from lab + wearable + EHR. *(Already underway: health graph, hybrid retrieval,
+  Terra, ingestion taxonomy.)*
+- **Orchestration engine** — test sequencing, retest scheduling, "what moved"
+  detection, loop-closing. Workflow + clinician-in-the-loop, not a model.
+- **Trust/provenance/safety layer** — grounded citations, flag taxonomy, clinician
+  handover — what makes commodity intelligence *deployable and trusted.*
+- **Do NOT build a proprietary diagnostic model.** Keep the reasoning layer
+  swappable (AMIE/Claude/GPT plug in); our value is the data we feed it and the loop
+  we wrap around it.
+
+**This resolves the governing posture question toward "stay in-lane":** being the
+diagnostic oracle means competing with Google on its turf *and* absorbing SaMD
+liability. Being the data + orchestration + trust layer makes Google's model an
+*input*, not a threat — and keeps us in the wellness lane by design.
+
 ## Success Criteria
 - A user with *zero* interest in self-tracking completes touchpoint 1 → 2 and
   **returns** for the retest.
@@ -178,6 +244,12 @@ downstream**: regulatory lane, clinician staffing model, and every word of copy.
   founder intend to *move the product into* a directive, managed-care posture
   (which reopens the MHRA intended-purpose question and the explicit
   intervention-posture exclusion)? **Everything downstream depends on this.**
+  *Update (founder steer, 2026-06-17): the strategic question is "how do we not
+  compete with Google/AMIE — where is the moat?" The Competitive Moat section
+  answers it and reframes this posture question toward **stay in-lane** — being
+  the diagnostic oracle means competing with Google on its turf and absorbing SaMD
+  liability, whereas being the data + orchestration + trust layer makes a commodity
+  model an input, not a threat. Founder/CMO to confirm in-lane as the locked posture.*
 
 ### Deferred to Planning
 - **[Draw model]** In-person Morning Form Studio vs. **gym-as-distribution-channel**
