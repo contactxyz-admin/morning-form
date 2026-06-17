@@ -84,6 +84,52 @@ export function visualForNode(type: NodeType): NodeVisual {
 }
 
 /**
+ * Ordered legend descriptor for the canvas's 4 visual classes — the single
+ * source the demo legend's filter chips render from (plan 2026-06-17-001).
+ * `data` is surfaced to the reader as "Source" (its only on-canvas members are
+ * the source-document hubs). Fill/stroke come straight from
+ * `NODE_VISUAL_BY_CLASS` so a chip swatch can never drift from the dots it
+ * filters; those classes are mirrored in the tailwind.config.ts safelist
+ * (src/lib class strings are JIT-dropped otherwise).
+ */
+export interface LegendItem {
+  readonly visualClass: NodeVisualClass;
+  readonly label: string;
+  readonly fillClass: string;
+  readonly strokeClass: string;
+}
+
+const LEGEND_LABEL: Record<NodeVisualClass, string> = {
+  clinical: 'Clinical',
+  biomarker: 'Biomarker',
+  intervention: 'Intervention',
+  data: 'Source',
+};
+
+export const LEGEND_ITEMS: readonly LegendItem[] = (
+  ['clinical', 'biomarker', 'intervention', 'data'] as const
+).map((visualClass) => ({
+  visualClass,
+  label: LEGEND_LABEL[visualClass],
+  ...NODE_VISUAL_BY_CLASS[visualClass],
+}));
+
+/**
+ * Immutable toggle of a visual class in the demo graph's "hidden" set —
+ * present ⇒ removed, absent ⇒ added. Returns a NEW Set (never mutates the
+ * input) so React state updates stay referentially honest.
+ */
+export function toggleHiddenClass(
+  hidden: ReadonlySet<NodeVisualClass>,
+  visualClass: NodeVisualClass,
+): Set<NodeVisualClass> {
+  const next = new Set(hidden);
+  if (next.has(visualClass)) next.delete(visualClass);
+  else next.add(visualClass);
+  return next;
+}
+
+/**
  * Selection-halo stroke per visual class. Slightly stronger than the node's
  * own stroke so the halo reads as emphasis rather than duplication. Mirrored
  * in tailwind.config.ts safelist (src/lib classes are JIT-dropped otherwise).

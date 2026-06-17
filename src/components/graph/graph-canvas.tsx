@@ -72,6 +72,16 @@ export interface GraphCanvasProps {
    */
   readonly nodeInteractive?: (node: GraphNodeWire) => boolean;
   /**
+   * Per-node "ghost" predicate for the demo category filter (plan
+   * 2026-06-17-001). A node it returns `true` for fades to the faint ghost
+   * floor (the same idiom as the time-scrubber's not-yet-born nodes), its
+   * edges/change-rings/hover-label hide with it, and it drops out of the
+   * click/tab order so the kept set is what you navigate. Defaults to a no-op
+   * (`false` for every node), so the authed `/graph` canvas is byte-for-byte
+   * today's render — this only fades, never removes from the DOM.
+   */
+  readonly nodeGhosted?: (node: GraphNodeWire) => boolean;
+  /**
    * Time-scrubber "as of" date, epoch ms. When set, nodes whose `firstSeenAt`
    * postdates it dim (with their edges), and a node's change ring stays hidden
    * until the date reaches its change `afterAt`. `null`/omitted → no temporal
@@ -94,6 +104,7 @@ export function GraphCanvas({
   ariaLabel,
   selectedNodeId = null,
   nodeInteractive,
+  nodeGhosted,
   asOfEpoch = null,
 }: GraphCanvasProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -142,6 +153,15 @@ export function GraphCanvas({
     const hasEmphasis = Boolean(emphasisNodeId);
     const timeDimmed = (id: string) =>
       asOfVisibility(nodeById.get(id)?.firstSeenAt, asOfEpoch) === 'dimmed';
+    // Category filter (plan 2026-06-17-001): a node whose visual class the
+    // viewer switched off. Composes with the time-ghost via `ghosted` below —
+    // both fade a node to the same floor, so the as-of paint path handles it
+    // verbatim. Default (no predicate) → always false → today's render.
+    const classGhost = (id: string) => {
+      const n = nodeById.get(id);
+      return n ? (nodeGhosted?.(n) ?? false) : false;
+    };
+    const ghosted = (id: string) => timeDimmed(id) || classGhost(id);
 
     // Canonical instant paint — today's behaviour verbatim. Used for the
     // prod/null path, hover-only changes, reduced-motion, and as the tween's
@@ -149,7 +169,8 @@ export function GraphCanvas({
     const paintInstant = () => {
       svg.querySelectorAll<SVGGElement>('[data-node-id]').forEach((el) => {
         const id = el.getAttribute('data-node-id') ?? '';
-        const ghost = timeDimmed(id);
+        const ghost = ghosted(id);
+        const filtered = classGhost(id);
         el.style.opacity = ghost
           ? AS_OF_DIM
           : hasEmphasis
@@ -157,6 +178,31 @@ export function GraphCanvas({
               ? '1'
               : '0.2'
             : '';
+        // Filter-ghosted nodes leave the click/tab order so the kept set is
+        // what you navigate (the time-ghost's interactivity is left as-is —
+        // scrubber parity). `data-filtered` is the "was filter-ghosted" marker
+        // (not aria-hidden, so no other aria-hidden writer can confuse the
+        // restore): when nothing is filtered (default / authed `/graph`) the
+        // else-branch never runs and this writes nothing — byte-for-byte
+        // today's DOM. (A selected node whose class is filtered off has its
+        // detail sheet closed by the demo section, so aria-current and
+        // aria-hidden never coexist.)
+        if (filtered) {
+          // Drop keyboard focus before hiding — the node <g> IS the focusable
+          // element, and aria-hidden on the focused element violates WCAG 4.1.2.
+          // The user toggled this class off, so dropping focus is expected.
+          if (el === document.activeElement) el.blur();
+          el.style.pointerEvents = 'none';
+          el.setAttribute('aria-hidden', 'true');
+          el.setAttribute('tabindex', '-1');
+          el.setAttribute('data-filtered', 'true');
+        } else if (el.getAttribute('data-filtered') === 'true') {
+          el.style.pointerEvents = '';
+          el.removeAttribute('aria-hidden');
+          el.removeAttribute('data-filtered');
+          if (el.getAttribute('role') === 'button') el.setAttribute('tabindex', '0');
+          else el.removeAttribute('tabindex');
+        }
         // Strip an in-flight grow-in scale back to the position-only transform —
         // but ONLY when a scale is actually present, so we never clobber a
         // translate written by a node drag (data-base-transform would be stale).
@@ -180,14 +226,14 @@ export function GraphCanvas({
         el.querySelectorAll<SVGElement>(
           '.graph-node-change-ring, .graph-node-change-pulse, .graph-node-change-badge',
         ).forEach((c) => {
-          c.style.opacity = changeShown ? '' : '0';
+          c.style.opacity = changeShown && !filtered ? '' : '0';
         });
       });
       svg.querySelectorAll<SVGElement>('[data-from-id]').forEach((el) => {
         const fromId = el.getAttribute('data-from-id') ?? '';
         const toId = el.getAttribute('data-to-id') ?? '';
         el.style.opacity =
-          timeDimmed(fromId) || timeDimmed(toId)
+          ghosted(fromId) || ghosted(toId)
             ? AS_OF_DIM
             : hasEmphasis
               ? edgeOpacity(fromId, toId, neighbourIds)
@@ -215,7 +261,7 @@ export function GraphCanvas({
     // grow newly-revealed nodes in. Scale via `translate(x,y) scale(s)` on the
     // group (local origin = node centre) so the converged position is preserved.
     const nodeTarget = (id: string) =>
-      composeNodeOpacity(timeDimmed(id), hasEmphasis, neighbourIds.has(id), AS_OF_DIM_NUM);
+      composeNodeOpacity(ghosted(id), hasEmphasis, neighbourIds.has(id), AS_OF_DIM_NUM);
 
     const nodeEls = Array.from(svg.querySelectorAll<SVGGElement>('[data-node-id]'));
     const nodeFrames = nodeEls.map((el) => {
@@ -242,7 +288,7 @@ export function GraphCanvas({
         const toId = el.getAttribute('data-to-id') ?? '';
         const start = parseFloat(el.style.opacity || '1');
         const end =
-          timeDimmed(fromId) || timeDimmed(toId)
+          ghosted(fromId) || ghosted(toId)
             ? AS_OF_DIM_NUM
             : hasEmphasis
               ? Number(edgeOpacity(fromId, toId, neighbourIds))
@@ -257,7 +303,7 @@ export function GraphCanvas({
       const changeShown = changeVisibleAsOf(nodeById.get(id)?.change, asOfEpoch);
       el.querySelectorAll<SVGElement>(
         '.graph-node-change-ring, .graph-node-change-pulse, .graph-node-change-badge',
-      ).forEach((c) => (c.style.opacity = changeShown ? '' : '0'));
+      ).forEach((c) => (c.style.opacity = changeShown && !classGhost(id) ? '' : '0'));
     });
 
     scrubTweenRef.current?.stop();
@@ -289,7 +335,7 @@ export function GraphCanvas({
       scrubTweenRef.current?.stop();
       scrubTweenRef.current = null;
     };
-  }, [emphasisNodeId, neighbourIds, asOfEpoch, nodeById]);
+  }, [emphasisNodeId, neighbourIds, asOfEpoch, nodeById, nodeGhosted]);
 
   // Selection halo + aria-current, mirrored from the `?entity=` URL state.
   // Same imperative seam as the dim effect: attribute toggles on existing

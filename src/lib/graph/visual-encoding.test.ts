@@ -9,10 +9,13 @@ import {
   changeVisual,
   haloRadiusForTier,
   labelVisibleByDefault,
+  LEGEND_ITEMS,
   radiusForTier,
   selectionStrokeClass,
+  toggleHiddenClass,
   visualForEdge,
   visualForNode,
+  type NodeVisualClass,
 } from './visual-encoding';
 
 describe('changeVisual', () => {
@@ -142,5 +145,47 @@ describe('labelVisibleByDefault', () => {
     expect(labelVisibleByDefault(1)).toBe(true);
     expect(labelVisibleByDefault(2)).toBe(false);
     expect(labelVisibleByDefault(3)).toBe(false);
+  });
+});
+
+describe('LEGEND_ITEMS', () => {
+  it('lists all 4 visual classes once, in canvas order', () => {
+    expect(LEGEND_ITEMS.map((i) => i.visualClass)).toEqual([
+      'clinical',
+      'biomarker',
+      'intervention',
+      'data',
+    ]);
+  });
+
+  it('labels the "data" class as "Source" for the reader', () => {
+    const data = LEGEND_ITEMS.find((i) => i.visualClass === 'data');
+    expect(data?.label).toBe('Source');
+  });
+
+  it('swatch fill/stroke match visualForNode (single source — no drift)', () => {
+    const biomarker = LEGEND_ITEMS.find((i) => i.visualClass === 'biomarker');
+    const v = visualForNode('biomarker');
+    expect(biomarker?.fillClass).toBe(v.fillClass);
+    expect(biomarker?.strokeClass).toBe(v.strokeClass);
+  });
+});
+
+describe('toggleHiddenClass', () => {
+  it('adds an absent class and removes a present one', () => {
+    const empty = new Set<NodeVisualClass>();
+    const added = toggleHiddenClass(empty, 'biomarker');
+    expect(added.has('biomarker')).toBe(true);
+    const removed = toggleHiddenClass(added, 'biomarker');
+    expect(removed.has('biomarker')).toBe(false);
+  });
+
+  it('returns a new Set without mutating the input', () => {
+    const input = new Set<NodeVisualClass>(['clinical']);
+    const next = toggleHiddenClass(input, 'data');
+    expect(next).not.toBe(input);
+    expect(input.has('data')).toBe(false); // input untouched
+    expect(next.has('data')).toBe(true);
+    expect(next.has('clinical')).toBe(true); // existing members preserved
   });
 });
