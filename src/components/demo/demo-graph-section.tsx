@@ -69,11 +69,10 @@ interface Props {
 const ENTITY_PATTERN = /^[A-Za-z0-9\-_.:]+$/;
 const ENTITY_MAX_LEN = 200;
 
-// Source-document pseudo-nodes have no detail surface on the public demo
-// (no /record/source/[id] equivalent for fixtures), so they must not
-// present as buttons — no role, no tab stop, no pointer cursor. They keep
-// hover-dim and drag. Module-level so the predicate identity is stable.
-const isNodeInteractive = (node: GraphNodeWire) => node.type !== 'source_document';
+// Every node is interactive now: health nodes open their detail; source /
+// lab-report nodes open the shared source body (plan 2026-06-17-002). The
+// canvas defaults to all-interactive, so no `nodeInteractive` predicate is
+// passed — the category filter still makes a ghosted class non-interactive.
 
 export function DemoGraphSection({ fixture }: Props) {
   const router = useRouter();
@@ -209,10 +208,38 @@ export function DemoGraphSection({ fixture }: Props) {
   // (unknown key, validation-rejected, or stale link), clear the param so
   // the URL truthfully reflects what's selected. Borrowed from
   // src/components/record/vault-layout.tsx:106-110.
+  // O(1) lookup over the FULL canvas node set (health nodes + synthesized
+  // source hubs) — resolves a clicked source node and enriches a source's
+  // grounded markers with their live value/flag.
+  const nodeById = useMemo(
+    () => new Map(canvasNodes.map((n) => [n.id, n])),
+    [canvasNodes],
+  );
+
   const openNode = useMemo<GraphNodeWire | null>(() => {
     if (!validatedEntity) return null;
-    return adapted.provenanceByNodeId.get(validatedEntity)?.node ?? null;
-  }, [adapted, validatedEntity]);
+    // Health nodes carry provenance; source / lab-report hubs aren't in
+    // provenanceByNodeId, so fall back to the canvas node set — keeping
+    // `?entity=<sourceKey>` valid past the deep-link guard below.
+    return (
+      adapted.provenanceByNodeId.get(validatedEntity)?.node ??
+      nodeById.get(validatedEntity) ??
+      null
+    );
+  }, [adapted, validatedEntity, nodeById]);
+
+  // When the open node is a source / lab report, assemble the shared
+  // source-detail payload: its SourceView (chunks + identity) plus the live
+  // grounded markers (value/flag) it established, looked up from the canvas set.
+  const openSourceDetail = useMemo(() => {
+    if (!openNode || openNode.type !== 'source_document') return undefined;
+    const sourceView = adapted.sourceViewByKey.get(openNode.id);
+    if (!sourceView) return undefined;
+    const grounded = sourceView.referencedNodes
+      .map((r) => nodeById.get(r.id))
+      .filter((n): n is GraphNodeWire => Boolean(n));
+    return { sourceView, grounded };
+  }, [openNode, adapted, nodeById]);
 
   // If the viewer filters off the visual class of the node whose detail sheet
   // is open, close the sheet — otherwise the canvas would ghost + aria-hide a
@@ -236,12 +263,9 @@ export function DemoGraphSection({ fixture }: Props) {
 
   const handleNodeClick = useCallback(
     (node: GraphNodeWire) => {
-      // Source-document pseudo-nodes (added in U6) aren't in
-      // `adapted.provenanceByNodeId`. Opening the sheet for them would
-      // resolve to null and trigger the deep-link guard to immediately
-      // clear the URL — a visible flicker for no outcome. Belt-and-braces:
-      // the canvas already withholds the click via `isNodeInteractive`.
-      if (!isNodeInteractive(node)) return;
+      // Every node opens a detail surface: health nodes resolve via
+      // provenanceByNodeId; source / lab-report nodes resolve via the canvas
+      // source hubs and render the shared source body (plan 2026-06-17-002).
       updateUrl(node.id);
     },
     [updateUrl],
@@ -301,7 +325,6 @@ export function DemoGraphSection({ fixture }: Props) {
           height={480}
           onNodeClick={handleNodeClick}
           selectedNodeId={openNode?.id ?? null}
-          nodeInteractive={isNodeInteractive}
           nodeGhosted={nodeGhosted}
           asOfEpoch={asOfEpoch}
           className="w-full h-auto"
@@ -374,10 +397,14 @@ export function DemoGraphSection({ fixture }: Props) {
       <NodeDetailSheet
         node={openNode}
         onClose={handleSheetClose}
-        hydratedProvenance={openProvenance}
+        // Source nodes render the shared source body; health nodes get the
+        // hydrated provenance. (openProvenance is null for a source node anyway.)
+        hydratedProvenance={openSourceDetail ? undefined : openProvenance}
         // Empty topics list — fixture has no compiled topic pages, so
         // suppressing the section avoids an unnecessary authed fetch.
         hydratedTopics={[]}
+        sourceDetail={openSourceDetail}
+        onOpenNode={updateUrl}
       />
     </>
   );

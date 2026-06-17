@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
 import { MeshGradient } from '@/components/ui/mesh-gradient';
+import { SourceDetailBody } from '@/components/record/source-detail-body';
 import type { SourceView } from '@/lib/record/source-view';
 
 type LoadState =
@@ -136,61 +137,19 @@ function SourceBody({ data }: { data: SourceView }) {
         </h1>
       </header>
 
-      <div className="mt-12 stagger space-y-12">
-        <section>
-          <SectionLabel className="text-text-whisper">Extracted nodes</SectionLabel>
-          {data.referencedNodes.length === 0 ? (
-            <p className="mt-4 text-body text-text-tertiary">
-              Nothing has been pulled into the graph from this source yet.
-            </p>
-          ) : (
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {data.referencedNodes.map((node) => (
-                <li
-                  key={node.id}
-                  className="inline-flex items-center gap-2 rounded-chip border border-border bg-surface px-3 py-1.5"
-                >
-                  <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
-                    {node.type}
-                  </span>
-                  <span className="text-caption text-text-secondary">{node.displayName}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section>
-          <SectionLabel className="text-text-whisper">Content</SectionLabel>
-          {data.chunks.length === 0 ? (
-            <p className="mt-4 text-body text-text-tertiary">
-              This source doesn&rsquo;t have any extractable text.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-6">
-              {data.chunks.map((chunk) => (
-                <article
-                  key={chunk.id}
-                  className="border-t border-border/60 pt-4 first:border-t-0 first:pt-0"
-                >
-                  <div className="flex items-baseline gap-3 mb-2">
-                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
-                      {String(chunk.index + 1).padStart(2, '0')}
-                    </span>
-                    {chunk.pageNumber !== null && (
-                      <span className="text-caption text-text-tertiary">
-                        p.{chunk.pageNumber}
-                      </span>
-                    )}
-                  </div>
-                  <p className="whitespace-pre-wrap text-body text-text-secondary leading-relaxed">
-                    {chunk.text}
-                  </p>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+      {/*
+        Shared source body (plan 2026-06-17-002) — the same "what this report
+        established" + verbatim-excerpts presentation the demo graph sheet shows.
+        ponytail: authed grounded markers are name-only (the source API doesn't
+        carry per-node change/interpretation); enrich the route select to light
+        up value/flag here too. Drill-down is omitted (referencedNodes lack
+        canonicalKey) — add when the payload carries it.
+      */}
+      <div className="mt-12 rise">
+        <SourceDetailBody
+          sourceView={data}
+          grounded={data.referencedNodes.map((n) => ({ id: n.id, displayName: n.displayName }))}
+        />
       </div>
     </>
   );
