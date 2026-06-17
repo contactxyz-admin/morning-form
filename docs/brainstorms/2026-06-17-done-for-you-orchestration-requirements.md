@@ -212,18 +212,17 @@ liability. Being the data + orchestration + trust layer makes Google's model an
 - Not in scope: building a directive analysis engine. *Whether we may be directive*
   is the governing question — it is not assumed here.
 
-## Key Decisions (proposed — for founder + CMO sign-off)
+## Key Decisions
 - **Simplicity is the product, not a constraint.** R2 is the thesis, not taste —
   this is the lens for every future scope call.
-- **Recommended posture resolution:** keep the *delivery* feeling done-for-you
-  while keeping the *claims* inside the locked lane. i.e. "we did the work of
-  narrowing it to the **one thing worth tracking / worth discussing with your
-  clinician**," and on retest, "**here's what moved**" — never "here's what your
-  change **cured/caused**." This preserves the felt promise ("we run it for you")
-  without crossing into regulated managed-care or causal claims. The "one action"
-  lives inside *measure / discuss / track / behavior*; anything beyond that routes
-  to clinician handover. **Needs CMO + founder sign-off** — this is the governing
-  question, not a settled decision.
+- **Posture: stay in-lane — LOCKED (founder, 2026-06-17).** Keep the *delivery*
+  feeling done-for-you while keeping the *claims* inside the wellness lane. i.e.
+  "we did the work of narrowing it to the **one thing worth tracking / worth
+  discussing with your clinician**," and on retest, "**here's what moved**" — never
+  "here's what your change **cured/caused**." The "one action" lives inside
+  *measure / discuss / track / behavior*; anything beyond that routes to clinician
+  handover. See **"Posture — LOCKED"** below for the canonical statement, the
+  enforcement discipline, and the named caveat.
 - **Studios are the heartbeat; the remote voucher is the bridge** until Studios
   exist — the same loop, lighter ops, available now.
 
@@ -239,17 +238,15 @@ liability. Being the data + orchestration + trust layer makes Google's model an
 ## Outstanding Questions
 
 ### Resolve Before Planning
-- **[Governing] Posture.** Does the reframe *operate within* the locked
-  descriptive / clinician-prep lane (recommended resolution above), or does the
-  founder intend to *move the product into* a directive, managed-care posture
-  (which reopens the MHRA intended-purpose question and the explicit
-  intervention-posture exclusion)? **Everything downstream depends on this.**
-  *Update (founder steer, 2026-06-17): the strategic question is "how do we not
-  compete with Google/AMIE — where is the moat?" The Competitive Moat section
-  answers it and reframes this posture question toward **stay in-lane** — being
-  the diagnostic oracle means competing with Google on its turf and absorbing SaMD
-  liability, whereas being the data + orchestration + trust layer makes a commodity
-  model an input, not a threat. Founder/CMO to confirm in-lane as the locked posture.*
+- **[Governing] Posture — RESOLVED (locked in-lane, founder, 2026-06-17).** The
+  question was whether the reframe *operates within* the wellness / clinician-prep
+  lane or *moves the product into* a directive, managed-care posture (which would
+  reopen the MHRA intended-purpose question and reverse the intervention-posture
+  exclusion). **Decision: stay in-lane.** Rationale — three locks align (moat not
+  contested, liability not incurred, ships without re-gate); the Competitive Moat
+  section establishes the strategy, and **"Posture — LOCKED"** below records the
+  canonical statement, enforcement discipline, and the named ceiling. The "Retest
+  claim" and the directive-layer ceiling remain the live items, deferred below.
 
 ### Deferred to Planning
 - **[Draw model]** In-person Morning Form Studio vs. **gym-as-distribution-channel**
@@ -263,7 +260,70 @@ liability. Being the data + orchestration + trust layer makes Google's model an
 - **[Minimum subjective input]** What is the *irreducible* minimum we ask the user
   (R4), and how is it collected without recreating a daily log?
 
+## Posture — LOCKED (founder, 2026-06-17)
+
+**Decision: stay in lane.** Absorb 100% of the member's labour (plumbing, analysis,
+sequencing) behind the curtain; keep every user-facing claim descriptive. The "we
+run it for you" promise survives intact, because **the promise is about the work
+removed, not the decisions made for them.** Ships now, no regulatory re-gate.
+
+**Why this is an easy call, not a trade-off — three locks align:**
+1. **The moat isn't contested here.** Diagnostic/directive claims are AMIE's turf —
+   crossing the line fights Google on commoditising reasoning *and* takes on the
+   SaMD burden the labs are better resourced to carry. In-lane keeps the moat
+   (data + orchestration + trust) on ground the labs can't take.
+2. **The liability isn't here.** The directive claim is where the regulatory +
+   medico-legal weight lives. Staying descriptive and routing genuine diagnosis to
+   a clinician handover makes the accountable human **the line itself**, not a cost
+   bolted on beside it.
+3. **You can actually ship.** Crossing reopens MHRA intended-purpose, reverses the
+   locked intervention-posture exclusion, and gates launch behind clinical evidence
+   + UKCA. In-lane needs no re-gate.
+
+In-lane is **not** the timid version — it is the version that keeps the bold felt
+promise *and* the fight we can win.
+
+### The posture statement (canonical — copy and clinical both point here)
+> **Morning Form does the work, not the diagnosis. We absorb all the labour of
+> testing, tracking and analysis on the member's behalf, and hand back clear
+> information, trends, and clinician-ready context — framed as what to *measure,
+> track and discuss*, never what to *take* or what they *have*. Anything that
+> crosses into diagnosis or treatment is routed to a clinician, not answered by the
+> product.**
+
+Internal one-liner: **"We run the loop for you; we don't make the medical call."**
+
+### The discipline that holds the line: a fixed action-vocabulary
+The line is enforced in **copy, and copy drifts.** The three dangerous phrases —
+"the one thing to do," "whether the thing you changed worked," "our clinicians
+decide what's next" — will creep back, because they are more compelling and the
+marketing instinct reaches for them. The line holds only if a fixed vocabulary is
+enforced, and it must live in the **brand guidelines and the clinician-review
+checklist**, not only in this memo:
+
+| Allowed (descriptive) | Forbidden (directive / diagnostic) |
+|---|---|
+| **measure** — book/arrange a test | **take / dose** — named supplement, quantity, medication change |
+| **track** — log/observe X for N weeks | **diagnose** — name a condition, or rank likely conditions |
+| **discuss** — raise X with your clinician | **cured / fixed / worked** — causal-efficacy claim on n=1 |
+| **behaviour — sleep / training / routine only** | dietary-quantity directives ("+300 cal", "more carbs") |
+| "worth watching" · "here's what moved" · "clinician-ready" | "what's wrong with you" · "what to do about it" |
+
+The code-level forbidden-phrase scan already enforces part of this; the **human**
+surfaces — brand guidelines + clinician-review checklist — are the gap to close.
+
+### Named caveat (locked with eyes open — a decision, not a drift)
+In-lane has a **real ceiling**: we cannot tell a member what's wrong or what to
+take, and some members will *want* that and feel the clinician handoff as friction.
+This is a genuine limitation, not wished away. **The bet:** for the wedge cohort,
+removing the *labour* is worth more than making the *decision* — and the directive
+layer is better reached **later via a regulated pathway or a clinician partner**
+than smuggled in via copy now. Named explicitly so it stays a decision and never
+becomes drift.
+
 ## Next Steps
-→ Resolve the **governing posture question** (founder + CMO), then `/ce:plan` the
-first-cohort loop (draw → baseline → one action → retest) with retention-to-retest
-instrumented, building **only within the signed-off posture.**
+→ Posture is **locked in-lane** (above). Next: (1) push the action-vocabulary into
+the **brand guidelines + clinician-review checklist** (the human enforcement
+surfaces, per the locked discipline — the gap the code scan does not cover); then
+(2) `/ce:plan` the first-cohort loop (draw → baseline → one action → retest) with
+retention-to-retest instrumented, building **only within the locked posture.**
