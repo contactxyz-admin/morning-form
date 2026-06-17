@@ -23,12 +23,7 @@ import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { scrubberStops, asOfVisibility } from '@/lib/graph/as-of';
 import { tickPosition, nextPlayIndex } from '@/lib/graph/scrubber';
-import {
-  LEGEND_ITEMS,
-  toggleHiddenClass,
-  visualForNode,
-  type NodeVisualClass,
-} from '@/lib/graph/visual-encoding';
+import { GraphFilterLegend, useCategoryFilter } from '@/components/graph/graph-filter-legend';
 import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
 import { adaptDemoFixture, type AdaptedDemoFixture } from '@/lib/demo/graph-adapter';
 import {
@@ -69,11 +64,10 @@ interface Props {
 const ENTITY_PATTERN = /^[A-Za-z0-9\-_.:]+$/;
 const ENTITY_MAX_LEN = 200;
 
-// Source-document pseudo-nodes have no detail surface on the public demo
-// (no /record/source/[id] equivalent for fixtures), so they must not
-// present as buttons — no role, no tab stop, no pointer cursor. They keep
-// hover-dim and drag. Module-level so the predicate identity is stable.
-const isNodeInteractive = (node: GraphNodeWire) => node.type !== 'source_document';
+// Every node is interactive now: health nodes open their detail; source /
+// lab-report nodes open the shared source body (plan 2026-06-17-002). The
+// canvas defaults to all-interactive, so no `nodeInteractive` predicate is
+// passed — the category filter still makes a ghosted class non-interactive.
 
 export function DemoGraphSection({ fixture }: Props) {
   const router = useRouter();
@@ -169,22 +163,10 @@ export function DemoGraphSection({ fixture }: Props) {
     setPlaying((p) => !p);
   }, [playing, activeIndex, stops.length]);
 
-  // Category filter (plan 2026-06-17-001): the visual classes the viewer has
-  // switched OFF via the legend chips. Empty by default → every class shown
-  // (today's render). A hidden class's nodes fade to the canvas ghost floor.
-  const [hiddenClasses, setHiddenClasses] = useState<ReadonlySet<NodeVisualClass>>(
-    () => new Set(),
-  );
-  const handleToggleClass = useCallback((visualClass: NodeVisualClass) => {
-    setHiddenClasses((prev) => toggleHiddenClass(prev, visualClass));
-  }, []);
-  // Stable predicate for the canvas (memoised on the filter set), mirroring the
-  // `nodeInteractive` plumbing — its identity changes only when the filter does,
-  // which re-runs the canvas dim effect to fade/restore the toggled class.
-  const nodeGhosted = useCallback(
-    (node: GraphNodeWire) => hiddenClasses.has(visualForNode(node.type).visualClass),
-    [hiddenClasses],
-  );
+  // Category filter (plan 2026-06-17-001) — shared hook with the authed graph,
+  // so the demo and `/record?mode=map` can't drift. Empty by default → every
+  // class shown (today's render); a hidden class fades to the canvas ghost floor.
+  const { hiddenClasses, toggle: handleToggleClass, nodeGhosted } = useCategoryFilter();
 
   const rawEntity = searchParams.get('entity');
   const validatedEntity =
@@ -209,10 +191,38 @@ export function DemoGraphSection({ fixture }: Props) {
   // (unknown key, validation-rejected, or stale link), clear the param so
   // the URL truthfully reflects what's selected. Borrowed from
   // src/components/record/vault-layout.tsx:106-110.
+  // O(1) lookup over the FULL canvas node set (health nodes + synthesized
+  // source hubs) — resolves a clicked source node and enriches a source's
+  // grounded markers with their live value/flag.
+  const nodeById = useMemo(
+    () => new Map(canvasNodes.map((n) => [n.id, n])),
+    [canvasNodes],
+  );
+
   const openNode = useMemo<GraphNodeWire | null>(() => {
     if (!validatedEntity) return null;
-    return adapted.provenanceByNodeId.get(validatedEntity)?.node ?? null;
-  }, [adapted, validatedEntity]);
+    // Health nodes carry provenance; source / lab-report hubs aren't in
+    // provenanceByNodeId, so fall back to the canvas node set — scoped to
+    // source hubs so `?entity=<sourceKey>` stays valid past the deep-link guard
+    // while a bogus key still clears.
+    const healthNode = adapted.provenanceByNodeId.get(validatedEntity)?.node;
+    if (healthNode) return healthNode;
+    const hub = nodeById.get(validatedEntity);
+    return hub && hub.type === 'source_document' ? hub : null;
+  }, [adapted, validatedEntity, nodeById]);
+
+  // When the open node is a source / lab report, assemble the shared
+  // source-detail payload: its SourceView (chunks + identity) plus the live
+  // grounded markers (value/flag) it established, looked up from the canvas set.
+  const openSourceDetail = useMemo(() => {
+    if (!openNode || openNode.type !== 'source_document') return undefined;
+    const sourceView = adapted.sourceViewByKey.get(openNode.id);
+    if (!sourceView) return undefined;
+    const grounded = sourceView.referencedNodes
+      .map((r) => nodeById.get(r.id))
+      .filter((n): n is GraphNodeWire => Boolean(n));
+    return { sourceView, grounded };
+  }, [openNode, adapted, nodeById]);
 
   // If the viewer filters off the visual class of the node whose detail sheet
   // is open, close the sheet — otherwise the canvas would ghost + aria-hide a
@@ -236,15 +246,16 @@ export function DemoGraphSection({ fixture }: Props) {
 
   const handleNodeClick = useCallback(
     (node: GraphNodeWire) => {
-      // Source-document pseudo-nodes (added in U6) aren't in
-      // `adapted.provenanceByNodeId`. Opening the sheet for them would
-      // resolve to null and trigger the deep-link guard to immediately
-      // clear the URL — a visible flicker for no outcome. Belt-and-braces:
-      // the canvas already withholds the click via `isNodeInteractive`.
-      if (!isNodeInteractive(node)) return;
+      // Don't open a node the timeline hasn't reached yet: a scrubber-dimmed
+      // (not-yet-captured) node shouldn't open its detail (plan 2026-06-17-002
+      // R6). Filter ghosts are already non-interactive via the canvas dim
+      // effect; the time-ghost only dims, so guard the click here.
+      if (asOfVisibility(node.firstSeenAt, asOfEpoch) !== 'present') return;
+      // Health nodes resolve via provenanceByNodeId; source / lab-report nodes
+      // resolve via the canvas source hubs and render the shared source body.
       updateUrl(node.id);
     },
-    [updateUrl],
+    [updateUrl, asOfEpoch],
   );
 
   const handleSheetClose = useCallback(() => {
@@ -301,7 +312,6 @@ export function DemoGraphSection({ fixture }: Props) {
           height={480}
           onNodeClick={handleNodeClick}
           selectedNodeId={openNode?.id ?? null}
-          nodeInteractive={isNodeInteractive}
           nodeGhosted={nodeGhosted}
           asOfEpoch={asOfEpoch}
           className="w-full h-auto"
@@ -368,29 +378,29 @@ export function DemoGraphSection({ fixture }: Props) {
           legend chip to focus on a node type.
           {stops.length > 1 ? ' Drag the timeline — or press play — to watch the record build.' : ''}
         </p>
-        <GraphLegend hiddenClasses={hiddenClasses} onToggle={handleToggleClass} />
+        <GraphFilterLegend
+          hiddenClasses={hiddenClasses}
+          onToggle={handleToggleClass}
+          className="mt-4"
+        />
       </section>
 
       <NodeDetailSheet
         node={openNode}
         onClose={handleSheetClose}
-        hydratedProvenance={openProvenance}
+        // Source nodes render the shared source body; health nodes get the
+        // hydrated provenance. (openProvenance is null for a source node anyway.)
+        hydratedProvenance={openSourceDetail ? undefined : openProvenance}
         // Empty topics list — fixture has no compiled topic pages, so
         // suppressing the section avoids an unnecessary authed fetch.
         hydratedTopics={[]}
+        sourceDetail={openSourceDetail}
+        onOpenNode={updateUrl}
       />
     </>
   );
 }
 
-/**
- * Compact 4-swatch legend doubling as the canvas category filter (plan
- * 2026-06-17-001). Each swatch is a multi-select toggle chip: all on by
- * default, switch any off to fade that visual class to the ghost floor and
- * focus on the rest. Swatch fill/stroke come from LEGEND_ITEMS (single source,
- * safelisted in tailwind.config.ts), so the chip never drifts from the dots it
- * filters.
- */
 // The ONE priority cluster (plan 2026-06-16-003 R10) — "Cardiometabolic
 // baseline" surfaced above the graph so the clinically-salient story isn't
 // buried among equal nodes. A compact card, not a dashboard grid. Membership is
@@ -448,47 +458,3 @@ function PriorityCluster({
   );
 }
 
-function GraphLegend({
-  hiddenClasses,
-  onToggle,
-}: {
-  hiddenClasses: ReadonlySet<NodeVisualClass>;
-  onToggle: (visualClass: NodeVisualClass) => void;
-}) {
-  return (
-    <ul
-      aria-label="Filter the graph by node type"
-      className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2"
-    >
-      {LEGEND_ITEMS.map((item) => {
-        const shown = !hiddenClasses.has(item.visualClass);
-        return (
-          <li key={item.visualClass}>
-            <button
-              type="button"
-              aria-pressed={shown}
-              onClick={() => onToggle(item.visualClass)}
-              title={shown ? `Hide ${item.label}` : `Show ${item.label}`}
-              className={`flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-button-focus ${
-                shown
-                  ? 'border-border text-text-tertiary hover:bg-surface-warm'
-                  : 'border-transparent text-text-tertiary/40 line-through'
-              }`}
-            >
-              <svg aria-hidden viewBox="0 0 12 12" width={12} height={12} className="shrink-0">
-                <circle
-                  cx={6}
-                  cy={6}
-                  r={5}
-                  className={shown ? `${item.fillClass} ${item.strokeClass}` : 'fill-none stroke-text-tertiary/40'}
-                  strokeWidth={1.2}
-                />
-              </svg>
-              <span>{item.label}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}

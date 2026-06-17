@@ -8,7 +8,11 @@ import { SectionLabel } from '@/components/ui/section-label';
 import { cn } from '@/lib/utils';
 import type { EvidenceGrade, GraphNodeWire, NodeType } from '@/types/graph';
 import type { SourceDocumentKind } from '@/lib/graph/types';
-import { kindLabel } from '@/lib/record/source-view';
+import { kindLabel, type SourceView } from '@/lib/record/source-view';
+import {
+  SourceDetailBody,
+  type SourceGroundedMarker,
+} from '@/components/record/source-detail-body';
 import {
   changeClassificationLabel,
   changeDirectionGlyph,
@@ -18,6 +22,9 @@ import type { TopicReference } from '@/lib/topics/node-topics';
 
 // Evidence grade → human label (plan 2026-06-16-002 R9). Distinguishes a
 // validated lab from a wearable estimate, a self-report, or an inferred link.
+// ponytail: this is grade-keyed (the derived EvidenceGrade); the source-detail
+// body has a kind-keyed twin (`authorityLabel` in src/lib/record/source-detail.ts).
+// Keep the copy in step if either changes.
 const EVIDENCE_LABELS: Record<EvidenceGrade, string> = {
   lab: 'Lab result',
   clinician: 'Clinician record',
@@ -90,13 +97,38 @@ interface Props {
    * the section without firing the request.
    */
   hydratedTopics?: TopicReference[];
+  /**
+   * Source-detail payload (plan 2026-06-17-002). When the open node is a
+   * `source_document` and this is present, the sheet renders the shared
+   * <SourceDetailBody> (what the report established + verbatim excerpts)
+   * instead of the health-node sections — and skips the authed provenance/topic
+   * fetches. Absent for every health node and authed caller → today's behaviour.
+   */
+  sourceDetail?: { sourceView: SourceView; grounded: SourceGroundedMarker[] };
+  /** Drill-down from a grounded marker in the source body into that node. */
+  onOpenNode?: (id: string) => void;
 }
 
-export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTopics }: Props) {
+export function NodeDetailSheet({
+  node,
+  onClose,
+  hydratedProvenance,
+  hydratedTopics,
+  sourceDetail,
+  onOpenNode,
+}: Props) {
+  const showSource = node?.type === 'source_document' && sourceDetail != null;
   const [state, setState] = useState<LoadState>({ status: 'idle' });
 
   useEffect(() => {
     if (!node) {
+      setState({ status: 'idle' });
+      return;
+    }
+    // Source nodes render the shared source body, which carries its own data —
+    // never fetch the authed provenance endpoint for them (the demo has no
+    // session; the fetch would only fail).
+    if (showSource) {
       setState({ status: 'idle' });
       return;
     }
@@ -131,7 +163,7 @@ export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTop
     return () => {
       cancelled = true;
     };
-  }, [node, hydratedProvenance]);
+  }, [node, hydratedProvenance, showSource]);
 
   useEffect(() => {
     if (!node) return;
@@ -213,11 +245,21 @@ export function NodeDetailSheet({ node, onClose, hydratedProvenance, hydratedTop
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
-              {node?.change && <ChangeSince node={node} />}
-              {node?.interpretation && <Interpretation node={node} />}
-              <Attributes node={node} />
-              <Provenance state={state} />
-              {node && <AppearsIn nodeId={node.id} hydratedTopics={hydratedTopics} />}
+              {showSource && sourceDetail ? (
+                <SourceDetailBody
+                  sourceView={sourceDetail.sourceView}
+                  grounded={sourceDetail.grounded}
+                  onSelectNode={onOpenNode}
+                />
+              ) : (
+                <>
+                  {node?.change && <ChangeSince node={node} />}
+                  {node?.interpretation && <Interpretation node={node} />}
+                  <Attributes node={node} />
+                  <Provenance state={state} />
+                  {node && <AppearsIn nodeId={node.id} hydratedTopics={hydratedTopics} />}
+                </>
+              )}
             </div>
           </motion.div>
         </>

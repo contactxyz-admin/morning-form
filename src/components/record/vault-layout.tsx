@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { GraphCanvas } from '@/components/graph/graph-canvas';
+import { GraphFilterLegend, useCategoryFilter } from '@/components/graph/graph-filter-legend';
 import { GraphListEmpty, GraphListView } from '@/components/graph/graph-list-view';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { useMediaQuery } from '@/hooks/use-media-query';
@@ -99,6 +100,12 @@ export function VaultLayout() {
       ? state.data.nodes.find((n) => n.canonicalKey === selectedEntityKey) ?? null
       : null;
 
+  // ponytail: unlike the demo, there's no "selected node's class filtered off →
+  // clear ?entity=" guard here (the filter state lives in VaultMapMode, not this
+  // parent). Low impact — the canvas blurs focus before aria-hiding, so it's not
+  // a focused-element WCAG violation, just a stale open sheet. Lift
+  // useCategoryFilter to VaultLayout to add the guard if it bites.
+  //
   // Deep-link truncation guard (ce:review C3): if the URL references an
   // entity that isn't present in the importance-capped node set (likely
   // dropped by the 200-node cap when totalNodes > 200, or a stale link),
@@ -242,6 +249,11 @@ function VaultMapMode({ data, isDesktop, onNodeClick, selectedNodeId }: VaultMap
     ];
   }, [data.nodes, data.edges, canvasNodes]);
 
+  // Category filter (plan 2026-06-17-001 Addendum) — the SAME shared hook +
+  // legend the demo uses, so the two surfaces never drift. Hooks run before the
+  // empty-graph early return below, keeping hook order stable (rules-of-hooks).
+  const { hiddenClasses, toggle, nodeGhosted } = useCategoryFilter();
+
   if (data.nodes.length === 0) return <GraphListEmpty />;
 
   return (
@@ -277,12 +289,14 @@ function VaultMapMode({ data, isDesktop, onNodeClick, selectedNodeId }: VaultMap
             height={480}
             onNodeClick={onNodeClick}
             selectedNodeId={selectedNodeId}
+            nodeGhosted={nodeGhosted}
             className="w-full h-auto"
             ariaLabel={`Your health graph — ${canvasNodes.length} nodes, ${canvasEdges.length} edges. Tap any node to see its sources.`}
           />
           <p className="mt-3 text-caption text-text-tertiary">
             Tap a node to see what grounds it. The structured list below shows the same data, grouped.
           </p>
+          <GraphFilterLegend hiddenClasses={hiddenClasses} onToggle={toggle} className="mt-4" />
         </div>
       )}
       <GraphListView nodes={data.nodes} onNodeClick={onNodeClick} />
