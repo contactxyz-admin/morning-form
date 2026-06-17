@@ -23,6 +23,12 @@ import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { scrubberStops, asOfVisibility } from '@/lib/graph/as-of';
 import { tickPosition, nextPlayIndex } from '@/lib/graph/scrubber';
+import {
+  LEGEND_ITEMS,
+  toggleHiddenClass,
+  visualForNode,
+  type NodeVisualClass,
+} from '@/lib/graph/visual-encoding';
 import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
 import { adaptDemoFixture, type AdaptedDemoFixture } from '@/lib/demo/graph-adapter';
 import {
@@ -163,6 +169,23 @@ export function DemoGraphSection({ fixture }: Props) {
     setPlaying((p) => !p);
   }, [playing, activeIndex, stops.length]);
 
+  // Category filter (plan 2026-06-17-001): the visual classes the viewer has
+  // switched OFF via the legend chips. Empty by default → every class shown
+  // (today's render). A hidden class's nodes fade to the canvas ghost floor.
+  const [hiddenClasses, setHiddenClasses] = useState<ReadonlySet<NodeVisualClass>>(
+    () => new Set(),
+  );
+  const handleToggleClass = useCallback((visualClass: NodeVisualClass) => {
+    setHiddenClasses((prev) => toggleHiddenClass(prev, visualClass));
+  }, []);
+  // Stable predicate for the canvas (memoised on the filter set), mirroring the
+  // `nodeInteractive` plumbing — its identity changes only when the filter does,
+  // which re-runs the canvas dim effect to fade/restore the toggled class.
+  const nodeGhosted = useCallback(
+    (node: GraphNodeWire) => hiddenClasses.has(visualForNode(node.type).visualClass),
+    [hiddenClasses],
+  );
+
   const rawEntity = searchParams.get('entity');
   const validatedEntity =
     rawEntity && rawEntity.length <= ENTITY_MAX_LEN && ENTITY_PATTERN.test(rawEntity)
@@ -271,6 +294,7 @@ export function DemoGraphSection({ fixture }: Props) {
           onNodeClick={handleNodeClick}
           selectedNodeId={openNode?.id ?? null}
           nodeInteractive={isNodeInteractive}
+          nodeGhosted={nodeGhosted}
           asOfEpoch={asOfEpoch}
           className="w-full h-auto"
           ariaLabel={`Health graph — ${canvasNodes.length} nodes, ${canvasEdges.length} edges. Tap any node to see its sources.`}
@@ -332,10 +356,11 @@ export function DemoGraphSection({ fixture }: Props) {
           </div>
         )}
         <p className="mt-3 text-caption text-text-tertiary">
-          Tap a node to see what grounds it. Hover to highlight what it&apos;s connected to.
+          Tap a node to see what grounds it. Hover to highlight what it&apos;s connected to. Tap a
+          legend chip to focus on a node type.
           {stops.length > 1 ? ' Drag the timeline — or press play — to watch the record build.' : ''}
         </p>
-        <GraphLegend />
+        <GraphLegend hiddenClasses={hiddenClasses} onToggle={handleToggleClass} />
       </section>
 
       <NodeDetailSheet
@@ -351,12 +376,12 @@ export function DemoGraphSection({ fixture }: Props) {
 }
 
 /**
- * Compact 4-swatch legend explaining the canvas's visual-class colours.
- * Mirrors src/lib/graph/visual-encoding.ts → NODE_VISUAL_BY_CLASS so the
- * legend never drifts from the encoding. The class strings inlined here
- * also serve as a redundant signal to Tailwind's content scanner — they
- * survive even if a future refactor moves visual-encoding.ts outside
- * the scanned tree.
+ * Compact 4-swatch legend doubling as the canvas category filter (plan
+ * 2026-06-17-001). Each swatch is a multi-select toggle chip: all on by
+ * default, switch any off to fade that visual class to the ghost floor and
+ * focus on the rest. Swatch fill/stroke come from LEGEND_ITEMS (single source,
+ * safelisted in tailwind.config.ts), so the chip never drifts from the dots it
+ * filters.
  */
 // The ONE priority cluster (plan 2026-06-16-003 R10) — "Cardiometabolic
 // baseline" surfaced above the graph so the clinically-salient story isn't
@@ -415,41 +440,47 @@ function PriorityCluster({
   );
 }
 
-function GraphLegend() {
-  const items: Array<{ label: string; fill: string; stroke: string }> = [
-    { label: 'Clinical', fill: 'fill-alert/15', stroke: 'stroke-alert/70' },
-    { label: 'Biomarker', fill: 'fill-accent/20', stroke: 'stroke-accent' },
-    { label: 'Intervention', fill: 'fill-positive/15', stroke: 'stroke-positive/80' },
-    { label: 'Source', fill: 'fill-text-tertiary/10', stroke: 'stroke-text-tertiary/60' },
-  ];
+function GraphLegend({
+  hiddenClasses,
+  onToggle,
+}: {
+  hiddenClasses: ReadonlySet<NodeVisualClass>;
+  onToggle: (visualClass: NodeVisualClass) => void;
+}) {
   return (
     <ul
-      aria-label="Graph node legend"
-      className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2"
+      aria-label="Filter the graph by node type"
+      className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2"
     >
-      {items.map((item) => (
-        <li
-          key={item.label}
-          className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary"
-        >
-          <svg
-            aria-hidden
-            viewBox="0 0 12 12"
-            width={12}
-            height={12}
-            className="shrink-0"
-          >
-            <circle
-              cx={6}
-              cy={6}
-              r={5}
-              className={`${item.fill} ${item.stroke}`}
-              strokeWidth={1.2}
-            />
-          </svg>
-          <span>{item.label}</span>
-        </li>
-      ))}
+      {LEGEND_ITEMS.map((item) => {
+        const shown = !hiddenClasses.has(item.visualClass);
+        return (
+          <li key={item.visualClass}>
+            <button
+              type="button"
+              aria-pressed={shown}
+              onClick={() => onToggle(item.visualClass)}
+              title={shown ? `Hide ${item.label}` : `Show ${item.label}`}
+              className={`flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors focus-visible:shadow-ring-focus focus-visible:outline-none ${
+                shown
+                  ? 'border-border text-text-tertiary hover:bg-surface-warm'
+                  : 'border-transparent text-text-tertiary/40 line-through'
+              }`}
+            >
+              <svg aria-hidden viewBox="0 0 12 12" width={12} height={12} className="shrink-0">
+                <circle
+                  cx={6}
+                  cy={6}
+                  r={5}
+                  className={shown ? `${item.fillClass} ${item.strokeClass}` : 'fill-none stroke-text-tertiary/40'}
+                  strokeWidth={1.2}
+                />
+              </svg>
+              <span>{item.label}</span>
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

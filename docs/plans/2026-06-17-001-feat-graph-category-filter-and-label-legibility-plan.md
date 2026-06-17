@@ -310,7 +310,7 @@ for each always-on label: dy = (r+14) + (offsets.get(id) ?? 0)
 
 ## Implementation Units
 
-- [ ] **Unit 1: Pure helpers — legend↔class map, toggle reducer, label de-collision**
+- [x] **Unit 1: Pure helpers — legend↔class map, toggle reducer, label de-collision**
 
 **Goal:** Land the node-testable pure pieces the UI + hook consume.
 
@@ -351,7 +351,7 @@ for each always-on label: dy = (r+14) + (offsets.get(id) ?? 0)
 
 **Verification:** new tests green; no change to existing consumers.
 
-- [ ] **Unit 2: Interactive legend toggle chips**
+- [x] **Unit 2: Interactive legend toggle chips**
 
 **Goal:** Turn the static `GraphLegend` into multi-select toggle chips and lift
 the filter state into `DemoGraphSection`.
@@ -387,7 +387,7 @@ memoisation so the predicate identity is stable per `hiddenClasses`.
 **Verification:** chips toggle classes; default (all-on) leaves the canvas
 identical to today; audit confirms the muted state reads clearly.
 
-- [ ] **Unit 3: Canvas ghost compose + interactivity**
+- [x] **Unit 3: Canvas ghost compose + interactivity**
 
 **Goal:** Fold the filter predicate into the dim effect's ghost logic and the
 eased tween, and make filter-ghosted nodes non-interactive — default no-op for
@@ -432,7 +432,7 @@ parity.
 **Verification:** pure tests green; default path proven identical to today;
 audit confirms instant ghost + non-interactive + scrub composition.
 
-- [ ] **Unit 4: Label legibility — halo + de-collision**
+- [x] **Unit 4: Label legibility — halo + de-collision**
 
 **Goal:** Make always-on labels legible over the canvas (halo) and reduce
 label-on-label overlap (bounded de-collision), without moving any node.
