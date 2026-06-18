@@ -111,12 +111,6 @@ export function VaultLayout() {
       ? state.data.nodes.find((n) => n.canonicalKey === selectedEntityKey) ?? null
       : null;
 
-  // ponytail: unlike the demo, there's no "selected node's class filtered off →
-  // clear ?entity=" guard here (the filter state lives in VaultMapMode, not this
-  // parent). Low impact — the canvas blurs focus before aria-hiding, so it's not
-  // a focused-element WCAG violation, just a stale open sheet. Lift
-  // useCategoryFilter to VaultLayout to add the guard if it bites.
-  //
   // Deep-link truncation guard (ce:review C3): if the URL references an
   // entity that isn't present in the importance-capped node set (likely
   // dropped by the 200-node cap when totalNodes > 200, or a stale link),

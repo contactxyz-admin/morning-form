@@ -8,7 +8,9 @@
  * the regulatory intended-purpose surface (MHRA), so it lives here as
  * reviewable data, not free logic — the engine is a thin evaluator over it.
  * Status/clarity/flag may honestly disagree with raw movement (e.g. ferritin
- * rose but stays context-dependent — an acute-phase reactant). Pure; demo-only.
+ * rose but stays context-dependent — an acute-phase reactant). Pure and
+ * surface-neutral: consumed by the demo adapter AND the authed source route
+ * (plan 2026-06-17-003).
  *
  * Reference ranges below are MorningForm ATTENTION thresholds, never clinical
  * treatment thresholds.

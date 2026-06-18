@@ -65,6 +65,14 @@ export function SourceDetailBody({ sourceView, grounded, onSelectNode }: Props) 
 
       <section>
         <SectionLabel>What this report established</SectionLabel>
+        {/* The value/flag is each marker's most-recent reading, not necessarily
+            this document's own — so an older report doesn't imply a stale value
+            is current (plan 2026-06-17-003). Only shown when values are present. */}
+        {established.some((m) => m.change) && (
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
+            Latest reading shown
+          </p>
+        )}
         {established.length === 0 ? (
           <p className="mt-3 text-body text-text-secondary leading-relaxed">
             Nothing has been pulled into the record from this source yet.

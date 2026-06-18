@@ -154,9 +154,13 @@ function SourceBody({ data }: { data: SourceView }) {
             change: n.change,
             interpretation: n.interpretation,
           }))}
-          onSelectNode={(m) =>
-            router.push(`/record?mode=map&entity=${encodeURIComponent(m.canonicalKey ?? '')}`)
-          }
+          onSelectNode={(m) => {
+            // canonicalKey is always present on authed referenced nodes; guard
+            // so a missing key never navigates to an empty `?entity=`.
+            if (m.canonicalKey) {
+              router.push(`/record?mode=map&entity=${encodeURIComponent(m.canonicalKey)}`);
+            }
+          }}
         />
       </div>
     </>

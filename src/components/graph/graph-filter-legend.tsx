@@ -34,8 +34,9 @@ export function useCategoryFilter() {
   const toggle = useCallback((visualClass: NodeVisualClass) => {
     setHiddenClasses((prev) => toggleHiddenClass(prev, visualClass));
   }, []);
-  // Clear all hidden classes (the "Show all" affordance).
-  const reset = useCallback(() => setHiddenClasses(new Set()), []);
+  // Clear all hidden classes (the "Show all" affordance). No-op when already
+  // empty so it can't churn `hiddenClasses` identity / re-run the dim effect.
+  const reset = useCallback(() => setHiddenClasses((prev) => (prev.size === 0 ? prev : new Set())), []);
   // Stable per filter set — its identity changes only when the filter changes,
   // which re-runs the canvas dim effect to fade/restore the toggled class.
   const nodeGhosted = useCallback(

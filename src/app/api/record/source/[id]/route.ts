@@ -2,12 +2,10 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
+import { parseJsonField } from '@/lib/graph/queries';
 import { buildSourceView } from '@/lib/record/source-view';
-import { diffLatestPanels, type MarkerChange } from '@/lib/markers/panel-diff';
-import { buildChangeByJoinKey } from '@/lib/markers/node-change-map';
-import { markerJoinKey } from '@/lib/markers/marker-key';
-import { interpret } from '@/lib/markers/clinical-interpretation';
-import type { NodeChangeWire } from '@/types/graph';
+import { enrichGroundedNodes } from '@/lib/record/source-enrichment';
+import { diffLatestPanels } from '@/lib/markers/panel-diff';
 
 /**
  * GET /api/record/source/[id]
@@ -29,23 +27,37 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
     }
 
-    const source = await prisma.sourceDocument.findFirst({
-      where: { id: params.id, userId: user.id },
-      select: {
-        id: true,
-        kind: true,
-        sourceRef: true,
-        capturedAt: true,
-        createdAt: true,
-        chunks: {
-          select: { id: true, index: true, text: true, pageNumber: true },
-          orderBy: { index: 'asc' },
+    // The panel diff depends only on the user, so run it in parallel with the
+    // source load (flag-gated + NON-FATAL — mirrors /api/record: a diff failure
+    // or flag-off → name-only markers, never a 500). It short-circuits cheaply
+    // for users with <2 lab panels.
+    const longitudinal = env.LONGITUDINAL_GRAPH_ENABLED === 'true';
+    const [source, diff] = await Promise.all([
+      prisma.sourceDocument.findFirst({
+        where: { id: params.id, userId: user.id },
+        select: {
+          id: true,
+          kind: true,
+          sourceRef: true,
+          capturedAt: true,
+          createdAt: true,
+          chunks: {
+            select: { id: true, index: true, text: true, pageNumber: true },
+            orderBy: { index: 'asc' },
+          },
+          edges: {
+            select: { toNodeId: true },
+          },
         },
-        edges: {
-          select: { toNodeId: true },
-        },
-      },
-    });
+      }),
+      longitudinal
+        ? diffLatestPanels(prisma, user.id).catch((diffErr: unknown) => {
+            const msg = diffErr instanceof Error ? diffErr.message : String(diffErr);
+            console.error(`[API] source panel-diff failed (non-fatal): ${msg}`);
+            return null;
+          })
+        : Promise.resolve(null),
+    ]);
 
     if (!source) {
       return NextResponse.json({ error: 'Source not found.' }, { status: 404 });
@@ -55,55 +67,27 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const nodes = referencedNodeIds.length
       ? await prisma.graphNode.findMany({
           where: { id: { in: referencedNodeIds }, userId: user.id },
-          // `attributes` carries `registryKey` — the marker join key for the
-          // change/interpretation enrichment below (plan 2026-06-17-003).
+          // `attributes` (a JSON string column) carries `registryKey` — the marker
+          // join key the enrichment matches on; it MUST be parsed (not cast) or the
+          // join silently falls back to canonicalKey (ce:review BLOCKER).
           select: { id: true, type: true, displayName: true, canonicalKey: true, attributes: true },
         })
       : [];
 
     // Enrich grounded markers with their "what changed" + interpretation so the
-    // source page reaches demo parity (value + flag). Flag-gated and NON-FATAL
-    // (mirrors /api/record): a diff failure or flag-off → name-only markers,
-    // never a 500. `change` is the user's latest-vs-previous panel move; the
-    // section reads "what this report established → where it stands now".
-    const longitudinal = env.LONGITUDINAL_GRAPH_ENABLED === 'true';
-    const diff =
-      longitudinal && referencedNodeIds.length > 0
-        ? await diffLatestPanels(prisma, user.id).catch((diffErr: unknown) => {
-            const msg = diffErr instanceof Error ? diffErr.message : String(diffErr);
-            console.error(`[API] source panel-diff failed (non-fatal): ${msg}`);
-            return null;
-          })
-        : null;
-    const wireByKey: Map<string, NodeChangeWire> = diff
-      ? buildChangeByJoinKey(diff.changes)
-      : new Map();
-    const mcByKey = new Map<string, MarkerChange>();
-    if (diff) for (const c of diff.changes) mcByKey.set(c.joinKey, c);
-
-    const nodeRows = nodes.map((n) => {
-      const attrs = (n.attributes ?? {}) as Record<string, unknown>;
-      const joinKey = markerJoinKey(n.canonicalKey, attrs.registryKey);
-      // Only biomarker nodes carry a panel change (matches applyChangesToWireNodes).
-      const change = n.type === 'biomarker' ? wireByKey.get(joinKey) : undefined;
-      const mc = change ? mcByKey.get(joinKey) : undefined;
-      const interpretation =
-        change && mc
-          ? interpret(n.canonicalKey, change, {
-              value: mc.afterValue,
-              low: mc.referenceLow,
-              high: mc.referenceHigh,
-            })
-          : undefined;
-      return {
+    // source page reaches demo parity (value + flag). Pure, node-tested helper;
+    // `change` is the user's latest-vs-previous panel move (the section reads
+    // "what this report established → where it stands now").
+    const nodeRows = enrichGroundedNodes(
+      nodes.map((n) => ({
         id: n.id,
         type: n.type,
         displayName: n.displayName,
         canonicalKey: n.canonicalKey,
-        ...(change ? { change } : {}),
-        ...(interpretation ? { interpretation } : {}),
-      };
-    });
+        attributes: parseJsonField(n.attributes),
+      })),
+      diff,
+    );
 
     const view = buildSourceView({
       id: source.id,
