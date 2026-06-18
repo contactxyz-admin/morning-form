@@ -226,6 +226,11 @@ export async function eraseAccount(
       deletedCounts.actionOutcomes = (await tx.actionOutcome.deleteMany({ where: { userId } })).count;
       deletedCounts.actions = (await tx.action.deleteMany({ where: { userId } })).count;
       deletedCounts.bookingRequests = (await tx.bookingRequest.deleteMany({ where: { userId } })).count;
+      // Retest draws (Plan 2026-06-17-001): explicit deleteMany for an audit
+      // count. SourceDocument + BookingRequest (above) are already deleted, so no
+      // FK references the Draw rows — they delete cleanly and the residue scan
+      // finds zero Draw.userId.
+      deletedCounts.draws = (await tx.draw.deleteMany({ where: { userId } })).count;
 
       // user.delete() sweeps the cascade-annotated models. Counts for those are
       // not individually recoverable here — record 'cascade'.

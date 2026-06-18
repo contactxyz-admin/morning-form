@@ -110,6 +110,15 @@ async function seedFullUser(p: PrismaClient): Promise<{ id: string; email: strin
   await p.bookingRequest.create({
     data: { userId: id, markerNames: JSON.stringify(['Ferritin']), market: 'uk', status: 'requested' },
   });
+  // Retest draws (Plan 2026-06-17-001 U1) — userId-bearing, swept via the
+  // explicit deleteMany in delete.ts. Seeded so the residue scan + tombstone
+  // count exercise real rows (the vacuous-guard trap).
+  await p.draw.create({
+    data: { userId: id, sequence: 1, status: 'completed', attribution: 'baseline', completedAt: new Date('2026-03-01') },
+  });
+  await p.draw.create({
+    data: { userId: id, status: 'scheduled', scheduledFor: new Date('2026-06-01') },
+  });
   await p.healthConnection.create({ data: { userId: id, provider: 'whoop' } });
   await p.healthDataPoint.create({
     data: { userId: id, provider: 'whoop', category: 'sleep', metric: 'd', value: 7, unit: 'h', timestamp: new Date() },
@@ -294,6 +303,10 @@ describe('eraseAccount — residue assertion (real test DB)', () => {
     // counts the real seeded row (GDPR #7, the vacuous-guard trap).
     expect(typeof counts.actionOutcomes).toBe('number');
     expect(counts.actionOutcomes).toBeGreaterThanOrEqual(1);
+    // Retest draws swept via explicit deleteMany — the tombstone counts the real
+    // seeded rows (GDPR #the vacuous-guard trap, Plan 2026-06-17-001).
+    expect(typeof counts.draws).toBe('number');
+    expect(counts.draws).toBeGreaterThanOrEqual(2);
     expect(counts.sourceDocuments).toBe(1);
     expect(counts.sessions).toBe('cascade');
     expect(counts.funnelEventsScrubbed).toBe(1);

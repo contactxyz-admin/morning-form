@@ -293,7 +293,7 @@ toward **nudge-attributed retention** → schedule `Draw#3`. No rebook by +111d+
 Order: U1 (model + GDPR) → U2 (complete/dedup/cadence/attribution) → U3 (nudge
 sequence + lapse) → U4 (attributed metric + result_viewed) → U5 (flag/backfill/audit).
 
-- [ ] **Unit 1: `Draw` model + GDPR coverage + constants + opt-in pref**
+- [x] **Unit 1: `Draw` model + GDPR coverage + constants + opt-in pref**
 
 **Goal:** The heartbeat entity exists, fully export/erase-covered.
 

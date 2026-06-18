@@ -39,6 +39,7 @@ model User {
   actions           Action[]
   bookingRequests   BookingRequest[]
   actionOutcomes    ActionOutcome[]
+  draws             Draw[]
   preferences       UserPreferences?
   sourceDocuments   SourceDocument[]
   embeddingBackfills EmbeddingBackfillState[]
@@ -212,6 +213,10 @@ model SourceDocument {
   chunks      SourceChunk[]
   edges       GraphEdge[]           @relation("EdgeSourceDocument")
   aliases     SourceDocumentAlias[]
+  // Retest loop (Plan 2026-06-17-001): the draw event this panel fulfils. Many
+  // docs from one visit may attach to one draw (dedup); SetNull on draw erase.
+  drawId      String?
+  draw        Draw?                 @relation(fields: [drawId], references: [id], onDelete: SetNull)
   createdAt   DateTime              @default(now())
 
   @@unique([userId, contentHash])
@@ -590,6 +595,8 @@ model UserPreferences {
   notifyProtocol Boolean  @default(true)
   notifyEvening  Boolean  @default(true)
   notifyWeekly   Boolean  @default(true)
+  // Retest-loop opt-in (Plan 2026-06-17-001). Honoured by the retest nudge cron.
+  notifyRetest   Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -857,11 +864,55 @@ model BookingRequest {
   codeEncrypted String?
   actionId     String?   // FK to Action when linked (SetNull)
   action       Action?   @relation(fields: [actionId], references: [id], onDelete: SetNull)
+  // Retest loop (Plan 2026-06-17-001): the draw event this booking intends to fulfil.
+  drawId       String?
+  draw         Draw?     @relation(fields: [drawId], references: [id], onDelete: SetNull)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   @@index([userId, status, createdAt])
   @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Retest loop (Plan 2026-06-17-001). The Draw is the loop's heartbeat: one row
+// per blood-draw / lab-panel event per user. It is simultaneously the retest
+// record (retention-to-retest = >=2 completed draws), the cadence anchor (a
+// scheduled draw carries scheduledFor + nudge bookkeeping), and the nudge
+// target. Distinct from the 1:1 AssessmentResponse (a draw is a blood draw, not
+// the onboarding questionnaire). No onDelete on userId — erased via the explicit
+// ordered deleteMany in src/lib/account/delete.ts (audit-count discipline).
+// ---------------------------------------------------------------------------
+model Draw {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  // Per-user ordinal of COMPLETED draws (1 = baseline). Null while scheduled;
+  // assigned at completion so cancelled/lapsed draws leave no gaps.
+  sequence     Int?
+  status       String    @default("scheduled") // scheduled | completed | cancelled | lapsed
+  scheduledFor DateTime?
+  completedAt  DateTime?
+  // Nudge bookkeeping (the cron advances these): position in the nudge sequence
+  // and when the last nudge was sent.
+  nudgeCount   Int       @default(0)
+  lastNudgedAt DateTime?
+  lapsedAt     DateTime?
+  // How a COMPLETED draw came about: baseline | nudge | organic | ops |
+  // clinician | backfill. Drives nudge-attributed (loop-caused) retention.
+  attribution  String?
+  // A visit may yield several PDFs (dedup) → many docs attach to one draw.
+  sourceDocuments SourceDocument[]
+  // Booking attempts for this draw (a draw may be re-booked over its life).
+  bookingRequests BookingRequest[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // The cron query: open scheduled draws due for a nudge.
+  @@index([userId, status, scheduledFor])
+  // Unique completed ordinal per user (multiple NULLs allowed → many scheduled
+  // draws coexist); the race guard for sequence assignment in U2.
+  @@unique([userId, sequence])
 }
 
 // Survives account erasure by construction — NO User FK. The audit record
