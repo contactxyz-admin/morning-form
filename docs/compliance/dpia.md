@@ -39,7 +39,9 @@ by repo structure; content is filled in and sign-off captured before launch.
 - **Data categories:** email, display name, date of birth, sex at birth, lab
   values, symptoms, conditions, medications, lifestyle factors, wearable
   signals (sleep, HRV, steps, workouts), free-text check-ins, uploaded
-  document images.
+  document images, and retest draw events (the dates a user has tested and
+  their scheduled/nudged retests — Plan 2026-06-17-001; export/erasure covered
+  by the `Draw` GDPR guards).
 - **Special categories:** all health data above — Article 9 UK-GDPR.
 - **Geography:** UK-resident users at launch. US sub-processors (Anthropic,
   Terra, Resend, Vercel) under UK–US Data Bridge / SCCs.

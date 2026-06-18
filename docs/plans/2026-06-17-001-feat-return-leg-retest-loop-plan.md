@@ -430,7 +430,13 @@ gated on `RETEST_LOOP_ENABLED`.
 
 **Verification:** CLI prints nudge-attributed retention %, attribution mix, and median nudge-to-rebook latency for a seeded cohort; `result_viewed` fires on the result surface.
 
-- [ ] **Unit 5: Flag-flip readiness + backfill (tagged) + audit**
+- [x] **Unit 5: Flag-flip readiness + backfill (tagged) + audit**
+
+**Execution note:** backfill logic lives in `src/lib/retest/backfill.ts` (tested),
+with a thin dry-run-default `scripts/retest/backfill-baseline-draws.ts` wrapper;
+the go-live runbook is `docs/runbooks/retest-loop-go-live.md`; `Draw` added to the
+DPIA data-category inventory. `src/lib/env.ts` already carried the flag +
+`CRON_SECRET` from U2/U3, so no further env change was needed here.
 
 **Goal:** Shippable behind `RETEST_LOOP_ENABLED`, with the headline metric honest.
 
