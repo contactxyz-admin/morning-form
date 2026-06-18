@@ -39,6 +39,11 @@ export const FUNNEL_EVENTS = {
   DEMO_VIEWED: 'demo_viewed',
   SIGN_IN_COMPLETED: 'sign_in_completed',
   FIRST_ASK_SENT: 'first_ask_sent',
+  // Retest loop (Plan 2026-06-17-001). Fired server-side when a Draw completes
+  // (a lab panel was ingested). Properties: { sequence, attribution }. Additive
+  // — the retention-to-retest metric's source of truth is the Draw table, not
+  // this event stream.
+  DRAW_COMPLETED: 'draw_completed',
 } as const;
 
 /**

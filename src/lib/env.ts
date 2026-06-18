@@ -84,6 +84,11 @@ const optional = {
   // them; gating them would create a backfill gap). Flip after the visual
   // audit gate.
   LONGITUDINAL_GRAPH_ENABLED: process.env.LONGITUDINAL_GRAPH_ENABLED ?? '',
+  // Retest loop (Plan 2026-06-17-001). Off by default. Gates the Draw write
+  // hooks (lab-ingest completion + cadence scheduling, booking→draw linkage)
+  // and — once built — the retest-nudge cron (U3). Off = current behaviour
+  // byte-for-byte (no Draw rows written, booking flow unchanged).
+  RETEST_LOOP_ENABLED: process.env.RETEST_LOOP_ENABLED ?? '',
 };
 
 export const env = {

@@ -317,7 +317,7 @@ constants drive derived dates.
 
 **Verification:** Migration applies; both GDPR guards exercise a real `Draw`.
 
-- [ ] **Unit 2: complete-on-ingest + per-visit dedup + cadence + attribution**
+- [x] **Unit 2: complete-on-ingest + per-visit dedup + cadence + attribution**
 
 **Goal:** A panel completing records the right draw, deduped, attributed, and schedules the next.
 
@@ -332,9 +332,17 @@ constants drive derived dates.
 - Modify: `src/app/api/intake/documents/route.ts` (call within the ingest
   `$transaction` when `RETEST_LOOP_ENABLED` + lab panel)
 - Modify: `src/app/api/booking/request/route.ts` (link booking → open scheduled
-  draw), `src/app/api/booking/ops/status/route.ts` (`deliver` may complete a linked
-  draw, attribution `ops`)
+  draw)
 - Modify: `src/lib/funnel/event.ts` (`DRAW_COMPLETED`); fire with `{ sequence, attribution }`
+
+**Execution note (deviation):** the `ops/status` `deliver → complete draw` wiring
+was **deferred deliberately**. `deliver` means the redemption *code* was
+delivered, not that blood was drawn — binding draw completion to it would record
+a draw that hasn't happened. Completion stays bound to the honest signal
+(lab-panel ingest); the `ops` attribution value remains reserved for a future
+explicit manual-mark path. The completion hook runs **post-commit** in the intake
+route (not inside `ingestExtraction`'s own transaction), gated + non-fatal,
+mirroring the existing panel-diff hook.
 
 **Test scenarios:**
 - First ingest → Draw#1 completed, attribution `baseline`, Draw#2 scheduled at +90d.

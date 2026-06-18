@@ -52,6 +52,8 @@ import {
 import { resolveBiomarker } from '@/lib/intake/biomarkers';
 import { buildLabObservationGraphInputs } from '@/lib/intake/lab-observations';
 import { diffLatestPanels } from '@/lib/markers/panel-diff';
+import { completeDrawForSourceDocument } from '@/lib/retest/draws';
+import { writeFunnelEvent, FUNNEL_EVENTS } from '@/lib/funnel/event';
 import { env } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
@@ -270,6 +272,29 @@ export async function POST(req: Request) {
       } catch (diffErr) {
         const msg = diffErr instanceof Error ? diffErr.message : String(diffErr);
         console.error(`[API] intake/documents panel diff failed post-ingest (non-fatal): ${msg}`);
+      }
+    }
+
+    // Retest loop (Plan 2026-06-17-001): a lab panel landing IS a draw event.
+    // Record/complete the draw (with same-visit dedup), attribute it, and
+    // schedule the next retest. Post-commit + flag-gated + non-fatal — a draw
+    // failure must never convert a successful upload into an error (same posture
+    // as the panel diff above). The DRAW_COMPLETED event is fired only when a
+    // new draw actually completed (not on a same-visit dedup attach).
+    if (env.RETEST_LOOP_ENABLED === 'true') {
+      try {
+        const draw = await completeDrawForSourceDocument(prisma, user.id, persisted.documentId, capturedAt);
+        if (!draw.deduped && draw.sequence !== undefined) {
+          await writeFunnelEvent(prisma, {
+            funnelId: `draw-${user.id}`,
+            userId: user.id,
+            event: FUNNEL_EVENTS.DRAW_COMPLETED,
+            properties: { sequence: draw.sequence, attribution: draw.attribution },
+          });
+        }
+      } catch (drawErr) {
+        const msg = drawErr instanceof Error ? drawErr.message : String(drawErr);
+        console.error(`[API] intake/documents retest draw hook failed post-ingest (non-fatal): ${msg}`);
       }
     }
 
