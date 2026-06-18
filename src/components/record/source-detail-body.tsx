@@ -30,6 +30,8 @@ import { cn } from '@/lib/utils';
 export interface SourceGroundedMarker {
   readonly id: string;
   readonly displayName: string;
+  /** Drill-down target (authed navigates by canonicalKey; demo by id). */
+  readonly canonicalKey?: string;
   readonly change?: GraphNodeWire['change'];
   readonly interpretation?: GraphNodeWire['interpretation'];
 }
@@ -39,9 +41,10 @@ interface Props {
   readonly grounded: readonly SourceGroundedMarker[];
   /**
    * When provided, grounded-marker rows become buttons that drill into that
-   * node's own detail (the demo passes its URL updater). Omitted → static rows.
+   * marker's own detail. Receives the marker so each surface can pick its
+   * navigation key (demo → `id`; authed → `canonicalKey`). Omitted → static rows.
    */
-  readonly onSelectNode?: (id: string) => void;
+  readonly onSelectNode?: (marker: SourceGroundedMarker) => void;
 }
 
 export function SourceDetailBody({ sourceView, grounded, onSelectNode }: Props) {
@@ -62,6 +65,14 @@ export function SourceDetailBody({ sourceView, grounded, onSelectNode }: Props) 
 
       <section>
         <SectionLabel>What this report established</SectionLabel>
+        {/* The value/flag is each marker's most-recent reading, not necessarily
+            this document's own — so an older report doesn't imply a stale value
+            is current (plan 2026-06-17-003). Only shown when values are present. */}
+        {established.some((m) => m.change) && (
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
+            Latest reading shown
+          </p>
+        )}
         {established.length === 0 ? (
           <p className="mt-3 text-body text-text-secondary leading-relaxed">
             Nothing has been pulled into the record from this source yet.
@@ -117,7 +128,7 @@ function GroundedRow({
   onSelect,
 }: {
   marker: SourceGroundedMarker;
-  onSelect?: (id: string) => void;
+  onSelect?: (marker: SourceGroundedMarker) => void;
 }) {
   const change = marker.change;
   const flag = marker.interpretation?.flag;
@@ -155,7 +166,7 @@ function GroundedRow({
   return (
     <button
       type="button"
-      onClick={() => onSelect(marker.id)}
+      onClick={() => onSelect(marker)}
       aria-label={`Open ${marker.displayName}`}
       className={cn(
         base,

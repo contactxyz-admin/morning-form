@@ -16,6 +16,7 @@ import {
   synthesizeSourceNodes,
 } from '@/lib/record/canvas-synthesis';
 import type { GraphEdgeWire, GraphNodeWire } from '@/types/graph';
+import type { NodeVisualClass } from '@/lib/graph/visual-encoding';
 import { VaultIndex } from './vault-index';
 import { VaultModeToggle, parseVaultMode, type VaultMode } from './vault-mode-toggle';
 import type { RecordIndex as RecordIndexData } from '@/lib/record/types';
@@ -45,6 +46,16 @@ export function VaultLayout() {
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const { state, refresh } = useRecordIndex();
   const [, startTransition] = useTransition();
+  // Category filter lives HERE (not in VaultMapMode) so the parent that owns the
+  // `?entity=` selection can close the sheet when the selected node's class is
+  // filtered off (plan 2026-06-17-003 U4 — mirrors the demo guard; resolves the
+  // prior ponytail). Passed down to VaultMapMode for the legend + canvas.
+  const {
+    hiddenClasses,
+    toggle: toggleClass,
+    reset: resetClasses,
+    nodeGhosted,
+  } = useCategoryFilter();
 
   const requestedMode = parseVaultMode(searchParams.get('mode'));
   const selectedEntityKey = searchParams.get('entity');
@@ -100,12 +111,6 @@ export function VaultLayout() {
       ? state.data.nodes.find((n) => n.canonicalKey === selectedEntityKey) ?? null
       : null;
 
-  // ponytail: unlike the demo, there's no "selected node's class filtered off →
-  // clear ?entity=" guard here (the filter state lives in VaultMapMode, not this
-  // parent). Low impact — the canvas blurs focus before aria-hiding, so it's not
-  // a focused-element WCAG violation, just a stale open sheet. Lift
-  // useCategoryFilter to VaultLayout to add the guard if it bites.
-  //
   // Deep-link truncation guard (ce:review C3): if the URL references an
   // entity that isn't present in the importance-capped node set (likely
   // dropped by the 200-node cap when totalNodes > 200, or a stale link),
@@ -117,6 +122,14 @@ export function VaultLayout() {
       updateUrl({ entity: null });
     }
   }, [state.status, selectedEntityKey, selectedNode, updateUrl]);
+
+  // Filtered-while-selected guard (plan 2026-06-17-003 U4): if the open entity's
+  // visual class is switched off, close the sheet so a ghosted node isn't left
+  // described by an open surface (mirrors the demo). selectedNode is always a
+  // health node here (source clicks navigate to the source page).
+  useEffect(() => {
+    if (selectedNode && nodeGhosted(selectedNode)) updateUrl({ entity: null });
+  }, [selectedNode, nodeGhosted, updateUrl]);
 
   return (
     <div className="min-h-screen bg-record-grid">
@@ -169,6 +182,10 @@ export function VaultLayout() {
             isDesktop={isDesktop}
             onNodeClick={handleNodeClick}
             selectedNodeId={selectedNode?.id ?? null}
+            hiddenClasses={hiddenClasses}
+            onToggleClass={toggleClass}
+            onResetClasses={resetClasses}
+            nodeGhosted={nodeGhosted}
           />
         )}
       </div>
@@ -189,6 +206,11 @@ interface VaultMapModeProps {
   onNodeClick: (node: GraphNodeWire) => void;
   /** Node id of the open `?entity=` selection — drives the canvas halo. */
   selectedNodeId: string | null;
+  /** Category filter, owned by the parent (see VaultLayout) so it can guard the selection. */
+  hiddenClasses: ReadonlySet<NodeVisualClass>;
+  onToggleClass: (visualClass: NodeVisualClass) => void;
+  onResetClasses: () => void;
+  nodeGhosted: (node: GraphNodeWire) => boolean;
 }
 
 /**
@@ -201,7 +223,16 @@ interface VaultMapModeProps {
  * real graph nodes so the SUPPORTS edges find visible targets; the list
  * view is intentionally kept health-data-only.
  */
-function VaultMapMode({ data, isDesktop, onNodeClick, selectedNodeId }: VaultMapModeProps) {
+function VaultMapMode({
+  data,
+  isDesktop,
+  onNodeClick,
+  selectedNodeId,
+  hiddenClasses,
+  onToggleClass,
+  onResetClasses,
+  nodeGhosted,
+}: VaultMapModeProps) {
   // Memoize the canvas node/edge arrays on their content. Built inline they
   // are fresh refs every render, which churns useGraphState's initGraph
   // identity → full teardown+reinit (possibly mid-drag) + spurious
@@ -249,11 +280,6 @@ function VaultMapMode({ data, isDesktop, onNodeClick, selectedNodeId }: VaultMap
     ];
   }, [data.nodes, data.edges, canvasNodes]);
 
-  // Category filter (plan 2026-06-17-001 Addendum) — the SAME shared hook +
-  // legend the demo uses, so the two surfaces never drift. Hooks run before the
-  // empty-graph early return below, keeping hook order stable (rules-of-hooks).
-  const { hiddenClasses, toggle, nodeGhosted } = useCategoryFilter();
-
   if (data.nodes.length === 0) return <GraphListEmpty />;
 
   return (
@@ -296,7 +322,12 @@ function VaultMapMode({ data, isDesktop, onNodeClick, selectedNodeId }: VaultMap
           <p className="mt-3 text-caption text-text-tertiary">
             Tap a node to see what grounds it. The structured list below shows the same data, grouped.
           </p>
-          <GraphFilterLegend hiddenClasses={hiddenClasses} onToggle={toggle} className="mt-4" />
+          <GraphFilterLegend
+            hiddenClasses={hiddenClasses}
+            onToggle={onToggleClass}
+            onReset={onResetClasses}
+            className="mt-4"
+          />
         </div>
       )}
       <GraphListView nodes={data.nodes} onNodeClick={onNodeClick} />
