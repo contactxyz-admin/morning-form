@@ -72,6 +72,7 @@ export function GraphFilterLegend({
             <button
               type="button"
               aria-pressed={shown}
+              onClick={() => onToggle(item.visualClass)}
               // State in the accessible name (not just the action-y title), and
               // a legible off-state: `/70` clears the 3:1 contrast floor where
               // `/40` did not (plan 2026-06-17-003 review).

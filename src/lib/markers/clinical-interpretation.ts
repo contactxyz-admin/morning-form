@@ -107,16 +107,34 @@ const DEFAULT_RULE: MarkerRule = {
   flag: 'clinician_discussion',
 };
 
+// Production biomarker-registry canonicalKeys (slugs) → the short MATRIX keys
+// the CMO authored. The demo fixtures use the MATRIX keys directly, but the
+// authed graph uses the registry canonicalKey (`src/lib/intake/biomarkers.ts`),
+// so without this map LDL/ApoB/free-T would never resolve their authored rule on
+// the authed path and would silently fall to the unreviewed state. Lowercased
+// keys (join keys are lowercased upstream).
+const MATRIX_KEY_ALIASES: Record<string, AuthoredKey> = {
+  ldl_cholesterol: 'ldl',
+  apolipoprotein_b: 'apob',
+  free_testosterone: 'free-testosterone',
+};
+
+/** Resolve a marker key (registry slug or short key) to its MATRIX key. */
+function matrixKey(canonicalKey: string): string {
+  return MATRIX_KEY_ALIASES[canonicalKey] ?? canonicalKey;
+}
+
 /**
  * Whether a marker has a CMO-authored interpretation rule (not the conservative
  * fallback). Callers gate clinical flags on this — the policy is "no authored
  * rule ⇒ no MorningForm clinical judgement" (plan 2026-06-17): an unreviewed
- * marker shows value/direction + source, never an inferred flag. `hasOwnProperty`
- * guard so a crafted `canonicalKey` like `__proto__`/`constructor` can't resolve
- * to a prototype member (which would dodge the fallback and throw).
+ * marker shows value/direction + source, never an inferred flag. Resolves the
+ * registry→MATRIX alias first, then `hasOwnProperty`-guards so a crafted key
+ * like `__proto__`/`constructor` can't resolve to a prototype member (which
+ * would dodge the fallback and throw).
  */
 export function isAuthoredMarker(canonicalKey: string): boolean {
-  return Object.prototype.hasOwnProperty.call(MATRIX, canonicalKey);
+  return Object.prototype.hasOwnProperty.call(MATRIX, matrixKey(canonicalKey));
 }
 
 /**
@@ -132,7 +150,7 @@ export function interpret(
   latest: { value: number; low: number | null; high: number | null },
 ): NodeInterpretation {
   const rule = isAuthoredMarker(canonicalKey)
-    ? (MATRIX[canonicalKey as AuthoredKey] as MarkerRule)
+    ? (MATRIX[matrixKey(canonicalKey) as AuthoredKey] as MarkerRule)
     : DEFAULT_RULE;
   const ctx: Ctx = { change, value: latest.value, low: latest.low, high: latest.high };
   return {

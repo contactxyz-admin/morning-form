@@ -22,6 +22,19 @@ describe('isAuthoredMarker', () => {
     }
   });
 
+  it('resolves PRODUCTION registry slugs via the alias', () => {
+    // Authed graph uses the biomarker-registry canonicalKey, not the short
+    // MATRIX key — the alias must keep these authored.
+    expect(isAuthoredMarker('ldl_cholesterol')).toBe(true);
+    expect(isAuthoredMarker('apolipoprotein_b')).toBe(true);
+    expect(isAuthoredMarker('free_testosterone')).toBe(true);
+  });
+
+  it('interpret resolves the authored rule for a production slug', () => {
+    const i = interpret('ldl_cholesterol', change('worsened', 'up'), { value: 3.4, low: null, high: 3.0 });
+    expect(i.signalClarity).toBe('Medium–High'); // authored LDL, not DEFAULT 'Low'
+  });
+
   it('is false for unauthored markers (no MorningForm clinical judgement)', () => {
     expect(isAuthoredMarker('glucose')).toBe(false);
     expect(isAuthoredMarker('vitamin-d')).toBe(false);

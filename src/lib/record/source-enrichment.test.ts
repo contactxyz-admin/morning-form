@@ -49,13 +49,16 @@ describe('enrichGroundedNodes', () => {
     expect(row.change?.afterValue).toBe(145);
   });
 
-  it('resolves the AUTHORED interpretation via the join key, not the default', () => {
-    // registryKey-matched marker must resolve its authored rule (Medium–High),
-    // not fall through to DEFAULT_RULE (Low) — the interpret-by-joinKey fix.
+  it('resolves the AUTHORED interpretation for a PRODUCTION registry slug (via alias)', () => {
+    // Production LDL's canonicalKey/joinKey is the registry slug 'ldl_cholesterol',
+    // NOT the short MATRIX key 'ldl' — the alias must still resolve the authored
+    // rule (Medium–High), not fall through to DEFAULT_RULE (Low). Using the real
+    // slug here guards the path the prior 'ldl' fixture masked.
     const row = enrichGroundedNodes(
-      [node({ canonicalKey: 'ldl_cholesterol', attributes: { registryKey: 'ldl' } })],
-      diff([change({ joinKey: 'ldl' })]),
+      [node({ canonicalKey: 'ldl_cholesterol', attributes: {} })],
+      diff([change({ joinKey: 'ldl_cholesterol' })]),
     )[0];
+    expect(row.change?.afterValue).toBe(145);
     expect(row.interpretation?.signalClarity).toBe('Medium–High');
   });
 
