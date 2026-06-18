@@ -73,11 +73,15 @@ export function GraphFilterLegend({
               type="button"
               aria-pressed={shown}
               onClick={() => onToggle(item.visualClass)}
+              // State in the accessible name (not just the action-y title), and
+              // a legible off-state: `/70` clears the 3:1 contrast floor where
+              // `/40` did not (plan 2026-06-17-003 review).
+              aria-label={`${item.label}, ${shown ? 'shown' : 'hidden'}`}
               title={shown ? `Hide ${item.label}` : `Show ${item.label}`}
               className={`flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-button-focus ${
                 shown
                   ? 'border-border text-text-tertiary hover:bg-surface-warm'
-                  : 'border-transparent text-text-tertiary/40 line-through'
+                  : 'border-transparent text-text-tertiary/70 line-through'
               }`}
             >
               <svg aria-hidden viewBox="0 0 12 12" width={12} height={12} className="shrink-0">
@@ -85,7 +89,7 @@ export function GraphFilterLegend({
                   cx={6}
                   cy={6}
                   r={5}
-                  className={shown ? `${item.fillClass} ${item.strokeClass}` : 'fill-none stroke-text-tertiary/40'}
+                  className={shown ? `${item.fillClass} ${item.strokeClass}` : 'fill-none stroke-text-tertiary/70'}
                   strokeWidth={1.2}
                 />
               </svg>

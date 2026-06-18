@@ -15,8 +15,11 @@ import { markerJoinKey } from './marker-key';
 
 /** Project a `MarkerChange` to the leaner wire decoration (drops the
  *  reference range — the badge is range-relative already; the detail sheet
- *  reads the range off node attributes if it needs it). */
-function toWire(change: MarkerChange): NodeChangeWire {
+ *  reads the range off node attributes if it needs it). Exported so callers that
+ *  already hold the full `MarkerChange` (e.g. source-enrichment, which needs the
+ *  reference range for `interpret`) can project the wire shape without keeping a
+ *  second parallel map. */
+export function markerChangeToWire(change: MarkerChange): NodeChangeWire {
   return {
     direction: change.direction,
     classification: change.classification,
@@ -31,7 +34,7 @@ function toWire(change: MarkerChange): NodeChangeWire {
 /** changes → Map keyed by joinKey, for O(1) lookup while decorating nodes. */
 export function buildChangeByJoinKey(changes: MarkerChange[]): Map<string, NodeChangeWire> {
   const m = new Map<string, NodeChangeWire>();
-  for (const c of changes) m.set(c.joinKey, toWire(c));
+  for (const c of changes) m.set(c.joinKey, markerChangeToWire(c));
   return m;
 }
 

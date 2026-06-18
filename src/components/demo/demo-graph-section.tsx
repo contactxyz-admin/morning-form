@@ -24,6 +24,8 @@ import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { scrubberStops, asOfVisibility } from '@/lib/graph/as-of';
 import { tickPosition, nextPlayIndex } from '@/lib/graph/scrubber';
 import { GraphFilterLegend, useCategoryFilter } from '@/components/graph/graph-filter-legend';
+import { visualForNode } from '@/lib/graph/visual-encoding';
+import { changeDirectionGlyph } from '@/lib/markers/change-presentation';
 import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
 import { adaptDemoFixture, type AdaptedDemoFixture } from '@/lib/demo/graph-adapter';
 import {
@@ -225,13 +227,17 @@ export function DemoGraphSection({ fixture }: Props) {
     return { sourceView, grounded };
   }, [openNode, adapted, nodeById]);
 
-  // If the viewer filters off the visual class of the node whose detail sheet
-  // is open, close the sheet — otherwise the canvas would ghost + aria-hide a
-  // node the open surface still describes (a conflicting aria-current /
-  // aria-hidden state). Clearing `?entity=` releases the selection cleanly.
+  // Close the open sheet if its node becomes non-present — either its class is
+  // filtered off (ghost + aria-hide would conflict with the open surface's
+  // aria-current) OR the scrubber moves before the node's firstSeenAt (the open
+  // surface would describe a node the timeline hasn't reached). Mirrors the
+  // click/drill guards so every entry path agrees (plan 2026-06-17-003 #4/#5).
   useEffect(() => {
-    if (openNode && nodeGhosted(openNode)) updateUrl(null);
-  }, [openNode, nodeGhosted, updateUrl]);
+    if (!openNode) return;
+    if (nodeGhosted(openNode) || asOfVisibility(openNode.firstSeenAt, asOfEpoch) !== 'present') {
+      updateUrl(null);
+    }
+  }, [openNode, nodeGhosted, asOfEpoch, updateUrl]);
 
   useEffect(() => {
     // Three clear-cases (use `!== null` instead of truthiness so the
@@ -397,7 +403,16 @@ export function DemoGraphSection({ fixture }: Props) {
         // suppressing the section avoids an unnecessary authed fetch.
         hydratedTopics={[]}
         sourceDetail={openSourceDetail}
-        onOpenNode={(m) => updateUrl(m.id)}
+        onOpenNode={(m) => {
+          // Drill from a grounded marker into that node, applying the same
+          // guards as a canvas click (plan 2026-06-17-003 #4/#5): never open a
+          // not-yet-born node; if the target's class is filtered off, reveal it
+          // first so the drill isn't a dead click that instantly re-closes.
+          const node = nodeById.get(m.id);
+          if (node && asOfVisibility(node.firstSeenAt, asOfEpoch) !== 'present') return;
+          if (node && nodeGhosted(node)) handleToggleClass(visualForNode(node.type).visualClass);
+          updateUrl(m.id);
+        }}
       />
     </>
   );
@@ -440,7 +455,11 @@ function PriorityCluster({
                 <span className="font-medium">{n.displayName}</span>{' '}
                 <span className="font-mono text-text-secondary">
                   {c.afterValue} {c.unit}
-                  {c.classification === 'new' ? ' · new baseline' : c.direction === 'up' ? ' ↑' : c.direction === 'down' ? ' ↓' : ''}
+                  {c.classification === 'new'
+                    ? ' · new baseline'
+                    : c.direction
+                      ? ` ${changeDirectionGlyph(c.direction)}`
+                      : ''}
                 </span>
               </span>
               {flag && (

@@ -49,6 +49,28 @@ describe('enrichGroundedNodes', () => {
     expect(row.change?.afterValue).toBe(145);
   });
 
+  it('resolves the AUTHORED interpretation for a PRODUCTION registry slug (via alias)', () => {
+    // Production LDL's canonicalKey/joinKey is the registry slug 'ldl_cholesterol',
+    // NOT the short MATRIX key 'ldl' — the alias must still resolve the authored
+    // rule (Medium–High), not fall through to DEFAULT_RULE (Low). Using the real
+    // slug here guards the path the prior 'ldl' fixture masked.
+    const row = enrichGroundedNodes(
+      [node({ canonicalKey: 'ldl_cholesterol', attributes: {} })],
+      diff([change({ joinKey: 'ldl_cholesterol' })]),
+    )[0];
+    expect(row.change?.afterValue).toBe(145);
+    expect(row.interpretation?.signalClarity).toBe('Medium–High');
+  });
+
+  it('shows change but NO interpretation for an unauthored marker (authored-only policy)', () => {
+    const row = enrichGroundedNodes(
+      [node({ canonicalKey: 'glucose', attributes: {} })],
+      diff([change({ joinKey: 'glucose' })]),
+    )[0];
+    expect(row.change?.afterValue).toBe(145); // value/direction still shown
+    expect(row.interpretation).toBeUndefined(); // no inferred flag
+  });
+
   it('leaves non-biomarker nodes name-only even on a key match', () => {
     const row = enrichGroundedNodes([node({ type: 'condition' })], diff([change()]))[0];
     expect(row.change).toBeUndefined();
