@@ -105,8 +105,8 @@ interface Props {
    * fetches. Absent for every health node and authed caller → today's behaviour.
    */
   sourceDetail?: { sourceView: SourceView; grounded: SourceGroundedMarker[] };
-  /** Drill-down from a grounded marker in the source body into that node. */
-  onOpenNode?: (id: string) => void;
+  /** Drill-down from a grounded marker in the source body into that marker. */
+  onOpenNode?: (marker: SourceGroundedMarker) => void;
 }
 
 export function NodeDetailSheet({

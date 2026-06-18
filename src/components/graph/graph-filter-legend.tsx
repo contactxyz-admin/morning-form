@@ -34,25 +34,31 @@ export function useCategoryFilter() {
   const toggle = useCallback((visualClass: NodeVisualClass) => {
     setHiddenClasses((prev) => toggleHiddenClass(prev, visualClass));
   }, []);
+  // Clear all hidden classes (the "Show all" affordance).
+  const reset = useCallback(() => setHiddenClasses(new Set()), []);
   // Stable per filter set — its identity changes only when the filter changes,
   // which re-runs the canvas dim effect to fade/restore the toggled class.
   const nodeGhosted = useCallback(
     (node: GraphNodeWire) => hiddenClasses.has(visualForNode(node.type).visualClass),
     [hiddenClasses],
   );
-  return { hiddenClasses, toggle, nodeGhosted };
+  return { hiddenClasses, toggle, reset, nodeGhosted };
 }
 
 export function GraphFilterLegend({
   hiddenClasses,
   onToggle,
+  onReset,
   className,
 }: {
   hiddenClasses: ReadonlySet<NodeVisualClass>;
   onToggle: (visualClass: NodeVisualClass) => void;
+  /** When provided, a "Show all" chip appears while any class is hidden. */
+  onReset?: () => void;
   /** Extra classes on the <ul> (e.g. spacing per surface). */
   className?: string;
 }) {
+  const anyHidden = hiddenClasses.size > 0;
   return (
     <ul
       aria-label="Filter the graph by node type"
@@ -87,6 +93,17 @@ export function GraphFilterLegend({
           </li>
         );
       })}
+      {onReset && anyHidden && (
+        <li>
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-text-secondary underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-button-focus"
+          >
+            Show all
+          </button>
+        </li>
+      )}
     </ul>
   );
 }

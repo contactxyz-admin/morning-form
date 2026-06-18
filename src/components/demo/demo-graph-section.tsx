@@ -166,7 +166,8 @@ export function DemoGraphSection({ fixture }: Props) {
   // Category filter (plan 2026-06-17-001) — shared hook with the authed graph,
   // so the demo and `/record?mode=map` can't drift. Empty by default → every
   // class shown (today's render); a hidden class fades to the canvas ghost floor.
-  const { hiddenClasses, toggle: handleToggleClass, nodeGhosted } = useCategoryFilter();
+  const { hiddenClasses, toggle: handleToggleClass, reset: resetClasses, nodeGhosted } =
+    useCategoryFilter();
 
   const rawEntity = searchParams.get('entity');
   const validatedEntity =
@@ -381,6 +382,7 @@ export function DemoGraphSection({ fixture }: Props) {
         <GraphFilterLegend
           hiddenClasses={hiddenClasses}
           onToggle={handleToggleClass}
+          onReset={resetClasses}
           className="mt-4"
         />
       </section>
@@ -395,7 +397,7 @@ export function DemoGraphSection({ fixture }: Props) {
         // suppressing the section avoids an unnecessary authed fetch.
         hydratedTopics={[]}
         sourceDetail={openSourceDetail}
-        onOpenNode={updateUrl}
+        onOpenNode={(m) => updateUrl(m.id)}
       />
     </>
   );

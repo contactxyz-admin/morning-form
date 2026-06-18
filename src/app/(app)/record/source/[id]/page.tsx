@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { SectionLabel } from '@/components/ui/section-label';
@@ -111,6 +111,7 @@ export default function SourceDetailPage() {
 }
 
 function SourceBody({ data }: { data: SourceView }) {
+  const router = useRouter();
   const capturedLabel = new Date(data.capturedAt).toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -138,17 +139,24 @@ function SourceBody({ data }: { data: SourceView }) {
       </header>
 
       {/*
-        Shared source body (plan 2026-06-17-002) — the same "what this report
-        established" + verbatim-excerpts presentation the demo graph sheet shows.
-        ponytail: authed grounded markers are name-only (the source API doesn't
-        carry per-node change/interpretation); enrich the route select to light
-        up value/flag here too. Drill-down is omitted (referencedNodes lack
-        canonicalKey) — add when the payload carries it.
+        Shared source body (plan 2026-06-17-002/003) — the same "what this report
+        established" + verbatim-excerpts presentation the demo graph sheet shows,
+        now at parity: grounded markers carry value/flag (route enrichment) and
+        drill into the marker on the record map.
       */}
       <div className="mt-12 rise">
         <SourceDetailBody
           sourceView={data}
-          grounded={data.referencedNodes.map((n) => ({ id: n.id, displayName: n.displayName }))}
+          grounded={data.referencedNodes.map((n) => ({
+            id: n.id,
+            displayName: n.displayName,
+            canonicalKey: n.canonicalKey,
+            change: n.change,
+            interpretation: n.interpretation,
+          }))}
+          onSelectNode={(m) =>
+            router.push(`/record?mode=map&entity=${encodeURIComponent(m.canonicalKey ?? '')}`)
+          }
         />
       </div>
     </>

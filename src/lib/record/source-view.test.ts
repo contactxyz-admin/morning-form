@@ -75,4 +75,50 @@ describe('buildSourceView', () => {
     expect(out.capturedAt).toBe('2026-03-10T09:00:00.000Z');
     expect(out.createdAt).toBe('2026-03-10T09:00:05.000Z');
   });
+
+  // plan 2026-06-17-003 — referenced nodes carry the drill-down key + optional
+  // grounded-marker decoration so the authed source page reaches demo parity.
+  it('propagates canonicalKey onto referenced nodes', () => {
+    const out = buildSourceView(
+      baseInput({
+        edges: [{ toNodeId: 'n1' }],
+        nodes: [{ id: 'n1', type: 'biomarker', displayName: 'Ferritin', canonicalKey: 'ferritin' }],
+      }),
+    );
+    expect(out.referencedNodes[0].canonicalKey).toBe('ferritin');
+  });
+
+  it('passes through change + interpretation when present, omits when absent', () => {
+    const change = {
+      direction: 'up' as const,
+      classification: 'worsened' as const,
+      beforeValue: 90,
+      beforeAt: '2025-01-01',
+      afterValue: 130,
+      afterAt: '2026-01-01',
+      unit: 'mg/dL',
+    };
+    const interpretation = {
+      whereItIsNow: 'Above attention threshold',
+      signalClarity: 'Medium–High',
+      nextStep: 'Review with a clinician.',
+      flag: 'clinician_discussion' as const,
+      plainEnglish: 'LDL-C has increased.',
+    };
+    const out = buildSourceView(
+      baseInput({
+        edges: [{ toNodeId: 'rich' }, { toNodeId: 'plain' }],
+        nodes: [
+          { id: 'rich', type: 'biomarker', displayName: 'LDL-C', canonicalKey: 'ldl', change, interpretation },
+          { id: 'plain', type: 'biomarker', displayName: 'ApoB', canonicalKey: 'apob' },
+        ],
+      }),
+    );
+    const rich = out.referencedNodes.find((n) => n.id === 'rich')!;
+    const plain = out.referencedNodes.find((n) => n.id === 'plain')!;
+    expect(rich.change).toEqual(change);
+    expect(rich.interpretation).toEqual(interpretation);
+    expect(plain.change).toBeUndefined();
+    expect(plain.interpretation).toBeUndefined();
+  });
 });

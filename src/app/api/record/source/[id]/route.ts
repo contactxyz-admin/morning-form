@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/session';
 import { prisma } from '@/lib/db';
+import { env } from '@/lib/env';
 import { buildSourceView } from '@/lib/record/source-view';
+import { diffLatestPanels, type MarkerChange } from '@/lib/markers/panel-diff';
+import { buildChangeByJoinKey } from '@/lib/markers/node-change-map';
+import { markerJoinKey } from '@/lib/markers/marker-key';
+import { interpret } from '@/lib/markers/clinical-interpretation';
+import type { NodeChangeWire } from '@/types/graph';
 
 /**
  * GET /api/record/source/[id]
@@ -49,9 +55,55 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const nodes = referencedNodeIds.length
       ? await prisma.graphNode.findMany({
           where: { id: { in: referencedNodeIds }, userId: user.id },
-          select: { id: true, type: true, displayName: true, canonicalKey: true },
+          // `attributes` carries `registryKey` — the marker join key for the
+          // change/interpretation enrichment below (plan 2026-06-17-003).
+          select: { id: true, type: true, displayName: true, canonicalKey: true, attributes: true },
         })
       : [];
+
+    // Enrich grounded markers with their "what changed" + interpretation so the
+    // source page reaches demo parity (value + flag). Flag-gated and NON-FATAL
+    // (mirrors /api/record): a diff failure or flag-off → name-only markers,
+    // never a 500. `change` is the user's latest-vs-previous panel move; the
+    // section reads "what this report established → where it stands now".
+    const longitudinal = env.LONGITUDINAL_GRAPH_ENABLED === 'true';
+    const diff =
+      longitudinal && referencedNodeIds.length > 0
+        ? await diffLatestPanels(prisma, user.id).catch((diffErr: unknown) => {
+            const msg = diffErr instanceof Error ? diffErr.message : String(diffErr);
+            console.error(`[API] source panel-diff failed (non-fatal): ${msg}`);
+            return null;
+          })
+        : null;
+    const wireByKey: Map<string, NodeChangeWire> = diff
+      ? buildChangeByJoinKey(diff.changes)
+      : new Map();
+    const mcByKey = new Map<string, MarkerChange>();
+    if (diff) for (const c of diff.changes) mcByKey.set(c.joinKey, c);
+
+    const nodeRows = nodes.map((n) => {
+      const attrs = (n.attributes ?? {}) as Record<string, unknown>;
+      const joinKey = markerJoinKey(n.canonicalKey, attrs.registryKey);
+      // Only biomarker nodes carry a panel change (matches applyChangesToWireNodes).
+      const change = n.type === 'biomarker' ? wireByKey.get(joinKey) : undefined;
+      const mc = change ? mcByKey.get(joinKey) : undefined;
+      const interpretation =
+        change && mc
+          ? interpret(n.canonicalKey, change, {
+              value: mc.afterValue,
+              low: mc.referenceLow,
+              high: mc.referenceHigh,
+            })
+          : undefined;
+      return {
+        id: n.id,
+        type: n.type,
+        displayName: n.displayName,
+        canonicalKey: n.canonicalKey,
+        ...(change ? { change } : {}),
+        ...(interpretation ? { interpretation } : {}),
+      };
+    });
 
     const view = buildSourceView({
       id: source.id,
@@ -61,7 +113,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       createdAt: source.createdAt,
       chunks: source.chunks,
       edges: source.edges,
-      nodes,
+      nodes: nodeRows,
     });
 
     return NextResponse.json(view, { headers: { 'Cache-Control': 'no-store' } });

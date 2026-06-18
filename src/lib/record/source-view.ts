@@ -14,6 +14,7 @@
  * result"); the cleanup queued by the PR #120 ce:review unifies them here.
  */
 import { decodeSourceDocumentKind, type SourceDocumentKind } from '@/lib/graph/types';
+import type { GraphNodeWire } from '@/types/graph';
 
 export interface SourceViewChunkRow {
   id: string;
@@ -31,6 +32,14 @@ export interface SourceViewNodeRow {
   type: string;
   displayName: string;
   canonicalKey: string;
+  /**
+   * Optional "what changed" decoration + interpretation for a grounded marker
+   * (plan 2026-06-17-003). The demo carries these from the fixture-derived wire
+   * node; the authed source route derives them from the latest-panel diff. Absent
+   * → the grounded-marker row renders name-only (graceful).
+   */
+  change?: GraphNodeWire['change'];
+  interpretation?: GraphNodeWire['interpretation'];
 }
 
 export interface SourceViewInput {
@@ -55,6 +64,11 @@ export interface SourceViewReferencedNode {
   id: string;
   type: string;
   displayName: string;
+  /** Canonical key — the drill-down target (`/record?mode=map&entity=<key>`). */
+  canonicalKey: string;
+  /** Optional grounded-marker decoration (plan 2026-06-17-003); see node row. */
+  change?: GraphNodeWire['change'];
+  interpretation?: GraphNodeWire['interpretation'];
 }
 
 export interface SourceView {
@@ -135,7 +149,14 @@ export function buildSourceView(input: SourceViewInput): SourceView {
   for (const id of referencedIds) {
     const n = nodeById.get(id);
     if (!n) continue;
-    referencedNodes.push({ id: n.id, type: n.type, displayName: n.displayName });
+    referencedNodes.push({
+      id: n.id,
+      type: n.type,
+      displayName: n.displayName,
+      canonicalKey: n.canonicalKey,
+      ...(n.change ? { change: n.change } : {}),
+      ...(n.interpretation ? { interpretation: n.interpretation } : {}),
+    });
   }
   referencedNodes.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
