@@ -353,7 +353,7 @@ mirroring the existing panel-diff hook.
 
 **Verification:** Two panels (with/without a preceding nudge) yield correctly-attributed ordered draws + a forward-scheduled draw.
 
-- [ ] **Unit 3: Retest nudge sequence (Vercel Cron → secret-gated) + lapse**
+- [x] **Unit 3: Retest nudge sequence (Vercel Cron → secret-gated) + lapse**
 
 **Goal:** Due retests drive a capped, idempotent nudge sequence; un-rebooked draws lapse.
 
@@ -369,6 +369,14 @@ mirroring the existing panel-diff hook.
 - Create: `src/lib/retest/nudge-email.ts` — in-lane copy + pre-staged rebook
   deep-link; reuse `src/lib/auth/email.ts`; place under a static-copy scan root
 - Modify: `src/lib/env.ts` (`CRON_SECRET`, `RETEST_LOOP_ENABLED`)
+
+**Execution notes:** (1) `runRetestNudges` takes an optional `userIds` scope —
+production omits it (all users); tests pass their own id so the global scan
+doesn't mutate other suites' rows on the shared test DB. (2) Fail-closed:
+`assertAuthEnv` requires a ≥32-char `CRON_SECRET` in production when the loop is
+on. (3) The "pre-staged rebook deep-link" is simplified to a `/record?ref=retest-nudge`
+entry for now — the marker-pre-filled booking landing is a UI refinement deferred
+to the rebook-surface work, not blocking the nudge mechanism.
 
 **Test scenarios:**
 - Offset 0 due → nudge 1 sent, `nudgeCount=1`; same-day re-run → no extra send (idempotent).

@@ -37,6 +37,11 @@ const SCAN_ROOTS = [
   // src/lib/demo deliberately: wider src/lib roots would trip on policy
   // modules that quote forbidden phrases by design.
   'src/lib/demo',
+  // Retest nudge email copy (Plan 2026-06-17-001 U3). The nudge body in
+  // src/lib/retest/nudge-email.ts is user-visible copy; without this root it
+  // would be silently unscanned. Scoped to src/lib/retest deliberately (no
+  // policy modules quoting forbidden phrases live here).
+  'src/lib/retest',
 ];
 
 // Files that are allowed to mention these strings because that is their job.
@@ -223,5 +228,12 @@ describe('static copy guardrail', () => {
     // skip-list (filenames containing "fixtures" are skipped by design).
     const scanned = collectFiles().map((f) => relative(ROOT, f).replace(/\\/g, '/'));
     expect(scanned).toContain('src/lib/demo/ask-sequences.ts');
+  });
+
+  it('wires src/lib/retest into the scan so the retest nudge email copy stays covered (Plan 2026-06-17-001)', () => {
+    expect(SCAN_ROOTS).toContain('src/lib/retest');
+    // The root contributes the nudge-email module to the scan set.
+    const scanned = collectFiles().map((f) => relative(ROOT, f).replace(/\\/g, '/'));
+    expect(scanned).toContain('src/lib/retest/nudge-email.ts');
   });
 });
