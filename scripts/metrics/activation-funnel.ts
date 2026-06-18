@@ -15,8 +15,10 @@
 
 import { PrismaClient } from '@prisma/client';
 import { computeActivationFunnel } from '../../src/lib/metrics/activation-funnel-report';
+import { computeRetestRetention } from '../../src/lib/metrics/retest-retention';
 import {
   formatCsv,
+  formatRetestRetention,
   formatSummary,
   HELP_TEXT,
   InvalidCliArgsError,
@@ -42,6 +44,15 @@ async function main(): Promise<void> {
     process.stdout.write('\n\n');
     process.stdout.write(formatSummary(report));
     process.stdout.write('\n');
+
+    // Retest-retention section — only when the loop is on (flag-off output is
+    // unchanged). Scoped to the same cohort as the funnel for consistency.
+    if (process.env.RETEST_LOOP_ENABLED === 'true') {
+      const retest = await computeRetestRetention(prisma, { userIds: report.cohort.userIds });
+      process.stdout.write('\n');
+      process.stdout.write(formatRetestRetention(retest));
+      process.stdout.write('\n');
+    }
   } catch (err) {
     const message =
       err instanceof InvalidCliArgsError

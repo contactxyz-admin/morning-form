@@ -24,6 +24,8 @@ import {
   BookingStatusList,
   type BookingRow,
 } from '@/app/reveal/priorities/marker/[name]/booking-status-client';
+import { TrackMount } from '@/lib/funnel/track-mount';
+import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,7 +136,17 @@ export default async function DecisionsPage() {
           Actions you&rsquo;ve chosen to act on — from suggestion to outcome.
         </p>
 
-        {showPanelDiff && panelDiff && <PanelDiffCard diff={panelDiff} />}
+        {showPanelDiff && panelDiff && (
+          <>
+            <PanelDiffCard diff={panelDiff} />
+            {/* Bet-B signal (Plan 2026-06-17-001 U4): the member viewed their
+                "what changed" result — lets retention be segmented by result
+                engagement. Gated on the retest loop; fires once on mount. */}
+            {env.RETEST_LOOP_ENABLED === 'true' && (
+              <TrackMount event={FUNNEL_EVENTS.RESULT_VIEWED} />
+            )}
+          </>
+        )}
 
         {!hasContent ? (
           <div className="mt-16 text-center">

@@ -388,7 +388,7 @@ to the rebook-surface work, not blocking the nudge mechanism.
 
 **Verification:** A due draw walks the full sequence then lapses if ignored; rebooking mid-sequence stops nudges.
 
-- [ ] **Unit 4: Attributed, forward-only retention metric + `result_viewed`**
+- [x] **Unit 4: Attributed, forward-only retention metric + `result_viewed`**
 
 **Goal:** The pilot measures *loop-caused* return, segmentable by prior-result engagement.
 
@@ -407,6 +407,19 @@ to the rebook-surface work, not blocking the nudge mechanism.
   Decisions/panel-diff view (one-line, fire-and-forget) so retention can later be
   segmented by Bet-B engagement
 - Test: stage resolution (attributed vs not; lapsed = non-return; backfill excluded), latency median
+
+**Execution note (deviation):** implemented as a **dedicated `src/lib/metrics/retest-retention.ts`
+module + report section**, NOT as an 8th `ACTIVATION_STAGES` stage. The activation
+funnel is a strictly sequential signup→retained chain whose "% of previous"
+assumes progression from signup; retest retention is a forward-baseline ratio, so
+appending it as a chained stage would compute a misleading "% of retained-7d". As
+a result `ACTIVATION_STAGES`/`activation-funnel-report.ts` are untouched (flag-off
+behaviour is trivially unchanged). The metric also distinguishes a **pending**
+bucket (baseline completed, retest not yet overdue) from **non-returned**
+(lapsed/overdue), and reports rates over the *resolved* denominator
+(returned + non-returned) so pending users don't deflate the early number.
+`result_viewed` fires via `<TrackMount>` at the panel-diff render on `/decisions`,
+gated on `RETEST_LOOP_ENABLED`.
 
 **Test scenarios:**
 - Two completed draws, second attributed `nudge` → counted; second `organic` → in total-retention but NOT nudge-attributed.
