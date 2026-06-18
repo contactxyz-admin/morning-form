@@ -22,7 +22,7 @@ import type { ImportanceTier } from '../graph/importance';
 import type { EdgeType, GraphEdgeWire, GraphNodeWire, GraphResponse } from '../../types/graph';
 import { deriveChange, latestReading } from './derive-change';
 import { evidenceGrade } from './evidence-grade';
-import { interpret } from '../markers/clinical-interpretation';
+import { interpret, isAuthoredMarker } from '../markers/clinical-interpretation';
 import { buildSourceView, type SourceView } from '../record/source-view';
 
 /** Pre-built per-node provenance lookup, used to feed NodeDetailSheet without an authed fetch. */
@@ -86,10 +86,13 @@ function nodeToWire(
   // authors a tone, so the ring can't contradict its cited source.
   const change = deriveChange(node.readings);
   // Consumer interpretation (the four CMO dimensions + flag) from the change +
-  // the latest reading's range (plan 2026-06-16-003). Only nodes with a change.
+  // the latest reading's range (plan 2026-06-16-003). Authored-only clinical
+  // judgement (plan 2026-06-17): only markers with a CMO-authored rule carry an
+  // interpretation/flag — an unreviewed marker shows its change (value/direction)
+  // but no inferred flag, so lack of review can't read as clinical urgency.
   const latest = latestReading(node.readings);
   const interpretation =
-    change && latest
+    change && latest && isAuthoredMarker(node.canonicalKey)
       ? interpret(node.canonicalKey, change, {
           value: latest.value,
           low: latest.referenceLow,

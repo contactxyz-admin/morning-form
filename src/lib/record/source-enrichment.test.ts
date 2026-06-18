@@ -49,6 +49,25 @@ describe('enrichGroundedNodes', () => {
     expect(row.change?.afterValue).toBe(145);
   });
 
+  it('resolves the AUTHORED interpretation via the join key, not the default', () => {
+    // registryKey-matched marker must resolve its authored rule (Medium–High),
+    // not fall through to DEFAULT_RULE (Low) — the interpret-by-joinKey fix.
+    const row = enrichGroundedNodes(
+      [node({ canonicalKey: 'ldl_cholesterol', attributes: { registryKey: 'ldl' } })],
+      diff([change({ joinKey: 'ldl' })]),
+    )[0];
+    expect(row.interpretation?.signalClarity).toBe('Medium–High');
+  });
+
+  it('shows change but NO interpretation for an unauthored marker (authored-only policy)', () => {
+    const row = enrichGroundedNodes(
+      [node({ canonicalKey: 'glucose', attributes: {} })],
+      diff([change({ joinKey: 'glucose' })]),
+    )[0];
+    expect(row.change?.afterValue).toBe(145); // value/direction still shown
+    expect(row.interpretation).toBeUndefined(); // no inferred flag
+  });
+
   it('leaves non-biomarker nodes name-only even on a key match', () => {
     const row = enrichGroundedNodes([node({ type: 'condition' })], diff([change()]))[0];
     expect(row.change).toBeUndefined();

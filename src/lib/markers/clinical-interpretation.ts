@@ -108,16 +108,32 @@ const DEFAULT_RULE: MarkerRule = {
 };
 
 /**
+ * Whether a marker has a CMO-authored interpretation rule (not the conservative
+ * fallback). Callers gate clinical flags on this — the policy is "no authored
+ * rule ⇒ no MorningForm clinical judgement" (plan 2026-06-17): an unreviewed
+ * marker shows value/direction + source, never an inferred flag. `hasOwnProperty`
+ * guard so a crafted `canonicalKey` like `__proto__`/`constructor` can't resolve
+ * to a prototype member (which would dodge the fallback and throw).
+ */
+export function isAuthoredMarker(canonicalKey: string): boolean {
+  return Object.prototype.hasOwnProperty.call(MATRIX, canonicalKey);
+}
+
+/**
  * Interpret a marker's change into the four consumer dimensions + flag.
  * `latest` carries the most recent value + its reference range (the change
  * itself doesn't store the range). Unknown markers use the conservative default.
+ * Callers that enforce the authored-only policy gate on `isAuthoredMarker` first;
+ * the `DEFAULT_RULE` fallback remains for any direct caller.
  */
 export function interpret(
   canonicalKey: string,
   change: NodeChangeWire,
   latest: { value: number; low: number | null; high: number | null },
 ): NodeInterpretation {
-  const rule = MATRIX[canonicalKey as AuthoredKey] ?? DEFAULT_RULE;
+  const rule = isAuthoredMarker(canonicalKey)
+    ? (MATRIX[canonicalKey as AuthoredKey] as MarkerRule)
+    : DEFAULT_RULE;
   const ctx: Ctx = { change, value: latest.value, low: latest.low, high: latest.high };
   return {
     whereItIsNow: rule.whereItIsNow ? rule.whereItIsNow(ctx) : positionLabel(ctx),

@@ -146,7 +146,7 @@ function GroundedRow({
           </span>
         )}
       </span>
-      {flag && (
+      {flag ? (
         <span
           className={cn(
             'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
@@ -155,7 +155,15 @@ function GroundedRow({
         >
           {FLAG_PRESENTATION[flag].label}
         </span>
-      )}
+      ) : change ? (
+        // Authored-only clinical judgement (plan 2026-06-17): a changed marker
+        // with no CMO-authored rule shows its value/direction but NO inferred
+        // flag — a neutral "not reviewed" state, so absence of review never reads
+        // as clinical urgency. Flags are reserved for authored rules.
+        <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em] text-text-tertiary">
+          Not yet reviewed
+        </span>
+      ) : null}
     </>
   );
 

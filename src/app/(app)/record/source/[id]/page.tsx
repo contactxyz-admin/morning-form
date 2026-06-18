@@ -147,13 +147,10 @@ function SourceBody({ data }: { data: SourceView }) {
       <div className="mt-12 rise">
         <SourceDetailBody
           sourceView={data}
-          grounded={data.referencedNodes.map((n) => ({
-            id: n.id,
-            displayName: n.displayName,
-            canonicalKey: n.canonicalKey,
-            change: n.change,
-            interpretation: n.interpretation,
-          }))}
+          // `referencedNodes` is a structural superset of SourceGroundedMarker
+          // (it also carries `type`), so it satisfies the prop directly — no
+          // field-by-field re-projection.
+          grounded={data.referencedNodes}
           onSelectNode={(m) => {
             // canonicalKey is always present on authed referenced nodes; guard
             // so a missing key never navigates to an empty `?entity=`.
