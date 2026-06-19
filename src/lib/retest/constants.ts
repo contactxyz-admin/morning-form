@@ -37,13 +37,20 @@ export const RETEST_NUDGE_ATTRIBUTION_WINDOW_DAYS = 30;
 export const RETEST_LAPSE_GRACE_DAYS = 14;
 
 /**
+ * Minimum days between two nudges to the same draw. After a cron outage several
+ * offsets can come due at once; this preserves spacing so the member never gets
+ * the whole sequence in a rapid burst.
+ */
+export const RETEST_NUDGE_MIN_GAP_DAYS = 7;
+
+/**
  * Lab panels completing within this many days of an existing completed draw
  * attach to it — one clinic visit, possibly several PDFs, is one draw event,
  * not many. The mirror-fix to the multi-date-panel ambiguity.
  */
 export const DRAW_DEDUP_WINDOW_DAYS = 14;
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+export const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
  * Add whole days to a date. Pure millisecond arithmetic — sufficient for the

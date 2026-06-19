@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
-import { getTestPrisma, makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
+import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { backfillBaselineDrawForUser } from './backfill';
 import { computeRetestRetention } from '@/lib/metrics/retest-retention';
 

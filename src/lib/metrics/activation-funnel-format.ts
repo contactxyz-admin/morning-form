@@ -211,6 +211,7 @@ export function formatRetestRetention(r: RetestRetentionReport): string {
     `  Nudge-attributed retention: ${pctStr(r.nudgeAttributedRetentionPct)} (${r.nudgeAttributedReturned}/${r.resolvedDenominator})`,
     `  Total retention: ${pctStr(r.totalRetentionPct)} (${r.returned}/${r.resolvedDenominator})`,
     `  Pending (no chance yet, excluded): ${r.pending}  ·  Non-returned (lapsed/overdue): ${r.nonReturned}`,
+    // Second draws are never `baseline`/`backfill` (those are seq-1 only), so the mix line omits them.
     `  Second-draw attribution: nudge ${mix.nudge}, organic ${mix.organic}, ops ${mix.ops}, clinician ${mix.clinician}`,
     `  Median nudge→rebook latency: ${r.medianNudgeToRebookDays === null ? '—' : `${r.medianNudgeToRebookDays}d`}`,
   ].join('\n');

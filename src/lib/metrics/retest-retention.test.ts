@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
-import { getTestPrisma, makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
+import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { addDays } from '@/lib/retest/constants';
 import { computeRetestRetention } from './retest-retention';
 import { formatRetestRetention } from './activation-funnel-format';

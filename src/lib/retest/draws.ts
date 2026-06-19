@@ -20,12 +20,11 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import {
   DRAW_DEDUP_WINDOW_DAYS,
+  MS_PER_DAY,
   RETEST_NUDGE_ATTRIBUTION_WINDOW_DAYS,
   addDays,
   nextRetestDate,
 } from './constants';
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** How a completed draw came about — drives nudge-attributed (loop-caused) retention. */
 export type DrawAttribution = 'baseline' | 'nudge' | 'organic' | 'ops' | 'clinician' | 'backfill';
@@ -65,7 +64,10 @@ export function computeAttribution(
 }
 
 function isUniqueSequenceConflict(err: unknown): boolean {
-  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== 'P2002') return false;
+  // Only retry on the [userId, sequence] conflict — not some unrelated unique
+  // violation, which retrying would merely spin on and then rethrow.
+  return JSON.stringify(err.meta?.target ?? '').includes('sequence');
 }
 
 /**
@@ -107,6 +109,16 @@ async function completeInTx(
   sourceDocumentId: string,
   drawAt: Date,
 ): Promise<CompleteDrawResult> {
+  // Serialize per-user draw writes for the rest of this transaction. Without
+  // this, two concurrent same-visit ingests under READ COMMITTED both miss the
+  // dedup read (neither sees the other's uncommitted draw) and create two draws
+  // for one visit; likewise two completions could leave two open scheduled
+  // draws. The advisory lock is transaction-scoped (auto-released on commit/
+  // rollback) and keyed on the userId hash, so it only serializes same-user work.
+  // $executeRaw (not $queryRaw): pg_advisory_xact_lock returns `void`, which
+  // $queryRaw cannot deserialize; $executeRaw runs it without mapping columns.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId})::bigint)`;
+
   // 1. Same-visit dedup.
   const recentCompleted = await tx.draw.findFirst({
     where: {

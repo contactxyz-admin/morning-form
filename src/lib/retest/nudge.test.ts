@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
-import { getTestPrisma, makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
+import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { addDays } from './constants';
 import { buildRetestNudgeEmail } from './nudge-email';
 import { decideNudgeAction, runRetestNudges, type NudgeSender } from './nudge';
@@ -19,41 +19,51 @@ const SCHEDULED = new Date('2026-04-01T00:00:00.000Z');
 
 describe('decideNudgeAction (pure)', () => {
   it('sends nudge #1 once scheduledFor is reached, skips before', () => {
-    expect(decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 0 }, addDays(SCHEDULED, -1))).toEqual({
-      kind: 'skip',
-    });
-    expect(decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 0 }, SCHEDULED)).toMatchObject({
-      kind: 'send',
-      offsetIndex: 0,
-    });
+    expect(
+      decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 0, lastNudgedAt: null }, addDays(SCHEDULED, -1)),
+    ).toEqual({ kind: 'skip' });
+    expect(
+      decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 0, lastNudgedAt: null }, SCHEDULED),
+    ).toMatchObject({ kind: 'send', offsetIndex: 0 });
   });
 
   it('paces later nudges to their offsets (+7d, +21d)', () => {
-    expect(decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 1 }, addDays(SCHEDULED, 6))).toEqual({
-      kind: 'skip',
-    });
-    expect(decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 1 }, addDays(SCHEDULED, 7))).toMatchObject({
-      kind: 'send',
-      offsetIndex: 1,
-    });
-    expect(decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 2 }, addDays(SCHEDULED, 21))).toMatchObject({
-      kind: 'send',
-      offsetIndex: 2,
-    });
+    expect(
+      decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 1, lastNudgedAt: SCHEDULED }, addDays(SCHEDULED, 6)),
+    ).toEqual({ kind: 'skip' });
+    expect(
+      decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 1, lastNudgedAt: SCHEDULED }, addDays(SCHEDULED, 7)),
+    ).toMatchObject({ kind: 'send', offsetIndex: 1 });
+    expect(
+      decideNudgeAction(
+        { scheduledFor: SCHEDULED, nudgeCount: 2, lastNudgedAt: addDays(SCHEDULED, 7) },
+        addDays(SCHEDULED, 21),
+      ),
+    ).toMatchObject({ kind: 'send', offsetIndex: 2 });
+  });
+
+  it('honours the minimum gap after a late catch-up (no rapid-fire)', () => {
+    // offset[1] (+7) is due at S+7, but the prior nudge went out late at S+4, so
+    // the 7-day min gap blocks the next send until S+11.
+    const draw = { scheduledFor: SCHEDULED, nudgeCount: 1, lastNudgedAt: addDays(SCHEDULED, 4) };
+    expect(decideNudgeAction(draw, addDays(SCHEDULED, 7))).toEqual({ kind: 'skip' });
+    expect(decideNudgeAction(draw, addDays(SCHEDULED, 11))).toMatchObject({ kind: 'send', offsetIndex: 1 });
   });
 
   it('lapses only after the final offset + grace; skips during the grace', () => {
     // offsets [0,7,21] exhausted; grace 14 → lapse at +35d.
-    expect(decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 3 }, addDays(SCHEDULED, 34))).toEqual({
-      kind: 'skip',
-    });
-    expect(decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 3 }, addDays(SCHEDULED, 35))).toEqual({
-      kind: 'lapse',
-    });
+    expect(
+      decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 3, lastNudgedAt: addDays(SCHEDULED, 21) }, addDays(SCHEDULED, 34)),
+    ).toEqual({ kind: 'skip' });
+    expect(
+      decideNudgeAction({ scheduledFor: SCHEDULED, nudgeCount: 3, lastNudgedAt: addDays(SCHEDULED, 21) }, addDays(SCHEDULED, 35)),
+    ).toEqual({ kind: 'lapse' });
   });
 
   it('skips a draw with no scheduledFor', () => {
-    expect(decideNudgeAction({ scheduledFor: null, nudgeCount: 0 }, SCHEDULED)).toEqual({ kind: 'skip' });
+    expect(decideNudgeAction({ scheduledFor: null, nudgeCount: 0, lastNudgedAt: null }, SCHEDULED)).toEqual({
+      kind: 'skip',
+    });
   });
 });
 

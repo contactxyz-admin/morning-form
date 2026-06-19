@@ -12,7 +12,12 @@
  */
 
 import type { PrismaClient } from '@prisma/client';
-import { RETEST_LAPSE_GRACE_DAYS, RETEST_NUDGE_OFFSETS_DAYS, addDays } from './constants';
+import {
+  RETEST_LAPSE_GRACE_DAYS,
+  RETEST_NUDGE_MIN_GAP_DAYS,
+  RETEST_NUDGE_OFFSETS_DAYS,
+  addDays,
+} from './constants';
 
 export type NudgeDecision =
   | { kind: 'send'; offsetIndex: number; dueAt: Date }
@@ -23,6 +28,8 @@ interface NudgeableDraw {
   scheduledFor: Date | null;
   /** Number of nudges already sent (0 = none yet). */
   nudgeCount: number;
+  /** When the last nudge was sent (null = none yet). */
+  lastNudgedAt: Date | null;
 }
 
 /**
@@ -46,8 +53,17 @@ export function decideNudgeAction(draw: NudgeableDraw, now: Date): NudgeDecision
   }
 
   const dueAt = addDays(draw.scheduledFor, offsets[sent]);
-  if (now.getTime() >= dueAt.getTime()) return { kind: 'send', offsetIndex: sent, dueAt };
-  return { kind: 'skip' };
+  if (now.getTime() < dueAt.getTime()) return { kind: 'skip' };
+  // Preserve spacing after a cron outage: if several offsets came due at once,
+  // never send within the minimum gap of the previous nudge — the next run
+  // catches up one step at a time instead of bursting the whole sequence.
+  if (
+    draw.lastNudgedAt &&
+    now.getTime() < addDays(draw.lastNudgedAt, RETEST_NUDGE_MIN_GAP_DAYS).getTime()
+  ) {
+    return { kind: 'skip' };
+  }
+  return { kind: 'send', offsetIndex: sent, dueAt };
 }
 
 export interface NudgeRecipient {
@@ -106,6 +122,7 @@ export async function runRetestNudges(
       id: true,
       scheduledFor: true,
       nudgeCount: true,
+      lastNudgedAt: true,
       user: {
         select: { id: true, email: true, name: true, preferences: { select: { notifyRetest: true } } },
       },

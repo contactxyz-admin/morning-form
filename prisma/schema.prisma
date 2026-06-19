@@ -908,7 +908,10 @@ model Draw {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  // The cron query: open scheduled draws due for a nudge.
+  // The cron query: open scheduled draws due for a nudge. The global (all-users)
+  // cron filters status + scheduledFor with no userId, so it needs a
+  // userId-leading-free index; the userId-leading one serves per-user lookups.
+  @@index([status, scheduledFor])
   @@index([userId, status, scheduledFor])
   // Unique completed ordinal per user (multiple NULLs allowed → many scheduled
   // draws coexist); the race guard for sequence assignment in U2.

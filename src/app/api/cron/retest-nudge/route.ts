@@ -9,6 +9,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
 import { runRetestNudges } from '@/lib/retest/nudge';
@@ -16,14 +17,24 @@ import { sendRetestNudgeEmail } from '@/lib/retest/nudge-email';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Constant-time bearer check (mirrors src/app/api/booking/ops/status/route.ts).
+ * A missing CRON_SECRET fails closed — every request is rejected.
+ */
+function authorized(req: Request): boolean {
+  if (!env.CRON_SECRET) return false;
+  const header = req.headers.get('authorization') ?? '';
+  const expected = Buffer.from(`Bearer ${env.CRON_SECRET}`);
+  const actual = Buffer.from(header);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
 export async function GET(req: Request): Promise<Response> {
   if (env.RETEST_LOOP_ENABLED !== 'true') {
     return NextResponse.json({ error: 'Not found.' }, { status: 404 });
   }
 
-  // Secret-gated. A missing CRON_SECRET fails closed (every request → 401).
-  const auth = req.headers.get('authorization');
-  if (!env.CRON_SECRET || auth !== `Bearer ${env.CRON_SECRET}`) {
+  if (!authorized(req)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 

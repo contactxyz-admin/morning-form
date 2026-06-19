@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
-import { getTestPrisma, makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
+import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { completeDrawForSourceDocument } from './draws';
 
 let prisma: PrismaClient;
@@ -117,5 +117,26 @@ describe('completeDrawForSourceDocument', () => {
       select: { sequence: true },
     });
     expect(completed.map((d) => d.sequence)).toEqual([1, 2]);
+    // The "exactly one open scheduled draw" invariant survives concurrency.
+    expect(await prisma.draw.count({ where: { userId, status: 'scheduled' } })).toBe(1);
+  });
+
+  it('concurrent SAME-visit ingests dedup to one draw (advisory lock serializes)', async () => {
+    const userId = await makeTestUser(prisma, 'draw-race-samevisit');
+    const dA = new Date('2026-01-01T00:00:00.000Z');
+    const dB = new Date('2026-01-04T00:00:00.000Z'); // 3 days → within the dedup window
+    const [docA, docB] = await Promise.all([makeDoc(userId, dA), makeDoc(userId, dB)]);
+
+    await Promise.all([
+      completeDrawForSourceDocument(prisma, userId, docA, dA),
+      completeDrawForSourceDocument(prisma, userId, docB, dB),
+    ]);
+
+    // Without per-user serialization both would miss dedup and create two draws.
+    expect(await prisma.draw.count({ where: { userId, status: 'completed' } })).toBe(1);
+    expect(await prisma.draw.count({ where: { userId, status: 'scheduled' } })).toBe(1);
+    // Both panels are linked to the single completed draw.
+    const baseline = await prisma.draw.findFirstOrThrow({ where: { userId, status: 'completed' } });
+    expect(await prisma.sourceDocument.count({ where: { drawId: baseline.id } })).toBe(2);
   });
 });

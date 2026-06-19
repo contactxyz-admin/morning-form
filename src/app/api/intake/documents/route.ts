@@ -286,7 +286,11 @@ export async function POST(req: Request) {
         const draw = await completeDrawForSourceDocument(prisma, user.id, persisted.documentId, capturedAt);
         if (!draw.deduped && draw.sequence !== undefined) {
           await writeFunnelEvent(prisma, {
-            funnelId: `draw-${user.id}`,
+            // Opaque per-draw funnelId (not the user's id) — keeps the funnel
+            // stream pseudonymous; userId carries attribution and is nulled on
+            // erasure. The draw id is a random cuid with no standing link once
+            // the Draw row is deleted.
+            funnelId: draw.drawId,
             userId: user.id,
             event: FUNNEL_EVENTS.DRAW_COMPLETED,
             properties: { sequence: draw.sequence, attribution: draw.attribution },

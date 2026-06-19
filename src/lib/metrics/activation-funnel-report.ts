@@ -15,6 +15,7 @@ import {
   type StageKey,
   type StageReachMap,
 } from './activation-funnel';
+import { percentile, round1, round2 } from './stats';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -198,27 +199,3 @@ function deltasInDays(
   return out;
 }
 
-/**
- * Simple sorted-midpoint percentile. For p=0.5 and even-sized input, returns
- * the mean of the two middle values. For odd-sized input, returns the middle
- * value. Good enough for a diagnostic read; no stats library needed.
- */
-function percentile(values: number[], p: number): number {
-  if (values.length === 0) throw new Error('percentile called on empty array');
-  const sorted = [...values].sort((a, b) => a - b);
-  if (sorted.length === 1) return sorted[0];
-  const rank = p * (sorted.length - 1);
-  const lo = Math.floor(rank);
-  const hi = Math.ceil(rank);
-  if (lo === hi) return sorted[lo];
-  const weight = rank - lo;
-  return sorted[lo] * (1 - weight) + sorted[hi] * weight;
-}
-
-function round1(x: number): number {
-  return Math.round(x * 10) / 10;
-}
-
-function round2(x: number): number {
-  return Math.round(x * 100) / 100;
-}

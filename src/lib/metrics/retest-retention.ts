@@ -26,10 +26,9 @@
  */
 
 import type { Db } from './activation-funnel';
-import { RETEST_LAPSE_GRACE_DAYS, RETEST_NUDGE_OFFSETS_DAYS } from '@/lib/retest/constants';
+import { median, round1, round2 } from './stats';
+import { MS_PER_DAY, RETEST_LAPSE_GRACE_DAYS, RETEST_NUDGE_OFFSETS_DAYS } from '@/lib/retest/constants';
 import type { DrawAttribution } from '@/lib/retest/draws';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Days after a scheduled draw's `scheduledFor` at which — absent a completion —
@@ -137,7 +136,11 @@ export async function computeRetestRetention(
       if (attr === 'nudge') {
         nudgeAttributedReturned++;
         if (second.lastNudgedAt && second.completedAt) {
-          latencies.push((second.completedAt.getTime() - second.lastNudgedAt.getTime()) / DAY_MS);
+          const latency = (second.completedAt.getTime() - second.lastNudgedAt.getTime()) / MS_PER_DAY;
+          // Guard against a negative latency from out-of-order/manual data
+          // (the attribution path already enforces days >= 0; the metric must
+          // too, so the median can't be poisoned).
+          if (latency >= 0) latencies.push(latency);
         }
       }
       return;
@@ -151,7 +154,7 @@ export async function computeRetestRetention(
     } else if (
       scheduled &&
       scheduled.scheduledFor &&
-      (now.getTime() - scheduled.scheduledFor.getTime()) / DAY_MS >= RETEST_OVERDUE_DAYS
+      (now.getTime() - scheduled.scheduledFor.getTime()) / MS_PER_DAY >= RETEST_OVERDUE_DAYS
     ) {
       nonReturned++; // overdue beyond the lapse point → confirmed non-return
     } else {
@@ -183,18 +186,4 @@ function normalizeAttribution(value: string | null): DrawAttribution {
 function pct(numerator: number, denominator: number): number | null {
   if (denominator === 0) return null;
   return round1((numerator / denominator) * 100);
-}
-
-function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-}
-
-function round1(x: number): number {
-  return Math.round(x * 10) / 10;
-}
-
-function round2(x: number): number {
-  return Math.round(x * 100) / 100;
 }
