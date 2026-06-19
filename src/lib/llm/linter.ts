@@ -33,6 +33,8 @@
  * with a remedial prompt), false negatives are not (regulatory exposure).
  */
 
+import { MEDICATION_DENYLIST } from '@/lib/compliance/drug-denylist';
+
 export type LintSurface = 'topic' | 'brief' | 'gp_prep' | 'extraction';
 
 export type LintRule =
@@ -72,59 +74,14 @@ export interface LintResult {
 }
 
 /**
- * Curated UK drug + supplement denylist. Covers common primary-care
- * prescriptions (BNF top-50 slice) plus the supplements users commonly
- * ask about in intake. Expressed as case-insensitive word-boundary
- * patterns; extended families use explicit alternations.
+ * Curated UK drug + supplement denylist — the canonical `MEDICATION_DENYLIST`,
+ * now shared with the chat enforce path (src/lib/compliance/drug-denylist.ts)
+ * so the two user-facing surfaces can't drift (Plan 2026-06-19 fast-follow).
+ * Covers common primary-care prescriptions (BNF top-50 slice) plus the
+ * supplements users commonly ask about. Expanding it is a clinical decision —
+ * edit the shared module, and both surfaces pick it up.
  */
-const DRUG_DENYLIST: ReadonlyArray<{ name: string; pattern: RegExp }> = [
-  // Iron & blood
-  { name: 'ferrous sulfate',   pattern: /\bferrous\s+sulfate\b/i },
-  { name: 'ferrous sulphate',  pattern: /\bferrous\s+sulphate\b/i },
-  { name: 'ferrous fumarate',  pattern: /\bferrous\s+fumarate\b/i },
-  { name: 'ferrous gluconate', pattern: /\bferrous\s+gluconate\b/i },
-  { name: 'ferric maltol',     pattern: /\bferric\s+maltol\b/i },
-  { name: 'spatone',           pattern: /\bspatone\b/i },
-  // Diabetes & metabolic
-  { name: 'metformin',         pattern: /\bmetformin\b/i },
-  { name: 'gliclazide',        pattern: /\bgliclazide\b/i },
-  { name: 'ozempic',           pattern: /\bozempic\b/i },
-  { name: 'mounjaro',          pattern: /\bmounjaro\b/i },
-  { name: 'semaglutide',       pattern: /\bsemaglutide\b/i },
-  { name: 'tirzepatide',       pattern: /\btirzepatide\b/i },
-  // Thyroid & hormone
-  { name: 'levothyroxine',     pattern: /\blevothyroxine\b/i },
-  { name: 'liothyronine',      pattern: /\bliothyronine\b/i },
-  // Mental health
-  { name: 'sertraline',        pattern: /\bsertraline\b/i },
-  { name: 'fluoxetine',        pattern: /\bfluoxetine\b/i },
-  { name: 'citalopram',        pattern: /\bcitalopram\b/i },
-  { name: 'mirtazapine',       pattern: /\bmirtazapine\b/i },
-  // GI
-  { name: 'omeprazole',        pattern: /\bomeprazole\b/i },
-  { name: 'lansoprazole',      pattern: /\blansoprazole\b/i },
-  // Cardiovascular
-  { name: 'atorvastatin',      pattern: /\batorvastatin\b/i },
-  { name: 'simvastatin',       pattern: /\bsimvastatin\b/i },
-  { name: 'ramipril',          pattern: /\bramipril\b/i },
-  { name: 'lisinopril',        pattern: /\blisinopril\b/i },
-  { name: 'amlodipine',        pattern: /\bamlodipine\b/i },
-  { name: 'bisoprolol',        pattern: /\bbisoprolol\b/i },
-  { name: 'propranolol',       pattern: /\bpropranolol\b/i },
-  { name: 'atenolol',          pattern: /\batenolol\b/i },
-  { name: 'warfarin',          pattern: /\bwarfarin\b/i },
-  { name: 'apixaban',          pattern: /\bapixaban\b/i },
-  // Pain / OTC that still carries dose advice we should not give
-  { name: 'ibuprofen',         pattern: /\bibuprofen\b/i },
-  { name: 'paracetamol',       pattern: /\bparacetamol\b/i },
-  { name: 'codeine',           pattern: /\bcodeine\b/i },
-  // Supplements with named dose regimens
-  { name: 'vitamin D3 supplement', pattern: /\bvitamin\s*d3\b/i },
-  { name: 'vitamin B12 injection', pattern: /\bb12\s+injection(s)?\b/i },
-  { name: 'iron tablets',      pattern: /\biron\s+tablets?\b/i },
-  { name: 'iron supplement',   pattern: /\biron\s+supplements?\b/i },
-  { name: 'magnesium supplement', pattern: /\bmagnesium\s+supplements?\b/i },
-];
+const DRUG_DENYLIST = MEDICATION_DENYLIST;
 
 /**
  * Dosage patterns. Matches "14mg", "14 mg", "1000 IU", "50 mcg" etc.

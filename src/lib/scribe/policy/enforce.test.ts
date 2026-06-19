@@ -80,7 +80,10 @@ describe('enforce — out-of-scope routing', () => {
   it('routes a null / unknown judgmentKind out-of-scope', () => {
     const candidate = makeCandidate({
       judgmentKind: null,
-      output: 'Should I start iron supplements?',
+      // Scan-clean on-topic text so this isolates the judgment-kind gate.
+      // (A product-form phrase like "iron supplements" would now be caught by
+      // the shared medication denylist first and classify 'rejected'.)
+      output: 'How should I interpret this iron result?',
       sections: [
         { heading: 'Question', paragraphCount: 1, citationCount: 0 },
       ],

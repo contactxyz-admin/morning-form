@@ -2,14 +2,16 @@
  * Forbidden-phrase patterns shared across every per-topic policy.
  *
  * Three families:
- *   1. Drug-name tripwires — common OTC / prescription compounds a scribe
- *      must not name in an answer. The list is deliberately short; expanding
- *      requires product + clinical review. When a real drug name is needed
- *      (e.g., in a definition-lookup citation-surfacing), a different
- *      judgmentKind must be used and the scribe must route out-of-scope.
+ *   1. Drug/supplement names — the canonical `MEDICATION_DENYLIST` shared with
+ *      the topic-page linter (src/lib/compliance/drug-denylist.ts). One list,
+ *      two surfaces: a name added there is blocked on chat AND on the topic
+ *      page (Plan 2026-06-19 fast-follow — closes the scanner divergence). When
+ *      a real drug name is needed (e.g., in a definition-lookup
+ *      citation-surfacing), a different judgmentKind must be used and the scribe
+ *      must route out-of-scope.
  *   2. Dose strings — bare numeric-with-unit patterns. Used to catch
  *      "take 65mg X" and "200 mcg Y" phrasings even when the drug name
- *      itself slips the tripwire list.
+ *      itself slips the denylist.
  *   3. Imperative treatment verbs — second-person directive phrasings a
  *      specialist GP in conversation with a patient would avoid in favour
  *      of "you could discuss with your GP whether …".
@@ -23,23 +25,7 @@
  * the phrase itself.
  */
 
-const DRUG_TRIPWIRES: readonly RegExp[] = [
-  /\bferrous\s+sulfate\b/i,
-  /\bferrous\s+fumarate\b/i,
-  /\bferrous\s+gluconate\b/i,
-  /\biron\s+bisglycinate\b/i,
-  /\bmagnesium\s+(l-threonate|glycinate|citrate|oxide)\b/i,
-  /\bapigenin\b/i,
-  /\bmelatonin\b/i,
-  /\bl-?theanine\b/i,
-  /\bl-?tyrosine\b/i,
-  /\balpha-?gpc\b/i,
-  /\bmodafinil\b/i,
-  /\bsertraline\b/i,
-  /\bfluoxetine\b/i,
-  /\blevothyroxine\b/i,
-  /\bpropranolol\b/i,
-];
+import { MEDICATION_DENYLIST_PATTERNS } from '@/lib/compliance/drug-denylist';
 
 // Dose tripwire — "take 65mg", "200 mcg" — but NOT concentration readings
 // like "ferritin 12 μg/L". The `(?!\/)` negative lookahead excludes any
@@ -82,7 +68,7 @@ const DIETARY_DIRECTIVE_PATTERNS: readonly RegExp[] = [
 ];
 
 export const FORBIDDEN_PHRASE_PATTERNS: readonly RegExp[] = Object.freeze([
-  ...DRUG_TRIPWIRES,
+  ...MEDICATION_DENYLIST_PATTERNS,
   DOSE_PATTERN,
   ...IMPERATIVE_VERB_PATTERNS,
   ...DIETARY_DIRECTIVE_PATTERNS,
