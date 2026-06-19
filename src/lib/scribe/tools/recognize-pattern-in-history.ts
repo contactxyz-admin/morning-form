@@ -25,7 +25,21 @@
  */
 import { z } from 'zod';
 import { getTopicConfig } from '@/lib/topics/registry';
+import { env } from '@/lib/env';
+import { buildMarkerTrajectory } from '@/lib/markers/trajectory';
 import type { ToolContext, ToolHandler } from './types';
+
+/**
+ * Longitudinal-reads gate (mirrors `src/lib/markers/trajectory.ts`). When ON,
+ * the tool reads the user's **unified lab + wearable** history via
+ * `buildMarkerTrajectory` — so the scribe finally sees blood-marker trajectories
+ * (graph biomarker/observation nodes), not just wearable `HealthDataPoint`s.
+ * When OFF, the tool keeps its pre-existing wearable-only behaviour byte-for-byte.
+ * `process.env` first is the repo's test seam.
+ */
+function longitudinalReadsEnabled(): boolean {
+  return (process.env.LONGITUDINAL_GRAPH_ENABLED ?? env.LONGITUDINAL_GRAPH_ENABLED) === 'true';
+}
 
 export const recognizePatternInHistorySchema = z.object({
   metrics: z.array(z.string().min(1).max(64)).min(1).max(12),
@@ -74,7 +88,7 @@ export const recognizePatternInHistoryHandler: ToolHandler<
 > = {
   name: 'recognize_pattern_in_history',
   description:
-    'Summarise the user\'s own recent data (check-ins + wearable data points) for the given metrics over a bounded window. Returns counts and first/last/average so the scribe can reason about direction against the user\'s own baseline.',
+    "Summarise the user's own recent data (check-ins, wearable data points, and lab/blood-marker results) for the given metrics. Returns counts and first/last/average so the scribe can reason about direction against the user's own baseline. Request lab markers by name (e.g. \"ferritin\") to see their trajectory across panels.",
   parameters: recognizePatternInHistorySchema,
   async execute(ctx: ToolContext, args: RecognizePatternInHistoryArgs) {
     const windowDays = args.windowDays ?? DEFAULT_PATTERN_WINDOW_DAYS;
@@ -98,6 +112,12 @@ export const recognizePatternInHistoryHandler: ToolHandler<
         checkInCount: 0,
         series: [],
       };
+    }
+
+    // Longitudinal ON → unified lab + wearable history (the scribe sees bloods,
+    // not just wearables). OFF → the wearable-only path below, unchanged.
+    if (longitudinalReadsEnabled()) {
+      return buildUnifiedDigest(ctx, topicMetrics, windowDays);
     }
 
     const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
@@ -186,3 +206,74 @@ export const recognizePatternInHistoryHandler: ToolHandler<
     return { status: 'ok', windowDays, metrics, checkInCount, series };
   },
 };
+
+/**
+ * Unified lab + wearable digest (LONGITUDINAL_GRAPH_ENABLED path).
+ *
+ * Builds each on-topic metric's series via `buildMarkerTrajectory`, which merges
+ * dated lab biomarker/observation nodes with wearable points (unit-reconciled,
+ * same-day-deduped, capped to the most-recent ~24). This is what lets the scribe
+ * reason over blood-marker trajectories — invisible to the wearable-only path.
+ *
+ * Differences from the wearable-only path, by design:
+ *   - "too-little-data" is judged on the UNIFIED point count, so a user with lab
+ *     history but sparse wearables is no longer bailed before their bloods are seen.
+ *   - The series is most-recent-N across all time rather than time-windowed —
+ *     lab panels are sparse (quarterly), so a fixed day window would hide the
+ *     trend. `windowDays` still bounds the check-in count and is echoed back.
+ */
+async function buildUnifiedDigest(
+  ctx: ToolContext,
+  topicMetrics: string[],
+  windowDays: number,
+): Promise<RecognizePatternInHistoryResult> {
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+
+  // Safety bound: cap the wearable rows buildMarkerTrajectory will materialise
+  // (it reads all-time, then caps). Lab nodes are few (quarterly), so the
+  // HealthDataPoint count is the materialisation risk to gate on.
+  const [dataCount, checkInCount] = await Promise.all([
+    ctx.db.healthDataPoint.count({ where: { userId: ctx.userId, metric: { in: topicMetrics } } }),
+    ctx.db.checkIn.count({ where: { userId: ctx.userId, createdAt: { gte: since } } }),
+  ]);
+  if (dataCount + checkInCount > PATTERN_ROW_SAFETY_THRESHOLD) {
+    return { status: 'too-much-data', windowDays, metrics: [], checkInCount, series: [] };
+  }
+
+  const seriesByMetric = await Promise.all(
+    topicMetrics.map((m) =>
+      buildMarkerTrajectory(ctx.db, ctx.userId, m, { maxPoints: MAX_SERIES_POINTS }),
+    ),
+  );
+
+  const totalPoints = seriesByMetric.reduce((n, s) => n + s.length, 0);
+  if (totalPoints < 3) {
+    return { status: 'too-little-data', windowDays, metrics: [], checkInCount, series: [] };
+  }
+
+  const metrics: MetricSeries[] = topicMetrics.map((m, i) => {
+    const newestFirst = seriesByMetric[i];
+    if (newestFirst.length === 0) {
+      return { metric: m, count: 0, first: null, last: null, average: null };
+    }
+    const asc = [...newestFirst].reverse(); // oldest-first for first/last
+    const sum = asc.reduce((acc, p) => acc + p.value, 0);
+    const oldest = asc[0];
+    const latest = asc[asc.length - 1];
+    return {
+      metric: m,
+      count: asc.length,
+      first: { value: oldest.value, unit: oldest.unit, timestamp: oldest.timestamp },
+      last: { value: latest.value, unit: latest.unit, timestamp: latest.timestamp },
+      average: sum / asc.length,
+    };
+  });
+
+  // One bounded, most-recent-first series across all requested metrics.
+  const series = seriesByMetric
+    .flat()
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+    .slice(0, MAX_SERIES_POINTS);
+
+  return { status: 'ok', windowDays, metrics, checkInCount, series };
+}

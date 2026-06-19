@@ -113,7 +113,7 @@ exports[`POST /api/mcp — tools/list wire contract > returns the canonical tool
     "name": "list_graph_index",
   },
   {
-    "description": "Summarise the user's own recent data (check-ins + wearable data points) for the given metrics over a bounded window. Returns counts and first/last/average so the scribe can reason about direction against the user's own baseline.",
+    "description": "Summarise the user's own recent data (check-ins, wearable data points, and lab/blood-marker results) for the given metrics. Returns counts and first/last/average so the scribe can reason about direction against the user's own baseline. Request lab markers by name (e.g. "ferritin") to see their trajectory across panels.",
     "execution": {
       "taskSupport": "forbidden",
     },
