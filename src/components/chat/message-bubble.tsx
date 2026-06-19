@@ -169,11 +169,11 @@ function OutOfScopeBubble({ content, pending }: { content: string; pending?: boo
         )}
       >
         <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary mb-2">
-          Not my specialty — yet
+          Worth a clinician conversation
         </p>
         <p>
           {content ||
-            "I'm not the right specialist for that yet — here's how to raise it with your GP."}
+            "That's one to take to your clinician — I've turned it into a prompt you can bring."}
         </p>
       </div>
     </div>

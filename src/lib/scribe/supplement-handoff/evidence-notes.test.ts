@@ -21,8 +21,11 @@ const reviewed = (over: Partial<EvidenceNote> = {}): EvidenceNote => ({
 });
 
 describe('supplement-handoff evidence notes', () => {
-  it('the seeded sleep-supplement note is UNREVIEWED — nothing surfaces until clinician sign-off (lands dark)', () => {
-    expect(resolveEvidenceNote('sleep-supplement')).toBeNull();
+  it('the seeded sleep-supplement note is clinician-reviewed and resolves (live)', () => {
+    const note = resolveEvidenceNote('sleep-supplement');
+    expect(note).not.toBeNull();
+    expect(note?.category).toBe('sleep-supplement');
+    expect(note?.note).toMatch(/clinician|pharmacist/i);
   });
 
   it('returns null for an unknown category', () => {

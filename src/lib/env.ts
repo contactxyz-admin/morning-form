@@ -93,16 +93,16 @@ const optional = {
   // Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`; the route refuses
   // anything else. Required (>=32 chars) in production when RETEST_LOOP_ENABLED.
   CRON_SECRET: process.env.CRON_SECRET ?? '',
-  // Clinician-mediated supplement handoff (Plan 2026-06-19-001 Unit 2). Off by
-  // default — lands the enriched `route_to_gp_prep` payload (curated, clinician-
-  // reviewed evidence context for supplement/medication questions) DARK. Off =
-  // `route_to_gp_prep` behaves byte-for-byte as before (no evidence note
-  // attached). The flag is necessary but NOT sufficient: each note must also be
-  // clinician-reviewed AND scan-clean (see scribe/supplement-handoff/
-  // evidence-notes.ts), so flipping the flag before the library is signed off
-  // surfaces nothing. No secret needed — the accountable-clinician gate is the
-  // `reviewedBy` field, not an env value.
-  SUPPLEMENT_HANDOFF_ENABLED: process.env.SUPPLEMENT_HANDOFF_ENABLED ?? '',
+  // Clinician-mediated supplement handoff (Plan 2026-06-19-001 Unit 2). LIVE
+  // (founder green-lit 2026-06-19) — defaults ON; set
+  // SUPPLEMENT_HANDOFF_ENABLED=false to use as a kill-switch. Enables the
+  // enriched `route_to_gp_prep` payload (curated, clinician-reviewed evidence
+  // context for supplement/medication questions). Still gated per-note: a note
+  // only surfaces if it is clinician-reviewed AND scan-clean (see
+  // scribe/supplement-handoff/evidence-notes.ts), so the flag alone can't leak
+  // unreviewed content. No secret needed — the accountable-clinician gate is
+  // the `reviewedBy` field, not an env value.
+  SUPPLEMENT_HANDOFF_ENABLED: process.env.SUPPLEMENT_HANDOFF_ENABLED ?? 'true',
 };
 
 export const env = {
