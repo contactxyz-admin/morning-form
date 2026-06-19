@@ -44,6 +44,16 @@ export const REFERRAL_DEPTH_VIOLATION =
 export const REFERRAL_TOPIC_VIOLATION =
   'refer_to_specialist cannot refer the general scribe to itself.';
 
+/**
+ * Surfaced in place of a child specialist's raw text when the child's output
+ * was classified `rejected` (a forbidden-phrase hit). The referral surface
+ * (`collectReferrals` → `ReferralChip`) renders `response` verbatim and does
+ * NOT gate on the child's classification, so the raw rejected text would
+ * otherwise reach the user. Descriptive + in-lane.
+ */
+export const REFERRAL_REJECTED_FALLBACK =
+  "This specialist's detailed reply was withheld for safety — the relevant points are worth raising with your clinician.";
+
 export const referToSpecialistSchema = z.object({
   specialtyKey: z.string().min(1).max(64),
   question: z.string().min(1).max(2000),
@@ -168,10 +178,21 @@ export const referToSpecialistHandler: ToolHandler<ReferToSpecialistArgs, ReferT
       signal: ctx.signal,
     });
 
+    // Safety net: a child whose output the forbidden-phrase scan rejected must
+    // never be surfaced raw. The referral surface renders `response` verbatim
+    // regardless of classification, so withhold the raw text and hand back a
+    // safe fallback (the parent scribe also builds on `response`, so this keeps
+    // a rejected drug/dose mention out of the parent's context too). Referral
+    // children run with declaredJudgmentKind=null, so `rejected` here always
+    // means a forbidden-phrase hit; the scan-clean case is `out-of-scope-routed`
+    // and is returned unchanged.
+    const response =
+      result.classification === 'rejected' ? REFERRAL_REJECTED_FALLBACK : result.output;
+
     return {
       status: 'core',
       specialtyKey: specialty.key,
-      response: result.output,
+      response,
       requestId: result.requestId,
       classification: result.classification,
     };
