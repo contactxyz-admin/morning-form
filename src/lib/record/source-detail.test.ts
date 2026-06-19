@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authorityLabel, flagRank } from './source-detail';
+import { authorityLabel, flagRank, groundedMarkerRank } from './source-detail';
 import { SOURCE_DOCUMENT_KINDS } from '@/lib/graph/types';
 
 describe('authorityLabel', () => {
@@ -28,5 +28,22 @@ describe('flagRank', () => {
     expect(flagRank('escalation')).toBeLessThan(flagRank('clinician_discussion'));
     expect(flagRank('clinician_discussion')).toBeLessThan(flagRank('attention'));
     expect(flagRank('attention')).toBeLessThan(flagRank(undefined));
+  });
+});
+
+describe('groundedMarkerRank', () => {
+  it('ranks an authored flag by its tier (matches flagRank)', () => {
+    expect(groundedMarkerRank('escalation', false)).toBe(flagRank('escalation'));
+    expect(groundedMarkerRank('attention', false)).toBe(flagRank('attention'));
+  });
+
+  it('floats a source-only flag above unflagged, below any authored tier', () => {
+    // A lab-flagged value surfaces above plain readings WITHOUT claiming a tier.
+    expect(groundedMarkerRank(undefined, true)).toBeLessThan(groundedMarkerRank(undefined, false));
+    expect(groundedMarkerRank('attention', false)).toBeLessThan(groundedMarkerRank(undefined, true));
+  });
+
+  it('an authored flag wins even when a source flag is also present', () => {
+    expect(groundedMarkerRank('clinician_discussion', true)).toBe(flagRank('clinician_discussion'));
   });
 });

@@ -16,7 +16,13 @@ import type { PanelDiff, MarkerChange } from '@/lib/markers/panel-diff';
 import { markerChangeToWire } from '@/lib/markers/node-change-map';
 import { markerJoinKey } from '@/lib/markers/marker-key';
 import { interpret, isAuthoredMarker } from '@/lib/markers/clinical-interpretation';
+import { deriveSourceAbnormality } from '@/lib/markers/source-abnormality';
 import type { SourceViewNodeRow } from './source-view';
+
+/** Read a finite number off a parsed-attributes value, else null. */
+function num(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
 
 export interface GroundedNodeInput {
   id: string;
@@ -50,10 +56,25 @@ export function enrichGroundedNodes(
       displayName: n.displayName,
       canonicalKey: n.canonicalKey,
     };
-    if (!usable || n.type !== 'biomarker') return base;
+    if (n.type !== 'biomarker') return base;
+
+    // Source-abnormality signal (plan 2026-06-18-002): the SOURCE's own
+    // out-of-range flag, relayed faithfully — derived from the concept node's
+    // `flaggedOutOfRange` attribute, INDEPENDENT of the longitudinal panel diff
+    // (it's the source's flag, not a diff), so a single-panel / flag-off record
+    // still surfaces a clearly-abnormal value rather than showing it neutral.
+    const sourceFlag = deriveSourceAbnormality(
+      n.attributes.flaggedOutOfRange === true,
+      num(n.attributes.value) ?? num(n.attributes.latestValue),
+      num(n.attributes.referenceRangeLow),
+      num(n.attributes.referenceRangeHigh),
+    );
+    const withFlag: SourceViewNodeRow = sourceFlag ? { ...base, sourceFlag } : base;
+
+    if (!usable) return withFlag;
     const joinKey = markerJoinKey(n.canonicalKey, n.attributes.registryKey);
     const mc = mcByKey.get(joinKey);
-    if (!mc) return base;
+    if (!mc) return withFlag;
     const change = markerChangeToWire(mc);
     // Authored-only clinical judgement (plan 2026-06-17): show value/direction
     // for every changed biomarker, but attach an interpretation (the flag) ONLY
@@ -68,6 +89,6 @@ export function enrichGroundedNodes(
           high: mc.referenceHigh,
         })
       : undefined;
-    return { ...base, change, ...(interpretation ? { interpretation } : {}) };
+    return { ...withFlag, change, ...(interpretation ? { interpretation } : {}) };
   });
 }

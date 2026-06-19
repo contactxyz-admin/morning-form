@@ -18,8 +18,9 @@ import type { GraphNodeWire } from '@/types/graph';
 import type { SourceView } from '@/lib/record/source-view';
 import { SectionLabel } from '@/components/ui/section-label';
 import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
+import { SOURCE_ABNORMALITY_LABEL } from '@/lib/markers/source-abnormality';
 import { changeDirectionGlyph } from '@/lib/markers/change-presentation';
-import { authorityLabel, flagRank } from '@/lib/record/source-detail';
+import { authorityLabel, groundedMarkerRank } from '@/lib/record/source-detail';
 import { cn } from '@/lib/utils';
 
 /**
@@ -34,6 +35,8 @@ export interface SourceGroundedMarker {
   readonly canonicalKey?: string;
   readonly change?: GraphNodeWire['change'];
   readonly interpretation?: GraphNodeWire['interpretation'];
+  /** The source's own out-of-range flag, relayed faithfully (plan 2026-06-18-002). */
+  readonly sourceFlag?: GraphNodeWire['sourceFlag'];
 }
 
 interface Props {
@@ -51,7 +54,8 @@ export function SourceDetailBody({ sourceView, grounded, onSelectNode }: Props) 
   const authority = authorityLabel(sourceView.kind);
   const established = [...grounded].sort(
     (a, b) =>
-      flagRank(a.interpretation?.flag) - flagRank(b.interpretation?.flag) ||
+      groundedMarkerRank(a.interpretation?.flag, Boolean(a.sourceFlag)) -
+        groundedMarkerRank(b.interpretation?.flag, Boolean(b.sourceFlag)) ||
       a.displayName.localeCompare(b.displayName),
   );
 
@@ -132,6 +136,7 @@ function GroundedRow({
 }) {
   const change = marker.change;
   const flag = marker.interpretation?.flag;
+  const sourceFlag = marker.sourceFlag;
   const arrow = change?.direction ? changeDirectionGlyph(change.direction) : '';
 
   const inner = (
@@ -155,11 +160,24 @@ function GroundedRow({
         >
           {FLAG_PRESENTATION[flag].label}
         </span>
+      ) : sourceFlag ? (
+        // Source-abnormality safety net (plan 2026-06-18-002): the SOURCE's own
+        // out-of-range flag, relayed faithfully — so a clearly-abnormal value is
+        // never shown silently neutral. Visually distinct from the authored,
+        // colour-coded tiers (an outlined, neutral chip) and source-attributed,
+        // so it never reads as a MorningForm clinical judgement.
+        <span
+          title="Flagged out of range by the source — not a MorningForm assessment"
+          className="shrink-0 rounded-full border border-border-mid bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-text-secondary"
+        >
+          {SOURCE_ABNORMALITY_LABEL[sourceFlag.position]}
+        </span>
       ) : change ? (
         // Authored-only clinical judgement (plan 2026-06-17): a changed marker
-        // with no CMO-authored rule shows its value/direction but NO inferred
-        // flag — a neutral "not reviewed" state, so absence of review never reads
-        // as clinical urgency. Flags are reserved for authored rules.
+        // with no CMO-authored rule and no source flag shows its value/direction
+        // but NO inferred flag — a neutral "not reviewed" state, so absence of
+        // review never reads as clinical urgency. Flags are reserved for authored
+        // rules and faithfully-relayed source flags.
         <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.06em] text-text-tertiary">
           Not yet reviewed
         </span>

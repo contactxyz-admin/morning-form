@@ -40,6 +40,8 @@ export interface SourceViewNodeRow {
    */
   change?: GraphNodeWire['change'];
   interpretation?: GraphNodeWire['interpretation'];
+  /** The source's own out-of-range flag, relayed faithfully (plan 2026-06-18-002). */
+  sourceFlag?: GraphNodeWire['sourceFlag'];
 }
 
 export interface SourceViewInput {
@@ -69,6 +71,8 @@ export interface SourceViewReferencedNode {
   /** Optional grounded-marker decoration (plan 2026-06-17-003); see node row. */
   change?: GraphNodeWire['change'];
   interpretation?: GraphNodeWire['interpretation'];
+  /** The source's own out-of-range flag, relayed faithfully (plan 2026-06-18-002). */
+  sourceFlag?: GraphNodeWire['sourceFlag'];
 }
 
 export interface SourceView {
@@ -156,6 +160,7 @@ export function buildSourceView(input: SourceViewInput): SourceView {
       canonicalKey: n.canonicalKey,
       ...(n.change ? { change: n.change } : {}),
       ...(n.interpretation ? { interpretation: n.interpretation } : {}),
+      ...(n.sourceFlag ? { sourceFlag: n.sourceFlag } : {}),
     });
   }
   referencedNodes.sort((a, b) => a.displayName.localeCompare(b.displayName));

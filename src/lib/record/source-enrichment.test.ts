@@ -71,6 +71,48 @@ describe('enrichGroundedNodes', () => {
     expect(row.interpretation).toBeUndefined(); // no inferred flag
   });
 
+  it('relays the SOURCE flag for an unauthored, lab-flagged marker (the safety net)', () => {
+    // Vitamin D the lab marked out of range, no authored rule: no interpretation,
+    // but the source's own flag is relayed so it is never silently neutral.
+    const row = enrichGroundedNodes(
+      [
+        node({
+          canonicalKey: 'vitamin_d',
+          attributes: {
+            flaggedOutOfRange: true,
+            value: 20,
+            referenceRangeLow: 30,
+            referenceRangeHigh: 100,
+          },
+        }),
+      ],
+      diff([change({ joinKey: 'vitamin_d' })]),
+    )[0];
+    expect(row.interpretation).toBeUndefined(); // still no MorningForm judgement
+    expect(row.sourceFlag).toEqual({ flaggedOutOfRange: true, position: 'below' });
+    expect(row.change?.afterValue).toBe(145); // value/direction still shown
+  });
+
+  it('relays the source flag even with NO usable diff (single panel / flag off)', () => {
+    // The source flag is the source's own, not a longitudinal diff — it must show
+    // for a single-panel record where change/interpretation are withheld.
+    const row = enrichGroundedNodes(
+      [node({ canonicalKey: 'vitamin_d', attributes: { flaggedOutOfRange: true } })],
+      null,
+    )[0];
+    expect(row.sourceFlag).toEqual({ flaggedOutOfRange: true, position: 'out_of_range' });
+    expect(row.change).toBeUndefined();
+    expect(row.interpretation).toBeUndefined();
+  });
+
+  it('does not fabricate a source flag when the marker was not flagged', () => {
+    const row = enrichGroundedNodes(
+      [node({ canonicalKey: 'glucose', attributes: { value: 999, referenceRangeHigh: 100 } })],
+      diff([change({ joinKey: 'glucose' })]),
+    )[0];
+    expect(row.sourceFlag).toBeUndefined();
+  });
+
   it('leaves non-biomarker nodes name-only even on a key match', () => {
     const row = enrichGroundedNodes([node({ type: 'condition' })], diff([change()]))[0];
     expect(row.change).toBeUndefined();

@@ -18,6 +18,7 @@ import {
   changeDirectionGlyph,
 } from '@/lib/markers/change-presentation';
 import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
+import { SOURCE_ABNORMALITY_LABEL } from '@/lib/markers/source-abnormality';
 import type { TopicReference } from '@/lib/topics/node-topics';
 
 // Evidence grade → human label (plan 2026-06-16-002 R9). Distinguishes a
@@ -255,6 +256,7 @@ export function NodeDetailSheet({
                 <>
                   {node?.change && <ChangeSince node={node} />}
                   {node?.interpretation && <Interpretation node={node} />}
+                  {node?.sourceFlag && !node?.interpretation && <SourceFlagNote node={node} />}
                   <Attributes node={node} />
                   <Provenance state={state} />
                   {node && <AppearsIn nodeId={node.id} hydratedTopics={hydratedTopics} />}
@@ -374,6 +376,30 @@ function Interpretation({ node }: { node: GraphNodeWire }) {
           </div>
         ))}
       </dl>
+    </section>
+  );
+}
+
+// Source-abnormality safety net (plan 2026-06-18-002) — the SOURCE's own
+// out-of-range flag, relayed faithfully and source-attributed. Shown only when
+// there's no authored interpretation (which would already cover the value); the
+// outlined, neutral chip is visually distinct from the colour-coded authored
+// tiers so it never reads as a MorningForm clinical judgement.
+function SourceFlagNote({ node }: { node: GraphNodeWire }) {
+  const sf = node.sourceFlag;
+  if (!sf) return null;
+  return (
+    <section>
+      <SectionLabel>Flagged by the source</SectionLabel>
+      <div className="mt-3">
+        <span className="inline-flex rounded-full border border-border-mid bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-secondary">
+          {SOURCE_ABNORMALITY_LABEL[sf.position]}
+        </span>
+      </div>
+      <p className="mt-3 text-caption text-text-tertiary leading-relaxed">
+        This value was flagged out of range by the source itself — shown for tracking and discussion
+        with a clinician, not a MorningForm assessment.
+      </p>
     </section>
   );
 }
