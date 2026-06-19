@@ -58,7 +58,7 @@ import type { Referral, TurnEvent } from './types';
  * general scribe instead of falling back to a static string.
  */
 export const OUT_OF_SCOPE_FALLBACK =
-  "I can't answer that here — I've suggested a prompt for your GP instead.";
+  "That's one to raise with your clinician — I've suggested a prompt you can bring.";
 
 /**
  * Appended to the system prompt on a one-shot remedial retry when a chat turn

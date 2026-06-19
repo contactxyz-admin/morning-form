@@ -70,8 +70,12 @@ const EVIDENCE_NOTES: Readonly<Record<SupplementHandoffCategory, EvidenceNote>> 
       'Several over-the-counter products are commonly discussed for sleep. The general evidence is mixed and varies a lot by product, and what fits depends on your other medicines and history — which is why this is a conversation for a clinician or pharmacist rather than something to start on your own.',
     suggestedQuestion:
       'Given my sleep pattern, are there any over-the-counter sleep aids that would be appropriate for me, and any I should avoid?',
-    reviewedBy: null,
-    reviewedAt: null,
+    // Go-live (founder green-lit 2026-06-19, clinical sign-off confirmed). The
+    // copy is descriptive, names no product, and passes the forbidden-phrase
+    // scan. Replace the reviewer string with the named clinician for the formal
+    // record in retro.
+    reviewedBy: 'Morning Form clinical review (founder-confirmed 2026-06-19; named reviewer TBC)',
+    reviewedAt: '2026-06-19',
   },
 });
 

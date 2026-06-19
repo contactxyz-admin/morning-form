@@ -47,7 +47,7 @@ const BodySchema = z.object({
 });
 
 const FALLBACK_OUTPUT =
-  "I can't answer that here — I've suggested a prompt for your GP instead.";
+  "That's one to raise with your clinician — I've suggested a prompt you can bring.";
 
 // Runtime Explain operates on prose the user has already selected on their
 // topic page — the scribe's job is to contextualize that span against the
