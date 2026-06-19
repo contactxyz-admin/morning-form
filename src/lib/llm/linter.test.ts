@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildRemedialPrompt, lint, type LintContext } from './linter';
 import {
   ALL_FIXTURES,
+  CAUSAL_OVERCLAIM_VIOLATIONS,
   CLEAN_FIXTURES,
   CLINICAL_DIRECTIVE_VIOLATIONS,
   DIAGNOSTIC_CLAIM_VIOLATIONS,
@@ -61,6 +62,29 @@ describe('lint — diagnostic_claim rule', () => {
     const result = lint('You have hypothyroidism.', BRIEF_CONTEXT);
     expect(result.passed).toBe(false);
     expect(result.violations.some((v) => v.rule === 'diagnostic_claim')).toBe(true);
+  });
+});
+
+describe('lint — causal_overclaim rule', () => {
+  it.each(CAUSAL_OVERCLAIM_VIOLATIONS)('catches $id', (fx) => {
+    const result = lint(fx.text, TOPIC_CONTEXT);
+    expect(result.passed).toBe(false);
+    expect(result.violations.some((v) => v.rule === 'causal_overclaim')).toBe(true);
+  });
+
+  it('fires on brief surface too', () => {
+    const result = lint("We'll tell you what worked.", BRIEF_CONTEXT);
+    expect(result.violations.some((v) => v.rule === 'causal_overclaim')).toBe(true);
+  });
+
+  it('does NOT flag in-lane phrasing ("what changed", "worked out", "worth discussing")', () => {
+    for (const text of [
+      'Your results show what changed since your last test.',
+      'It worked out that we already held your earlier panel.',
+      'This is worth discussing with your clinician.',
+    ]) {
+      expect(lint(text, TOPIC_CONTEXT).violations.filter((v) => v.rule === 'causal_overclaim')).toHaveLength(0);
+    }
   });
 });
 

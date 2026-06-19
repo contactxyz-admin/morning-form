@@ -3,9 +3,10 @@
  *
  * IN-LANE by construction: descriptive register only. We MEASURE how markers
  * have moved and surface what is worth DISCUSSING with a clinician — never a
- * directive ("take…"), never a causal/efficacy claim ("what worked / cured").
- * This module lives under the static-copy scan root (`src/lib/retest`) so the
- * copy is held to the compliance guardrail like any other user-visible string.
+ * dosing/medication directive, and never a causal-efficacy claim. (This module
+ * lives under the static-copy scan root `src/lib/retest`, so its copy — comments
+ * included — is held to the compliance guardrail; hence no forbidden example
+ * phrases are quoted here.)
  */
 
 import { sendEmail } from '@/lib/auth/email';

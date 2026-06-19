@@ -40,6 +40,7 @@ export type LintRule =
   | 'dosage_unit'
   | 'clinical_directive'
   | 'diagnostic_claim'
+  | 'causal_overclaim'
   | 'tier_mismatch'
   | 'missing_citation'
   | 'citation_nodeid';
@@ -184,6 +185,47 @@ const DIAGNOSTIC_CLAIM_PATTERNS: ReadonlyArray<{ pattern: RegExp; label: string 
 ];
 
 /**
+ * Causal-overclaim / seductive-phrase patterns (Plan 2026-06-17-001 P0-3).
+ *
+ * These read as in-lane-violating even though they name no drug or dose: an
+ * efficacy claim on a self-experiment ("whether the change you made worked"),
+ * a cure claim ("cured your fatigue"), the prescriptive "the one thing to do",
+ * managed-care framing ("our clinicians decide what's next"), and the
+ * diagnosis-framed "what's wrong with you". The descriptive posture says "what
+ * moved / worth discussing", never "what worked / what's wrong" — so these are
+ * forbidden on every user-facing surface. Patterns are scoped to the offending
+ * constructions (bare "worked"/"the one" are fine) to limit false positives.
+ */
+const CAUSAL_OVERCLAIM_PATTERNS: ReadonlyArray<{ pattern: RegExp; label: string }> = [
+  {
+    pattern:
+      /\b(?:what|whether|if)\s+(?:the\s+|your\s+|that\s+|this\s+)?(?:change|thing|intervention|tweak|adjustment|protocol|supplement|step)\s+(?:you\s+(?:made|changed|tried|took)\s+)?(?:worked|cured|fixed)\b/i,
+    label: 'efficacy claim on a self-experiment ("whether the change worked")',
+  },
+  {
+    pattern: /\bwhat\s+(?:worked|fixed\s+it|cured\s+it|made\s+the\s+difference)\b/i,
+    label: 'attributing the outcome to a cause ("what worked")',
+  },
+  {
+    pattern: /\b(?:cured|reversed|healed)\s+(?:your|the|this|it)\b/i,
+    label: 'causal cure claim ("cured your …")',
+  },
+  {
+    pattern: /\bthe\s+one\s+thing\s+(?:to\s+do|you\s+(?:should|need\s+to|must|have\s+to)\s+do)\b/i,
+    label: 'prescriptive "the one thing to do" framing',
+  },
+  {
+    pattern:
+      /\b(?:our|the)\s+clinicians?\s+(?:decide|will\s+decide|determine|will\s+determine|choose|will\s+choose)\b/i,
+    label: 'managed-care framing ("our clinicians decide …")',
+  },
+  {
+    pattern: /\bwhat(?:'s|\s+is)\s+wrong\s+with\s+you\b/i,
+    label: 'diagnosis-framed "what\'s wrong with you"',
+  },
+];
+
+/**
  * Run the linter.
  *
  * @param output Plain text of the model output. For topic pages, pass the
@@ -245,6 +287,19 @@ export function lint(output: string, context: LintContext): LintResult {
       violations.push({
         rule: 'diagnostic_claim',
         message: `Diagnostic claim (${label}) is not permitted in user-facing output.`,
+        snippet: match[0],
+      });
+    }
+  }
+
+  // Causal-overclaim / seductive phrases — forbidden on every user-facing
+  // surface (the line the forbidden-phrase scan and the locked posture hold).
+  for (const { pattern, label } of CAUSAL_OVERCLAIM_PATTERNS) {
+    const match = pattern.exec(output);
+    if (match) {
+      violations.push({
+        rule: 'causal_overclaim',
+        message: `Causal/seductive phrasing (${label}) is not permitted — say what moved or what is worth discussing, not what "worked" or what is "wrong".`,
         snippet: match[0],
       });
     }
@@ -329,6 +384,8 @@ export function buildRemedialPrompt(result: LintResult): string {
     '- No dosage, quantity, frequency, or duration is stated.',
     '- No directive verbs (start/stop/take/increase/decrease) apply to medication or dose.',
     '- No sentence diagnoses the user ("you have …", "this is …").',
+    '- No causal/efficacy claim ("what worked", "the change cured/fixed it") — say what moved or what is worth discussing.',
+    '- No prescriptive "the one thing to do", no "our clinicians decide", no "what\'s wrong with you".',
     '- Each tier stays in its own lane.',
   );
   return lines.join('\n');

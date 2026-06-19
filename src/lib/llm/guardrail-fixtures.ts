@@ -21,6 +21,7 @@ export interface GuardrailFixture {
     | 'dosage_unit'
     | 'clinical_directive'
     | 'diagnostic_claim'
+    | 'causal_overclaim'
     | 'tier_mismatch';
   /** Why the fixture is shaped this way — helps future readers. */
   why: string;
@@ -181,11 +182,74 @@ export const TIER_MISMATCH_VIOLATIONS: readonly GuardrailFixture[] = [
   },
 ];
 
+export const CAUSAL_OVERCLAIM_VIOLATIONS: readonly GuardrailFixture[] = [
+  {
+    id: 'causal-whether-change-worked',
+    text: "At your retest you'll see whether the change you made worked.",
+    expected: 'violation',
+    expectedRule: 'causal_overclaim',
+    why: 'Efficacy claim on a self-experiment — n=1 causal overclaim the posture forbids.',
+  },
+  {
+    id: 'causal-what-worked',
+    text: "We'll show you what worked and what didn't.",
+    expected: 'violation',
+    expectedRule: 'causal_overclaim',
+    why: 'Attributes the outcome to a cause; the descriptive line is "what moved".',
+  },
+  {
+    id: 'causal-cured-your',
+    text: 'This likely cured your fatigue.',
+    expected: 'violation',
+    expectedRule: 'causal_overclaim',
+    why: 'Direct cure claim.',
+  },
+  {
+    id: 'causal-the-one-thing',
+    text: 'Here is the one thing to do next.',
+    expected: 'violation',
+    expectedRule: 'causal_overclaim',
+    why: 'Prescriptive "the one thing to do" framing.',
+  },
+  {
+    id: 'causal-clinicians-decide',
+    text: 'Our clinicians decide what to test next for you.',
+    expected: 'violation',
+    expectedRule: 'causal_overclaim',
+    why: 'Managed-care framing — pulls toward a regulated medical service.',
+  },
+  {
+    id: 'causal-whats-wrong',
+    text: "We'll tell you what's wrong with you.",
+    expected: 'violation',
+    expectedRule: 'causal_overclaim',
+    why: 'Diagnosis-framed; the product surfaces what to discuss, not a diagnosis.',
+  },
+];
+
 /**
  * Clean prose — exercises the common false-positive traps. These must
  * all pass.
  */
 export const CLEAN_FIXTURES: readonly GuardrailFixture[] = [
+  {
+    id: 'clean-what-changed',
+    text: 'Your results show what changed since your last test.',
+    expected: 'clean',
+    why: '"what changed" is the in-lane phrasing — must not trip the causal-overclaim rule (which targets "what worked").',
+  },
+  {
+    id: 'clean-worth-discussing',
+    text: 'This marker is worth discussing with your clinician.',
+    expected: 'clean',
+    why: '"worth discussing" is in-lane — must not trip the managed-care "clinicians decide" pattern.',
+  },
+  {
+    id: 'clean-worked-out',
+    text: 'It worked out that we already held your earlier panel on file.',
+    expected: 'clean',
+    why: 'Bare "worked" in a non-causal sense — the scoped pattern must not fire.',
+  },
   {
     id: 'clean-low-ferritin-explainer',
     text: 'Low ferritin often reflects low iron stores. Your result sits below the printed reference range on this panel.',
@@ -229,6 +293,7 @@ export const ALL_FIXTURES: readonly GuardrailFixture[] = [
   ...DOSAGE_VIOLATIONS,
   ...CLINICAL_DIRECTIVE_VIOLATIONS,
   ...DIAGNOSTIC_CLAIM_VIOLATIONS,
+  ...CAUSAL_OVERCLAIM_VIOLATIONS,
   ...TIER_MISMATCH_VIOLATIONS,
   ...CLEAN_FIXTURES,
 ];
