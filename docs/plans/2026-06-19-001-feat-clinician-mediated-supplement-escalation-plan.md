@@ -313,7 +313,7 @@ behind a flag; the live flip waits on the human.
 
 ## Implementation Units
 
-- [ ] **Unit 1: Tier 1 — risk-free guidance leads the sleep answer**
+- [x] **Unit 1: Tier 1 — risk-free guidance leads the sleep answer** *(done 2026-06-19 — sleep + general scribes lead with hygiene `behavior` steps; ships on merge after clinician-checklist sign-off)*
 
   **Goal:** The chat sleep specialist opens supplement/sleep questions with
   concrete, zero-risk hygiene guidance as `behavior` next-steps, drawn from the
@@ -344,7 +344,7 @@ behind a flag; the live flip waits on the human.
   **Verification:** `npx vitest run src/lib/scribe src/lib/chat` green; one
   manual `/ask` transcript in the PR.
 
-- [ ] **Unit 2: Tier 2 — clinician-mediated supplement handoff (Phase 1)**
+- [x] **Unit 2: Tier 2 — clinician-mediated supplement handoff (Phase 1)** *(done 2026-06-19 — `route_to_gp_prep` carries a curated evidence note; landed DARK behind SUPPLEMENT_HANDOFF_ENABLED + per-note clinician sign-off; UI card render deferred to flag-flip)*
 
   **Goal:** A supplement/medication question produces a grounded, evidence-aware
   `discuss`-with-clinician item + an offer to arrange the conversation — never a
@@ -378,7 +378,7 @@ behind a flag; the live flip waits on the human.
   **Verification:** vitest green incl. forbidden-phrase fixtures; clinician
   -review checklist signed off on the new copy/prompt (recorded on the PR).
 
-- [ ] **Unit 3 (optional, Phase 2): dedicated "Medication & supplement review" clinician-prep specialist**
+- [x] **Unit 3 (optional, Phase 2): dedicated "Medication & supplement review" clinician-prep specialist** *(done 2026-06-19 — core specialty with a discuss-only policy (citation-surfacing + investigation-avenues), discussWithClinician route, forbidden-phrase backstop; referable via refer_to_specialist; no flag — safe by policy; needs clinician-checklist sign-off before merge)*
 
   **Goal:** Honour the "refer to the pharma specialist" model with a real core
   specialty whose output is structurally bounded to clinician-prep.
@@ -439,7 +439,7 @@ behind a flag; the live flip waits on the human.
   **Verification:** vitest green; flag stays **off** in prod until clinician
   staffing + catalogue resolved; visual audit of the card (desktop + mobile).
 
-- [ ] **Unit 5: Compliance, honesty, and human-gate pass**
+- [ ] **Unit 5: Compliance, honesty, and human-gate pass** *(partial 2026-06-19 — the human-enforcement docs are done: brand-guidelines.md gains the clinician-mediated supplement section, clinician-review-checklist.md gains the handoff gates + the merge-gate trigger for Units 1 & 3. The path-wide fixtures and Supply-card copy wait on Unit 4.)*
 
   **Goal:** The whole escalation tells the truth and stays in-lane; the PR carries
   the proof.
