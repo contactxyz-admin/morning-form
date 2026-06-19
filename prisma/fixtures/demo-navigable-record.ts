@@ -393,7 +393,10 @@ export const DEMO_NAVIGABLE_RECORD: DemoRecordFixture = {
       type: 'biomarker',
       canonicalKey: 'ferritin',
       displayName: 'Ferritin',
-      attributes: { value: 18, unit: 'ng/mL', reference: '30–150', status: 'low' },
+      // `flaggedOutOfRange` is the source's OWN out-of-range flag (the lab marked
+      // it low), relayed faithfully by the source-abnormality safety net (plan
+      // 2026-06-18-002) — not a MorningForm judgement.
+      attributes: { value: 18, unit: 'ng/mL', reference: '30–150', status: 'low', flaggedOutOfRange: true },
     },
     {
       nodeKey: 'haemoglobin',
@@ -407,7 +410,7 @@ export const DEMO_NAVIGABLE_RECORD: DemoRecordFixture = {
       type: 'biomarker',
       canonicalKey: 'transferrin_saturation',
       displayName: 'Transferrin saturation',
-      attributes: { value: 14, unit: '%', reference: '20–50', status: 'low' },
+      attributes: { value: 14, unit: '%', reference: '20–50', status: 'low', flaggedOutOfRange: true },
     },
     {
       nodeKey: 'mcv',
@@ -421,7 +424,7 @@ export const DEMO_NAVIGABLE_RECORD: DemoRecordFixture = {
       type: 'biomarker',
       canonicalKey: 'vitamin_d_25_oh',
       displayName: '25-hydroxyvitamin D',
-      attributes: { value: 20, unit: 'ng/mL', reference: '30–100', status: 'low' },
+      attributes: { value: 20, unit: 'ng/mL', reference: '30–100', status: 'low', flaggedOutOfRange: true },
     },
     {
       nodeKey: 'vitamin-b12',

@@ -48,6 +48,14 @@ const REVEAL_FLOOR = AS_OF_DIM_NUM + 0.04;
 const BIRTH_SCALE = 0.8; // a revealed node grows from here to 1 (grow-in)
 const LAG_RATIO = 0.15; // Manim lag_ratio — same-stop births stagger subtly
 
+// Strip an in-flight grow-in `scale()` back to the position-only transform. Both
+// the instant-paint and the eased-scrub paths must agree byte-for-byte on this,
+// so the rule lives in one helper (a drift between two literal regexes would
+// re-introduce the teleport-on-scrub bug).
+function stripScale(transform: string): string {
+  return transform.replace(/\s*scale\([^)]*\)/, '');
+}
+
 export interface GraphCanvasProps {
   readonly nodes: readonly GraphNodeWire[];
   readonly edges: readonly GraphEdgeWire[];
@@ -208,8 +216,7 @@ export function GraphCanvas({
         // translate written by a node drag (data-base-transform would be stale).
         const live = el.getAttribute('transform') ?? '';
         if (live.includes('scale(')) {
-          const base =
-            el.getAttribute('data-base-transform') ?? live.replace(/\s*scale\([^)]*\)/, '');
+          const base = el.getAttribute('data-base-transform') ?? stripScale(live);
           el.setAttribute('transform', base);
         }
         const hoverLabel = el.querySelector<SVGTextElement>('.graph-node-label-hover');
@@ -268,9 +275,15 @@ export function GraphCanvas({
       const id = el.getAttribute('data-node-id') ?? '';
       const start = parseFloat(el.style.opacity || '1');
       const end = nodeTarget(id);
-      // Position-only transform: prefer the cached base (a prior interrupted
-      // tween may have left a `scale()` on `transform`), else the current one.
-      const base = el.getAttribute('data-base-transform') ?? el.getAttribute('transform') ?? '';
+      // Position-only base derived from the LIVE transform EACH scrub (not a
+      // once-cached value): a node DRAGGED since the last scrub carries its new
+      // translate here, so reading it keeps the reveal `scale()` from teleporting
+      // it back to a stale pre-drag spot. Strip any in-flight grow-in `scale()`
+      // an interrupted tween may have left so it isn't baked into the base. Fall
+      // back to the last cached base if a node somehow has no transform yet, so a
+      // revealing node never composes onto an empty base (origin 0,0 teleport).
+      const live = el.getAttribute('transform') ?? el.getAttribute('data-base-transform') ?? '';
+      const base = stripScale(live);
       el.setAttribute('data-base-transform', base);
       return { el, id, start, end, base, reveal: start <= REVEAL_FLOOR && end >= 0.5 };
     });

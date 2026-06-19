@@ -23,6 +23,7 @@ import type { EdgeType, GraphEdgeWire, GraphNodeWire, GraphResponse } from '../.
 import { deriveChange, latestReading } from './derive-change';
 import { evidenceGrade } from './evidence-grade';
 import { interpret, isAuthoredMarker } from '../markers/clinical-interpretation';
+import { deriveSourceAbnormality } from '../markers/source-abnormality';
 import { buildSourceView, type SourceView } from '../record/source-view';
 
 /** Pre-built per-node provenance lookup, used to feed NodeDetailSheet without an authed fetch. */
@@ -99,6 +100,20 @@ function nodeToWire(
           high: latest.referenceHigh,
         })
       : undefined;
+  // Source-abnormality (plan 2026-06-18-002): relay the fixture lab's OWN
+  // `flaggedOutOfRange` flag for a biomarker — the safety net so a clearly-
+  // abnormal value is never shown neutral. Direction read from the latest
+  // reading's numbers when present (the fixture's display range is a string, so
+  // demo markers without readings relay "out of range" without a direction).
+  const sourceFlag =
+    node.type === 'biomarker'
+      ? deriveSourceAbnormality(
+          node.attributes?.flaggedOutOfRange === true,
+          latest ? latest.value : null,
+          latest ? latest.referenceLow : null,
+          latest ? latest.referenceHigh : null,
+        )
+      : undefined;
   return {
     id: node.nodeKey,
     userId: 'demo',
@@ -117,6 +132,8 @@ function nodeToWire(
     ...(change ? { change } : {}),
     // Consumer interpretation (additive; authed path never sets it).
     ...(interpretation ? { interpretation } : {}),
+    // Source's own out-of-range flag (additive; authed map path never sets it).
+    ...(sourceFlag ? { sourceFlag } : {}),
     // Earliest-evidence date for the time scrubber (plan 2026-06-15-001).
     ...(node.firstSeenAt ? { firstSeenAt: node.firstSeenAt } : {}),
   };

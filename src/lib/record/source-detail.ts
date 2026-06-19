@@ -65,3 +65,18 @@ const FLAG_PRIORITY: Record<FlagTier, number> = {
 export function flagRank(flag: FlagTier | undefined): number {
   return flag ? FLAG_PRIORITY[flag] : 3;
 }
+
+/**
+ * Combined attention-first rank for a grounded marker (plan 2026-06-18-002).
+ * Authored interpretation flags rank by tier (0-2); a source-only out-of-range
+ * flag (the source's own, no authored interpretation) ranks just below them so a
+ * lab-flagged value surfaces above unflagged readings WITHOUT being assigned a
+ * MorningForm tier; unflagged readings sort last.
+ */
+export function groundedMarkerRank(flag: FlagTier | undefined, hasSourceFlag: boolean): number {
+  // Delegate the authored-flag tiers to flagRank (single owner of the
+  // FLAG_PRIORITY→number mapping, incl. the `3` unflagged sentinel); only the
+  // source-only case needs the extra 2.5 tier between attention and unflagged.
+  if (flag) return flagRank(flag);
+  return hasSourceFlag ? 2.5 : 3;
+}

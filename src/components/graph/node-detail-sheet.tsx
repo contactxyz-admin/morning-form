@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/ui/icon';
@@ -18,6 +18,7 @@ import {
   changeDirectionGlyph,
 } from '@/lib/markers/change-presentation';
 import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
+import { SOURCE_ABNORMALITY_LABEL } from '@/lib/markers/source-abnormality';
 import type { TopicReference } from '@/lib/topics/node-topics';
 
 // Evidence grade → human label (plan 2026-06-16-002 R9). Distinguishes a
@@ -174,6 +175,82 @@ export function NodeDetailSheet({
     return () => window.removeEventListener('keydown', onKey);
   }, [node, onClose]);
 
+  // ── Modal focus management (plan 2026-06-18-003) ──
+  // The sheet is role="dialog" aria-modal: it must take focus on open, trap Tab
+  // within itself, and return focus to the trigger on close (WCAG 2.1.2 / 2.4.3
+  // / 4.1.2). Without this, focus stayed on the canvas node behind the scrim and
+  // Tab walked the page underneath.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // The element to restore focus to on close — captured once on the closed→open
+  // transition (NOT re-captured on a drill-down content swap, so the original
+  // trigger stays the return target). Typed HTMLElement | SVGElement because the
+  // common trigger is the canvas node <g> (an SVGElement, NOT an HTMLElement) —
+  // narrowing to HTMLElement would drop every canvas-opened case.
+  const returnFocusRef = useRef<HTMLElement | SVGElement | null>(null);
+  const wasOpenRef = useRef(false);
+
+  // Capture the trigger on open; restore focus to it on close.
+  useEffect(() => {
+    const isOpen = node !== null;
+    if (isOpen && !wasOpenRef.current) {
+      const active = document.activeElement;
+      returnFocusRef.current =
+        active instanceof HTMLElement || active instanceof SVGElement ? active : null;
+    }
+    if (!isOpen && wasOpenRef.current) {
+      const target = returnFocusRef.current;
+      returnFocusRef.current = null;
+      // Defer to the next frame so this restore runs AFTER GraphCanvas's
+      // synchronous blur-on-deselect effect (graph-canvas.tsx) — which fires on
+      // the same close and would otherwise blur the node we just refocused,
+      // dumping focus to <body> (a cross-component effect-order race). Only
+      // refocus if the trigger is still in the DOM.
+      requestAnimationFrame(() => {
+        if (target && target.isConnected) target.focus?.();
+      });
+    }
+    wasOpenRef.current = isOpen;
+  }, [node]);
+
+  // Move focus into the dialog on open AND on each content swap (drill-down) so
+  // the new title is announced; one frame out so the AnimatePresence child has
+  // mounted. The container carries aria-label, so focusing it reads the title.
+  useEffect(() => {
+    if (!node) return;
+    const raf = requestAnimationFrame(() => dialogRef.current?.focus());
+    return () => cancelAnimationFrame(raf);
+  }, [node]);
+
+  // Tab trap: keep focus cycling within the dialog while it's open.
+  const onTrapKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab') return;
+    const root = dialogRef.current;
+    if (!root) return;
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (focusables.length === 0) {
+      // Nothing focusable yet (content still loading) — keep focus on the dialog.
+      e.preventDefault();
+      root.focus();
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey) {
+      if (active === first || active === root) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else if (active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }, []);
+
   const open = node !== null;
 
   return (
@@ -190,14 +267,18 @@ export function NodeDetailSheet({
             aria-hidden
           />
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label={node?.displayName}
+            tabIndex={-1}
+            onKeyDown={onTrapKeyDown}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 38 }}
             className={cn(
+              'focus:outline-none',
               'fixed z-50 bg-surface-warm border-border',
               'inset-x-0 bottom-0 rounded-t-[28px] border-t',
               'md:inset-y-0 md:right-0 md:left-auto md:rounded-t-none md:rounded-l-[28px] md:border-t-0 md:border-l md:w-[440px]',
@@ -255,6 +336,7 @@ export function NodeDetailSheet({
                 <>
                   {node?.change && <ChangeSince node={node} />}
                   {node?.interpretation && <Interpretation node={node} />}
+                  {node?.sourceFlag && !node?.interpretation && <SourceFlagNote node={node} />}
                   <Attributes node={node} />
                   <Provenance state={state} />
                   {node && <AppearsIn nodeId={node.id} hydratedTopics={hydratedTopics} />}
@@ -378,9 +460,42 @@ function Interpretation({ node }: { node: GraphNodeWire }) {
   );
 }
 
+// Source-abnormality safety net (plan 2026-06-18-002) — the SOURCE's own
+// out-of-range flag, relayed faithfully and source-attributed. Shown only when
+// there's no authored interpretation (which would already cover the value); the
+// outlined, neutral chip is visually distinct from the colour-coded authored
+// tiers so it never reads as a MorningForm clinical judgement.
+function SourceFlagNote({ node }: { node: GraphNodeWire }) {
+  const sf = node.sourceFlag;
+  if (!sf) return null;
+  return (
+    <section>
+      <SectionLabel>Flagged by the source</SectionLabel>
+      <div className="mt-3">
+        <span className="inline-flex rounded-full border border-border-mid bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-secondary">
+          {SOURCE_ABNORMALITY_LABEL[sf.position]}
+        </span>
+      </div>
+      <p className="mt-3 text-caption text-text-tertiary leading-relaxed">
+        This value was flagged out of range by the source itself — shown for tracking and discussion
+        with a clinician, not a MorningForm assessment.
+      </p>
+    </section>
+  );
+}
+
+// Attribute keys that have a DEDICATED presentation elsewhere in the sheet and
+// must not also appear as a raw key/value row — `flaggedOutOfRange` is relayed by
+// the calm, source-attributed SourceFlagNote chip (plan 2026-06-18-002); shown
+// raw it double-messages and, on the authed map (which sets no sourceFlag), the
+// bare boolean reads as an unattributed MorningForm judgement.
+const HIDDEN_ATTRIBUTE_KEYS = new Set(['flaggedOutOfRange']);
+
 function Attributes({ node }: { node: GraphNodeWire | null }) {
   if (!node) return null;
-  const entries = Object.entries(node.attributes).filter(([, v]) => v !== null && v !== undefined);
+  const entries = Object.entries(node.attributes).filter(
+    ([k, v]) => v !== null && v !== undefined && !HIDDEN_ATTRIBUTE_KEYS.has(k),
+  );
   if (entries.length === 0) return null;
   return (
     <section>
