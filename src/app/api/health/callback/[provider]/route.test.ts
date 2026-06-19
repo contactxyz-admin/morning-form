@@ -44,8 +44,6 @@ vi.mock('@/lib/health/sync', () => ({
 
 import { GET } from './route';
 
-const originalNodeEnv = process.env.NODE_ENV;
-
 beforeEach(() => {
   upsertMock.mockClear();
   getCurrentUserMock.mockReset().mockResolvedValue({ id: 'demo-user-1' });
@@ -59,7 +57,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  process.env.NODE_ENV = originalNodeEnv;
+  vi.unstubAllEnvs();
 });
 
 function callbackRequest(query: string): Request {
@@ -134,7 +132,7 @@ describe('GET /api/health/callback/garmin', () => {
   });
 
   it('does not trust reference-only Garmin redirects in production when Terra confirmation fails', async () => {
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
     getUserInfoMock.mockRejectedValue(new Error('terra unavailable'));
 
     const res = await GET(
@@ -149,7 +147,7 @@ describe('GET /api/health/callback/garmin', () => {
   });
 
   it('does not allow mock query parameters to connect Garmin in production', async () => {
-    process.env.NODE_ENV = 'production';
+    vi.stubEnv('NODE_ENV', 'production');
 
     const res = await GET(
       callbackRequest('mock=1'),
