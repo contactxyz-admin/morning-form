@@ -113,6 +113,23 @@ describe('enrichGroundedNodes', () => {
     expect(row.sourceFlag).toBeUndefined();
   });
 
+  it('carries BOTH interpretation and sourceFlag for an authored, lab-flagged marker', () => {
+    // Both signals are computed; the detail surfaces prioritise the (richer)
+    // authored interpretation over the source flag at render. Documenting the
+    // data contract so the two never silently collapse onto one field.
+    const row = enrichGroundedNodes(
+      [
+        node({
+          canonicalKey: 'ldl',
+          attributes: { flaggedOutOfRange: true, value: 3.4, referenceRangeHigh: 3.0 },
+        }),
+      ],
+      diff([change({ joinKey: 'ldl', afterValue: 3.4, referenceHigh: 3.0 })]),
+    )[0];
+    expect(row.interpretation?.signalClarity).toBe('Medium–High'); // authored LDL
+    expect(row.sourceFlag).toEqual({ flaggedOutOfRange: true, position: 'above' });
+  });
+
   it('leaves non-biomarker nodes name-only even on a key match', () => {
     const row = enrichGroundedNodes([node({ type: 'condition' })], diff([change()]))[0];
     expect(row.change).toBeUndefined();

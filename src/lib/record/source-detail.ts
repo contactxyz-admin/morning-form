@@ -74,6 +74,9 @@ export function flagRank(flag: FlagTier | undefined): number {
  * MorningForm tier; unflagged readings sort last.
  */
 export function groundedMarkerRank(flag: FlagTier | undefined, hasSourceFlag: boolean): number {
-  if (flag) return FLAG_PRIORITY[flag];
+  // Delegate the authored-flag tiers to flagRank (single owner of the
+  // FLAG_PRIORITY→number mapping, incl. the `3` unflagged sentinel); only the
+  // source-only case needs the extra 2.5 tier between attention and unflagged.
+  if (flag) return flagRank(flag);
   return hasSourceFlag ? 2.5 : 3;
 }

@@ -183,20 +183,31 @@ export function NodeDetailSheet({
   const dialogRef = useRef<HTMLDivElement>(null);
   // The element to restore focus to on close — captured once on the closed→open
   // transition (NOT re-captured on a drill-down content swap, so the original
-  // trigger stays the return target).
-  const returnFocusRef = useRef<HTMLElement | null>(null);
+  // trigger stays the return target). Typed HTMLElement | SVGElement because the
+  // common trigger is the canvas node <g> (an SVGElement, NOT an HTMLElement) —
+  // narrowing to HTMLElement would drop every canvas-opened case.
+  const returnFocusRef = useRef<HTMLElement | SVGElement | null>(null);
   const wasOpenRef = useRef(false);
 
   // Capture the trigger on open; restore focus to it on close.
   useEffect(() => {
     const isOpen = node !== null;
     if (isOpen && !wasOpenRef.current) {
+      const active = document.activeElement;
       returnFocusRef.current =
-        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        active instanceof HTMLElement || active instanceof SVGElement ? active : null;
     }
     if (!isOpen && wasOpenRef.current) {
-      returnFocusRef.current?.focus?.();
+      const target = returnFocusRef.current;
       returnFocusRef.current = null;
+      // Defer to the next frame so this restore runs AFTER GraphCanvas's
+      // synchronous blur-on-deselect effect (graph-canvas.tsx) — which fires on
+      // the same close and would otherwise blur the node we just refocused,
+      // dumping focus to <body> (a cross-component effect-order race). Only
+      // refocus if the trigger is still in the DOM.
+      requestAnimationFrame(() => {
+        if (target && target.isConnected) target.focus?.();
+      });
     }
     wasOpenRef.current = isOpen;
   }, [node]);
@@ -473,9 +484,18 @@ function SourceFlagNote({ node }: { node: GraphNodeWire }) {
   );
 }
 
+// Attribute keys that have a DEDICATED presentation elsewhere in the sheet and
+// must not also appear as a raw key/value row — `flaggedOutOfRange` is relayed by
+// the calm, source-attributed SourceFlagNote chip (plan 2026-06-18-002); shown
+// raw it double-messages and, on the authed map (which sets no sourceFlag), the
+// bare boolean reads as an unattributed MorningForm judgement.
+const HIDDEN_ATTRIBUTE_KEYS = new Set(['flaggedOutOfRange']);
+
 function Attributes({ node }: { node: GraphNodeWire | null }) {
   if (!node) return null;
-  const entries = Object.entries(node.attributes).filter(([, v]) => v !== null && v !== undefined);
+  const entries = Object.entries(node.attributes).filter(
+    ([k, v]) => v !== null && v !== undefined && !HIDDEN_ATTRIBUTE_KEYS.has(k),
+  );
   if (entries.length === 0) return null;
   return (
     <section>
