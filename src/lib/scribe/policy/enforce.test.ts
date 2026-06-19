@@ -462,9 +462,10 @@ describe('registry', () => {
   });
 
   it('lists exactly the policy keys backing every registered scribe persona', () => {
-    // Plan 2026-04-25-001 expanded the set: 3 v1 topics + the 4 specialty
-    // safety policies (general, cardiometabolic, sleep-recovery is shared
-    // with v1, hormonal-endocrine). `iron` and `energy-fatigue` stay so
+    // Plan 2026-04-25-001 expanded the set: 3 v1 topics + the specialty safety
+    // policies (general, cardiometabolic, sleep-recovery is shared with v1,
+    // hormonal-endocrine). Plan 2026-06-19-001 Unit 3 adds the clinician-prep
+    // `medication-supplement` specialist. `iron` and `energy-fatigue` stay so
     // existing scribe rows keep routing to a real policy (R9 back-compat).
     expect(new Set(listTopicPolicyKeys())).toEqual(
       new Set([
@@ -472,6 +473,7 @@ describe('registry', () => {
         'cardiometabolic',
         'sleep-recovery',
         'hormonal-endocrine',
+        'medication-supplement',
         'iron',
         'energy-fatigue',
       ]),

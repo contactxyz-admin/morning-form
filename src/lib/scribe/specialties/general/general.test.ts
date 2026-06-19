@@ -45,11 +45,12 @@ describe('general specialty — system prompt loading', () => {
     expect(prompt).toMatch(/refer_to_specialist/);
   });
 
-  it('the prompt enumerates the three core specialists by name', () => {
+  it('the prompt enumerates the four core specialists by name', () => {
     const prompt = loadSpecialtySystemPrompt('general')!;
     expect(prompt).toMatch(/Cardiometabolic/);
     expect(prompt).toMatch(/Sleep & recovery/);
     expect(prompt).toMatch(/Hormonal/);
+    expect(prompt).toMatch(/Medication & supplement review/);
   });
 
   it('the prompt enumerates at least five stub specialists', () => {

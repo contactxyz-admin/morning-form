@@ -60,6 +60,15 @@ const SPECIALTIES: readonly Specialty[] = Object.freeze([
     safetyPolicyKey: 'hormonal-endocrine',
   },
   {
+    key: 'medication-supplement',
+    status: 'core',
+    displayName: 'Medication and supplement review',
+    scope:
+      'Whether a supplement or medication is worth raising with a clinician — the general evidence picture and the specific question to ask. Clinician-prep only: never a recommendation, dose, or brand.',
+    systemPromptPath: 'src/lib/scribe/specialties/medication-supplement/system-prompt.md',
+    safetyPolicyKey: 'medication-supplement',
+  },
+  {
     key: 'mental-health',
     status: 'stub',
     displayName: 'Mental health',

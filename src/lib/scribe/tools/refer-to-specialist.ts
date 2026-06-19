@@ -108,7 +108,7 @@ function resolveProductionClient(): ScribeLLMClient | null {
 export const referToSpecialistHandler: ToolHandler<ReferToSpecialistArgs, ReferToSpecialistResult> = {
   name: 'refer_to_specialist',
   description:
-    'Refer the current question to a core specialist scribe (cardiometabolic, sleep-recovery, hormonal-endocrine). Returns the specialist\'s response. Only callable by the general scribe; specialists answer directly. Stub specialties return a visible fallback message — answer the user with general-scribe knowledge in that case.',
+    'Refer the current question to a core specialist scribe (cardiometabolic, sleep-recovery, hormonal-endocrine, medication-supplement). Returns the specialist\'s response. Only callable by the general scribe; specialists answer directly. Stub specialties return a visible fallback message — answer the user with general-scribe knowledge in that case.',
   parameters: referToSpecialistSchema,
   async execute(ctx: ToolContext, args: ReferToSpecialistArgs): Promise<ReferToSpecialistResult> {
     if (ctx.topicKey !== 'general') {

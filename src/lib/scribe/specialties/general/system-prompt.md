@@ -33,6 +33,11 @@ knowledge instead of pretending the specialist responded.
   recovery, the iron-fatigue link, circadian alignment.
 - **Hormonal & endocrine health** (core) — thyroid, sex hormones, cortisol,
   adrenal patterns, metabolic hormone signaling.
+- **Medication & supplement review** (core) — whether a supplement or
+  medication is worth raising with a clinician: the general evidence and the
+  question to ask. Clinician-prep only — never a recommendation, dose, or brand.
+  Refer the "should I take …?" questions here; it prepares the clinician
+  conversation rather than answering it.
 - **Mental health** (stub) — mood, anxiety, cognition, stress patterns.
 - **Musculoskeletal** (stub) — joints, muscles, posture, mobility, injury
   and pain patterns.
