@@ -340,7 +340,7 @@ export function DemoGraphSection({ fixture }: Props) {
                 onClick={togglePlay}
                 aria-label={playing ? 'Pause' : 'Play through the timeline'}
                 aria-pressed={playing}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border text-[10px] text-text-secondary transition-colors hover:bg-surface-warm"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border text-[10px] text-text-secondary transition-colors hover:bg-surface-warm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-button-focus"
               >
                 {playing ? '❚❚' : '▶'}
               </button>
@@ -370,7 +370,7 @@ export function DemoGraphSection({ fixture }: Props) {
                   }}
                   aria-label="Show the record as of an earlier date"
                   aria-valuetext={`As of ${formatStop(stops[activeIndex])}`}
-                  className="relative w-full cursor-pointer accent-text-primary"
+                  className="relative w-full cursor-pointer accent-text-primary rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-button-focus"
                 />
               </div>
             </div>

@@ -268,9 +268,12 @@ export function GraphCanvas({
       const id = el.getAttribute('data-node-id') ?? '';
       const start = parseFloat(el.style.opacity || '1');
       const end = nodeTarget(id);
-      // Position-only transform: prefer the cached base (a prior interrupted
-      // tween may have left a `scale()` on `transform`), else the current one.
-      const base = el.getAttribute('data-base-transform') ?? el.getAttribute('transform') ?? '';
+      // Position-only base derived from the LIVE transform EACH scrub (not a
+      // once-cached value): a node DRAGGED since the last scrub carries its new
+      // translate here, so reading it keeps the reveal `scale()` from teleporting
+      // it back to a stale pre-drag spot. Strip any in-flight grow-in `scale()`
+      // an interrupted tween may have left so it isn't baked into the base.
+      const base = (el.getAttribute('transform') ?? '').replace(/\s*scale\([^)]*\)/, '');
       el.setAttribute('data-base-transform', base);
       return { el, id, start, end, base, reveal: start <= REVEAL_FLOOR && end >= 0.5 };
     });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/ui/icon';
@@ -175,6 +175,71 @@ export function NodeDetailSheet({
     return () => window.removeEventListener('keydown', onKey);
   }, [node, onClose]);
 
+  // ── Modal focus management (plan 2026-06-18-003) ──
+  // The sheet is role="dialog" aria-modal: it must take focus on open, trap Tab
+  // within itself, and return focus to the trigger on close (WCAG 2.1.2 / 2.4.3
+  // / 4.1.2). Without this, focus stayed on the canvas node behind the scrim and
+  // Tab walked the page underneath.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // The element to restore focus to on close — captured once on the closed→open
+  // transition (NOT re-captured on a drill-down content swap, so the original
+  // trigger stays the return target).
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
+
+  // Capture the trigger on open; restore focus to it on close.
+  useEffect(() => {
+    const isOpen = node !== null;
+    if (isOpen && !wasOpenRef.current) {
+      returnFocusRef.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    if (!isOpen && wasOpenRef.current) {
+      returnFocusRef.current?.focus?.();
+      returnFocusRef.current = null;
+    }
+    wasOpenRef.current = isOpen;
+  }, [node]);
+
+  // Move focus into the dialog on open AND on each content swap (drill-down) so
+  // the new title is announced; one frame out so the AnimatePresence child has
+  // mounted. The container carries aria-label, so focusing it reads the title.
+  useEffect(() => {
+    if (!node) return;
+    const raf = requestAnimationFrame(() => dialogRef.current?.focus());
+    return () => cancelAnimationFrame(raf);
+  }, [node]);
+
+  // Tab trap: keep focus cycling within the dialog while it's open.
+  const onTrapKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab') return;
+    const root = dialogRef.current;
+    if (!root) return;
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (focusables.length === 0) {
+      // Nothing focusable yet (content still loading) — keep focus on the dialog.
+      e.preventDefault();
+      root.focus();
+      return;
+    }
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey) {
+      if (active === first || active === root) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else if (active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }, []);
+
   const open = node !== null;
 
   return (
@@ -191,14 +256,18 @@ export function NodeDetailSheet({
             aria-hidden
           />
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label={node?.displayName}
+            tabIndex={-1}
+            onKeyDown={onTrapKeyDown}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 380, damping: 38 }}
             className={cn(
+              'focus:outline-none',
               'fixed z-50 bg-surface-warm border-border',
               'inset-x-0 bottom-0 rounded-t-[28px] border-t',
               'md:inset-y-0 md:right-0 md:left-auto md:rounded-t-none md:rounded-l-[28px] md:border-t-0 md:border-l md:w-[440px]',
