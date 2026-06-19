@@ -2,12 +2,13 @@
  * Visual encoding for the graph canvas — single source of truth for how
  * each NodeType / EdgeType renders.
  *
- * The 18 NodeTypes collapse to 4 visual classes (clinical, biomarker,
- * intervention, data) so the canvas has 4 distinguishable colours rather
- * than 18 indistinguishable ones. The 7 EdgeTypes collapse to 3
- * hierarchy classes (agreement, causation, contradiction) for the same
- * reason — pre-attentive perception research caps reliable distinction
- * at 3-4 line styles before they read as noise.
+ * The 18 NodeTypes collapse to 5 visual classes (clinical, self_report,
+ * biomarker, intervention, data) so the canvas has a small set of
+ * distinguishable colours rather than 18 indistinguishable ones. The 7
+ * EdgeTypes collapse to 3 hierarchy classes (agreement, causation,
+ * contradiction) for the same reason — pre-attentive perception research
+ * caps reliable distinction at ~3-5 colours / line styles before they read
+ * as noise.
  *
  * Full taxonomy is preserved in the data; tooltips on hover surface the
  * specific NodeType / EdgeType when a visitor wants the detail.
@@ -16,7 +17,12 @@
 import type { EdgeType, NodeType } from './types';
 import type { ImportanceTier } from './importance';
 
-export type NodeVisualClass = 'clinical' | 'biomarker' | 'intervention' | 'data';
+export type NodeVisualClass =
+  | 'clinical'
+  | 'self_report'
+  | 'biomarker'
+  | 'intervention'
+  | 'data';
 export type EdgeHierarchy = 'agreement' | 'causation' | 'contradiction';
 
 export interface NodeVisual {
@@ -40,18 +46,24 @@ export interface EdgeVisual {
 }
 
 /**
- * Map each NodeType to one of 4 visual classes. Buckets:
- * - clinical:     conditions, symptoms, allergies — the "what's wrong" layer
+ * Map each NodeType to one of 5 visual classes. Buckets:
+ * - clinical:     conditions, allergies — the objective "what's wrong" layer
+ * - self_report:  symptoms, episodes, mood, energy — patient-reported outcomes
+ *                 (a distinct evidence type from a source document; plan
+ *                 2026-06-18-001)
  * - biomarker:    measured values + observations + windows — the "what we know" layer
  * - intervention: treatments, lifestyle, encounters, referrals — the "what's being done" layer
- * - data:         sources, mood/energy self-reports — the "where it came from" layer
+ * - data:         source documents only — the "where it came from" / provenance layer
  */
 const NODE_VISUAL_CLASS: Record<NodeType, NodeVisualClass> = {
-  // clinical
+  // clinical (objective)
   condition: 'clinical',
-  symptom: 'clinical',
-  symptom_episode: 'clinical',
   allergy: 'clinical',
+  // self_report (patient-reported, subjective)
+  symptom: 'self_report',
+  symptom_episode: 'self_report',
+  mood: 'self_report',
+  energy: 'self_report',
   // biomarker
   biomarker: 'biomarker',
   observation: 'biomarker',
@@ -65,14 +77,13 @@ const NODE_VISUAL_CLASS: Record<NodeType, NodeVisualClass> = {
   encounter: 'intervention',
   referral: 'intervention',
   immunisation: 'intervention',
-  // data
+  // data (provenance)
   source_document: 'data',
-  mood: 'data',
-  energy: 'data',
 };
 
 const NODE_VISUAL_BY_CLASS: Record<NodeVisualClass, Pick<NodeVisual, 'fillClass' | 'strokeClass'>> = {
   clinical: { fillClass: 'fill-alert/15', strokeClass: 'stroke-alert/70' },
+  self_report: { fillClass: 'fill-self-report/15', strokeClass: 'stroke-self-report/70' },
   biomarker: { fillClass: 'fill-accent/20', strokeClass: 'stroke-accent' },
   intervention: { fillClass: 'fill-positive/15', strokeClass: 'stroke-positive/80' },
   data: { fillClass: 'fill-text-tertiary/10', strokeClass: 'stroke-text-tertiary/60' },
@@ -84,10 +95,12 @@ export function visualForNode(type: NodeType): NodeVisual {
 }
 
 /**
- * Ordered legend descriptor for the canvas's 4 visual classes — the single
+ * Ordered legend descriptor for the canvas's 5 visual classes — the single
  * source the demo legend's filter chips render from (plan 2026-06-17-001).
- * `data` is surfaced to the reader as "Source" (its only on-canvas members are
- * the source-document hubs). Fill/stroke come straight from
+ * `data` is surfaced to the reader as "Source" (provenance only — its on-canvas
+ * members are the source-document hubs); the patient-reported types carry their
+ * own "Symptoms & self-report" chip so no chip ghosts a node type it doesn't
+ * name (plan 2026-06-18-001). Fill/stroke come straight from
  * `NODE_VISUAL_BY_CLASS` so a chip swatch can never drift from the dots it
  * filters; those classes are mirrored in the tailwind.config.ts safelist
  * (src/lib class strings are JIT-dropped otherwise).
@@ -101,13 +114,14 @@ export interface LegendItem {
 
 const LEGEND_LABEL: Record<NodeVisualClass, string> = {
   clinical: 'Clinical',
+  self_report: 'Symptoms & self-report',
   biomarker: 'Biomarker',
   intervention: 'Intervention',
   data: 'Source',
 };
 
 export const LEGEND_ITEMS: readonly LegendItem[] = (
-  ['clinical', 'biomarker', 'intervention', 'data'] as const
+  ['clinical', 'self_report', 'biomarker', 'intervention', 'data'] as const
 ).map((visualClass) => ({
   visualClass,
   label: LEGEND_LABEL[visualClass],
@@ -136,6 +150,7 @@ export function toggleHiddenClass(
  */
 const SELECTION_STROKE_BY_CLASS: Record<NodeVisualClass, string> = {
   clinical: 'stroke-alert/80',
+  self_report: 'stroke-self-report/80',
   biomarker: 'stroke-accent',
   intervention: 'stroke-positive/80',
   data: 'stroke-text-tertiary/70',

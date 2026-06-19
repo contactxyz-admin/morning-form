@@ -18,13 +18,15 @@ const config: Config = {
   // Belt-and-braces: even if the content scan misses a class string,
   // the graph encoding ships. These mirror src/lib/graph/visual-encoding.ts.
   safelist: [
-    // Node fills (4 visual classes)
+    // Node fills (5 visual classes)
     'fill-alert/15',
+    'fill-self-report/15',
     'fill-accent/20',
     'fill-positive/15',
     'fill-text-tertiary/10',
-    // Node strokes (4 visual classes)
+    // Node strokes (5 visual classes)
     'stroke-alert/70',
+    'stroke-self-report/70',
     'stroke-accent',
     'stroke-positive/80',
     'stroke-text-tertiary/60',
@@ -32,9 +34,10 @@ const config: Config = {
     'stroke-text-tertiary/50',
     'stroke-text-secondary/70',
     'stroke-alert/60',
-    // Selection-halo strokes (4 visual classes — stroke-accent and
+    // Selection-halo strokes (5 visual classes — stroke-accent and
     // stroke-positive/80 already listed above)
     'stroke-alert/80',
+    'stroke-self-report/80',
     'stroke-text-tertiary/70',
     // Change-decoration tones (Plan 2026-06-10-003 — changeVisual() in
     // src/lib/graph/visual-encoding.ts): the panel-change ring + badge fill.
@@ -109,6 +112,13 @@ const config: Config = {
           DEFAULT: '#C4271A',
           light: '#FBEAE7',
         },
+        // Graph node class — patient self-reports (symptoms, mood, energy).
+        // A calm, low-saturation indigo, distinct from the four status/data
+        // hues (red / graphite / green / grey) so self-report reads as its own
+        // evidence type, never as alert (plan 2026-06-18-001). Used only at low
+        // opacity on the canvas (fill /15, stroke /70–/80); exact value tuned in
+        // the visual audit.
+        'self-report': '#5B5EA6',
       },
       fontFamily: {
         // Display — Fraunces serif for editorial headings. Paired with Inter

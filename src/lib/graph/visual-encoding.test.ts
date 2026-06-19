@@ -36,8 +36,8 @@ describe('changeVisual', () => {
 });
 
 describe('visualForNode', () => {
-  it('returns one of the 4 visual classes for every NodeType', () => {
-    const valid = new Set(['clinical', 'biomarker', 'intervention', 'data']);
+  it('returns one of the 5 visual classes for every NodeType', () => {
+    const valid = new Set(['clinical', 'self_report', 'biomarker', 'intervention', 'data']);
     for (const type of NODE_TYPES) {
       expect(valid.has(visualForNode(type).visualClass)).toBe(true);
     }
@@ -47,11 +47,24 @@ describe('visualForNode', () => {
     expect(visualForNode('not_a_real_type' as NodeType).visualClass).toBe('data');
   });
 
-  it('groups condition + symptom + symptom_episode + allergy into clinical', () => {
+  it('groups condition + allergy into clinical (objective layer only)', () => {
     expect(visualForNode('condition').visualClass).toBe('clinical');
-    expect(visualForNode('symptom').visualClass).toBe('clinical');
-    expect(visualForNode('symptom_episode').visualClass).toBe('clinical');
     expect(visualForNode('allergy').visualClass).toBe('clinical');
+  });
+
+  it('groups symptom + symptom_episode + mood + energy into self_report (plan 2026-06-18-001)', () => {
+    // Patient-reported outcomes are a distinct evidence type — they leave the
+    // clinical/alert hue (symptoms) and the data/provenance grey (mood/energy).
+    expect(visualForNode('symptom').visualClass).toBe('self_report');
+    expect(visualForNode('symptom_episode').visualClass).toBe('self_report');
+    expect(visualForNode('mood').visualClass).toBe('self_report');
+    expect(visualForNode('energy').visualClass).toBe('self_report');
+  });
+
+  it('keeps "data" as provenance only — source_document, not self-reports', () => {
+    expect(visualForNode('source_document').visualClass).toBe('data');
+    expect(visualForNode('mood').visualClass).not.toBe('data');
+    expect(visualForNode('energy').visualClass).not.toBe('data');
   });
 
   it('groups biomarker + observation + metric_window into biomarker', () => {
@@ -106,9 +119,9 @@ describe('radiusForTier', () => {
 });
 
 describe('selectionStrokeClass', () => {
-  it('maps every NodeType to exactly 4 stroke classes', () => {
+  it('maps every NodeType to exactly 5 stroke classes', () => {
     const classes = new Set(NODE_TYPES.map((t) => selectionStrokeClass(t)));
-    expect(classes.size).toBe(4);
+    expect(classes.size).toBe(5);
   });
 
   it('returns Tailwind stroke classes (no raw hex) — must stay mirrored in the tailwind.config.ts safelist', () => {
@@ -117,12 +130,18 @@ describe('selectionStrokeClass', () => {
     }
   });
 
-  it('follows the same 4-class grouping as visualForNode', () => {
+  it('follows the same 5-class grouping as visualForNode', () => {
     // Same visual class → same halo stroke; the halo speaks node identity.
-    expect(selectionStrokeClass('condition')).toBe(selectionStrokeClass('symptom'));
+    expect(selectionStrokeClass('condition')).toBe(selectionStrokeClass('allergy'));
+    expect(selectionStrokeClass('symptom')).toBe(selectionStrokeClass('mood')); // both self_report
     expect(selectionStrokeClass('biomarker')).toBe(selectionStrokeClass('observation'));
     expect(selectionStrokeClass('medication')).toBe(selectionStrokeClass('lifestyle'));
-    expect(selectionStrokeClass('source_document')).toBe(selectionStrokeClass('mood'));
+  });
+
+  it('separates the new self_report class from clinical and data', () => {
+    // The split closes review A1: symptoms leave clinical, mood/energy leave data.
+    expect(selectionStrokeClass('symptom')).not.toBe(selectionStrokeClass('condition'));
+    expect(selectionStrokeClass('mood')).not.toBe(selectionStrokeClass('source_document'));
   });
 
   it('falls back to the data-class stroke for unknown types (mirrors visualForNode)', () => {
@@ -149,18 +168,24 @@ describe('labelVisibleByDefault', () => {
 });
 
 describe('LEGEND_ITEMS', () => {
-  it('lists all 4 visual classes once, in canvas order', () => {
+  it('lists all 5 visual classes once, in canvas order', () => {
     expect(LEGEND_ITEMS.map((i) => i.visualClass)).toEqual([
       'clinical',
+      'self_report',
       'biomarker',
       'intervention',
       'data',
     ]);
   });
 
-  it('labels the "data" class as "Source" for the reader', () => {
+  it('labels the "data" class as "Source" (provenance only) for the reader', () => {
     const data = LEGEND_ITEMS.find((i) => i.visualClass === 'data');
     expect(data?.label).toBe('Source');
+  });
+
+  it('names the self_report chip "Symptoms & self-report" (no chip ghosts an unnamed type)', () => {
+    const self = LEGEND_ITEMS.find((i) => i.visualClass === 'self_report');
+    expect(self?.label).toBe('Symptoms & self-report');
   });
 
   it('swatch fill/stroke match visualForNode (single source — no drift)', () => {
