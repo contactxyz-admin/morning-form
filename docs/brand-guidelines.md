@@ -49,6 +49,37 @@ Internal one-liner: **"We run the loop for you; we don't make the medical call."
 Never collapse measurement movement and clinical judgment into one tone, and never
 let a self-reported signal read with the authority of a validated lab.
 
+## The supplement / medication question (clinician-mediated)
+
+"Should I take X for my sleep / energy / …?" is the question the posture is most
+tempted to answer directly. It is answered **in-lane, by escalation** — never by
+the product recommending a supplement (Plan 2026-06-19-001):
+
+1. **Lead with risk-free guidance.** Behaviour the member owns — sleep timing, a
+   cool ~18 °C bedroom, morning light, caffeine timing — given directly as
+   `behaviour` next-steps. No product, no risk.
+2. **Hand the pharmacological part to a clinician.** A supplement or medication is
+   a clinician conversation. The agent surfaces the *general* evidence picture
+   (honest about how mixed it is) and the **question to raise** — it never
+   recommends, never names a dose or brand, never asserts efficacy. This is the
+   **medication & supplement review** specialist
+   (`src/lib/scribe/specialties/medication-supplement/`): clinician-prep *by
+   construction* — a discuss-only safety policy plus the forbidden-phrase
+   backstop — not a recommender.
+3. **Any product / "Supply" step is clinician- or user-initiated**, never an agent
+   upsell, and is a separate gated workstream.
+
+Two gates keep the evidence context honest (both must hold before it surfaces):
+`SUPPLEMENT_HANDOFF_ENABLED` (off until the path is live) **and** a per-note
+**clinician sign-off** (`reviewedBy`/`reviewedAt`) plus a forbidden-phrase re-scan
+in `src/lib/scribe/supplement-handoff/evidence-notes.ts`. A note with no named
+reviewer never reaches a member.
+
+The line: **the agent surfaces and hands off; the clinician makes the call.** This
+is the "regulated pathway / clinician partner" route the locked posture names — it
+keeps the felt "help me decide what to take" promise without the product ever
+crossing into recommendation.
+
 ## Where this is enforced (three surfaces, defence in depth)
 
 1. **Hand-written copy** — `src/lib/compliance/static-copy.test.ts` (an always-on

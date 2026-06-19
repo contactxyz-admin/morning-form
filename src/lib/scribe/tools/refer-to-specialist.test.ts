@@ -9,6 +9,7 @@ import type {
 } from '@/lib/scribe/execute';
 import {
   REFERRAL_DEPTH_VIOLATION,
+  REFERRAL_REJECTED_FALLBACK,
   REFERRAL_TOPIC_VIOLATION,
   __setReferralScribeLLMForTest,
   referToSpecialistHandler,
@@ -104,6 +105,48 @@ describe('refer_to_specialist — core specialty', () => {
     expect(audits).toHaveLength(1);
     expect(audits[0].parentRequestId).toBe('parent-req-id-core');
     expect(audits[0].topicKey).toBe('cardiometabolic');
+  });
+});
+
+describe('refer_to_specialist — rejected child output is withheld (safety net)', () => {
+  it('substitutes a safe fallback when the specialist output is forbidden-phrase rejected, never the raw text', async () => {
+    const userId = await makeTestUser(prisma, 'refer-rejected');
+    await getOrCreateScribeForTopic(prisma, userId, 'cardiometabolic', {
+      modelVersion: 'v1',
+    });
+
+    // A scan-dirty child reply (drug name + dose) → enforce() classifies it
+    // 'rejected'. The referral surface renders `response` verbatim, so the raw
+    // text must not be what we hand back.
+    __setReferralScribeLLMForTest(
+      scriptedScribe([
+        {
+          stopReason: 'end_turn',
+          text: 'You should take melatonin 3mg an hour before bed.',
+          modelVersion: 'v1',
+          toolCalls: [],
+        },
+      ]),
+    );
+
+    const ctx: ToolContext = {
+      db: prisma,
+      userId,
+      topicKey: 'general',
+      requestId: 'parent-req-rejected',
+    };
+    const result = await referToSpecialistHandler.execute(ctx, {
+      specialtyKey: 'cardiometabolic',
+      question: 'Should I take anything?',
+    });
+
+    expect(result.status).toBe('core');
+    expect(result.classification).toBe('rejected');
+    // Raw rejected text (drug name + dose) is NOT surfaced…
+    expect(result.response).not.toMatch(/melatonin/i);
+    expect(result.response).not.toMatch(/3\s?mg/i);
+    // …a safe, in-lane fallback is returned instead.
+    expect(result.response).toBe(REFERRAL_REJECTED_FALLBACK);
   });
 });
 

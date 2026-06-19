@@ -4,6 +4,7 @@ import { ENERGY_FATIGUE_POLICY } from './energy-fatigue';
 import { GENERAL_POLICY } from './general';
 import { CARDIOMETABOLIC_POLICY } from './cardiometabolic';
 import { HORMONAL_ENDOCRINE_POLICY } from './hormonal-endocrine';
+import { MEDICATION_SUPPLEMENT_POLICY } from './medication-supplement';
 import type { SafetyPolicy } from './types';
 
 const REGISTRY: ReadonlyMap<string, SafetyPolicy> = new Map([
@@ -11,6 +12,7 @@ const REGISTRY: ReadonlyMap<string, SafetyPolicy> = new Map([
   [CARDIOMETABOLIC_POLICY.topicKey, CARDIOMETABOLIC_POLICY],
   [SLEEP_RECOVERY_POLICY.topicKey, SLEEP_RECOVERY_POLICY],
   [HORMONAL_ENDOCRINE_POLICY.topicKey, HORMONAL_ENDOCRINE_POLICY],
+  [MEDICATION_SUPPLEMENT_POLICY.topicKey, MEDICATION_SUPPLEMENT_POLICY],
   [IRON_POLICY.topicKey, IRON_POLICY],
   [ENERGY_FATIGUE_POLICY.topicKey, ENERGY_FATIGUE_POLICY],
 ]);

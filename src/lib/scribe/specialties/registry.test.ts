@@ -31,11 +31,17 @@ describe('specialty registry — shape', () => {
     expect(getSpecialty('not-a-key')).toBeUndefined();
   });
 
-  it('listCoreSpecialties returns general + 3 specialists = 4 entries', () => {
+  it('listCoreSpecialties returns general + 4 specialists = 5 entries', () => {
     const core = listCoreSpecialties();
-    expect(core).toHaveLength(4);
+    expect(core).toHaveLength(5);
     const keys = core.map((s) => s.key).sort();
-    expect(keys).toEqual(['cardiometabolic', 'general', 'hormonal-endocrine', 'sleep-recovery']);
+    expect(keys).toEqual([
+      'cardiometabolic',
+      'general',
+      'hormonal-endocrine',
+      'medication-supplement',
+      'sleep-recovery',
+    ]);
   });
 
   it('every core specialty has a non-null systemPromptPath and safetyPolicyKey', () => {

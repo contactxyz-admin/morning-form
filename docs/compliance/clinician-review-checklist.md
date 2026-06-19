@@ -10,8 +10,15 @@ direction (`docs/brainstorms/2026-06-16-clinically-honest-graph-requirements.md`
 
 - New or materially-changed **user-facing copy** (pages, emails, cards, nudges).
 - A new **LLM surface or prompt**, or a change to a scribe/topic system prompt.
+  (Incl. the lead-with-guidance sleep change and the new **medication &
+  supplement review** specialist — Plan 2026-06-19-001 Units 1 & 3 — which ship
+  with no flag, so their sign-off is the **merge gate** to production.)
+- A new or edited **supplement-handoff evidence note**
+  (`src/lib/scribe/supplement-handoff/evidence-notes.ts`) — sign-off is what sets
+  `reviewedBy`/`reviewedAt`; an unreviewed note never surfaces.
 - New **persona/fixture content** that renders in a demo or the product.
-- Before flipping a flag that exposes any of the above in production.
+- Before flipping a flag that exposes any of the above in production (incl.
+  `SUPPLEMENT_HANDOFF_ENABLED`).
 
 ## The checklist (every item must pass)
 
@@ -25,6 +32,17 @@ direction (`docs/brainstorms/2026-06-16-clinically-honest-graph-requirements.md`
 **Vocabulary**
 - [ ] Actions use the allowed verbs only: **measure / track / discuss / behaviour**.
 - [ ] Anything beyond those routes to **clinician handover**, not a user-facing conclusion.
+
+**Supplement / medication handoff (when the surface touches it)**
+- [ ] A "should I take …?" answer leads with risk-free behaviour guidance, then
+      hands the pharmacological part to a clinician — it never recommends, names a
+      dose/brand, or asserts efficacy.
+- [ ] Any evidence note is **general-information**, descriptive, and stays in the
+      "worth discussing with a clinician/pharmacist" frame; it carries a named
+      clinician reviewer and passes the forbidden-phrase scan.
+- [ ] The medication & supplement review specialist's output is clinician-prep
+      (surface + hand off), never a recommendation, and no "Supply"/product step
+      is presented as an agent recommendation.
 
 **Flags & evidence (where the surface shows interpretation)**
 - [ ] Flag severity is correct and not blurred: **attention** vs **clinician-discussion** vs **escalation**.

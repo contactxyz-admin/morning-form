@@ -45,11 +45,12 @@ describe('general specialty — system prompt loading', () => {
     expect(prompt).toMatch(/refer_to_specialist/);
   });
 
-  it('the prompt enumerates the three core specialists by name', () => {
+  it('the prompt enumerates the four core specialists by name', () => {
     const prompt = loadSpecialtySystemPrompt('general')!;
     expect(prompt).toMatch(/Cardiometabolic/);
     expect(prompt).toMatch(/Sleep & recovery/);
     expect(prompt).toMatch(/Hormonal/);
+    expect(prompt).toMatch(/Medication & supplement review/);
   });
 
   it('the prompt enumerates at least five stub specialists', () => {
@@ -72,5 +73,14 @@ describe('general specialty — system prompt loading', () => {
     const a = loadSpecialtySystemPrompt('general');
     const b = loadSpecialtySystemPrompt('general');
     expect(a).toBe(b);
+  });
+});
+
+describe('general scribe — lead-with-safe-guidance discipline (Plan 2026-06-19-001 Unit 1)', () => {
+  it('leads with risk-free guidance and routes pharmacology to a clinician without going silent', () => {
+    const prompt = loadSpecialtySystemPrompt('general')!;
+    expect(prompt).toMatch(/lead with what's safe/i);
+    expect(prompt).toContain('route_to_gp_prep');
+    expect(prompt).toMatch(/never go\s+silent/i);
   });
 });
