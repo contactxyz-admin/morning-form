@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { interpret } from './clinical-interpretation';
+import { interpret, isAuthoredMarker } from './clinical-interpretation';
 import type { NodeChangeWire } from '@/types/graph';
 
 const change = (
@@ -13,6 +13,44 @@ const change = (
   afterValue: 2,
   afterAt: '2026-02-10T09:00:00.000Z',
   unit: 'x',
+});
+
+describe('isAuthoredMarker', () => {
+  it('is true for the CMO-authored markers', () => {
+    for (const k of ['ldl', 'apob', 'ferritin', 'hba1c', 'free-testosterone']) {
+      expect(isAuthoredMarker(k)).toBe(true);
+    }
+  });
+
+  it('resolves PRODUCTION registry slugs via the alias', () => {
+    // Authed graph uses the biomarker-registry canonicalKey, not the short
+    // MATRIX key — the alias must keep these authored.
+    expect(isAuthoredMarker('ldl_cholesterol')).toBe(true);
+    expect(isAuthoredMarker('apolipoprotein_b')).toBe(true);
+    expect(isAuthoredMarker('free_testosterone')).toBe(true);
+  });
+
+  it('interpret resolves the authored rule for a production slug', () => {
+    const i = interpret('ldl_cholesterol', change('worsened', 'up'), { value: 3.4, low: null, high: 3.0 });
+    expect(i.signalClarity).toBe('Medium–High'); // authored LDL, not DEFAULT 'Low'
+  });
+
+  it('is false for unauthored markers (no MorningForm clinical judgement)', () => {
+    expect(isAuthoredMarker('glucose')).toBe(false);
+    expect(isAuthoredMarker('vitamin-d')).toBe(false);
+    expect(isAuthoredMarker('')).toBe(false);
+  });
+
+  it('is false for prototype keys — no proto-chain resolution', () => {
+    expect(isAuthoredMarker('__proto__')).toBe(false);
+    expect(isAuthoredMarker('constructor')).toBe(false);
+    expect(isAuthoredMarker('toString')).toBe(false);
+  });
+
+  it('interpret does not throw on a prototype key (falls to the conservative default)', () => {
+    expect(() => interpret('__proto__', change('worsened', 'up'), { value: 1, low: null, high: null })).not.toThrow();
+    expect(interpret('constructor', change('stable', 'up'), { value: 1, low: null, high: null }).signalClarity).toBe('Low');
+  });
 });
 
 describe('interpret — CMO matrix', () => {

@@ -23,6 +23,9 @@ import { GraphCanvas } from '@/components/graph/graph-canvas';
 import { NodeDetailSheet } from '@/components/graph/node-detail-sheet';
 import { scrubberStops, asOfVisibility } from '@/lib/graph/as-of';
 import { tickPosition, nextPlayIndex } from '@/lib/graph/scrubber';
+import { GraphFilterLegend, useCategoryFilter } from '@/components/graph/graph-filter-legend';
+import { visualForNode } from '@/lib/graph/visual-encoding';
+import { changeDirectionGlyph } from '@/lib/markers/change-presentation';
 import { FLAG_PRESENTATION } from '@/lib/markers/flag-presentation';
 import { adaptDemoFixture, type AdaptedDemoFixture } from '@/lib/demo/graph-adapter';
 import {
@@ -63,11 +66,10 @@ interface Props {
 const ENTITY_PATTERN = /^[A-Za-z0-9\-_.:]+$/;
 const ENTITY_MAX_LEN = 200;
 
-// Source-document pseudo-nodes have no detail surface on the public demo
-// (no /record/source/[id] equivalent for fixtures), so they must not
-// present as buttons — no role, no tab stop, no pointer cursor. They keep
-// hover-dim and drag. Module-level so the predicate identity is stable.
-const isNodeInteractive = (node: GraphNodeWire) => node.type !== 'source_document';
+// Every node is interactive now: health nodes open their detail; source /
+// lab-report nodes open the shared source body (plan 2026-06-17-002). The
+// canvas defaults to all-interactive, so no `nodeInteractive` predicate is
+// passed — the category filter still makes a ghosted class non-interactive.
 
 export function DemoGraphSection({ fixture }: Props) {
   const router = useRouter();
@@ -163,6 +165,12 @@ export function DemoGraphSection({ fixture }: Props) {
     setPlaying((p) => !p);
   }, [playing, activeIndex, stops.length]);
 
+  // Category filter (plan 2026-06-17-001) — shared hook with the authed graph,
+  // so the demo and `/record?mode=map` can't drift. Empty by default → every
+  // class shown (today's render); a hidden class fades to the canvas ghost floor.
+  const { hiddenClasses, toggle: handleToggleClass, reset: resetClasses, nodeGhosted } =
+    useCategoryFilter();
+
   const rawEntity = searchParams.get('entity');
   const validatedEntity =
     rawEntity && rawEntity.length <= ENTITY_MAX_LEN && ENTITY_PATTERN.test(rawEntity)
@@ -186,10 +194,50 @@ export function DemoGraphSection({ fixture }: Props) {
   // (unknown key, validation-rejected, or stale link), clear the param so
   // the URL truthfully reflects what's selected. Borrowed from
   // src/components/record/vault-layout.tsx:106-110.
+  // O(1) lookup over the FULL canvas node set (health nodes + synthesized
+  // source hubs) — resolves a clicked source node and enriches a source's
+  // grounded markers with their live value/flag.
+  const nodeById = useMemo(
+    () => new Map(canvasNodes.map((n) => [n.id, n])),
+    [canvasNodes],
+  );
+
   const openNode = useMemo<GraphNodeWire | null>(() => {
     if (!validatedEntity) return null;
-    return adapted.provenanceByNodeId.get(validatedEntity)?.node ?? null;
-  }, [adapted, validatedEntity]);
+    // Health nodes carry provenance; source / lab-report hubs aren't in
+    // provenanceByNodeId, so fall back to the canvas node set — scoped to
+    // source hubs so `?entity=<sourceKey>` stays valid past the deep-link guard
+    // while a bogus key still clears.
+    const healthNode = adapted.provenanceByNodeId.get(validatedEntity)?.node;
+    if (healthNode) return healthNode;
+    const hub = nodeById.get(validatedEntity);
+    return hub && hub.type === 'source_document' ? hub : null;
+  }, [adapted, validatedEntity, nodeById]);
+
+  // When the open node is a source / lab report, assemble the shared
+  // source-detail payload: its SourceView (chunks + identity) plus the live
+  // grounded markers (value/flag) it established, looked up from the canvas set.
+  const openSourceDetail = useMemo(() => {
+    if (!openNode || openNode.type !== 'source_document') return undefined;
+    const sourceView = adapted.sourceViewByKey.get(openNode.id);
+    if (!sourceView) return undefined;
+    const grounded = sourceView.referencedNodes
+      .map((r) => nodeById.get(r.id))
+      .filter((n): n is GraphNodeWire => Boolean(n));
+    return { sourceView, grounded };
+  }, [openNode, adapted, nodeById]);
+
+  // Close the open sheet if its node becomes non-present — either its class is
+  // filtered off (ghost + aria-hide would conflict with the open surface's
+  // aria-current) OR the scrubber moves before the node's firstSeenAt (the open
+  // surface would describe a node the timeline hasn't reached). Mirrors the
+  // click/drill guards so every entry path agrees (plan 2026-06-17-003 #4/#5).
+  useEffect(() => {
+    if (!openNode) return;
+    if (nodeGhosted(openNode) || asOfVisibility(openNode.firstSeenAt, asOfEpoch) !== 'present') {
+      updateUrl(null);
+    }
+  }, [openNode, nodeGhosted, asOfEpoch, updateUrl]);
 
   useEffect(() => {
     // Three clear-cases (use `!== null` instead of truthiness so the
@@ -205,15 +253,16 @@ export function DemoGraphSection({ fixture }: Props) {
 
   const handleNodeClick = useCallback(
     (node: GraphNodeWire) => {
-      // Source-document pseudo-nodes (added in U6) aren't in
-      // `adapted.provenanceByNodeId`. Opening the sheet for them would
-      // resolve to null and trigger the deep-link guard to immediately
-      // clear the URL — a visible flicker for no outcome. Belt-and-braces:
-      // the canvas already withholds the click via `isNodeInteractive`.
-      if (!isNodeInteractive(node)) return;
+      // Don't open a node the timeline hasn't reached yet: a scrubber-dimmed
+      // (not-yet-captured) node shouldn't open its detail (plan 2026-06-17-002
+      // R6). Filter ghosts are already non-interactive via the canvas dim
+      // effect; the time-ghost only dims, so guard the click here.
+      if (asOfVisibility(node.firstSeenAt, asOfEpoch) !== 'present') return;
+      // Health nodes resolve via provenanceByNodeId; source / lab-report nodes
+      // resolve via the canvas source hubs and render the shared source body.
       updateUrl(node.id);
     },
-    [updateUrl],
+    [updateUrl, asOfEpoch],
   );
 
   const handleSheetClose = useCallback(() => {
@@ -270,7 +319,7 @@ export function DemoGraphSection({ fixture }: Props) {
           height={480}
           onNodeClick={handleNodeClick}
           selectedNodeId={openNode?.id ?? null}
-          nodeInteractive={isNodeInteractive}
+          nodeGhosted={nodeGhosted}
           asOfEpoch={asOfEpoch}
           className="w-full h-auto"
           ariaLabel={`Health graph — ${canvasNodes.length} nodes, ${canvasEdges.length} edges. Tap any node to see its sources.`}
@@ -332,32 +381,43 @@ export function DemoGraphSection({ fixture }: Props) {
           </div>
         )}
         <p className="mt-3 text-caption text-text-tertiary">
-          Tap a node to see what grounds it. Hover to highlight what it&apos;s connected to.
+          Tap a node to see what grounds it. Hover to highlight what it&apos;s connected to. Tap a
+          legend chip to focus on a node type.
           {stops.length > 1 ? ' Drag the timeline — or press play — to watch the record build.' : ''}
         </p>
-        <GraphLegend />
+        <GraphFilterLegend
+          hiddenClasses={hiddenClasses}
+          onToggle={handleToggleClass}
+          onReset={resetClasses}
+          className="mt-4"
+        />
       </section>
 
       <NodeDetailSheet
         node={openNode}
         onClose={handleSheetClose}
-        hydratedProvenance={openProvenance}
+        // Source nodes render the shared source body; health nodes get the
+        // hydrated provenance. (openProvenance is null for a source node anyway.)
+        hydratedProvenance={openSourceDetail ? undefined : openProvenance}
         // Empty topics list — fixture has no compiled topic pages, so
         // suppressing the section avoids an unnecessary authed fetch.
         hydratedTopics={[]}
+        sourceDetail={openSourceDetail}
+        onOpenNode={(m) => {
+          // Drill from a grounded marker into that node, applying the same
+          // guards as a canvas click (plan 2026-06-17-003 #4/#5): never open a
+          // not-yet-born node; if the target's class is filtered off, reveal it
+          // first so the drill isn't a dead click that instantly re-closes.
+          const node = nodeById.get(m.id);
+          if (node && asOfVisibility(node.firstSeenAt, asOfEpoch) !== 'present') return;
+          if (node && nodeGhosted(node)) handleToggleClass(visualForNode(node.type).visualClass);
+          updateUrl(m.id);
+        }}
       />
     </>
   );
 }
 
-/**
- * Compact 4-swatch legend explaining the canvas's visual-class colours.
- * Mirrors src/lib/graph/visual-encoding.ts → NODE_VISUAL_BY_CLASS so the
- * legend never drifts from the encoding. The class strings inlined here
- * also serve as a redundant signal to Tailwind's content scanner — they
- * survive even if a future refactor moves visual-encoding.ts outside
- * the scanned tree.
- */
 // The ONE priority cluster (plan 2026-06-16-003 R10) — "Cardiometabolic
 // baseline" surfaced above the graph so the clinically-salient story isn't
 // buried among equal nodes. A compact card, not a dashboard grid. Membership is
@@ -395,7 +455,11 @@ function PriorityCluster({
                 <span className="font-medium">{n.displayName}</span>{' '}
                 <span className="font-mono text-text-secondary">
                   {c.afterValue} {c.unit}
-                  {c.classification === 'new' ? ' · new baseline' : c.direction === 'up' ? ' ↑' : c.direction === 'down' ? ' ↓' : ''}
+                  {c.classification === 'new'
+                    ? ' · new baseline'
+                    : c.direction
+                      ? ` ${changeDirectionGlyph(c.direction)}`
+                      : ''}
                 </span>
               </span>
               {flag && (
@@ -415,41 +479,3 @@ function PriorityCluster({
   );
 }
 
-function GraphLegend() {
-  const items: Array<{ label: string; fill: string; stroke: string }> = [
-    { label: 'Clinical', fill: 'fill-alert/15', stroke: 'stroke-alert/70' },
-    { label: 'Biomarker', fill: 'fill-accent/20', stroke: 'stroke-accent' },
-    { label: 'Intervention', fill: 'fill-positive/15', stroke: 'stroke-positive/80' },
-    { label: 'Source', fill: 'fill-text-tertiary/10', stroke: 'stroke-text-tertiary/60' },
-  ];
-  return (
-    <ul
-      aria-label="Graph node legend"
-      className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2"
-    >
-      {items.map((item) => (
-        <li
-          key={item.label}
-          className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary"
-        >
-          <svg
-            aria-hidden
-            viewBox="0 0 12 12"
-            width={12}
-            height={12}
-            className="shrink-0"
-          >
-            <circle
-              cx={6}
-              cy={6}
-              r={5}
-              className={`${item.fill} ${item.stroke}`}
-              strokeWidth={1.2}
-            />
-          </svg>
-          <span>{item.label}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}

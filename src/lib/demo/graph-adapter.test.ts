@@ -245,4 +245,46 @@ describe('adaptDemoFixture', () => {
       }
     });
   });
+
+  describe('sourceViewByKey (plan 2026-06-17-002)', () => {
+    it('has a SourceView for every fixture source', () => {
+      for (const s of METABOLIC_PERSONA_GRAPH.sources) {
+        expect(adapted.sourceViewByKey.has(s.sourceKey)).toBe(true);
+      }
+    });
+
+    it('shapes a lab source via buildSourceView (kindLabel + ordered chunks)', () => {
+      const lab = METABOLIC_PERSONA_GRAPH.sources.find((s) => s.kind === 'lab_pdf');
+      expect(lab).toBeDefined();
+      const view = adapted.sourceViewByKey.get(lab!.sourceKey)!;
+      expect(view.kindLabel).toBe('Lab report');
+      expect(view.chunks.length).toBe(lab!.chunks.length);
+      const idx = view.chunks.map((c) => c.index);
+      expect([...idx].sort((a, b) => a - b)).toEqual(idx); // sorted by index
+    });
+
+    it("referencedNodes are the inverse of provenanceByNodeId's sources", () => {
+      // A source's grounded markers === the nodes whose provenance cites it, so
+      // source-detail and node-detail can never disagree about grounding.
+      for (const s of METABOLIC_PERSONA_GRAPH.sources) {
+        const view = adapted.sourceViewByKey.get(s.sourceKey)!;
+        const fromView = new Set(view.referencedNodes.map((n) => n.id));
+        const fromProvenance = new Set(
+          Array.from(adapted.provenanceByNodeId.values())
+            .filter((p) => p.sources.some((src) => src.sourceKey === s.sourceKey))
+            .map((p) => p.node.id),
+        );
+        expect(fromView).toEqual(fromProvenance);
+      }
+    });
+
+    it('is deterministic — same input yields equal views', () => {
+      const again = adaptDemoFixture(METABOLIC_PERSONA_GRAPH);
+      for (const s of METABOLIC_PERSONA_GRAPH.sources) {
+        expect(again.sourceViewByKey.get(s.sourceKey)).toEqual(
+          adapted.sourceViewByKey.get(s.sourceKey),
+        );
+      }
+    });
+  });
 });

@@ -22,7 +22,8 @@ import type { ImportanceTier } from '../graph/importance';
 import type { EdgeType, GraphEdgeWire, GraphNodeWire, GraphResponse } from '../../types/graph';
 import { deriveChange, latestReading } from './derive-change';
 import { evidenceGrade } from './evidence-grade';
-import { interpret } from '../markers/clinical-interpretation';
+import { interpret, isAuthoredMarker } from '../markers/clinical-interpretation';
+import { buildSourceView, type SourceView } from '../record/source-view';
 
 /** Pre-built per-node provenance lookup, used to feed NodeDetailSheet without an authed fetch. */
 export interface DemoNodeProvenance {
@@ -35,6 +36,14 @@ export interface AdaptedDemoFixture {
   readonly graph: GraphResponse;
   /** O(1) lookup keyed by node id (= demoNode.nodeKey). */
   readonly provenanceByNodeId: ReadonlyMap<string, DemoNodeProvenance>;
+  /**
+   * O(1) lookup keyed by source id (= demoSource.sourceKey, == the synthesized
+   * source-hub node id). Lets the demo open a source / lab-report node into the
+   * same shared source-detail body the authed `/record/source/[id]` page uses
+   * (plan 2026-06-17-002), with no authed fetch — the fixture is the source of
+   * truth.
+   */
+  readonly sourceViewByKey: ReadonlyMap<string, SourceView>;
 }
 
 /**
@@ -77,10 +86,13 @@ function nodeToWire(
   // authors a tone, so the ring can't contradict its cited source.
   const change = deriveChange(node.readings);
   // Consumer interpretation (the four CMO dimensions + flag) from the change +
-  // the latest reading's range (plan 2026-06-16-003). Only nodes with a change.
+  // the latest reading's range (plan 2026-06-16-003). Authored-only clinical
+  // judgement (plan 2026-06-17): only markers with a CMO-authored rule carry an
+  // interpretation/flag — an unreviewed marker shows its change (value/direction)
+  // but no inferred flag, so lack of review can't read as clinical urgency.
   const latest = latestReading(node.readings);
   const interpretation =
-    change && latest
+    change && latest && isAuthoredMarker(node.canonicalKey)
       ? interpret(node.canonicalKey, change, {
           value: latest.value,
           low: latest.referenceLow,
@@ -192,6 +204,50 @@ export function adaptDemoFixture(fixture: DemoRecordFixture): AdaptedDemoFixture
     provenanceByNodeId.set(node.id, { node, chunks, sources });
   }
 
+  // Source → SourceView lookup (plan 2026-06-17-002). The nodes a source grounds
+  // are the INVERSE of provenanceByNodeId (a node is grounded by every source in
+  // its provenance), so source-detail and node-detail can never disagree about
+  // grounding. Shaped by the same pure `buildSourceView` the authed source page
+  // uses, so both surfaces present a source identically.
+  const groundedBySource = new Map<string, string[]>();
+  for (const prov of Array.from(provenanceByNodeId.values())) {
+    for (const source of prov.sources) {
+      const arr = groundedBySource.get(source.sourceKey) ?? [];
+      arr.push(prov.node.id);
+      groundedBySource.set(source.sourceKey, arr);
+    }
+  }
+  const nodeRows = nodes.map((n) => ({
+    id: n.id,
+    type: n.type,
+    displayName: n.displayName,
+    canonicalKey: n.canonicalKey,
+  }));
+  const sourceViewByKey = new Map<string, SourceView>();
+  for (const source of fixture.sources) {
+    const groundedIds = groundedBySource.get(source.sourceKey) ?? [];
+    const capturedAt = new Date(source.capturedAt);
+    sourceViewByKey.set(
+      source.sourceKey,
+      buildSourceView({
+        id: source.sourceKey,
+        kind: source.kind,
+        sourceRef: source.sourceRef,
+        capturedAt,
+        // DemoSource has no separate createdAt — capturedAt is the only moment.
+        createdAt: capturedAt,
+        chunks: source.chunks.map((c) => ({
+          id: c.chunkKey,
+          index: c.index,
+          text: c.text,
+          pageNumber: c.pageNumber,
+        })),
+        edges: groundedIds.map((id) => ({ toNodeId: id })),
+        nodes: nodeRows,
+      }),
+    );
+  }
+
   const nodeTypeCounts: Record<string, number> = {};
   for (const n of nodes) {
     nodeTypeCounts[n.type] = (nodeTypeCounts[n.type] ?? 0) + 1;
@@ -206,5 +262,6 @@ export function adaptDemoFixture(fixture: DemoRecordFixture): AdaptedDemoFixture
       totalNodes: nodes.length,
     },
     provenanceByNodeId,
+    sourceViewByKey,
   };
 }

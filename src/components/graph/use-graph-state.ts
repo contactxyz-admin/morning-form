@@ -25,6 +25,7 @@ import {
   type MotionPoint,
   type GraphBounds,
 } from '@/lib/graph/motion';
+import { decollideLabels, type LabelBox } from '@/lib/graph/labels';
 
 /** Entrance duration in seconds. */
 const ENTRANCE_DURATION_S = 0.7;
@@ -52,6 +53,17 @@ const ZOOM_STEP_MS = 200;
 const RESET_DURATION_MS = 450;
 /** Padding (px) left around the node bbox when fitting to view. */
 const FIT_PADDING = 48;
+
+/**
+ * Always-on (tier-1) label de-collision (plan 2026-06-17-001) — labels only,
+ * node positions never move. `BASE_DY_GAP` is the baseline offset below the dot
+ * (`radius + gap`); the rest tune the small downward nudge. Tunable in the
+ * visual audit.
+ */
+const LABEL_BASE_DY_GAP = 14;
+const LABEL_MAX_SHIFT = 14; // cap on the nudge (~one line-height)
+const LABEL_X_PAD = 6; // horizontal slack for "shares a column"
+const LABEL_Y_PAD = 2; // vertical gap kept between stacked labels
 
 /** alphaTarget the sim is re-energized to while a node is being dragged. */
 const DRAG_ALPHA_TARGET = 0.3;
@@ -518,13 +530,15 @@ export function useGraphState(
       .attr('dy', '0.32em')
       .text((d) => changeDirectionGlyph(d.change!.direction));
 
-    // Tier-1 labels: always-on, sit below the dot.
-    nodeGroups
+    // Tier-1 labels: always-on, sit below the dot. Captured so the
+    // de-collision pass below can nudge overlapping ones apart (labels only).
+    // `graph-node-label` carries the legibility halo (globals.css).
+    const tier1Labels = nodeGroups
       .filter((d) => d.tier === 1)
       .append('text')
-      .attr('class', 'fill-text-primary text-[11px] font-mono pointer-events-none')
+      .attr('class', 'graph-node-label fill-text-primary text-[11px] font-mono pointer-events-none')
       .attr('text-anchor', 'middle')
-      .attr('dy', (d) => radiusForTier(d.tier) + 14)
+      .attr('dy', (d) => radiusForTier(d.tier) + LABEL_BASE_DY_GAP)
       .text((d) => d.displayName);
 
     // Tier-2/3 labels: live in a hover-only sibling text node, hidden by default.
@@ -533,11 +547,54 @@ export function useGraphState(
       .append('text')
       .attr(
         'class',
-        'graph-node-label-hover fill-text-primary text-[11px] font-mono pointer-events-none opacity-0 transition-opacity',
+        'graph-node-label graph-node-label-hover fill-text-primary text-[11px] font-mono pointer-events-none opacity-0 transition-opacity',
       )
       .attr('text-anchor', 'middle')
-      .attr('dy', (d) => radiusForTier(d.tier) + 14)
+      .attr('dy', (d) => radiusForTier(d.tier) + LABEL_BASE_DY_GAP)
       .text((d) => d.displayName);
+
+    // ── Always-on label de-collision (plan 2026-06-17-001) ──
+    // ponytail: computed once at init from the settled layout; NOT re-run after
+    // a node drag — transient label overlap while dragging is accepted. Revisit
+    // if dragged-label collisions read badly in the audit.
+    // Nudge overlapping tier-1 labels DOWN a touch so persistent text doesn't
+    // stack. Computed once from the SETTLED layout (targetMap) — node positions
+    // never move (determinism contract). getBBox is geometry-only
+    // (position-independent), so measuring while nodes still sit at scatter is
+    // fine; the math is a pure, unit-tested helper. Guarded for SSR/jsdom where
+    // getBBox is absent / returns 0, and against pre-font-load width drift
+    // (approximate by design — a "small nudge", not a placement solver).
+    try {
+      const labelBoxes: LabelBox[] = [];
+      tier1Labels.each(function (this: SVGTextElement, d) {
+        const tg = targetMap.get(d.id);
+        if (!tg || typeof this.getBBox !== 'function') return;
+        const bb = this.getBBox();
+        if (!bb || bb.width === 0) return;
+        labelBoxes.push({
+          id: d.id,
+          x: tg.x + bb.x + bb.width / 2,
+          y: tg.y + bb.y,
+          width: bb.width,
+          height: bb.height,
+        });
+      });
+      if (labelBoxes.length > 1) {
+        const offsets = decollideLabels(labelBoxes, {
+          maxShift: LABEL_MAX_SHIFT,
+          xPad: LABEL_X_PAD,
+          yPad: LABEL_Y_PAD,
+        });
+        if (offsets.size > 0) {
+          tier1Labels.attr(
+            'dy',
+            (d) => radiusForTier(d.tier) + LABEL_BASE_DY_GAP + (offsets.get(d.id) ?? 0),
+          );
+        }
+      }
+    } catch {
+      // getBBox can throw in detached/SSR contexts — labels keep their base dy.
+    }
 
     // ── Entrance animation ──
     // FLUSH simNodes to the settled target. Always-safe end-state for any

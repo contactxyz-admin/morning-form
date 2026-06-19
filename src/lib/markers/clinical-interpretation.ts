@@ -8,7 +8,9 @@
  * the regulatory intended-purpose surface (MHRA), so it lives here as
  * reviewable data, not free logic — the engine is a thin evaluator over it.
  * Status/clarity/flag may honestly disagree with raw movement (e.g. ferritin
- * rose but stays context-dependent — an acute-phase reactant). Pure; demo-only.
+ * rose but stays context-dependent — an acute-phase reactant). Pure and
+ * surface-neutral: consumed by the demo adapter AND the authed source route
+ * (plan 2026-06-17-003).
  *
  * Reference ranges below are MorningForm ATTENTION thresholds, never clinical
  * treatment thresholds.
@@ -105,17 +107,51 @@ const DEFAULT_RULE: MarkerRule = {
   flag: 'clinician_discussion',
 };
 
+// Production biomarker-registry canonicalKeys (slugs) → the short MATRIX keys
+// the CMO authored. The demo fixtures use the MATRIX keys directly, but the
+// authed graph uses the registry canonicalKey (`src/lib/intake/biomarkers.ts`),
+// so without this map LDL/ApoB/free-T would never resolve their authored rule on
+// the authed path and would silently fall to the unreviewed state. Lowercased
+// keys (join keys are lowercased upstream).
+const MATRIX_KEY_ALIASES: Record<string, AuthoredKey> = {
+  ldl_cholesterol: 'ldl',
+  apolipoprotein_b: 'apob',
+  free_testosterone: 'free-testosterone',
+};
+
+/** Resolve a marker key (registry slug or short key) to its MATRIX key. */
+function matrixKey(canonicalKey: string): string {
+  return MATRIX_KEY_ALIASES[canonicalKey] ?? canonicalKey;
+}
+
+/**
+ * Whether a marker has a CMO-authored interpretation rule (not the conservative
+ * fallback). Callers gate clinical flags on this — the policy is "no authored
+ * rule ⇒ no MorningForm clinical judgement" (plan 2026-06-17): an unreviewed
+ * marker shows value/direction + source, never an inferred flag. Resolves the
+ * registry→MATRIX alias first, then `hasOwnProperty`-guards so a crafted key
+ * like `__proto__`/`constructor` can't resolve to a prototype member (which
+ * would dodge the fallback and throw).
+ */
+export function isAuthoredMarker(canonicalKey: string): boolean {
+  return Object.prototype.hasOwnProperty.call(MATRIX, matrixKey(canonicalKey));
+}
+
 /**
  * Interpret a marker's change into the four consumer dimensions + flag.
  * `latest` carries the most recent value + its reference range (the change
  * itself doesn't store the range). Unknown markers use the conservative default.
+ * Callers that enforce the authored-only policy gate on `isAuthoredMarker` first;
+ * the `DEFAULT_RULE` fallback remains for any direct caller.
  */
 export function interpret(
   canonicalKey: string,
   change: NodeChangeWire,
   latest: { value: number; low: number | null; high: number | null },
 ): NodeInterpretation {
-  const rule = MATRIX[canonicalKey as AuthoredKey] ?? DEFAULT_RULE;
+  const rule = isAuthoredMarker(canonicalKey)
+    ? (MATRIX[matrixKey(canonicalKey) as AuthoredKey] as MarkerRule)
+    : DEFAULT_RULE;
   const ctx: Ctx = { change, value: latest.value, low: latest.low, high: latest.high };
   return {
     whereItIsNow: rule.whereItIsNow ? rule.whereItIsNow(ctx) : positionLabel(ctx),
