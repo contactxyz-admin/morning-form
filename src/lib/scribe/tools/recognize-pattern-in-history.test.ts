@@ -17,6 +17,47 @@ afterAll(async () => {
   await teardownTestDb();
 });
 
+/**
+ * Seed a real lab trajectory as graph nodes (a biomarker concept + dated
+ * `observation` instances linked via INSTANCE_OF) — the shape a real lab upload
+ * produces. Deliberately NO HealthDataPoint rows, so this history is invisible
+ * to the wearable-only path.
+ */
+async function seedLabTrajectory(
+  userId: string,
+  displayName: string,
+  points: { value: number; unit: string; daysAgo: number }[],
+) {
+  const concept = await prisma.graphNode.create({
+    data: {
+      userId,
+      type: 'biomarker',
+      canonicalKey: displayName.toLowerCase(),
+      displayName,
+      attributes: JSON.stringify({ unit: points[0]?.unit ?? '' }),
+    },
+  });
+  const now = Date.now();
+  for (const p of points) {
+    const obs = await prisma.graphNode.create({
+      data: {
+        userId,
+        type: 'observation',
+        canonicalKey: `obs_${displayName.toLowerCase()}_${p.daysAgo}`,
+        displayName,
+        attributes: JSON.stringify({
+          value: p.value,
+          unit: p.unit,
+          measuredAt: new Date(now - p.daysAgo * 24 * 60 * 60 * 1000).toISOString(),
+        }),
+      },
+    });
+    await prisma.graphEdge.create({
+      data: { userId, type: 'INSTANCE_OF', fromNodeId: obs.id, toNodeId: concept.id },
+    });
+  }
+}
+
 async function seedHrv(userId: string, values: number[], offsetDays: number[]) {
   const now = Date.now();
   for (let i = 0; i < values.length; i++) {
@@ -201,6 +242,53 @@ describe('recognize_pattern_in_history handler', () => {
       metrics: ['hrv'],
       windowDays: 30,
     });
+    expect(result.status).toBe('too-little-data');
+  });
+
+  it('LONGITUDINAL ON: surfaces a real lab trajectory from graph nodes (P1 — scribe sees bloods)', async () => {
+    const prev = process.env.LONGITUDINAL_GRAPH_ENABLED;
+    process.env.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    try {
+      const userId = await makeTestUser(prisma, 'pattern-lab-traj');
+      // Three quarterly draws as graph observation nodes — NO HealthDataPoint rows.
+      await seedLabTrajectory(userId, 'Ferritin', [
+        { value: 25, unit: 'ug/L', daysAgo: 200 },
+        { value: 41, unit: 'ug/L', daysAgo: 120 },
+        { value: 62, unit: 'ug/L', daysAgo: 20 },
+      ]);
+
+      const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery', requestId: 'test-req-id' };
+      const result = await recognizePatternInHistoryHandler.execute(ctx, {
+        metrics: ['ferritin'],
+        windowDays: 30, // labs are not time-windowed — all 3 draws still surface
+      });
+
+      expect(result.status).toBe('ok');
+      const ferritin = result.metrics.find((m) => m.metric === 'ferritin');
+      expect(ferritin?.count).toBe(3);
+      expect(ferritin?.first?.value).toBe(25); // oldest
+      expect(ferritin?.last?.value).toBe(62); // newest
+      expect(result.series).toHaveLength(3);
+    } finally {
+      if (prev === undefined) delete process.env.LONGITUDINAL_GRAPH_ENABLED;
+      else process.env.LONGITUDINAL_GRAPH_ENABLED = prev;
+    }
+  });
+
+  it('LONGITUDINAL OFF: graph-only lab history stays invisible (wearable-only path unchanged)', async () => {
+    const userId = await makeTestUser(prisma, 'pattern-lab-off');
+    await seedLabTrajectory(userId, 'Ferritin', [
+      { value: 25, unit: 'ug/L', daysAgo: 20 },
+      { value: 41, unit: 'ug/L', daysAgo: 10 },
+      { value: 62, unit: 'ug/L', daysAgo: 2 },
+    ]);
+
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'sleep-recovery', requestId: 'test-req-id' };
+    const result = await recognizePatternInHistoryHandler.execute(ctx, {
+      metrics: ['ferritin'],
+      windowDays: 30,
+    });
+    // Flag off → reads HealthDataPoint only → graph labs invisible (the pre-P1 gap).
     expect(result.status).toBe('too-little-data');
   });
 
