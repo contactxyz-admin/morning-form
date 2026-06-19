@@ -34,7 +34,7 @@ import type {
   ScribeLLMTurn,
 } from '@/lib/scribe/execute';
 import { __setReferralScribeLLMForTest } from '@/lib/scribe/tools/refer-to-specialist';
-import { runChatTurn } from './turn';
+import { OUT_OF_SCOPE_FALLBACK, runChatTurn } from './turn';
 import type { TurnEvent } from './types';
 
 let prisma: PrismaClient;
@@ -126,6 +126,106 @@ async function collect(gen: AsyncGenerator<TurnEvent, void, void>): Promise<Turn
   for await (const e of gen) events.push(e);
   return events;
 }
+
+describe('runChatTurn — remedial retry on forbidden-phrase rejection', () => {
+  it('retries once and recovers a clinical-safe answer instead of dead-ending', async () => {
+    const userId = await makeTestUser(prisma, 'turn-remedial-recover');
+    const scribe = await getOrCreateScribeForTopic(prisma, userId, 'iron', {
+      modelVersion: 'v1',
+    });
+    mockRouter('iron', 0.9, 'sleep supplements');
+
+    // First answer names a supplement + dose → enforce rejects. The remedial
+    // retry returns a clean answer → clinical-safe (no dead-end).
+    const calls: Array<Pick<ScribeLLMTurnRequest, 'system'>> = [];
+    const scribeLlm = scriptedScribe(
+      [
+        {
+          stopReason: 'end_turn',
+          text: 'Try melatonin 3mg before bed.',
+          modelVersion: 'v1',
+          toolCalls: [],
+        },
+        {
+          stopReason: 'end_turn',
+          text: 'A consistent wind-down and a cool, dark room help most people; supplements are best discussed with a clinician.',
+          modelVersion: 'v1',
+          toolCalls: [],
+        },
+      ],
+      calls,
+    );
+
+    const events = await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'what can I take to improve my sleep',
+        routerLlm: routerClient(),
+        scribeLlm,
+      }),
+    );
+
+    const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
+    expect(done.classification).toBe('clinical-safe');
+    expect(done.output).toMatch(/wind-down|clinician/i);
+    expect(done.output).not.toMatch(/melatonin/i);
+
+    // The retry ran (two scribe calls); the second carried the remedial addendum.
+    expect(calls).toHaveLength(2);
+    expect(calls[1].system).toMatch(/previous reply was discarded/i);
+
+    // Two honest audit rows: the rejected attempt + the clinical-safe retry.
+    // The surfaced answer maps to the retry's (clinical-safe) row.
+    const audits = await prisma.scribeAudit.findMany({
+      where: { userId, scribeId: scribe.id },
+    });
+    expect(audits).toHaveLength(2);
+    expect(audits.some((a) => a.safetyClassification === 'rejected')).toBe(true);
+    const surfaced = audits.find((a) => a.requestId === done.requestId);
+    expect(surfaced?.safetyClassification).toBe('clinical-safe');
+  });
+
+  it('leaves the rejected verdict untouched when the retry cannot recover', async () => {
+    const userId = await makeTestUser(prisma, 'turn-remedial-fail');
+    const scribe = await getOrCreateScribeForTopic(prisma, userId, 'iron', {
+      modelVersion: 'v1',
+    });
+    mockRouter('iron', 0.9, 'sleep supplements');
+
+    // Only one scripted turn (rejected); the retry exhausts the queue and
+    // throws → caught → original rejected verdict preserved, one audit row.
+    const scribeLlm = scriptedScribe([
+      {
+        stopReason: 'end_turn',
+        text: 'Try melatonin 3mg before bed.',
+        modelVersion: 'v1',
+        toolCalls: [],
+      },
+    ]);
+
+    const events = await collect(
+      runChatTurn({
+        db: prisma,
+        userId,
+        text: 'what can I take to improve my sleep',
+        routerLlm: routerClient(),
+        scribeLlm,
+      }),
+    );
+
+    const done = events.at(-1) as Extract<TurnEvent, { type: 'done' }>;
+    expect(done.classification).toBe('rejected');
+    expect(done.output).toBe(OUT_OF_SCOPE_FALLBACK);
+
+    // The surfaced answer maps to the original rejected audit row.
+    expect(done.requestId).toBeTruthy();
+    const surfaced = await prisma.scribeAudit.findFirst({
+      where: { userId, scribeId: scribe.id, requestId: done.requestId ?? undefined },
+    });
+    expect(surfaced?.safetyClassification).toBe('rejected');
+  });
+});
 
 describe('runChatTurn — happy path (routed → scribe)', () => {
   it('routes to iron, streams tokens, persists both messages, and writes a ScribeAudit row', async () => {

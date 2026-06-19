@@ -61,6 +61,20 @@ export const OUT_OF_SCOPE_FALLBACK =
   "I can't answer that here — I've suggested a prompt for your GP instead.";
 
 /**
+ * Appended to the system prompt on a one-shot remedial retry when a chat turn
+ * was rejected for a forbidden phrase (a named drug/supplement/dose in the
+ * prose). Names exactly what tripped so the model can rewrite cleanly —
+ * mirrors the topic-page compile's remedial loop (`buildRemedialPrompt`).
+ */
+const REMEDIAL_ADDENDUM = [
+  'IMPORTANT — your previous reply was discarded because it named a medication,',
+  'supplement, or dose. Rewrite the answer with NONE of those: give the behaviour',
+  'and lifestyle guidance directly, and for anything pharmacological say only that',
+  'it is best decided with a clinician — naming no specific product, compound,',
+  'brand, or dose.',
+].join(' ');
+
+/**
  * Topic key the chat layer routes to when the router returns null.
  * Centralised so future plan-level changes (e.g., a different fallback
  * specialty) only need updating in one place.
@@ -237,6 +251,43 @@ export async function* runChatTurn(
     });
     yield { type: 'error', message };
     return;
+  }
+
+  // 5b. Remedial retry — a turn rejected for a forbidden phrase (a named
+  //     drug/supplement/dose in the prose) would otherwise discard the WHOLE
+  //     answer, hygiene next-steps and all, and show the user a dead-end. Retry
+  //     ONCE with a remedial addendum naming what tripped, then re-enforce.
+  //     A FRESH requestId (not the rejected attempt's) so recordAudit — which
+  //     is write-once per (scribeId, requestId) — records BOTH the rejected
+  //     attempt and the retry honestly; the surfaced answer maps to the retry's
+  //     row. Strictly a safety net: a recovered retry is clinical-safe; a still-
+  //     failing retry leaves the original verdict untouched (no worse than
+  //     before). Only 'rejected' is retried — 'out-of-scope-routed' is a
+  //     legitimate clinician route, not a recoverable error. Needs a base
+  //     systemPrompt to append to (always present for real topics).
+  if (result.classification === 'rejected' && systemPrompt && !signal?.aborted) {
+    try {
+      const retry = await execute({
+        db,
+        userId,
+        topicKey,
+        mode: 'runtime',
+        userMessage: text,
+        declaredJudgmentKind,
+        llm: scribeLlm,
+        systemPrompt: `${systemPrompt}\n\n${REMEDIAL_ADDENDUM}`,
+        signal,
+        contextPreamble,
+        maxTokens,
+        enableProposeNextSteps: askDeep,
+      });
+      if (retry.classification === 'clinical-safe') {
+        result = retry;
+      }
+    } catch {
+      // Retry failure (LLM error, audit write) is non-fatal — keep the original
+      // rejected result and fall through to the out-of-scope fallback below.
+    }
   }
 
   // 6. Rejection-safe surfacing: unsafe outputs never stream to the user.
@@ -416,7 +467,7 @@ async function persistAssistantMessage(
 ) {
   try {
     return await createChatMessage(db, userId, 'assistant', output, metadata);
-  } catch (err) {
+  } catch {
     // One short backoff then a final attempt. The error rethrown on a
     // second failure surfaces to the caller for the error event path.
     await new Promise((resolve) => setTimeout(resolve, 150));
