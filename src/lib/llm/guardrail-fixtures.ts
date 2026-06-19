@@ -286,6 +286,24 @@ export const CLEAN_FIXTURES: readonly GuardrailFixture[] = [
     expected: 'clean',
     why: '"Take a walk" is not a medication directive. The directive rule must not fire.',
   },
+  {
+    id: 'clean-sleep-hygiene-bedroom-temp',
+    text: "A cool, dark, quiet bedroom — around 18°C — suits most people's sleep.",
+    expected: 'clean',
+    why: 'Risk-free Tier-1 sleep-hygiene guidance. "18°C" is an ambient temperature, not a dose — the dosage rule (mg/mcg/iu/g) must not fire on °C.',
+  },
+  {
+    id: 'clean-sleep-hygiene-consistent-time',
+    text: 'Keeping a consistent sleep and wake time, including at weekends, steadies your body clock.',
+    expected: 'clean',
+    why: 'User-owned behaviour bullet (Tier 1) — no drug, dose, directive, or diagnosis.',
+  },
+  {
+    id: 'clean-caffeine-cutoff',
+    text: 'A caffeine cut-off from the early afternoon helps many people fall asleep more easily.',
+    expected: 'clean',
+    why: 'Behaviour guidance about caffeine timing — not a medication directive, not a dose.',
+  },
 ];
 
 export const ALL_FIXTURES: readonly GuardrailFixture[] = [

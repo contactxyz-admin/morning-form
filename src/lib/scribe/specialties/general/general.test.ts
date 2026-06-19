@@ -74,3 +74,12 @@ describe('general specialty — system prompt loading', () => {
     expect(a).toBe(b);
   });
 });
+
+describe('general scribe — lead-with-safe-guidance discipline (Plan 2026-06-19-001 Unit 1)', () => {
+  it('leads with risk-free guidance and routes pharmacology to a clinician without going silent', () => {
+    const prompt = loadSpecialtySystemPrompt('general')!;
+    expect(prompt).toMatch(/lead with what's safe/i);
+    expect(prompt).toContain('route_to_gp_prep');
+    expect(prompt).toMatch(/never go\s+silent/i);
+  });
+});

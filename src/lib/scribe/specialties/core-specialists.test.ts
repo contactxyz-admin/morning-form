@@ -123,6 +123,37 @@ describe('core specialists — system prompts', () => {
   });
 });
 
+describe('sleep-recovery — Tier 1 risk-free guidance discipline (Plan 2026-06-19-001 Unit 1)', () => {
+  const sleepPrompt = () => loadSpecialtySystemPrompt('sleep-recovery')!;
+
+  it('instructs the specialist to lead with risk-free guidance before track/measure/discuss', () => {
+    const prompt = sleepPrompt();
+    expect(prompt).toMatch(/lead with[^.]*risk-free|risk-free guidance first/i);
+    expect(prompt).toMatch(/before any[^.]*track/i);
+  });
+
+  it('carries the concrete sleep-hygiene canon the user can act on (incl. ~18 °C bedroom)', () => {
+    const prompt = sleepPrompt();
+    expect(prompt).toMatch(/consistent sleep and wake time/i);
+    expect(prompt).toMatch(/18\s*°C/);
+    expect(prompt).toMatch(/caffeine cut-off/i);
+  });
+
+  it('surfaces hygiene as user-owned `behavior` next-steps, not a clinician punt', () => {
+    const prompt = sleepPrompt();
+    expect(prompt).toMatch(/user-owned/i);
+    expect(prompt).toContain('behavior');
+  });
+
+  it('routes the supplement/medication part to a clinician instead of going silent', () => {
+    const prompt = sleepPrompt();
+    expect(prompt).toMatch(/never name medications, supplements, or dosages/i);
+    expect(prompt).toMatch(/clinician/i);
+    expect(prompt).toContain('route_to_gp_prep');
+    expect(prompt).toMatch(/rather than going silent|never a dead end/i);
+  });
+});
+
 describe('core specialists — registry alignment', () => {
   it('the registry lists exactly four core specialties (general + 3 specialists)', () => {
     expect(listCoreSpecialties()).toHaveLength(4);
