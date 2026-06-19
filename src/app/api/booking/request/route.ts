@@ -125,6 +125,19 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
+  // Retest loop (Plan 2026-06-17-001): if the user has an open scheduled draw,
+  // link this booking to the draw it intends to fulfil. None (e.g. a first-time
+  // baseline booking) → leave null; the booking is unchanged. Flag-gated.
+  let drawId: string | null = null;
+  if (env.RETEST_LOOP_ENABLED === 'true') {
+    const openDraw = await prisma.draw.findFirst({
+      where: { userId: user.id, status: 'scheduled' },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+    drawId = openDraw?.id ?? null;
+  }
+
   // Create the booking row.
   const booking = await prisma.bookingRequest.create({
     data: {
@@ -133,6 +146,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       market: body.market,
       status: 'requested',
       actionId: body.actionId ?? null,
+      drawId,
     },
   });
 

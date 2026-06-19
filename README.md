@@ -53,6 +53,10 @@ Detailed provider setup lives in:
 
 - Activation funnel (signup → first grounded answer → retained): `npx tsx scripts/metrics/activation-funnel.ts --signup-since 2026-03-22 --signup-until 2026-04-21`. Prints CSV + human-readable summary. See [`docs/plans/2026-04-21-002-feat-activation-funnel-instrumentation-plan.md`](docs/plans/2026-04-21-002-feat-activation-funnel-instrumentation-plan.md).
 
+## Retest loop
+
+The retest loop (off by default, behind `RETEST_LOOP_ENABLED`) runs the "return leg": a lab panel completes a `Draw`, the next retest is scheduled, a daily Vercel cron (`/api/cron/retest-nudge`, gated by `CRON_SECRET`) sends a capped nudge sequence, and retention-to-retest is measured (nudge-attributed = loop-caused). The metrics CLI above appends a retest-retention section when the flag is on. Backfill existing users (run dark, before the flip): `npx tsx scripts/retest/backfill-baseline-draws.ts` (dry run) then `--apply`. Tunables live in `src/lib/retest/constants.ts`. See [`docs/runbooks/retest-loop-go-live.md`](docs/runbooks/retest-loop-go-live.md) and [`docs/plans/2026-06-17-001-feat-return-leg-retest-loop-plan.md`](docs/plans/2026-06-17-001-feat-return-leg-retest-loop-plan.md).
+
 ## Retrieval
 
 Hybrid retrieval is enabled when an embedding provider is configured. It embeds only `SourceChunk.text`, stores one `VectorEmbedding` per chunk, and keeps `search_graph_nodes` on the same public contract while ranking with vector + lexical + graph RRF. Set `HYBRID_RETRIEVAL_ENABLED=false` to roll back to legacy lexical/graph behavior.

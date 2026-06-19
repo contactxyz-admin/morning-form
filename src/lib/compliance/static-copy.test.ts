@@ -37,6 +37,11 @@ const SCAN_ROOTS = [
   // src/lib/demo deliberately: wider src/lib roots would trip on policy
   // modules that quote forbidden phrases by design.
   'src/lib/demo',
+  // Retest nudge email copy (Plan 2026-06-17-001 U3). The nudge body in
+  // src/lib/retest/nudge-email.ts is user-visible copy; without this root it
+  // would be silently unscanned. Scoped to src/lib/retest deliberately (no
+  // policy modules quoting forbidden phrases live here).
+  'src/lib/retest',
 ];
 
 // Files that are allowed to mention these strings because that is their job.
@@ -98,6 +103,23 @@ const DIRECTIVE_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   },
 ];
 
+// Causal-overclaim / seductive phrases (Plan 2026-06-17-001 P0-3). These cross
+// the in-lane boundary without naming a drug/dose — the same family the LLM
+// linter enforces (src/lib/llm/linter.ts CAUSAL_OVERCLAIM_PATTERNS). Scoped so
+// in-lane phrasing ("what changed", "worth discussing", bare "worked") passes.
+const CAUSAL_PATTERNS: ReadonlyArray<{ label: string; pattern: RegExp }> = [
+  {
+    label: 'efficacy claim on a self-experiment',
+    pattern:
+      /\b(?:what|whether|if)\s+(?:the\s+|your\s+|that\s+|this\s+)?(?:change|thing|intervention|tweak|adjustment|protocol|supplement|step)\s+(?:you\s+(?:made|changed|tried|took)\s+)?(?:worked|cured|fixed)\b/i,
+  },
+  { label: 'attributes outcome to a cause ("what worked")', pattern: /\bwhat\s+(?:worked|fixed\s+it|cured\s+it|made\s+the\s+difference)\b/i },
+  { label: 'causal cure claim', pattern: /\b(?:cured|reversed|healed)\s+(?:your|the|this|it)\b/i },
+  { label: 'prescriptive "the one thing to do"', pattern: /\bthe\s+one\s+thing\s+(?:to\s+do|you\s+(?:should|need\s+to|must|have\s+to)\s+do)\b/i },
+  { label: 'managed-care "clinicians decide"', pattern: /\b(?:our|the)\s+clinicians?\s+(?:decide|will\s+decide|determine|will\s+determine|choose|will\s+choose)\b/i },
+  { label: 'diagnosis-framed "what\'s wrong with you"', pattern: /\bwhat(?:'s|\s+is)\s+wrong\s+with\s+you\b/i },
+];
+
 function walk(dir: string, acc: string[] = []): string[] {
   let entries: string[];
   try {
@@ -153,6 +175,10 @@ function findHits(): Hit[] {
     for (const { label, pattern } of DIRECTIVE_PATTERNS) {
       const m = scan.match(pattern);
       if (m) hits.push({ file: relPath, label: `directive:${label}`, excerpt: m[0] });
+    }
+    for (const { label, pattern } of CAUSAL_PATTERNS) {
+      const m = scan.match(pattern);
+      if (m) hits.push({ file: relPath, label: `causal:${label}`, excerpt: m[0] });
     }
   }
   return hits;
@@ -223,5 +249,38 @@ describe('static copy guardrail', () => {
     // skip-list (filenames containing "fixtures" are skipped by design).
     const scanned = collectFiles().map((f) => relative(ROOT, f).replace(/\\/g, '/'));
     expect(scanned).toContain('src/lib/demo/ask-sequences.ts');
+  });
+
+  it('wires src/lib/retest into the scan so the retest nudge email copy stays covered (Plan 2026-06-17-001)', () => {
+    expect(SCAN_ROOTS).toContain('src/lib/retest');
+    // The root contributes the nudge-email module to the scan set.
+    const scanned = collectFiles().map((f) => relative(ROOT, f).replace(/\\/g, '/'));
+    expect(scanned).toContain('src/lib/retest/nudge-email.ts');
+  });
+
+  it('detects causal-overclaim / seductive phrases, and lets in-lane phrasing pass (Plan 2026-06-17-001 P0-3)', () => {
+    // The scanner's CAUSAL_PATTERNS would catch these crossing-the-line phrases
+    // in any scanned copy — proved by running them directly (no fixture on disk).
+    const forbidden = [
+      "see whether the change you made worked",
+      "we'll show you what worked",
+      'this cured your fatigue',
+      'here is the one thing to do',
+      'our clinicians decide what to test',
+      "we'll tell you what's wrong with you",
+    ];
+    for (const text of forbidden) {
+      expect(CAUSAL_PATTERNS.some((p) => p.pattern.test(text)), `should flag: ${text}`).toBe(true);
+    }
+    // In-lane phrasing must NOT trip the scanner (guards over-blocking).
+    const allowed = [
+      'your results show what changed since your last test',
+      'this is worth discussing with your clinician',
+      'it worked out that we already held your earlier panel',
+      "here's what moved since last time",
+    ];
+    for (const text of allowed) {
+      expect(CAUSAL_PATTERNS.some((p) => p.pattern.test(text)), `should NOT flag: ${text}`).toBe(false);
+    }
   });
 });

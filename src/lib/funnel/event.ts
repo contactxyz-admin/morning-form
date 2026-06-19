@@ -39,6 +39,16 @@ export const FUNNEL_EVENTS = {
   DEMO_VIEWED: 'demo_viewed',
   SIGN_IN_COMPLETED: 'sign_in_completed',
   FIRST_ASK_SENT: 'first_ask_sent',
+  // Retest loop (Plan 2026-06-17-001). Fired server-side when a Draw completes
+  // (a lab panel was ingested). Properties: { sequence, attribution }. Additive
+  // — the retention-to-retest metric's source of truth is the Draw table, not
+  // this event stream.
+  DRAW_COMPLETED: 'draw_completed',
+  // Retest loop (Plan 2026-06-17-001 U4). Client-fired when a member views their
+  // "what changed since last test" result on /decisions. Lets retention be
+  // segmented by prior-result engagement so a low number can be attributed to
+  // the nudge (Bet A) vs the result not feeling worth it (Bet B).
+  RESULT_VIEWED: 'result_viewed',
 } as const;
 
 /**

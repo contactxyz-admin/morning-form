@@ -95,6 +95,7 @@ export const EXPORT_DOMAIN_MODELS: ReadonlySet<string> = new Set([
   'Action',
   'BookingRequest',
   'ActionOutcome',
+  'Draw',
   'SourceDocument',
   'SourceDocumentAlias',
   'SourceChunk',
@@ -248,6 +249,7 @@ async function assembleDomains(prisma: PrismaClient, userId: string): Promise<Do
     actions,
     bookingRequests,
     actionOutcomes,
+    draws,
   ] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
     prisma.userPreferences.findUnique({ where: { userId } }),
@@ -280,6 +282,7 @@ async function assembleDomains(prisma: PrismaClient, userId: string): Promise<Do
     prisma.action.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
     prisma.bookingRequest.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
     prisma.actionOutcome.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
+    prisma.draw.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
   ]);
 
   // record domain: graph + source documents (chunk text included; embeddings
@@ -348,6 +351,7 @@ async function assembleDomains(prisma: PrismaClient, userId: string): Promise<Do
     one('actions', ['Action'], actions),
     one('bookingRequests', ['BookingRequest'], bookingRequests),
     one('actionOutcomes', ['ActionOutcome'], actionOutcomes),
+    one('draws', ['Draw'], draws),
     {
       key: 'record',
       models: ['GraphNode', 'GraphEdge', 'GraphNodeLayout', 'TopicPage', 'SourceDocument', 'SourceDocumentAlias', 'SourceChunk'],

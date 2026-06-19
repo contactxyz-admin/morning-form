@@ -7,6 +7,7 @@ import type {
   ActivationFunnelReport,
   ComputeActivationFunnelArgs,
 } from './activation-funnel-report';
+import type { RetestRetentionReport } from './retest-retention';
 
 export class InvalidCliArgsError extends Error {
   constructor(message: string) {
@@ -195,4 +196,23 @@ export function formatSummary(report: ActivationFunnelReport): string {
     return `  ${s.label}: ${s.count} (${s.pctOfSignups}% of signups, ${s.pctOfPrevious}% of previous)${timing}`;
   });
   return [head, ...stageLines].join('\n');
+}
+
+/**
+ * Human-readable retest-retention section (Plan 2026-06-17-001 U4). The headline
+ * is nudge-attributed (loop-caused) retention over users who have had the chance
+ * to return; pending users are surfaced separately and excluded from the rate.
+ */
+export function formatRetestRetention(r: RetestRetentionReport): string {
+  const pctStr = (v: number | null) => (v === null ? '—' : `${v}%`);
+  const mix = r.secondDrawAttributionMix;
+  return [
+    `Retest retention (forward-only, loop-caused) | baseline users: ${r.baselineUsers}`,
+    `  Nudge-attributed retention: ${pctStr(r.nudgeAttributedRetentionPct)} (${r.nudgeAttributedReturned}/${r.resolvedDenominator})`,
+    `  Total retention: ${pctStr(r.totalRetentionPct)} (${r.returned}/${r.resolvedDenominator})`,
+    `  Pending (no chance yet, excluded): ${r.pending}  ·  Non-returned (lapsed/overdue): ${r.nonReturned}`,
+    // Second draws are never `baseline`/`backfill` (those are seq-1 only), so the mix line omits them.
+    `  Second-draw attribution: nudge ${mix.nudge}, organic ${mix.organic}, ops ${mix.ops}, clinician ${mix.clinician}`,
+    `  Median nudge→rebook latency: ${r.medianNudgeToRebookDays === null ? '—' : `${r.medianNudgeToRebookDays}d`}`,
+  ].join('\n');
 }

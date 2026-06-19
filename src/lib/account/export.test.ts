@@ -235,6 +235,15 @@ async function seedMultiDomainUser(p: PrismaClient): Promise<string> {
   await p.bookingRequest.create({
     data: { userId, markerNames: JSON.stringify(['Ferritin', 'hs-CRP']), market: 'uk', status: 'requested' },
   });
+  // Retest draws (Plan 2026-06-17-001 U1): a completed baseline + the next
+  // scheduled draw. Seeded so the export completeness guard exercises a real
+  // Draw row (the vacuous-guard trap), not a vacuous pass.
+  await p.draw.create({
+    data: { userId, sequence: 1, status: 'completed', attribution: 'baseline', completedAt: new Date('2026-03-01') },
+  });
+  await p.draw.create({
+    data: { userId, status: 'scheduled', scheduledFor: new Date('2026-06-01') },
+  });
   const scribe = await p.scribe.create({
     data: { userId, topicKey: 'iron', modelVersion: 'v1' },
   });
@@ -314,6 +323,7 @@ describe('assembleExportArchive — seeded multi-domain user', () => {
       'actions.json',
       'bookingRequests.json',
       'actionOutcomes.json',
+      'draws.json',
       'scribes.json',
       'healthConnections.json',
       'healthDataPoints.json',
@@ -358,6 +368,15 @@ describe('assembleExportArchive — seeded multi-domain user', () => {
     expect(bookings[0].market).toBe('uk');
     expect(bookings[0].status).toBe('requested');
     expect(JSON.parse(bookings[0].markerNames)).toEqual(['Ferritin', 'hs-CRP']);
+
+    // Draw domain round-trips the seeded retest draws (GDPR vacuous-guard trap:
+    // the completeness guard would pass with zero rows, so assert real data).
+    const draws = JSON.parse(entries['draws.json'].toString('utf8'));
+    expect(draws).toHaveLength(2);
+    const baseline = draws.find((d: { sequence: number | null }) => d.sequence === 1);
+    expect(baseline.status).toBe('completed');
+    expect(baseline.attribution).toBe('baseline');
+    expect(draws.some((d: { status: string }) => d.status === 'scheduled')).toBe(true);
 
     // Health connection tokens must be stripped.
     const conns = JSON.parse(entries['healthConnections.json'].toString('utf8'));

@@ -84,6 +84,15 @@ const optional = {
   // them; gating them would create a backfill gap). Flip after the visual
   // audit gate.
   LONGITUDINAL_GRAPH_ENABLED: process.env.LONGITUDINAL_GRAPH_ENABLED ?? '',
+  // Retest loop (Plan 2026-06-17-001). Off by default. Gates the Draw write
+  // hooks (lab-ingest completion + cadence scheduling, booking→draw linkage)
+  // and — once built — the retest-nudge cron (U3). Off = current behaviour
+  // byte-for-byte (no Draw rows written, booking flow unchanged).
+  RETEST_LOOP_ENABLED: process.env.RETEST_LOOP_ENABLED ?? '',
+  // Cron auth secret for the retest-nudge endpoint (Plan 2026-06-17-001 U3).
+  // Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`; the route refuses
+  // anything else. Required (>=32 chars) in production when RETEST_LOOP_ENABLED.
+  CRON_SECRET: process.env.CRON_SECRET ?? '',
 };
 
 export const env = {
@@ -115,6 +124,13 @@ export function assertAuthEnv(): void {
     if (!env.OPS_EMAIL) missing.push('OPS_EMAIL (required when CONCIERGE_BOOKING_ENABLED)');
     if (!env.OPS_SECRET || env.OPS_SECRET.length < 32) missing.push('OPS_SECRET (>=32 chars, required when CONCIERGE_BOOKING_ENABLED)');
     if (!env.HEALTH_TOKEN_ENCRYPTION_KEY) missing.push('HEALTH_TOKEN_ENCRYPTION_KEY (required when CONCIERGE_BOOKING_ENABLED)');
+  }
+  // Retest loop (Plan 2026-06-17-001) — fail closed: without a strong CRON_SECRET
+  // the nudge endpoint is either world-open or permanently 401, so refuse boot.
+  if (env.RETEST_LOOP_ENABLED === 'true') {
+    if (!env.CRON_SECRET || env.CRON_SECRET.length < 32) {
+      missing.push('CRON_SECRET (>=32 chars, required when RETEST_LOOP_ENABLED)');
+    }
   }
   if (missing.length) {
     throw new Error(`[env] Missing required auth secrets in production: ${missing.join(', ')}`);
