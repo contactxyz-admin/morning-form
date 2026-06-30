@@ -318,6 +318,65 @@ describe('enforce — dietary directive forbidden phrases', () => {
   );
 });
 
+// False-causality enforcement (longitudinal-trajectory plan 2026-06-30-001 U14).
+// Once trends are visible, "X caused Y" is newly tempting; these patterns block
+// proven-cause over-claims while the ALLOWED temporal-association vocabulary
+// (the design doc §5.3 ✅ examples) must still pass.
+describe('enforce — false-causality forbidden phrases', () => {
+  // One rejecting fixture per FALSE_CAUSALITY pattern so a regex regression
+  // can't silently narrow the net.
+  const FALSE_CAUSALITY_FIXTURES: Array<[string, string]> = [
+    ['fixed your', 'That change fixed your ferritin in under three months.'],
+    ['cured the', 'The new routine cured the fatigue you reported.'],
+    ['caused your', 'The change caused your ferritin to fall this quarter.'],
+    ['is caused by', 'Your fatigue is caused by the deficiency seen here.'],
+    ['made <marker> rise', 'The action made your ferritin rise sharply.'],
+    ['because you started', 'Your ferritin rose because you started the new routine.'],
+    ['due to your treatment', 'The improvement is due to your treatment over the spring.'],
+    ['thanks to your', 'Thanks to your new routine, ferritin improved markedly.'],
+  ];
+
+  it.each(FALSE_CAUSALITY_FIXTURES)(
+    'rejects the causal over-claim: %s',
+    (_label, output) => {
+      const candidate = makeCandidate({
+        judgmentKind: 'pattern-vs-own-history',
+        output,
+        sections: [{ heading: 'Trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+      expect(result.violations.some((v) => v.kind === 'forbidden-phrase')).toBe(true);
+    },
+  );
+
+  // Safe temporal-association + retest phrasing (design doc §5.3 ✅) that MUST
+  // pass — including the OUTCOME_CHANGED edge rationale template (plan U2).
+  const SAFE_ASSOCIATION: string[] = [
+    'Your ferritin has risen across your last three tests, moving from below to within the reference range.',
+    'This improvement followed the action you started in February; the two coincide in time, and other factors may also contribute.',
+    'After you started that change, your ferritin moved upward — a temporal association, not a proven cause.',
+    'You have a single reading for vitamin D; a repeat test would confirm whether this is a trend.',
+    'A repeat test would confirm this direction.',
+    'After the "Track morning sunlight" action, your HRV moved from 40 to 55 over this window. This is a temporal association, not a proven cause; other factors may also contribute.',
+  ];
+
+  it.each(SAFE_ASSOCIATION)(
+    'accepts the safe association/retest phrasing: %s',
+    (output) => {
+      const candidate = makeCandidate({
+        judgmentKind: 'pattern-vs-own-history',
+        output,
+        sections: [{ heading: 'Trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(true);
+    },
+  );
+});
+
 describe('enforce — regression: existing 4 judgment kinds unaffected', () => {
   const OLD_KINDS = ['reference-range-comparison', 'pattern-vs-own-history', 'citation-surfacing', 'definition-lookup'];
 
