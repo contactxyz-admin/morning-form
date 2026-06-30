@@ -153,6 +153,33 @@ describe('linkTemporalSucceedsForUser', () => {
     ]);
   });
 
+  it('reconciles an out-of-order (backdated) panel — prunes the stale skip-edge', async () => {
+    const userId = await makeTestUser(prisma, 'temporal-backdated');
+    // Two panels arrive in order Feb then Jun → Feb→Jun.
+    await ingestReading(userId, ferritin, 18, '2026-02-01');
+    await ingestReading(userId, ferritin, 62, '2026-06-01');
+    await linkTemporalSucceedsForUser(prisma, userId);
+    expect(await temporalEdges(userId)).toEqual([
+      { from: 'obs_ferritin_2026_02_01', to: 'obs_ferritin_2026_06_01' },
+    ]);
+
+    // A backdated Apr reading lands between them; re-link must converge to the
+    // Feb→Apr→Jun chain and DELETE the now-stale Feb→Jun skip-edge.
+    await ingestReading(userId, ferritin, 41, '2026-04-01');
+    const res = await linkTemporalSucceedsForUser(prisma, userId);
+    expect(res.created).toBe(2); // Feb→Apr, Apr→Jun
+
+    const links = await temporalEdges(userId);
+    expect(links).toEqual(
+      expect.arrayContaining([
+        { from: 'obs_ferritin_2026_02_01', to: 'obs_ferritin_2026_04_01' },
+        { from: 'obs_ferritin_2026_04_01', to: 'obs_ferritin_2026_06_01' },
+      ]),
+    );
+    expect(links).toHaveLength(2);
+    expect(links).not.toContainEqual({ from: 'obs_ferritin_2026_02_01', to: 'obs_ferritin_2026_06_01' });
+  });
+
   it('honours conceptCanonicalKeys scoping (the lab-ingest hot path)', async () => {
     const userId = await makeTestUser(prisma, 'temporal-scoped');
     await ingestReading(userId, ferritin, 18, '2026-02-01');

@@ -28,6 +28,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { addEdge, addNode } from '@/lib/graph/mutations';
 import { canonicalKeyFor, slugify } from '@/lib/graph/canonical-keys';
+import { resolveBiomarker } from '@/lib/intake/biomarkers';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -67,22 +68,27 @@ export async function linkOutcomeChanged(
   userId: string,
   outcome: OutcomeForEdge,
 ): Promise<{ created: boolean; reason?: string }> {
-  // Resolve the biomarker concept by displayName (the Action.markerName is a
-  // display label), falling back to the slugified canonical key.
+  // Resolve the biomarker concept the SAME way the trajectory reader does, so
+  // a concept the outcome's before/after were derived from is always found:
+  // case-insensitive displayName (mirrors loadBiomarkerSeries in trajectory.ts),
+  // with a registry-alias fallback to the true canonicalKey. Action.markerName
+  // is a display label, not a canonical key — a naive slugify ('Mean cell
+  // volume' → 'mean_cell_volume') misses concepts keyed by the registry ('mcv').
+  const lower = outcome.markerName.toLowerCase();
+  const registryKey = resolveBiomarker(outcome.markerName)?.canonicalKey ?? null;
+  const candidates = await db.graphNode.findMany({
+    where: { userId, type: 'biomarker' },
+    select: { id: true, displayName: true, canonicalKey: true },
+  });
   const concept =
-    (await db.graphNode.findFirst({
-      where: { userId, type: 'biomarker', displayName: outcome.markerName },
-      select: { id: true },
-    })) ??
-    (await db.graphNode.findFirst({
-      where: { userId, type: 'biomarker', canonicalKey: slugify(outcome.markerName) },
-      select: { id: true },
-    }));
+    candidates.find((n) => n.displayName.toLowerCase() === lower) ??
+    (registryKey ? candidates.find((n) => n.canonicalKey === registryKey) : undefined) ??
+    candidates.find((n) => n.canonicalKey === slugify(outcome.markerName));
   if (!concept) return { created: false, reason: 'no-biomarker-concept' };
 
-  // The event is dated when the intervention started (acceptedAt) if known,
-  // else when the outcome was observed (afterAt), else now is not available in
-  // this pure-ish path — bail if we have no date to anchor the timeline.
+  // Date the event when the intervention started (acceptedAt) if known, else
+  // when the outcome was observed (afterAt). Bail if neither exists — an event
+  // with no date has no place on the timeline.
   const occurredAt = outcome.acceptedAt ?? outcome.afterAt;
   if (!occurredAt) return { created: false, reason: 'no-date' };
 

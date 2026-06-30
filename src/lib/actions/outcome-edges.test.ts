@@ -91,21 +91,35 @@ describe('linkOutcomeChanged', () => {
     expect(await prisma.graphNode.findMany({ where: { userId, type: 'intervention_event' } })).toHaveLength(0);
   });
 
-  it('resolves the concept by slugified canonical key when displayName differs', async () => {
-    const userId = await makeTestUser(prisma, 'outcome-slug');
+  it('resolves the concept case-insensitively by displayName (parity with the trajectory gate)', async () => {
+    const userId = await makeTestUser(prisma, 'outcome-ci');
     await addNode(prisma, userId, {
       type: 'biomarker',
-      canonicalKey: 'vitamin_d',
-      displayName: 'Vitamin D (25-OH)',
-      attributes: { value: 50, unit: 'nmol/L' },
+      canonicalKey: 'hba1c',
+      displayName: 'HbA1c',
+      attributes: { value: 48, unit: 'mmol/mol' },
     });
-    const res = await linkOutcomeChanged(prisma, userId, {
-      ...baseOutcome,
-      markerName: 'vitamin d', // slugifies to vitamin_d
-    });
+    // markerName arrives lowercased — must still resolve (the outcome's
+    // before/after were derived via the case-insensitive trajectory match).
+    const res = await linkOutcomeChanged(prisma, userId, { ...baseOutcome, markerName: 'hba1c' });
     expect(res.created).toBe(true);
-    const links = await outcomeEdges(userId);
-    expect(links[0].toCanonicalKey).toBe('vitamin_d');
+    expect((await outcomeEdges(userId))[0].toCanonicalKey).toBe('hba1c');
+  });
+
+  it('resolves a registry-aliased concept whose canonicalKey is NOT the slugified name', async () => {
+    const userId = await makeTestUser(prisma, 'outcome-registry');
+    // Concept keyed by the registry canonicalKey 'mcv'; slugify('Mean cell
+    // volume') would be 'mean_cell_volume' and miss — the registry-alias
+    // fallback must bridge it.
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'mcv',
+      displayName: 'MCV',
+      attributes: { value: 90, unit: 'fL' },
+    });
+    const res = await linkOutcomeChanged(prisma, userId, { ...baseOutcome, markerName: 'Mean cell volume' });
+    expect(res.created).toBe(true);
+    expect((await outcomeEdges(userId))[0].toCanonicalKey).toBe('mcv');
   });
 
   it('is idempotent — a second link creates nothing new', async () => {
