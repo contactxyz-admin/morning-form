@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { getTestPrisma, makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
 import { ingestExtraction } from '@/lib/graph/mutations';
@@ -30,9 +30,20 @@ beforeAll(async () => {
 afterAll(async () => {
   await teardownTestDb();
 });
+// buildMarkerTrajectory reads process.env.LONGITUDINAL_GRAPH_ENABLED FIRST
+// (?? env), and `??` only falls through on null/undefined — a leaked '' from
+// another test file in the same worker would force observation reads OFF and
+// collapse the multi-point series. Pin process.env here so this file's
+// instance-bearing assertions don't depend on cross-file isolation.
+const originalProcEnvFlag = process.env.LONGITUDINAL_GRAPH_ENABLED;
+beforeEach(() => {
+  process.env.LONGITUDINAL_GRAPH_ENABLED = 'true';
+});
 afterEach(() => {
   currentUserMock.mockReset();
   envMock.LONGITUDINAL_GRAPH_ENABLED = 'true';
+  if (originalProcEnvFlag === undefined) delete process.env.LONGITUDINAL_GRAPH_ENABLED;
+  else process.env.LONGITUDINAL_GRAPH_ENABLED = originalProcEnvFlag;
 });
 
 async function ingestFerritin(userId: string, date: string, value: number): Promise<void> {

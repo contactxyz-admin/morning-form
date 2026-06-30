@@ -112,6 +112,22 @@ describe('GET /api/panels/diff', () => {
     expect(diff.changes[0]).toMatchObject({ marker: 'Ferritin', beforeValue: 18, afterValue: 41, classification: 'improved' });
   });
 
+  it('orders panels chronologically — reverse-order ids do NOT invert the diff', async () => {
+    const userId = await makeTestUser(prisma, 'diff-reversed');
+    currentUserMock.mockResolvedValue({ id: userId });
+    const olderDoc = await ingestFerritin(userId, '2026-02-01', 18);
+    const newerDoc = await ingestFerritin(userId, '2026-06-01', 41);
+
+    // Caller passes from = NEWER, to = OLDER (the "wrong" order).
+    const res = await call(newerDoc, olderDoc);
+    expect(res.status).toBe(200);
+    const { diff } = await res.json();
+    // Still baselined on the earlier panel; classification not inverted.
+    expect(diff.previousPanelAt).toContain('2026-02-01');
+    expect(diff.latestPanelAt).toContain('2026-06-01');
+    expect(diff.changes[0]).toMatchObject({ beforeValue: 18, afterValue: 41, classification: 'improved' });
+  });
+
   it('404 when a panel id is not the caller’s (no cross-user leak)', async () => {
     const userId = await makeTestUser(prisma, 'diff-scope');
     const otherId = await makeTestUser(prisma, 'diff-other');

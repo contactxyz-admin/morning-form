@@ -2,11 +2,13 @@
  * GET /api/panels/diff?from=&to= — diff two specific lab panels
  * (longitudinal-trajectory plan 2026-06-30-001 U6).
  *
- * `from` and `to` are lab-panel SourceDocument ids (from = earlier baseline).
- * User-scoped + flag-gated behind LONGITUDINAL_GRAPH_ENABLED (flag-off → 404).
- * Missing params → 400; a document that isn't the caller's lab panel → 404
- * (never leaks another user's panel). Classification reuses the same pure
- * engine as the post-upload diff, so the two never diverge.
+ * `from` and `to` are lab-panel SourceDocument ids. They're ordered
+ * chronologically inside `diffPanels` (earlier = baseline), so passing them in
+ * either order yields the same correctly-signed diff. User-scoped + flag-gated
+ * behind LONGITUDINAL_GRAPH_ENABLED (flag-off → 404). Missing params or
+ * from === to → 400; a document that isn't the caller's lab panel → 404 (never
+ * leaks another user's panel). Classification reuses the same pure engine as
+ * the post-upload diff, so the two never diverge.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';

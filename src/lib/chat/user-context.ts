@@ -66,7 +66,13 @@ const MAX_CHECK_INS = 5;
 /** Hard limit on biomarker nodes to include. */
 const MAX_BIOMARKER_NODES = 8;
 
-/** Markers to render a dated series for (the most-changed, bounds the queries). */
+/**
+ * Cap on markers to render a dated series for — bounds the trajectory queries.
+ * The diff section already lists every change; this history subset is taken
+ * from the non-stable changes in their existing (alphabetical) order, not
+ * ranked by magnitude (units differ across markers, so a cross-marker
+ * magnitude rank isn't well-defined).
+ */
 const MAX_SERIES_MARKERS = 5;
 
 /** Dated points per marker series in the digest. */

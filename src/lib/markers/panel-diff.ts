@@ -117,12 +117,15 @@ export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDif
 
 /**
  * Diff two SPECIFIC lab panels by document id (longitudinal-trajectory plan
- * 2026-06-30-001 U6). Reports the change in the `to` panel relative to `from`
- * (so `from` is the earlier baseline). Both docs are validated to belong to
- * the caller and to be lab panels; returns null when either is missing, not
- * owned, or not a `lab_pdf` (the route maps that to a 404). Reuses the same
- * pure classifier + instance loader as `diffLatestPanels`, so classification
- * semantics are identical.
+ * 2026-06-30-001 U6). The two panels are ordered CHRONOLOGICALLY by
+ * `capturedAt` — the earlier one is always the baseline (`previousPanelAt`),
+ * the later one the comparison (`latestPanelAt`) — so the classification can
+ * never invert (improved↔worsened) just because the caller passed the ids in
+ * the wrong order. Both docs are validated to belong to the caller and to be
+ * lab panels; returns null when either is missing, not owned, or not a
+ * `lab_pdf` (the route maps that to a 404). Reuses the same pure classifier +
+ * instance loader as `diffLatestPanels`, so classification semantics are
+ * identical.
  */
 export async function diffPanels(
   db: Db,
@@ -135,19 +138,25 @@ export async function diffPanels(
     where: { userId, kind: 'lab_pdf', id: { in: ids } },
     select: { id: true, capturedAt: true },
   });
-  const from = docs.find((d) => d.id === fromDocumentId);
-  const to = docs.find((d) => d.id === toDocumentId);
-  if (!from || !to) return null;
+  const a = docs.find((d) => d.id === fromDocumentId);
+  const b = docs.find((d) => d.id === toDocumentId);
+  if (!a || !b) return null;
 
-  const [fromReadings, toReadings] = await Promise.all([
-    loadPanelInstances(db, userId, fromDocumentId),
-    loadPanelInstances(db, userId, toDocumentId),
+  // Earlier = baseline, later = comparison — regardless of which the caller
+  // labelled `from`/`to`. `classifyChange(before, after, …)` is direction-
+  // sensitive, so diffing in reverse-chronological order would report every
+  // marker's movement backwards.
+  const [earlier, later] = a.capturedAt.getTime() <= b.capturedAt.getTime() ? [a, b] : [b, a];
+
+  const [earlierReadings, laterReadings] = await Promise.all([
+    loadPanelInstances(db, userId, earlier.id),
+    loadPanelInstances(db, userId, later.id),
   ]);
 
   return {
-    latestPanelAt: to.capturedAt.toISOString(),
-    previousPanelAt: from.capturedAt.toISOString(),
-    changes: buildPanelChanges(toReadings, fromReadings),
+    latestPanelAt: later.capturedAt.toISOString(),
+    previousPanelAt: earlier.capturedAt.toISOString(),
+    changes: buildPanelChanges(laterReadings, earlierReadings),
   };
 }
 

@@ -247,6 +247,40 @@ describe('GET /api/record', () => {
     });
   });
 
+  it('flag ON: a STABLE authored marker still gets an interpretation (parity with the source page)', async () => {
+    // A re-tested-but-stable authored marker carries interpretation, matching
+    // enrichGroundedNodes on the source-detail page — interpretation is "where
+    // it stands now", not gated on meaningful movement (plan 2026-06-30-001 U8).
+    envState.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    diffLatestPanelsMock.mockResolvedValue({
+      latestPanelAt: '2026-06-01T00:00:00.000Z',
+      previousPanelAt: '2026-04-01T00:00:00.000Z',
+      changes: [
+        {
+          marker: 'Ferritin',
+          joinKey: 'ferritin',
+          unit: 'ug/L',
+          beforeValue: 120,
+          beforeAt: '2026-04-01T00:00:00.000Z',
+          afterValue: 122,
+          afterAt: '2026-06-01T00:00:00.000Z',
+          referenceLow: 30,
+          referenceHigh: 400,
+          direction: 'up' as const,
+          classification: 'stable' as const,
+        },
+      ],
+    });
+
+    const res = await GET();
+    const body = await res.json();
+    expect(body.nodes[0].change).toMatchObject({ classification: 'stable' });
+    expect(body.nodes[0]).toHaveProperty('interpretation');
+  });
+
   it('flag ON: an UNAUTHORED changed marker gets a change but NO interpretation (no inferred flag)', async () => {
     envState.LONGITUDINAL_GRAPH_ENABLED = 'true';
     getCurrentUser.mockResolvedValue({ id: 'user-1' });
