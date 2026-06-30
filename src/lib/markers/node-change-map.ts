@@ -12,6 +12,7 @@
 import type { GraphNodeWire, NodeChangeWire } from '@/types/graph';
 import type { MarkerChange } from './panel-diff';
 import { markerJoinKey } from './marker-key';
+import { interpret, isAuthoredMarker } from './clinical-interpretation';
 
 /** Project a `MarkerChange` to the leaner wire decoration (drops the
  *  reference range — the badge is range-relative already; the detail sheet
@@ -94,6 +95,41 @@ export function applyChangesToWireNodes(
     if (node.type !== 'biomarker') continue;
     const change = byKey.get(markerJoinKey(node.canonicalKey, node.attributes?.registryKey));
     if (change) node.change = change;
+  }
+  return nodes;
+}
+
+/**
+ * Attach `interpretation` to each changed biomarker wire node on the AUTHED
+ * record graph (longitudinal-trajectory plan 2026-06-30-001 U8) — the same
+ * enrichment the source-detail page already does (`source-enrichment.ts`),
+ * lifted from demo-only to the live `/api/record` map. Authored-only clinical
+ * judgement (plan 2026-06-17): a flag is attached ONLY for markers with a
+ * CMO-authored rule (`isAuthoredMarker`); an unreviewed marker shows
+ * value/direction but no inferred flag. Keyed by the SAME join key as the
+ * change, and computed from the full `MarkerChange` (the wire `change` drops
+ * the reference range `interpret` needs). Mutates and returns the array.
+ *
+ * Callers gate this on the longitudinal flag exactly like `applyChangesToWireNodes`,
+ * so flag-off emits no `interpretation` (byte-for-byte parity).
+ */
+export function applyInterpretationsToWireNodes(
+  nodes: GraphNodeWire[],
+  changes: MarkerChange[],
+): GraphNodeWire[] {
+  if (changes.length === 0) return nodes;
+  const mcByKey = new Map<string, MarkerChange>();
+  for (const c of changes) mcByKey.set(c.joinKey, c);
+  for (const node of nodes) {
+    if (node.type !== 'biomarker') continue;
+    const joinKey = markerJoinKey(node.canonicalKey, node.attributes?.registryKey);
+    const mc = mcByKey.get(joinKey);
+    if (!mc || !isAuthoredMarker(joinKey)) continue;
+    node.interpretation = interpret(joinKey, markerChangeToWire(mc), {
+      value: mc.afterValue,
+      low: mc.referenceLow,
+      high: mc.referenceHigh,
+    });
   }
   return nodes;
 }

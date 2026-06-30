@@ -162,9 +162,12 @@ describe('GET /api/record', () => {
       tier: expect.any(Number),
       score: expect.any(Number),
     });
-    // Prod-parity guard: firstSeenAt / evidenceGrade / interpretation are
-    // demo-only fields the graph adapter sets — the authed route must never
-    // emit them (plans 2026-06-15-001, 2026-06-16-002/003).
+    // Prod-parity guard (flag OFF, this test): firstSeenAt / evidenceGrade are
+    // demo-only fields the graph adapter sets — the authed route never emits
+    // them. `interpretation` is now emitted on the authed map, but ONLY behind
+    // the longitudinal flag with a real diff (plan 2026-06-30-001 U8); with the
+    // flag off (this case) it must be absent — asserted here, and its flag-on
+    // presence is asserted in the dedicated U8 test below.
     expect(body.nodes[0]).not.toHaveProperty('firstSeenAt');
     expect(body.nodes[0]).not.toHaveProperty('evidenceGrade');
     expect(body.nodes[0]).not.toHaveProperty('interpretation');
@@ -224,6 +227,91 @@ describe('GET /api/record', () => {
     });
     // The reference range is dropped from the wire decoration.
     expect(body.nodes[0].change).not.toHaveProperty('referenceLow');
+  });
+
+  it('flag ON: attaches clinical interpretation for a CMO-authored marker (longitudinal U8)', async () => {
+    envState.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    // ferritin is a CMO-authored MATRIX marker → interpretation attaches.
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    diffLatestPanelsMock.mockResolvedValue(ferritinDiff());
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body.nodes[0]).toHaveProperty('interpretation');
+    expect(body.nodes[0].interpretation).toMatchObject({
+      signalClarity: expect.any(String),
+      flag: expect.any(String),
+    });
+  });
+
+  it('flag ON: a STABLE authored marker still gets an interpretation (parity with the source page)', async () => {
+    // A re-tested-but-stable authored marker carries interpretation, matching
+    // enrichGroundedNodes on the source-detail page — interpretation is "where
+    // it stands now", not gated on meaningful movement (plan 2026-06-30-001 U8).
+    envState.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    diffLatestPanelsMock.mockResolvedValue({
+      latestPanelAt: '2026-06-01T00:00:00.000Z',
+      previousPanelAt: '2026-04-01T00:00:00.000Z',
+      changes: [
+        {
+          marker: 'Ferritin',
+          joinKey: 'ferritin',
+          unit: 'ug/L',
+          beforeValue: 120,
+          beforeAt: '2026-04-01T00:00:00.000Z',
+          afterValue: 122,
+          afterAt: '2026-06-01T00:00:00.000Z',
+          referenceLow: 30,
+          referenceHigh: 400,
+          direction: 'up' as const,
+          classification: 'stable' as const,
+        },
+      ],
+    });
+
+    const res = await GET();
+    const body = await res.json();
+    expect(body.nodes[0].change).toMatchObject({ classification: 'stable' });
+    expect(body.nodes[0]).toHaveProperty('interpretation');
+  });
+
+  it('flag ON: an UNAUTHORED changed marker gets a change but NO interpretation (no inferred flag)', async () => {
+    envState.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    // 'magnesium' is not a CMO-authored MATRIX marker → change only, no flag.
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'magnesium')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    diffLatestPanelsMock.mockResolvedValue({
+      latestPanelAt: '2026-06-01T00:00:00.000Z',
+      previousPanelAt: '2026-04-01T00:00:00.000Z',
+      changes: [
+        {
+          marker: 'Magnesium',
+          joinKey: 'magnesium',
+          unit: 'mmol/L',
+          beforeValue: 0.7,
+          beforeAt: '2026-04-01T00:00:00.000Z',
+          afterValue: 0.85,
+          afterAt: '2026-06-01T00:00:00.000Z',
+          referenceLow: 0.7,
+          referenceHigh: 1.0,
+          direction: 'up' as const,
+          classification: 'stable' as const,
+        },
+      ],
+    });
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body.nodes[0]).toHaveProperty('change');
+    expect(body.nodes[0]).not.toHaveProperty('interpretation');
   });
 
   it('flag OFF: never calls the diff and emits no change field (byte-for-byte parity)', async () => {

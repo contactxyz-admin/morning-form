@@ -28,8 +28,23 @@
  */
 
 import type { PrismaClient, Prisma } from '@prisma/client';
+import { env } from '@/lib/env';
+import { diffLatestPanels, type PanelDiff } from '@/lib/markers/panel-diff';
+import { buildMarkerTrajectory } from '@/lib/markers/trajectory';
 
 type Db = PrismaClient | Prisma.TransactionClient;
+
+/**
+ * Longitudinal context (the dated lab series + latest panel diff) is gated by
+ * LONGITUDINAL_GRAPH_ENABLED — flag-off keeps the digest byte-for-byte the
+ * latest-values-only shape, and disclosing more dated history to the LLM is a
+ * DPIA/consent trigger handled at the flag-flip (plan 2026-06-30-001 U9/U10).
+ * Reads process.env first to mirror `longitudinalReadsEnabled` in trajectory.ts
+ * so tests can toggle it without a module reload.
+ */
+function longitudinalEnabled(): boolean {
+  return (process.env.LONGITUDINAL_GRAPH_ENABLED ?? env.LONGITUDINAL_GRAPH_ENABLED) === 'true';
+}
 
 /** Approximate token ceiling — a cost budget, not a model limit. */
 const TOKEN_CEILING = 1200;
@@ -50,6 +65,18 @@ const MAX_CHECK_INS = 5;
 
 /** Hard limit on biomarker nodes to include. */
 const MAX_BIOMARKER_NODES = 8;
+
+/**
+ * Cap on markers to render a dated series for — bounds the trajectory queries.
+ * The diff section already lists every change; this history subset is taken
+ * from the non-stable changes in their existing (alphabetical) order, not
+ * ranked by magnitude (units differ across markers, so a cross-marker
+ * magnitude rank isn't well-defined).
+ */
+const MAX_SERIES_MARKERS = 5;
+
+/** Dated points per marker series in the digest. */
+const SERIES_POINTS = 4;
 
 /** Wearable window in days. */
 const WEARABLE_WINDOW_DAYS = 7;
@@ -87,12 +114,14 @@ export async function assembleUserContext(
     checkInsResult,
     wearableResult,
     biomarkersResult,
+    longitudinalResult,
   ] = await Promise.allSettled([
     loadProfile(db, userId),
     loadPriorities(db, userId),
     loadCheckIns(db, userId),
     loadWearableTrends(db, userId),
     loadBiomarkers(db, userId),
+    loadLongitudinal(db, userId),
   ]);
 
   const sections: string[] = [];
@@ -164,6 +193,43 @@ export async function assembleUserContext(
     }
   } else if (biomarkersResult.status === 'rejected') {
     console.error('[user-context] biomarkers load failed:', biomarkersResult.reason);
+  }
+
+  // 6. Longitudinal — what changed since the last panel + dated marker history.
+  // Flag-gated (loadLongitudinal returns null when the flag is off), so flag-off
+  // emits exactly the sections above. Descriptive + range-relative only: it uses
+  // the panel-diff classification vocabulary (improved/worsened/stable/new
+  // relative to the reference interval) and bare dated values — no trend,
+  // momentum, or causal language (that is Phase 3's advisor-gated judgment kind).
+  if (longitudinalResult.status === 'fulfilled' && longitudinalResult.value) {
+    const { diff, series } = longitudinalResult.value;
+    if (diff && diff.previousPanelAt && diff.changes.length > 0) {
+      const lines = diff.changes.map((c) => {
+        const unit = c.unit ? ` ${c.unit}` : '';
+        if (c.classification === 'new' || c.beforeValue === null) {
+          return `  ${safeField(c.marker, FIELD_CAPS.biomarkerName)}: ${c.afterValue}${unit} (first reading)`;
+        }
+        return `  ${safeField(c.marker, FIELD_CAPS.biomarkerName)}: ${c.beforeValue} → ${c.afterValue}${unit} (${c.classification} vs reference range)`;
+      });
+      sections.push(
+        `Since the previous panel (${diff.previousPanelAt.slice(0, 10)} → ${diff.latestPanelAt.slice(0, 10)}):\n${lines.join('\n')}`,
+      );
+    }
+    if (series.length > 0) {
+      const lines = series.map((s) => {
+        // Oldest → newest, bare dated values. The model reads the trajectory;
+        // it does not get a pre-computed direction (Phase 3 owns that).
+        const pts = s.points
+          .slice()
+          .reverse()
+          .map((p) => `${p.value}${p.unit ? ` ${p.unit}` : ''} (${p.timestamp.slice(0, 10)})`)
+          .join(' → ');
+        return `  ${safeField(s.marker, FIELD_CAPS.biomarkerName)}: ${pts}`;
+      });
+      sections.push(`Recent marker history (oldest → newest):\n${lines.join('\n')}`);
+    }
+  } else if (longitudinalResult.status === 'rejected') {
+    console.error('[user-context] longitudinal load failed:', longitudinalResult.reason);
   }
 
   if (sections.length === 0) return null;
@@ -348,6 +414,51 @@ async function loadBiomarkers(db: Db, userId: string): Promise<BiomarkerRow[] | 
   }
 
   return markers.length > 0 ? markers : null;
+}
+
+interface MarkerSeries {
+  marker: string;
+  points: { value: number; unit: string; timestamp: string }[];
+}
+
+interface LongitudinalDigest {
+  diff: PanelDiff | null;
+  series: MarkerSeries[];
+}
+
+/**
+ * Latest panel diff + dated series for the markers that changed (longitudinal-
+ * trajectory plan 2026-06-30-001 U9). Returns null when the flag is off (no DB
+ * work, digest unchanged) or when there's no real before/after panel. Series
+ * queries are bounded to the most-changed markers so the digest stays cheap.
+ */
+async function loadLongitudinal(db: Db, userId: string): Promise<LongitudinalDigest | null> {
+  if (!longitudinalEnabled()) return null;
+
+  const diff = await diffLatestPanels(db, userId);
+  if (!diff || !diff.previousPanelAt) return null;
+
+  // Series for the markers that meaningfully moved (drop `stable`), capped.
+  const markers = diff.changes
+    .filter((c) => c.classification !== 'stable')
+    .slice(0, MAX_SERIES_MARKERS)
+    .map((c) => c.marker);
+
+  // Build the (independent) per-marker trajectories in parallel — this runs on
+  // the Ask hot path, so the bounded set of trajectory reads must not serialize.
+  const built = await Promise.all(
+    markers.map((marker) =>
+      buildMarkerTrajectory(db, userId, marker, { maxPoints: SERIES_POINTS }).then((pts) => ({ marker, pts })),
+    ),
+  );
+  const series: MarkerSeries[] = built
+    .filter(({ pts }) => pts.length >= 2)
+    .map(({ marker, pts }) => ({
+      marker,
+      points: pts.map((p) => ({ value: p.value, unit: p.unit, timestamp: p.timestamp })),
+    }));
+
+  return { diff, series };
 }
 
 // ---------------------------------------------------------------------------

@@ -61,9 +61,12 @@ export interface GraphNodeWire {
    */
   evidenceGrade?: EvidenceGrade;
   /**
-   * Consumer-facing clinical interpretation (the four CMO dimensions + flag).
-   * Demo-only and additive — derived by the interpretation engine from the
-   * node's change; the authed path never sets it (plan 2026-06-16-003).
+   * Consumer-facing clinical interpretation (the four CMO dimensions + flag),
+   * derived by the interpretation engine from the node's change. Set by the
+   * demo adapter (plan 2026-06-16-003) AND, since plan 2026-06-30-001 U8, by
+   * the authed record route — but ONLY behind LONGITUDINAL_GRAPH_ENABLED for
+   * CMO-authored markers that moved vs the previous panel. Flag-off authed
+   * responses still never carry it (byte-for-byte the pre-feature shape).
    */
   interpretation?: NodeInterpretation;
   /**
