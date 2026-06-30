@@ -77,12 +77,19 @@ export function describeTrend(
   opts: TrendOptions = {},
 ): TrendDescription | null {
   if (points.length === 0) return null;
-  const window = opts.window ?? DEFAULT_WINDOW;
+  // Guard window ≥ 1: `?? DEFAULT_WINDOW` only handles undefined, and
+  // `slice(-0)` is `slice(0)` (the WHOLE array), so a 0/negative window would
+  // silently consider every point instead of the most-recent N.
+  const window = Math.max(1, opts.window ?? DEFAULT_WINDOW);
 
   const sorted = points
     .filter((p) => typeof p.value === 'number' && Number.isFinite(p.value) && !!p.timestamp)
     .slice()
-    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    // Secondary tiebreak by value so two points sharing a timestamp yield a
+    // deterministic from/last (and hence direction/magnitude) regardless of
+    // input order. Same-day readings are deduped upstream, but the pure
+    // function must not depend on that.
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.value - b.value);
   if (sorted.length === 0) return null;
 
   const considered = sorted.slice(-window);

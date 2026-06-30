@@ -333,7 +333,17 @@ describe('enforce — false-causality forbidden phrases', () => {
     ['made <marker> rise', 'The action made your ferritin rise sharply.'],
     ['because you started', 'Your ferritin rose because you started the new routine.'],
     ['due to your treatment', 'The improvement is due to your treatment over the spring.'],
-    ['thanks to your', 'Thanks to your new routine, ferritin improved markedly.'],
+    ['thanks to your routine', 'Thanks to your new routine, ferritin improved markedly.'],
+    // Transitive causal verbs acting on a marker (the common over-claim shapes).
+    ['raised your', 'The iron raised your ferritin over the spring.'],
+    ['lowered your', 'The supplement lowered your ferritin this quarter.'],
+    ['reduced your', 'The change reduced your inflammation markedly.'],
+    ['boosted your', 'The protocol boosted your levels within weeks.'],
+    ['improved your', 'The supplement improved your ferritin substantially.'],
+    ['drove your', 'The routine drove your ferritin up over the quarter.'],
+    ['led to a rise', 'The iron led to a rise in your ferritin.'],
+    ['responsible for the', 'The supplement is responsible for the rise you see.'],
+    ['explains why ... rose', 'This explains why your ferritin rose so sharply.'],
   ];
 
   it.each(FALSE_CAUSALITY_FIXTURES)(
@@ -361,6 +371,12 @@ describe('enforce — false-causality forbidden phrases', () => {
     'You have a single reading for vitamin D; a repeat test would confirm whether this is a trend.',
     'A repeat test would confirm this direction.',
     'After the "Track morning sunlight" action, your HRV moved from 40 to 55 over this window. This is a temporal association, not a proven cause; other factors may also contribute.',
+    // Precision guards — these MUST pass (regression for the tuned patterns):
+    // crediting a PERSON/source is not an intervention-causality over-claim,
+    // and "made your decision to improve" is not "made <marker> rise".
+    'Thanks to your clinician, we have the GP note for context.',
+    'You made your decision to improve your sleep routine, which is recorded here.',
+    'Your ferritin improved across the last three readings, now within range.',
   ];
 
   it.each(SAFE_ASSOCIATION)(

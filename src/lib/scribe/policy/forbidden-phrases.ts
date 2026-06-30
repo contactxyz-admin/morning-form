@@ -83,17 +83,31 @@ const DIETARY_DIRECTIVE_PATTERNS: readonly RegExp[] = [
 const FALSE_CAUSALITY_PATTERNS: readonly RegExp[] = [
   // Attributive cure/fix: "fixed your ferritin", "cured the fatigue", "reversed it".
   /\b(fixed|cured|reversed|resolved|healed|corrected)\s+(your|the|his|her|their|my|it)\b/i,
-  // Direct causal attribution: "caused your low iron", "caused by the supplement".
+  // Direct causal attribution: "caused your low iron", "caused by the supplement"
+  // ("caused your ferritin to rise" is covered here by "caused your").
   /\bcaused\s+(your|the|his|her|their|my|by|it)\b/i,
   /\bis\s+caused\s+by\b/i,
-  // "<thing> caused/made <marker> (to) rise/fall/improve/…": the explicit
-  // "X moved Y" causal claim (vs the safe "Y moved" with no agent).
-  /\b(caused|causing|made)\s+(your\s+|the\s+|his\s+|her\s+|their\s+|my\s+)?\w+\s+(to\s+)?(rise|risen|fall|fell|drop|dropped|increase|increased|decrease|decreased|improve|improved|worsen|worsened)\b/i,
+  // Transitive causal verbs acting ON a marker: "the supplement raised/lowered/
+  // reduced/boosted/improved your ferritin". The SAFE intransitive form
+  // ("your ferritin improved/rose" — marker BEFORE the verb) does not match.
+  /\b(raised|lowered|reduced|boosted|elevated|normalised|normalized|restored|drove|improved|increased|decreased)\s+(your|his|her|their|the)\s+\w+/i,
+  // Agentive "<thing> made your <marker> rise/fall". Possessive required and the
+  // trend verb must immediately follow the marker, so "made your decision to
+  // improve" / "made your plans clear" do NOT match.
+  /\bmade\s+(your|his|her|their|the)\s+\w+\s+(rise|rose|risen|fall|fell|drop|dropped|climb|climbed|plummet|spike|spiked|go\s+up|go\s+down)\b/i,
+  // "led to a rise/fall/improvement/…" — causal consequence of an action.
+  /\bled\s+to\s+(a\s+|an\s+|the\s+)?(rise|fall|drop|increase|decrease|improvement|reduction|recovery|change)\b/i,
+  // "(is) responsible for your/the …" — credit/blame for the change.
+  /\bresponsible\s+for\s+(your|the)\b/i,
+  // "explains why your … rose" / "explains the rise" — causal explanation.
+  /\bexplains\s+(why\s+(your|the|this|it)|the\s+(rise|fall|drop|increase|decrease|improvement|change))\b/i,
   // Causal because/due-to clauses tied to an intervention (NOT generic "because").
   /\bbecause\s+(of\s+)?(you\s+(took|started|take|taking|began)|your\s+(supplement|medication|iron|dose|treatment|intervention|diet))/i,
   /\bdue\s+to\s+(taking|your\s+(supplement|medication|iron|dose|treatment|intervention|diet))\b/i,
-  // Colloquial causal credit: "thanks to your iron supplement".
-  /\b(thanks\s+to|owing\s+to)\s+(your|the)\s+\w+/i,
+  // Colloquial causal credit toward an INTERVENTION (not a person/source — so
+  // "thanks to your clinician/GP/records" is NOT blocked). One optional
+  // adjective is allowed ("thanks to your new routine", "your daily supplement").
+  /\b(thanks\s+to|owing\s+to)\s+(your|the)\s+(\w+\s+)?(supplement|medication|iron|dose|treatment|intervention|diet|change|routine|protocol|regimen)\b/i,
 ];
 
 export const FORBIDDEN_PHRASE_PATTERNS: readonly RegExp[] = Object.freeze([
