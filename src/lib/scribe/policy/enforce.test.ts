@@ -318,6 +318,81 @@ describe('enforce — dietary directive forbidden phrases', () => {
   );
 });
 
+// False-causality enforcement (longitudinal-trajectory plan 2026-06-30-001 U14).
+// Once trends are visible, "X caused Y" is newly tempting; these patterns block
+// proven-cause over-claims while the ALLOWED temporal-association vocabulary
+// (the design doc §5.3 ✅ examples) must still pass.
+describe('enforce — false-causality forbidden phrases', () => {
+  // One rejecting fixture per FALSE_CAUSALITY pattern so a regex regression
+  // can't silently narrow the net.
+  const FALSE_CAUSALITY_FIXTURES: Array<[string, string]> = [
+    ['fixed your', 'That change fixed your ferritin in under three months.'],
+    ['cured the', 'The new routine cured the fatigue you reported.'],
+    ['caused your', 'The change caused your ferritin to fall this quarter.'],
+    ['is caused by', 'Your fatigue is caused by the deficiency seen here.'],
+    ['made <marker> rise', 'The action made your ferritin rise sharply.'],
+    ['because you started', 'Your ferritin rose because you started the new routine.'],
+    ['due to your treatment', 'The improvement is due to your treatment over the spring.'],
+    ['thanks to your routine', 'Thanks to your new routine, ferritin improved markedly.'],
+    // Transitive causal verbs acting on a marker (the common over-claim shapes).
+    ['raised your', 'The iron raised your ferritin over the spring.'],
+    ['lowered your', 'The supplement lowered your ferritin this quarter.'],
+    ['reduced your', 'The change reduced your inflammation markedly.'],
+    ['boosted your', 'The protocol boosted your levels within weeks.'],
+    ['improved your', 'The supplement improved your ferritin substantially.'],
+    ['drove your', 'The routine drove your ferritin up over the quarter.'],
+    ['led to a rise', 'The iron led to a rise in your ferritin.'],
+    ['responsible for the', 'The supplement is responsible for the rise you see.'],
+    ['explains why ... rose', 'This explains why your ferritin rose so sharply.'],
+  ];
+
+  it.each(FALSE_CAUSALITY_FIXTURES)(
+    'rejects the causal over-claim: %s',
+    (_label, output) => {
+      const candidate = makeCandidate({
+        judgmentKind: 'pattern-vs-own-history',
+        output,
+        sections: [{ heading: 'Trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+      expect(result.violations.some((v) => v.kind === 'forbidden-phrase')).toBe(true);
+    },
+  );
+
+  // Safe temporal-association + retest phrasing (design doc §5.3 ✅) that MUST
+  // pass — including the OUTCOME_CHANGED edge rationale template (plan U2).
+  const SAFE_ASSOCIATION: string[] = [
+    'Your ferritin has risen across your last three tests, moving from below to within the reference range.',
+    'This improvement followed the action you started in February; the two coincide in time, and other factors may also contribute.',
+    'After you started that change, your ferritin moved upward — a temporal association, not a proven cause.',
+    'You have a single reading for vitamin D; a repeat test would confirm whether this is a trend.',
+    'A repeat test would confirm this direction.',
+    'After the "Track morning sunlight" action, your HRV moved from 40 to 55 over this window. This is a temporal association, not a proven cause; other factors may also contribute.',
+    // Precision guards — these MUST pass (regression for the tuned patterns):
+    // crediting a PERSON/source is not an intervention-causality over-claim,
+    // and "made your decision to improve" is not "made <marker> rise".
+    'Thanks to your clinician, we have the GP note for context.',
+    'You made your decision to improve your sleep routine, which is recorded here.',
+    'Your ferritin improved across the last three readings, now within range.',
+  ];
+
+  it.each(SAFE_ASSOCIATION)(
+    'accepts the safe association/retest phrasing: %s',
+    (output) => {
+      const candidate = makeCandidate({
+        judgmentKind: 'pattern-vs-own-history',
+        output,
+        sections: [{ heading: 'Trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(true);
+    },
+  );
+});
+
 describe('enforce — regression: existing 4 judgment kinds unaffected', () => {
   const OLD_KINDS = ['reference-range-comparison', 'pattern-vs-own-history', 'citation-surfacing', 'definition-lookup'];
 
@@ -462,6 +537,73 @@ describe('registry', () => {
 
   it('returns undefined for an unknown topic', () => {
     expect(getPolicy('not-a-real-topic' as string)).toBeUndefined();
+  });
+
+  describe('trend-description judgment kind (plan 2026-06-30-001 U13)', () => {
+    const GENERAL_POLICY = getPolicy('general')!;
+
+    it('accepts a cited trend statement on a topic that allows it (iron)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output:
+          'Your ferritin has risen across your last three tests, moving from below to within the reference range.',
+        sections: [{ heading: 'Ferritin trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(true);
+      expect(result.classification).toBe('clinical-safe');
+    });
+
+    it('rejects a trend statement with an UNCITED section (must cite the dated values)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output: 'Your ferritin has been rising over the last three readings.',
+        sections: [{ heading: 'Ferritin trend', paragraphCount: 1, citationCount: 0 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+      expect(result.violations.some((v) => v.kind === 'insufficient-citation-density')).toBe(true);
+    });
+
+    it('rejects a trend statement with zero sections (cannot vacuously pass)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output: 'Things are trending up.',
+        sections: [],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+    });
+
+    it('routes out-of-scope on a topic that does NOT allow trend-description (general)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output: 'Your marker has risen across your last three tests.',
+        sections: [{ heading: 'Trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(GENERAL_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('out-of-scope-routed');
+      expect(result.violations.some((v) => v.kind === 'judgment-kind-not-allowed')).toBe(true);
+    });
+
+    it('a causal over-claim in a trend statement is still rejected (forbidden-phrase dominates)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output: 'Your ferritin rose because you started the new supplement.',
+        sections: [{ heading: 'Ferritin trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+      expect(result.violations.some((v) => v.kind === 'forbidden-phrase')).toBe(true);
+    });
   });
 
   it('lists exactly the policy keys backing every registered scribe persona', () => {

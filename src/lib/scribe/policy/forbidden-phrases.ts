@@ -18,8 +18,15 @@
  *   4. Dietary directives — second-person imperatives about food intake
  *      (increase/eat/consume-more shapes). These are forbidden in answers
  *      AND action labels (Plan 2026-06-05-001 Phase A R4).
+ *   5. False-causality — attributing a marker change to an intervention as
+ *      proven cause ("the supplement fixed your ferritin", "caused your iron
+ *      to rise", "because you took X"). Once trends are visible (the
+ *      longitudinal-trajectory work, plan 2026-06-30-001 U14) "X caused Y" is
+ *      newly tempting; the product stays on temporal-ASSOCIATION language
+ *      ("followed", "coincides in time", "may also contribute"), never proven
+ *      cause. Tuned to NOT block that safe associative/retest phrasing.
  *
- * All four are rejected at the phrase level regardless of `judgmentKind`.
+ * All five are rejected at the phrase level regardless of `judgmentKind`.
  * A scribe that needs to narrate a user's *existing* medication would surface
  * it via `citation-surfacing` pointing to a SourceChunk — not by re-writing
  * the phrase itself.
@@ -67,9 +74,46 @@ const DIETARY_DIRECTIVE_PATTERNS: readonly RegExp[] = [
   /\bcut\s+(out|down\s+on)\s+\w+\s+from\s+your\s+diet\b/i,
 ];
 
+// False-causality — proven-cause attribution of a marker change to an
+// intervention. Tuned narrowly so the ALLOWED temporal-association vocabulary
+// still passes: "followed", "coincides in time", "after you started X, Y moved",
+// "may also contribute", "a repeat test would confirm this direction", and the
+// OUTCOME_CHANGED edge rationale ("…a temporal association, not a proven
+// cause…"). It blocks the over-claims the design doc §5.3 lists as ❌.
+const FALSE_CAUSALITY_PATTERNS: readonly RegExp[] = [
+  // Attributive cure/fix: "fixed your ferritin", "cured the fatigue", "reversed it".
+  /\b(fixed|cured|reversed|resolved|healed|corrected)\s+(your|the|his|her|their|my|it)\b/i,
+  // Direct causal attribution: "caused your low iron", "caused by the supplement"
+  // ("caused your ferritin to rise" is covered here by "caused your").
+  /\bcaused\s+(your|the|his|her|their|my|by|it)\b/i,
+  /\bis\s+caused\s+by\b/i,
+  // Transitive causal verbs acting ON a marker: "the supplement raised/lowered/
+  // reduced/boosted/improved your ferritin". The SAFE intransitive form
+  // ("your ferritin improved/rose" — marker BEFORE the verb) does not match.
+  /\b(raised|lowered|reduced|boosted|elevated|normalised|normalized|restored|drove|improved|increased|decreased)\s+(your|his|her|their|the)\s+\w+/i,
+  // Agentive "<thing> made your <marker> rise/fall". Possessive required and the
+  // trend verb must immediately follow the marker, so "made your decision to
+  // improve" / "made your plans clear" do NOT match.
+  /\bmade\s+(your|his|her|their|the)\s+\w+\s+(rise|rose|risen|fall|fell|drop|dropped|climb|climbed|plummet|spike|spiked|go\s+up|go\s+down)\b/i,
+  // "led to a rise/fall/improvement/…" — causal consequence of an action.
+  /\bled\s+to\s+(a\s+|an\s+|the\s+)?(rise|fall|drop|increase|decrease|improvement|reduction|recovery|change)\b/i,
+  // "(is) responsible for your/the …" — credit/blame for the change.
+  /\bresponsible\s+for\s+(your|the)\b/i,
+  // "explains why your … rose" / "explains the rise" — causal explanation.
+  /\bexplains\s+(why\s+(your|the|this|it)|the\s+(rise|fall|drop|increase|decrease|improvement|change))\b/i,
+  // Causal because/due-to clauses tied to an intervention (NOT generic "because").
+  /\bbecause\s+(of\s+)?(you\s+(took|started|take|taking|began)|your\s+(supplement|medication|iron|dose|treatment|intervention|diet))/i,
+  /\bdue\s+to\s+(taking|your\s+(supplement|medication|iron|dose|treatment|intervention|diet))\b/i,
+  // Colloquial causal credit toward an INTERVENTION (not a person/source — so
+  // "thanks to your clinician/GP/records" is NOT blocked). One optional
+  // adjective is allowed ("thanks to your new routine", "your daily supplement").
+  /\b(thanks\s+to|owing\s+to)\s+(your|the)\s+(\w+\s+)?(supplement|medication|iron|dose|treatment|intervention|diet|change|routine|protocol|regimen)\b/i,
+];
+
 export const FORBIDDEN_PHRASE_PATTERNS: readonly RegExp[] = Object.freeze([
   ...MEDICATION_DENYLIST_PATTERNS,
   DOSE_PATTERN,
   ...IMPERATIVE_VERB_PATTERNS,
   ...DIETARY_DIRECTIVE_PATTERNS,
+  ...FALSE_CAUSALITY_PATTERNS,
 ]);

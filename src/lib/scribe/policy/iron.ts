@@ -17,6 +17,10 @@ export const IRON_POLICY: SafetyPolicy = {
     'pattern-vs-own-history',
     'citation-surfacing',
     'investigation-avenues',
+    // Descriptive trend over dated history (plan 2026-06-30-001 U13) — the
+    // enforce structural rule requires every trend section to cite its dated
+    // values; enabling it in production is gated on clinical-advisor sign-off.
+    'trend-description',
   ],
   forbiddenPhrasePatterns: FORBIDDEN_PHRASE_PATTERNS,
   minCitationDensityPerSection: 0.5,

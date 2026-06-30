@@ -16,6 +16,13 @@ export const JUDGMENT_KINDS = [
   'citation-surfacing',
   'definition-lookup',
   'investigation-avenues',
+  // Descriptive forward-looking trend over a marker's dated history —
+  // improving / worsening / stable with magnitude + "since when", grounded in
+  // cited dated values, never a forecast/probability/cause (longitudinal-
+  // trajectory plan 2026-06-30-001 U13). Like investigation-avenues it must
+  // cite every section (the dated values it describes); clinical-advisor
+  // sign-off gates enabling it per topic.
+  'trend-description',
 ] as const;
 export type JudgmentKind = (typeof JUDGMENT_KINDS)[number];
 
