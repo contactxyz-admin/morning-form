@@ -101,13 +101,23 @@ describe('GET /api/markers/[name]/trajectory', () => {
     expect(series.map((p: { value: number }) => p.value)).toEqual([62, 41, 18]); // newest first
   });
 
-  it('decodes a URL-encoded marker name and scopes to the caller', async () => {
+  it('uses the (already App-Router-decoded) name as-is and scopes to the caller', async () => {
     const userId = await makeTestUser(prisma, 'traj-scope');
     const otherId = await makeTestUser(prisma, 'traj-other');
     await ingestFerritin(otherId, '2026-02-01', 99); // another user's data
     currentUserMock.mockResolvedValue({ id: userId });
-    const res = await call(encodeURIComponent('Ferritin'));
+    // Next.js hands the route the DECODED segment; the route must not decode again.
+    const res = await call('Ferritin');
     expect(res.status).toBe(200);
     expect((await res.json()).series).toEqual([]); // never leaks the other user's series
+  });
+
+  it('does not 500 on a name containing a literal "%" (no double-decode / URIError)', async () => {
+    const userId = await makeTestUser(prisma, 'traj-percent');
+    currentUserMock.mockResolvedValue({ id: userId });
+    // A decoded segment like "vitamin c 100%" would make a second decodeURIComponent throw.
+    const res = await call('vitamin c 100%');
+    expect(res.status).toBe(200);
+    expect((await res.json()).series).toEqual([]);
   });
 });

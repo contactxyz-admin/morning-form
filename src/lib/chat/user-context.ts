@@ -438,16 +438,19 @@ async function loadLongitudinal(db: Db, userId: string): Promise<LongitudinalDig
     .slice(0, MAX_SERIES_MARKERS)
     .map((c) => c.marker);
 
-  const series: MarkerSeries[] = [];
-  for (const marker of markers) {
-    const pts = await buildMarkerTrajectory(db, userId, marker, { maxPoints: SERIES_POINTS });
-    if (pts.length >= 2) {
-      series.push({
-        marker,
-        points: pts.map((p) => ({ value: p.value, unit: p.unit, timestamp: p.timestamp })),
-      });
-    }
-  }
+  // Build the (independent) per-marker trajectories in parallel — this runs on
+  // the Ask hot path, so the bounded set of trajectory reads must not serialize.
+  const built = await Promise.all(
+    markers.map((marker) =>
+      buildMarkerTrajectory(db, userId, marker, { maxPoints: SERIES_POINTS }).then((pts) => ({ marker, pts })),
+    ),
+  );
+  const series: MarkerSeries[] = built
+    .filter(({ pts }) => pts.length >= 2)
+    .map(({ marker, pts }) => ({
+      marker,
+      points: pts.map((p) => ({ value: p.value, unit: p.unit, timestamp: p.timestamp })),
+    }));
 
   return { diff, series };
 }

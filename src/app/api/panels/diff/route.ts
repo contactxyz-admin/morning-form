@@ -34,6 +34,12 @@ export async function GET(req: NextRequest): Promise<Response> {
       { status: 400 },
     );
   }
+  if (from === to) {
+    return NextResponse.json(
+      { error: '`from` and `to` must be different panels.' },
+      { status: 400 },
+    );
+  }
 
   const diff = await diffPanels(prisma, user.id, from, to);
   if (!diff) {

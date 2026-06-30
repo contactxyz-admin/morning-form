@@ -5,8 +5,11 @@
  * Thin, user-scoped wrapper over `buildMarkerTrajectory` (lab observation
  * instances merged with wearable points, newest-first, capped). Flag-gated
  * behind LONGITUDINAL_GRAPH_ENABLED so flag-off is a 404 (byte-for-byte the
- * pre-feature surface). `[name]` is the URL-encoded marker display name; an
- * unknown marker returns an empty series, not an error.
+ * pre-feature surface). `params.name` is the marker display name — the App
+ * Router has ALREADY percent-decoded the dynamic segment, so we must NOT
+ * decode it again (a second decode throws URIError on a literal `%` → 500, and
+ * mangles names that legitimately contain `%`). An unknown marker returns an
+ * empty series, not an error.
  */
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
@@ -29,7 +32,7 @@ export async function GET(
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
-  const markerName = decodeURIComponent(params.name).trim();
+  const markerName = params.name.trim();
   if (!markerName) {
     return NextResponse.json({ error: 'Marker name is required.' }, { status: 400 });
   }

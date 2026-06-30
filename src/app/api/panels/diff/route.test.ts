@@ -91,6 +91,12 @@ describe('GET /api/panels/diff', () => {
     expect((await call('a', undefined)).status).toBe(400);
   });
 
+  it('400 when from === to (a panel cannot be diffed against itself)', async () => {
+    const userId = await makeTestUser(prisma, 'diff-same');
+    currentUserMock.mockResolvedValue({ id: userId });
+    expect((await call('same-id', 'same-id')).status).toBe(400);
+  });
+
   it('diffs two specific panels with the from-panel as baseline', async () => {
     const userId = await makeTestUser(prisma, 'diff-ok');
     currentUserMock.mockResolvedValue({ id: userId });
