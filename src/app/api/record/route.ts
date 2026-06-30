@@ -10,6 +10,7 @@ import { aggregateRecord } from '@/lib/record/aggregate';
 import { diffLatestPanels, type PanelDiff } from '@/lib/markers/panel-diff';
 import {
   applyChangesToWireNodes,
+  applyInterpretationsToWireNodes,
   changedNodeIds,
   meaningfulMoves,
 } from '@/lib/markers/node-change-map';
@@ -91,9 +92,15 @@ export async function GET() {
     // canary gates are met.
     const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap, changedNodeIds: changed });
 
-    // Decorate the (now cap-surviving) biomarker nodes with their change.
+    // Decorate the (now cap-surviving) biomarker nodes with their change, plus
+    // the consumer-facing clinical interpretation for CMO-authored markers
+    // (longitudinal-trajectory plan 2026-06-30-001 U8) — the same enrichment
+    // the source-detail page already does, lifted onto the live record map.
+    // Flag-gated by this block (only runs when the diff has a real before/after),
+    // so flag-off emits neither `change` nor `interpretation`.
     if (diff && diff.previousPanelAt) {
       applyChangesToWireNodes(index.nodes, diff.changes);
+      applyInterpretationsToWireNodes(index.nodes, diff.changes);
     }
 
     return NextResponse.json(index, { headers: { 'Cache-Control': 'no-store' } });
