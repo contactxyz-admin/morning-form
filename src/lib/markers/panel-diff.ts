@@ -108,8 +108,62 @@ export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDif
   const previous = panels[1] ?? null;
   const previousReadings = previous?.readings ?? new Map<string, InstanceRow>();
 
+  return {
+    latestPanelAt: latest.capturedAt.toISOString(),
+    previousPanelAt: previous ? previous.capturedAt.toISOString() : null,
+    changes: buildPanelChanges(latest.readings, previousReadings),
+  };
+}
+
+/**
+ * Diff two SPECIFIC lab panels by document id (longitudinal-trajectory plan
+ * 2026-06-30-001 U6). Reports the change in the `to` panel relative to `from`
+ * (so `from` is the earlier baseline). Both docs are validated to belong to
+ * the caller and to be lab panels; returns null when either is missing, not
+ * owned, or not a `lab_pdf` (the route maps that to a 404). Reuses the same
+ * pure classifier + instance loader as `diffLatestPanels`, so classification
+ * semantics are identical.
+ */
+export async function diffPanels(
+  db: Db,
+  userId: string,
+  fromDocumentId: string,
+  toDocumentId: string,
+): Promise<PanelDiff | null> {
+  const ids = Array.from(new Set([fromDocumentId, toDocumentId]));
+  const docs = await db.sourceDocument.findMany({
+    where: { userId, kind: 'lab_pdf', id: { in: ids } },
+    select: { id: true, capturedAt: true },
+  });
+  const from = docs.find((d) => d.id === fromDocumentId);
+  const to = docs.find((d) => d.id === toDocumentId);
+  if (!from || !to) return null;
+
+  const [fromReadings, toReadings] = await Promise.all([
+    loadPanelInstances(db, userId, fromDocumentId),
+    loadPanelInstances(db, userId, toDocumentId),
+  ]);
+
+  return {
+    latestPanelAt: to.capturedAt.toISOString(),
+    previousPanelAt: from.capturedAt.toISOString(),
+    changes: buildPanelChanges(toReadings, fromReadings),
+  };
+}
+
+/**
+ * Pure per-marker diff of two reading maps: every marker in `latestReadings`
+ * compared against its `previousReadings` counterpart (a marker absent from
+ * the previous panel is `new`). Sorted by marker name for a deterministic,
+ * readable order. Shared by `diffLatestPanels` and `diffPanels` so the two
+ * never drift on classification.
+ */
+function buildPanelChanges(
+  latestReadings: Map<string, InstanceRow>,
+  previousReadings: Map<string, InstanceRow>,
+): MarkerChange[] {
   const changes: MarkerChange[] = [];
-  for (const [joinKey, after] of Array.from(latest.readings.entries())) {
+  for (const [joinKey, after] of Array.from(latestReadings.entries())) {
     const before = previousReadings.get(joinKey);
     if (!before) {
       changes.push({
@@ -147,15 +201,8 @@ export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDif
       classification,
     });
   }
-
-  // Deterministic, readable order by marker name.
   changes.sort((a, b) => a.marker.localeCompare(b.marker));
-
-  return {
-    latestPanelAt: latest.capturedAt.toISOString(),
-    previousPanelAt: previous ? previous.capturedAt.toISOString() : null,
-    changes,
-  };
+  return changes;
 }
 
 /**
