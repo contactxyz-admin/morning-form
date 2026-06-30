@@ -5,10 +5,10 @@
  * digest contents. Tests cover: rich, sparse, empty, truncation, and
  * the per-section-failure degradation path.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
-import { addNode } from '@/lib/graph/mutations';
+import { addNode, ingestExtraction } from '@/lib/graph/mutations';
 import { assembleUserContext } from './user-context';
 
 let prisma: PrismaClient;
@@ -68,7 +68,7 @@ describe('assembleUserContext', () => {
       },
     });
     // Priorities
-    const priorities = await prisma.priorities.create({
+    await prisma.priorities.create({
       data: {
         userId,
         rationale: 'Iron and sleep are your key levers',
@@ -276,6 +276,74 @@ describe('assembleUserContext', () => {
     expect(digest!).not.toMatch(/User message:/);
     // The legitimate marker name survives.
     expect(digest!).toContain('Ferritin');
+  });
+});
+
+describe('assembleUserContext — longitudinal section (plan 2026-06-30-001 U9)', () => {
+  const originalFlag = process.env.LONGITUDINAL_GRAPH_ENABLED;
+  afterEach(() => {
+    if (originalFlag === undefined) delete process.env.LONGITUDINAL_GRAPH_ENABLED;
+    else process.env.LONGITUDINAL_GRAPH_ENABLED = originalFlag;
+  });
+
+  async function ingestFerritin(userId: string, date: string, value: number): Promise<void> {
+    await ingestExtraction(prisma, userId, {
+      document: { kind: 'lab_pdf', sourceRef: `p-${date}.pdf`, contentHash: `hash-${userId}-${date}`, capturedAt: new Date(date) },
+      chunks: [{ index: 0, text: `Ferritin ${value}`, offsetStart: 0, offsetEnd: 10 }],
+      nodes: [
+        {
+          type: 'biomarker',
+          canonicalKey: 'ferritin',
+          displayName: 'Ferritin',
+          attributes: { value, unit: 'ug/L', referenceRangeLow: 30, referenceRangeHigh: 400, collectionDate: date, latestValue: value, latestValueAt: new Date(date).toISOString() },
+          supportingChunkIndices: [0],
+        },
+        {
+          type: 'observation',
+          canonicalKey: `obs_ferritin_${date.replace(/-/g, '_')}`,
+          displayName: `Ferritin · ${date}`,
+          attributes: { value, unit: 'ug/L', measuredAt: new Date(date).toISOString() },
+          promoted: false,
+          supportingChunkIndices: [0],
+        },
+      ],
+      edges: [
+        { type: 'INSTANCE_OF', fromType: 'observation', fromCanonicalKey: `obs_ferritin_${date.replace(/-/g, '_')}`, toType: 'biomarker', toCanonicalKey: 'ferritin' },
+      ],
+    });
+  }
+
+  it('flag ON: injects the panel diff + dated marker history, descriptively', async () => {
+    process.env.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    const userId = await makeTestUser(prisma, 'ctx-longi-on');
+    await ingestFerritin(userId, '2026-02-01', 18);
+    await ingestFerritin(userId, '2026-06-01', 41);
+
+    const digest = await assembleUserContext(prisma, userId);
+    expect(digest).not.toBeNull();
+    // "What changed since last panel" — range-relative classification, no causal language.
+    expect(digest!).toContain('Since the previous panel');
+    expect(digest!).toMatch(/Ferritin: 18 → 41 ug\/L \(improved vs reference range\)/);
+    // Dated history (oldest → newest), bare values only.
+    expect(digest!).toContain('Recent marker history (oldest → newest)');
+    expect(digest!).toMatch(/18 ug\/L \(2026-02-01\) → 41 ug\/L \(2026-06-01\)/);
+    // No trend/causal/predictive overreach in the descriptive digest.
+    expect(digest!).not.toMatch(/\b(caused|fixed|trending|will|predict|rising|worsening trend)\b/i);
+  });
+
+  it('flag OFF: byte-for-byte the latest-values-only digest (no longitudinal sections)', async () => {
+    delete process.env.LONGITUDINAL_GRAPH_ENABLED;
+    const userId = await makeTestUser(prisma, 'ctx-longi-off');
+    await ingestFerritin(userId, '2026-02-01', 18);
+    await ingestFerritin(userId, '2026-06-01', 41);
+
+    const digest = await assembleUserContext(prisma, userId);
+    expect(digest).not.toBeNull();
+    // Latest values still present (existing behavior)…
+    expect(digest!).toContain('Current biomarker values');
+    // …but the new longitudinal sections are absent.
+    expect(digest!).not.toContain('Since the previous panel');
+    expect(digest!).not.toContain('Recent marker history');
   });
 });
 
