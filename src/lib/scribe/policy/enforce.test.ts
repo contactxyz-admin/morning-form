@@ -523,6 +523,73 @@ describe('registry', () => {
     expect(getPolicy('not-a-real-topic' as string)).toBeUndefined();
   });
 
+  describe('trend-description judgment kind (plan 2026-06-30-001 U13)', () => {
+    const GENERAL_POLICY = getPolicy('general')!;
+
+    it('accepts a cited trend statement on a topic that allows it (iron)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output:
+          'Your ferritin has risen across your last three tests, moving from below to within the reference range.',
+        sections: [{ heading: 'Ferritin trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(true);
+      expect(result.classification).toBe('clinical-safe');
+    });
+
+    it('rejects a trend statement with an UNCITED section (must cite the dated values)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output: 'Your ferritin has been rising over the last three readings.',
+        sections: [{ heading: 'Ferritin trend', paragraphCount: 1, citationCount: 0 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+      expect(result.violations.some((v) => v.kind === 'insufficient-citation-density')).toBe(true);
+    });
+
+    it('rejects a trend statement with zero sections (cannot vacuously pass)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output: 'Things are trending up.',
+        sections: [],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+    });
+
+    it('routes out-of-scope on a topic that does NOT allow trend-description (general)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output: 'Your marker has risen across your last three tests.',
+        sections: [{ heading: 'Trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(GENERAL_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('out-of-scope-routed');
+      expect(result.violations.some((v) => v.kind === 'judgment-kind-not-allowed')).toBe(true);
+    });
+
+    it('a causal over-claim in a trend statement is still rejected (forbidden-phrase dominates)', () => {
+      const candidate = makeCandidate({
+        judgmentKind: 'trend-description',
+        output: 'Your ferritin rose because you started the new supplement.',
+        sections: [{ heading: 'Ferritin trend', paragraphCount: 1, citationCount: 1 }],
+      });
+      const result = enforce(IRON_POLICY, candidate);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.classification).toBe('rejected');
+      expect(result.violations.some((v) => v.kind === 'forbidden-phrase')).toBe(true);
+    });
+  });
+
   it('lists exactly the policy keys backing every registered scribe persona', () => {
     // Plan 2026-04-25-001 expanded the set: 3 v1 topics + the specialty safety
     // policies (general, cardiometabolic, sleep-recovery is shared with v1,

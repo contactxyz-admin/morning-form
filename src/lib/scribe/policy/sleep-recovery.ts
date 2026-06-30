@@ -17,6 +17,9 @@ export const SLEEP_RECOVERY_POLICY: SafetyPolicy = {
     'pattern-vs-own-history',
     'citation-surfacing',
     'investigation-avenues',
+    // Descriptive trend over dated history (plan 2026-06-30-001 U13); advisor
+    // sign-off gates go-live, enforce requires every trend section to cite.
+    'trend-description',
   ],
   forbiddenPhrasePatterns: FORBIDDEN_PHRASE_PATTERNS,
   minCitationDensityPerSection: 0.5,

@@ -29,10 +29,22 @@
 
 import type {
   EnforceResult,
+  JudgmentKind,
   PolicyCandidate,
   PolicyViolation,
   SafetyPolicy,
 } from './types';
+
+/**
+ * Judgment kinds that must cite EVERY section (≥1 citation per section and ≥1
+ * section), not merely meet the average-density floor — because the value of
+ * the judgment IS its grounding: an uncited investigation avenue or trend
+ * statement is the over-claim the kind exists to prevent.
+ */
+const CITE_EVERY_SECTION_KINDS: ReadonlySet<JudgmentKind> = new Set<JudgmentKind>([
+  'investigation-avenues',
+  'trend-description',
+]);
 
 export function enforce(
   policy: SafetyPolicy,
@@ -91,34 +103,36 @@ export function enforce(
       sectionHeading: '(no sections)',
     });
   }
-  // Guard: investigation-avenues — every investigation section MUST carry
-  // at least one citation. The generic density loop skips zero-paragraph
+  // Guard: investigation-avenues AND trend-description — every section MUST
+  // carry at least one citation. The generic density loop skips zero-paragraph
   // sections (paragraphCount ≤ 0), which would vacuously pass an uncited
-  // avenue section. This structural check runs BEFORE the per-section loop
-  // so an entirely-uncited investigation answer is caught unambiguously.
-  if (candidate.judgmentKind === 'investigation-avenues') {
+  // section. A trend statement that doesn't cite the dated values it describes
+  // is exactly the over-claim this kind must avoid (longitudinal plan U13), so
+  // it gets the same structural rule as investigation-avenues. This runs BEFORE
+  // the per-section loop so an entirely-uncited answer is caught unambiguously.
+  if (CITE_EVERY_SECTION_KINDS.has(candidate.judgmentKind)) {
     for (const section of candidate.sections) {
       if (section.citationCount === 0) {
         densityViolations.push({
           kind: 'insufficient-citation-density',
-          detail: `Investigation section '${section.heading}' lacks a citation. Every investigation avenue must cite at least one source (graph node, check-in, or context digest).`,
+          detail: `Section '${section.heading}' lacks a citation. A ${candidate.judgmentKind} judgment must cite at least one source (graph node, check-in, or context digest) in every section.`,
           sectionHeading: section.heading,
         });
       }
     }
-    // An investigations answer with zero sections at all is a policy miss.
+    // An answer of this kind with zero sections at all is a policy miss.
     if (candidate.sections.length === 0) {
       densityViolations.push({
         kind: 'insufficient-citation-density',
-        detail: 'Investigation-avenues judgments require at least one investigation section with a citation; received zero sections.',
+        detail: `${candidate.judgmentKind} judgments require at least one section with a citation; received zero sections.`,
         sectionHeading: '(no sections)',
       });
     }
   }
-  // investigation-avenues was already checked by its structural branch above
-  // (≥1 citation per section, regardless of paragraph count), so skip the
-  // generic per-section density loop for it.
-  if (candidate.judgmentKind !== 'investigation-avenues') {
+  // The cite-every-section kinds were already checked by the structural branch
+  // above (≥1 citation per section, regardless of paragraph count), so skip the
+  // generic per-section density loop for them.
+  if (!CITE_EVERY_SECTION_KINDS.has(candidate.judgmentKind)) {
     for (const section of candidate.sections) {
       if (section.paragraphCount <= 0) continue;
       const density = section.citationCount / section.paragraphCount;
