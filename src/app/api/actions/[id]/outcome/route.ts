@@ -14,6 +14,7 @@ import { getCurrentUser } from '@/lib/session';
 import { env } from '@/lib/env';
 import { resolveTransition } from '@/lib/actions/lifecycle';
 import { buildMarkerTrajectory, resolveBeforeValueAtAcceptance } from '@/lib/markers/trajectory';
+import { linkOutcomeChanged } from '@/lib/actions/outcome-edges';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +50,7 @@ export async function POST(
   // Read with ownership check.
   const action = await prisma.action.findUnique({
     where: { id: actionId },
-    select: { id: true, userId: true, state: true, verb: true, markerName: true, acceptedAt: true },
+    select: { id: true, userId: true, state: true, verb: true, markerName: true, label: true, acceptedAt: true },
   });
   if (!action || action.userId !== user.id) {
     return NextResponse.json({ error: 'Action not found.' }, { status: 404 });
@@ -126,6 +127,29 @@ export async function POST(
         },
       });
     });
+
+    // Project the measured outcome onto the graph: a dated intervention_event
+    // linked OUTCOME_CHANGED → the biomarker concept (longitudinal-trajectory
+    // plan 2026-06-30-001 U2). Post-commit + idempotent + non-fatal — a
+    // missing concept or graph error must never undo the (terminal) outcome
+    // write that just committed.
+    if (action.markerName) {
+      try {
+        await linkOutcomeChanged(prisma, user.id, {
+          actionId,
+          label: action.label,
+          markerName: action.markerName,
+          beforeValue: outcome.beforeValue,
+          beforeAt: outcome.beforeAt?.toISOString() ?? null,
+          afterValue: outcome.afterValue,
+          afterAt: outcome.afterAt?.toISOString() ?? null,
+          acceptedAt: action.acceptedAt?.toISOString() ?? null,
+        });
+      } catch (edgeErr) {
+        const msg = edgeErr instanceof Error ? edgeErr.message : String(edgeErr);
+        console.error(`[API] actions/outcome OUTCOME_CHANGED link failed post-commit (non-fatal): ${msg}`);
+      }
+    }
 
     return NextResponse.json({
       id: outcome.id,

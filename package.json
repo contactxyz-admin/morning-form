@@ -23,7 +23,8 @@
     "marketing:scaffold": "tsx scripts/marketing-scaffold.ts",
     "mcp:audit": "tsx scripts/metrics/mcp-audit.ts",
     "scribe:fix-model": "tsx scripts/fix-scribe-model.ts",
-    "markers:backfill-observations": "tsx scripts/backfill-lab-observations.ts"
+    "markers:backfill-observations": "tsx scripts/backfill-lab-observations.ts",
+    "markers:backfill-temporal": "tsx scripts/backfill-temporal-succeeds.ts"
   },
   "engines": {
     "node": "20.x"

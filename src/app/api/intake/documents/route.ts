@@ -52,6 +52,7 @@ import {
 import { resolveBiomarker } from '@/lib/intake/biomarkers';
 import { buildLabObservationGraphInputs } from '@/lib/intake/lab-observations';
 import { diffLatestPanels } from '@/lib/markers/panel-diff';
+import { linkTemporalSucceedsForUser } from '@/lib/markers/temporal-succeeds';
 import { completeDrawForSourceDocument } from '@/lib/retest/draws';
 import { writeFunnelEvent, FUNNEL_EVENTS } from '@/lib/funnel/event';
 import { env } from '@/lib/env';
@@ -257,6 +258,23 @@ export async function POST(req: Request) {
     }
 
     const promoted = await promoteTopics(user.id, validBiomarkers.map((b) => b.canonicalKey));
+
+    // Temporal succession (longitudinal-trajectory plan 2026-06-30-001 U1):
+    // link consecutive dated observation instances of each marker in this
+    // panel with TEMPORAL_SUCCEEDS, so the trajectory is graph-native and not
+    // just a query-time reassembly. Post-commit + idempotent + non-fatal, and
+    // scoped to this panel's markers (the prior reading resolves from the DB).
+    // Unconditional like the observation-instance writes — both endpoints are
+    // lab-instance nodes, so the edge is stripped from the concept canvas; a
+    // failure must never convert a successful upload into an error response.
+    try {
+      await linkTemporalSucceedsForUser(prisma, user.id, {
+        conceptCanonicalKeys: validBiomarkers.map((b) => b.canonicalKey),
+      });
+    } catch (linkErr) {
+      const msg = linkErr instanceof Error ? linkErr.message : String(linkErr);
+      console.error(`[API] intake/documents temporal-succeeds link failed post-ingest (non-fatal): ${msg}`);
+    }
 
     // "What changed since last test": when the longitudinal surface is on and
     // this upload is a re-test (a prior panel exists), include the diff so the

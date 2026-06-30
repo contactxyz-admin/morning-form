@@ -437,6 +437,44 @@ describe('assembleExportArchive — brand-new user', () => {
   });
 });
 
+// Non-vacuous coverage for the new longitudinal-trajectory data paths
+// (plan 2026-06-30-001 U4). New GraphNode/GraphEdge TYPES (not new tables) ride
+// the existing record-domain export; verify they actually round-trip.
+describe('assembleExportArchive — longitudinal graph rows (plan 2026-06-30-001 U4)', () => {
+  it('exports observation/intervention_event nodes and TEMPORAL_SUCCEEDS/OUTCOME_CHANGED edges', async () => {
+    const userId = await makeTestUser(prisma, 'export-longitudinal');
+    const concept = await prisma.graphNode.create({
+      data: { userId, type: 'biomarker', canonicalKey: 'ferritin', displayName: 'Ferritin' },
+    });
+    const obs1 = await prisma.graphNode.create({
+      data: { userId, type: 'observation', canonicalKey: 'obs_ferritin_2026_02_01', displayName: 'Ferritin · Feb', promoted: false },
+    });
+    const obs2 = await prisma.graphNode.create({
+      data: { userId, type: 'observation', canonicalKey: 'obs_ferritin_2026_06_01', displayName: 'Ferritin · Jun', promoted: false },
+    });
+    const ev = await prisma.graphNode.create({
+      data: { userId, type: 'intervention_event', canonicalKey: 'intervention_event_action_x_2026_06_01_completed', displayName: 'Track iron', promoted: false },
+    });
+    await prisma.graphEdge.create({ data: { userId, type: 'TEMPORAL_SUCCEEDS', fromNodeId: obs1.id, toNodeId: obs2.id } });
+    await prisma.graphEdge.create({
+      data: { userId, type: 'OUTCOME_CHANGED', fromNodeId: ev.id, toNodeId: concept.id, metadata: '{"rationale":"descriptive"}' },
+    });
+
+    const { zip } = await assembleExportArchive(prisma, userId);
+    const entries = readStoreZip(zip);
+    const record = JSON.parse(entries['record.json'].toString('utf8'));
+
+    const nodeTypes = (record.graphNodes as { type: string }[]).map((n) => n.type);
+    expect(nodeTypes).toEqual(expect.arrayContaining(['observation', 'intervention_event']));
+    const edges = record.graphEdges as { type: string; metadata: string | null }[];
+    const edgeTypes = edges.map((e) => e.type);
+    expect(edgeTypes).toEqual(expect.arrayContaining(['TEMPORAL_SUCCEEDS', 'OUTCOME_CHANGED']));
+    // The OUTCOME_CHANGED rationale metadata rides along (intelligible export).
+    const outcome = edges.find((e) => e.type === 'OUTCOME_CHANGED');
+    expect(outcome?.metadata).toContain('rationale');
+  });
+});
+
 describe('assembleExportArchive — failure posture', () => {
   it('throws (no partial archive) when a blob fetch returns null', async () => {
     const userId = await makeTestUser(prisma, 'export-blobfail');

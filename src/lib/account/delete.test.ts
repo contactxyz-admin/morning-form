@@ -485,4 +485,40 @@ describe('eraseAccount — residue assertion (real test DB)', () => {
     expect(delMock).not.toHaveBeenCalled(); // no targets → del() skipped
     expect(await prisma.user.findUnique({ where: { id } })).toBeNull();
   });
+
+  // Non-vacuous coverage for the new longitudinal-trajectory data paths
+  // (plan 2026-06-30-001 U4). These are GraphNode/GraphEdge rows of new TYPES,
+  // not new tables — generically swept by the deleteMany already, but the
+  // brief requires we VERIFY rather than assume.
+  it('deletes the new temporal/causal graph rows (observation, intervention_event, TEMPORAL_SUCCEEDS, OUTCOME_CHANGED)', async () => {
+    const id = await makeTestUser(prisma, 'delete-longitudinal');
+    const concept = await prisma.graphNode.create({
+      data: { userId: id, type: 'biomarker', canonicalKey: 'ferritin', displayName: 'Ferritin' },
+    });
+    const obs1 = await prisma.graphNode.create({
+      data: { userId: id, type: 'observation', canonicalKey: 'obs_ferritin_2026_02_01', displayName: 'Ferritin · Feb', promoted: false },
+    });
+    const obs2 = await prisma.graphNode.create({
+      data: { userId: id, type: 'observation', canonicalKey: 'obs_ferritin_2026_06_01', displayName: 'Ferritin · Jun', promoted: false },
+    });
+    const ev = await prisma.graphNode.create({
+      data: { userId: id, type: 'intervention_event', canonicalKey: 'intervention_event_action_x_2026_06_01_completed', displayName: 'Track iron', promoted: false },
+    });
+    await prisma.graphEdge.create({ data: { userId: id, type: 'TEMPORAL_SUCCEEDS', fromNodeId: obs1.id, toNodeId: obs2.id } });
+    await prisma.graphEdge.create({
+      data: { userId: id, type: 'OUTCOME_CHANGED', fromNodeId: ev.id, toNodeId: concept.id, metadata: '{"rationale":"descriptive"}' },
+    });
+
+    // Precondition: the rows really exist (guards against a vacuous assertion).
+    expect(await prisma.graphEdge.count({ where: { userId: id, type: 'TEMPORAL_SUCCEEDS' } })).toBe(1);
+    expect(await prisma.graphEdge.count({ where: { userId: id, type: 'OUTCOME_CHANGED' } })).toBe(1);
+    expect(await prisma.graphNode.count({ where: { userId: id, type: 'intervention_event' } })).toBe(1);
+    expect(await prisma.graphNode.count({ where: { userId: id, type: 'observation' } })).toBe(2);
+
+    const result = await eraseAccount(prisma, id, { ipHash: 'ip-hash-longitudinal' });
+    expect(result.outcome).toBe('completed');
+
+    expect(await prisma.graphEdge.count({ where: { userId: id } })).toBe(0);
+    expect(await prisma.graphNode.count({ where: { userId: id } })).toBe(0);
+  });
 });
