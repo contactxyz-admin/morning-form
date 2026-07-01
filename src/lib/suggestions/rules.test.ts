@@ -199,14 +199,25 @@ describe('restingHrAboveBaselineRule', () => {
     };
   }
 
-  // `days` prior daily readings (alternating 54/56 → median ≈ 55, small std),
-  // each strictly older than the single latest reading `msAgo` old.
+  // `days` prior daily readings (alternating 54/56 → median 55, std exactly 1
+  // over 30 days → threshold = 55 + 3·1 = 58), each strictly older than the
+  // single latest reading `msAgo` old. The latest reading's own day is excluded
+  // from the baseline by the rule, so it never contaminates median30/std30.
   function windowEndingAt(latestValue: number, latestMsAgo: number, days = 30): HealthDataPoint[] {
     const pts: HealthDataPoint[] = [];
     for (let d = 1; d <= days; d++) {
       pts.push(rhr(`b${d}`, d % 2 === 0 ? 54 : 56, latestMsAgo + d * DAY_MS));
     }
     pts.push(rhr('latest', latestValue, latestMsAgo));
+    return pts;
+  }
+
+  // 30 prior days at a single flat value (std30 = 0), plus a fresh latest. Used
+  // to prove the reading under test cannot manufacture its own baseline variance.
+  function flatPriorWindow(latestValue: number, priorValue = 55): HealthDataPoint[] {
+    const pts: HealthDataPoint[] = [];
+    for (let d = 1; d <= 30; d++) pts.push(rhr(`f${d}`, priorValue, 60 * 1000 + d * DAY_MS));
+    pts.push(rhr('latest', latestValue, 60 * 1000));
     return pts;
   }
 
@@ -222,7 +233,19 @@ describe('restingHrAboveBaselineRule', () => {
   });
 
   it('does not fire when the reading stays within k·std of the personal baseline', () => {
+    // 57 = median30 (55) + 2·std30 (1), inside the 3·std band.
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(57, 60 * 1000), { now: NOW })).toBeNull();
+  });
+
+  it('does not fire exactly at the threshold (median30 + 3·std30 = 58; boundary is exclusive)', () => {
     expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(58, 60 * 1000), { now: NOW })).toBeNull();
+  });
+
+  it('does not manufacture its own variance: a bump over a flat prior baseline stays quiet', () => {
+    // Prior history is dead flat (std30 = 0) → the std30 > 0 guard suppresses,
+    // instead of the reading under test inflating its own baseline into a hit.
+    expect(restingHrAboveBaselineRule.evaluate(flatPriorWindow(60), { now: NOW })).toBeNull();
+    expect(restingHrAboveBaselineRule.evaluate(flatPriorWindow(200), { now: NOW })).toBeNull();
   });
 
   it('does not fire on a downward deviation (one-sided: elevation only)', () => {

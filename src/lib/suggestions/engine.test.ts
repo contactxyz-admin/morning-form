@@ -123,24 +123,41 @@ describe('ensureTodaysSuggestions', () => {
     expect(args.where.kind.notIn).toEqual([]);
   });
 
-  it('fetches a 35-day baseline lookback window of points', async () => {
+  it('fetches the recent 7-day stream and a metric-scoped 35-day baseline as two queries', async () => {
     findManyPoints.mockResolvedValue([]);
 
     await ensureTodaysSuggestions('u1', NOW);
 
-    const call = findManyPoints.mock.calls[0][0] as {
-      where: { userId: string; timestamp: { gte: Date } };
+    expect(findManyPoints).toHaveBeenCalledTimes(2);
+
+    // Query 1: recent full stream for the threshold rules — DB-scoped to 7 days,
+    // no metric filter. This is the sole gate keeping stale points out of the
+    // threshold rules (they select via most-recent with no age guard).
+    const recent = findManyPoints.mock.calls[0][0] as {
+      where: { userId: string; metric?: unknown; timestamp: { gte: Date } };
     };
-    expect(call.where.userId).toBe('u1');
-    const gte = call.where.timestamp.gte;
-    // Widened from 7 to 35 days so personal-baseline rules have ≥30 days of
-    // history; threshold rules still only see the recent 7-day slice.
-    const expected = new Date(TODAY.getTime() - 35 * 24 * 60 * 60 * 1000);
-    expect(gte.getTime()).toBe(expected.getTime());
+    expect(recent.where.userId).toBe('u1');
+    expect(recent.where.metric).toBeUndefined();
+    expect(recent.where.timestamp.gte.getTime()).toBe(
+      new Date(TODAY.getTime() - 7 * 24 * 60 * 60 * 1000).getTime(),
+    );
+
+    // Query 2: baseline window — 35 days, restricted to the baseline metrics so
+    // high-cadence streams aren't pulled over the long window.
+    const baseline = findManyPoints.mock.calls[1][0] as {
+      where: { userId: string; metric: { in: string[] }; timestamp: { gte: Date } };
+    };
+    expect(baseline.where.userId).toBe('u1');
+    expect(baseline.where.metric.in).toContain('resting_hr');
+    expect(baseline.where.timestamp.gte.getTime()).toBe(
+      new Date(TODAY.getTime() - 35 * 24 * 60 * 60 * 1000).getTime(),
+    );
   });
 
   it('persists a resting_hr_above_baseline row when a fresh RHR spike clears the personal baseline', async () => {
-    // 30 flat days at 55 bpm (std small) then a fresh spike to 80 bpm.
+    // 34 prior days alternating 54/56 (median 55, std 1 over the latest 30),
+    // then a fresh spike to 80 bpm today. The spike's own day is excluded from
+    // the baseline, so threshold = 55 + 3·1 = 58 and 80 fires.
     const rows: Record<string, unknown>[] = [];
     for (let i = 34; i >= 1; i--) {
       const ts = new Date(NOW.getTime() - i * 24 * 60 * 60 * 1000);
