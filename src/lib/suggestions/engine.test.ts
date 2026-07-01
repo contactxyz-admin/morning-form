@@ -123,7 +123,7 @@ describe('ensureTodaysSuggestions', () => {
     expect(args.where.kind.notIn).toEqual([]);
   });
 
-  it('fetches a 7-day lookback window of points', async () => {
+  it('fetches a 35-day baseline lookback window of points', async () => {
     findManyPoints.mockResolvedValue([]);
 
     await ensureTodaysSuggestions('u1', NOW);
@@ -133,8 +133,64 @@ describe('ensureTodaysSuggestions', () => {
     };
     expect(call.where.userId).toBe('u1');
     const gte = call.where.timestamp.gte;
-    const expected = new Date(TODAY.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // Widened from 7 to 35 days so personal-baseline rules have ≥30 days of
+    // history; threshold rules still only see the recent 7-day slice.
+    const expected = new Date(TODAY.getTime() - 35 * 24 * 60 * 60 * 1000);
     expect(gte.getTime()).toBe(expected.getTime());
+  });
+
+  it('persists a resting_hr_above_baseline row when a fresh RHR spike clears the personal baseline', async () => {
+    // 30 flat days at 55 bpm (std small) then a fresh spike to 80 bpm.
+    const rows: Record<string, unknown>[] = [];
+    for (let i = 34; i >= 1; i--) {
+      const ts = new Date(NOW.getTime() - i * 24 * 60 * 60 * 1000);
+      // Alternate 54/56 so std30 > 0 but small; median ≈ 55.
+      rows.push(
+        row({
+          id: `rhr-${i}`,
+          category: 'heart',
+          metric: 'resting_hr',
+          value: i % 2 === 0 ? 54 : 56,
+          unit: 'bpm',
+          timestamp: ts,
+        }),
+      );
+    }
+    rows.push(
+      row({
+        id: 'rhr-today',
+        category: 'heart',
+        metric: 'resting_hr',
+        value: 80,
+        unit: 'bpm',
+        timestamp: new Date(NOW.getTime() - 60 * 1000), // 1 min ago → fresh
+      }),
+    );
+    findManyPoints.mockResolvedValue(rows);
+    upsertSuggestion.mockResolvedValue({
+      id: 's1',
+      userId: 'u1',
+      date: TODAY,
+      kind: 'resting_hr_above_baseline',
+      title:
+        'Your resting heart rate is running above your recent baseline — consider extra rest, hydration, and easing off hard training until it settles',
+      tier: 'moderate',
+      triggeringMetricIds: JSON.stringify(['rhr-today']),
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+
+    const result = await ensureTodaysSuggestions('u1', NOW);
+
+    const kinds = result.map((r) => r.kind);
+    expect(kinds).toContain('resting_hr_above_baseline');
+    const call = upsertSuggestion.mock.calls.find(
+      (c) => (c[0] as { where: { userId_date_kind: { kind: string } } }).where.userId_date_kind.kind === 'resting_hr_above_baseline',
+    );
+    expect(call).toBeDefined();
+    expect((call![0] as { create: { triggeringMetricIds: string } }).create.triggeringMetricIds).toBe(
+      JSON.stringify(['rhr-today']),
+    );
   });
 
   it('persists a glucose_fasting_diabetic row when a fasting 130 mg/dL reading lands', async () => {

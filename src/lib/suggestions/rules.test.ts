@@ -4,6 +4,7 @@ import {
   recoveryLowRule,
   glucoseFastingElevatedRule,
   glucoseFastingDiabeticRule,
+  restingHrAboveBaselineRule,
   evaluateRules,
   rules,
 } from './rules';
@@ -183,6 +184,73 @@ describe('glucoseFastingDiabeticRule', () => {
   });
 });
 
+describe('restingHrAboveBaselineRule', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  function rhr(id: string, value: number, msAgo: number): HealthDataPoint {
+    return {
+      id,
+      category: 'heart',
+      metric: 'resting_hr',
+      value,
+      unit: 'bpm',
+      timestamp: new Date(NOW.getTime() - msAgo).toISOString(),
+      provider: 'whoop',
+    };
+  }
+
+  // `days` prior daily readings (alternating 54/56 → median ≈ 55, small std),
+  // each strictly older than the single latest reading `msAgo` old.
+  function windowEndingAt(latestValue: number, latestMsAgo: number, days = 30): HealthDataPoint[] {
+    const pts: HealthDataPoint[] = [];
+    for (let d = 1; d <= days; d++) {
+      pts.push(rhr(`b${d}`, d % 2 === 0 ? 54 : 56, latestMsAgo + d * DAY_MS));
+    }
+    pts.push(rhr('latest', latestValue, latestMsAgo));
+    return pts;
+  }
+
+  it('fires when a fresh reading exceeds median30 + 3·std30, with verbatim title/tier', () => {
+    const outcome = restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 60 * 1000), { now: NOW });
+    expect(outcome).not.toBeNull();
+    expect(outcome!.kind).toBe('resting_hr_above_baseline');
+    expect(outcome!.title).toBe(
+      'Your resting heart rate is running above your recent baseline — consider extra rest, hydration, and easing off hard training until it settles',
+    );
+    expect(outcome!.tier).toBe('moderate');
+    expect(outcome!.triggeringMetricIds).toEqual(['latest']);
+  });
+
+  it('does not fire when the reading stays within k·std of the personal baseline', () => {
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(58, 60 * 1000), { now: NOW })).toBeNull();
+  });
+
+  it('does not fire on a downward deviation (one-sided: elevation only)', () => {
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(30, 60 * 1000), { now: NOW })).toBeNull();
+  });
+
+  it('does not fire on a stale reading (older than the 48h freshness window)', () => {
+    // Spike present, but the most-recent reading is 3 days old → no alert.
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 3 * DAY_MS), { now: NOW })).toBeNull();
+  });
+
+  it('does not fire with fewer than 30 days of history (median30/std30 undefined)', () => {
+    expect(
+      restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 60 * 1000, 20), { now: NOW }),
+    ).toBeNull();
+  });
+
+  it('reads ctx.baselinePoints in preference to the recent slice', () => {
+    // Recent slice has no resting_hr; the baseline window carries the history.
+    const outcome = restingHrAboveBaselineRule.evaluate([point({ id: 'r', value: 50 })], {
+      now: NOW,
+      baselinePoints: windowEndingAt(80, 60 * 1000),
+    });
+    expect(outcome).not.toBeNull();
+    expect(outcome!.kind).toBe('resting_hr_above_baseline');
+  });
+});
+
 describe('evaluateRules', () => {
   it('returns one outcome per firing rule', () => {
     const outcomes = evaluateRules([point({ id: 'p1', value: 20 })], { now: NOW });
@@ -215,6 +283,10 @@ describe('evaluateRules', () => {
   it('the default rule registry includes both glucose fasting rules', () => {
     expect(rules.map((r) => r.kind)).toContain('glucose_fasting_elevated');
     expect(rules.map((r) => r.kind)).toContain('glucose_fasting_diabetic');
+  });
+
+  it('the default rule registry includes the resting-HR personal-baseline rule', () => {
+    expect(rules.map((r) => r.kind)).toContain('resting_hr_above_baseline');
   });
 
   it('diabetic glucose at 130 fires diabetic and suppresses elevated (integration)', () => {
