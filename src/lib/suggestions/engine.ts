@@ -81,7 +81,7 @@ export async function ensureTodaysSuggestions(userId: string, now: Date = new Da
       orderBy: { timestamp: 'asc' },
     }),
     prisma.healthDataPoint.findMany({
-      where: { userId, metric: { in: BASELINE_METRICS }, timestamp: { gte: baselineStart } },
+      where: { userId, metric: { in: [...BASELINE_METRICS] }, timestamp: { gte: baselineStart } },
       orderBy: { timestamp: 'asc' },
     }),
   ]);

@@ -53,6 +53,7 @@ import {
 } from './tools/propose-next-steps';
 import {
   summarizeGrounding,
+  shouldGateGroundedAnswer,
   type HybridRetrievalGroundingScore,
 } from '@/lib/metrics/hybrid-retrieval-grounding';
 import { getGroundingFloor, isGroundingGateEnabled } from '@/lib/embeddings/compat';
@@ -441,11 +442,13 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     const isTopLevelRuntime = req.mode === 'runtime' && req.parentRequestId == null;
     const groundingSummary = summarizeGrounding(groundingScores);
     if (
-      isTopLevelRuntime &&
-      classification === 'clinical-safe' &&
-      isGroundingGateEnabled() &&
-      groundingSummary.total > 0 &&
-      groundingSummary.score < getGroundingFloor()
+      shouldGateGroundedAnswer({
+        isTopLevelRuntime,
+        classification,
+        gateEnabled: isGroundingGateEnabled(),
+        summary: groundingSummary,
+        floor: getGroundingFloor(),
+      })
     ) {
       classification = 'out-of-scope-routed';
       console.info('[scribe.execute] grounding gate downgraded answer', {

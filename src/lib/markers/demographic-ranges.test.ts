@@ -120,4 +120,26 @@ describe('resolveDemographicRange — markers without a demographic band', () =>
     expect(resolveDemographicRange('creatinine', { sexAtBirth: 'male', ageYears: 40 })).toBeNull();
     expect(resolveDemographicRange('hba1c', { sexAtBirth: 'female', ageYears: 40 })).toBeNull();
   });
+
+  it('returns null (not a prototype fn) for Object.prototype key names', () => {
+    // 'constructor'/'toString' would resolve to inherited prototype functions on a
+    // bare object lookup and crash downstream — the own-property guard blocks them.
+    for (const k of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
+      expect(resolveDemographicRange(k, { sexAtBirth: 'female', ageYears: 40 })).toBeNull();
+    }
+  });
+});
+
+describe('resolveDemographicRange — clinically weighted age boundaries', () => {
+  it('ferritin female menopause cutoff is strict at > 50', () => {
+    expect(resolveDemographicRange('ferritin', { sexAtBirth: 'female', ageYears: 50 })).toMatchObject({ low: 15, high: 200 });
+    expect(resolveDemographicRange('ferritin', { sexAtBirth: 'female', ageYears: 51 })).toMatchObject({ low: 30, high: 400 });
+  });
+
+  it('psa age tiers switch at exactly 50/60/70', () => {
+    expect(resolveDemographicRange('psa', { sexAtBirth: 'male', ageYears: 49 })).toMatchObject({ high: 2.5 });
+    expect(resolveDemographicRange('psa', { sexAtBirth: 'male', ageYears: 50 })).toMatchObject({ high: 3.5 });
+    expect(resolveDemographicRange('psa', { sexAtBirth: 'male', ageYears: 60 })).toMatchObject({ high: 4.5 });
+    expect(resolveDemographicRange('psa', { sexAtBirth: 'male', ageYears: 70 })).toMatchObject({ high: 6.5 });
+  });
 });

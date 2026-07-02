@@ -30,7 +30,7 @@
  */
 
 import type { GraphEdgeRecord, GraphNodeRecord } from './types';
-import { ageInDays, confidenceDecayLoss } from './confidence';
+import { ageInDays, confidenceDecayLoss, DAY_MS } from './confidence';
 
 export type ImportanceTier = 1 | 2 | 3;
 
@@ -64,7 +64,6 @@ export interface ImportanceResult {
 }
 
 const DEFAULT_RECENCY_WINDOW_DAYS = 30;
-const DAY_MS = 24 * 60 * 60 * 1000;
 /** Importance bonus for a node that changed since the last panel. +2 lifts a
  *  standard promoted biomarker (3) clear into tier 1 (≥4), so it survives the
  *  node cap and reads as prominent. */

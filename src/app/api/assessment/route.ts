@@ -70,12 +70,17 @@ export async function POST(request: Request) {
       // Present-but-blank/invalid clears a stale value (symmetric with sex's
       // "prefer not to say"); an absent key leaves the column untouched.
       let birthYear: number | null | undefined;
+      const nowYear = new Date().getUTCFullYear();
+      const parsedYear =
+        typeof rawBirthYear === 'number'
+          ? rawBirthYear // AssessmentResponses permits a raw number
+          : typeof rawBirthYear === 'string' && /^\d{4}$/.test(rawBirthYear.trim())
+            ? Number(rawBirthYear.trim())
+            : null;
       if (rawBirthYear === undefined) {
         birthYear = undefined;
-      } else if (typeof rawBirthYear === 'string' && /^\d{4}$/.test(rawBirthYear.trim())) {
-        const y = Number(rawBirthYear.trim());
-        const nowYear = new Date().getUTCFullYear();
-        birthYear = y >= 1900 && y <= nowYear ? y : null;
+      } else if (parsedYear !== null && Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= nowYear) {
+        birthYear = parsedYear;
       } else {
         birthYear = null;
       }

@@ -257,6 +257,17 @@ describe('restingHrAboveBaselineRule', () => {
     expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 3 * DAY_MS), { now: NOW })).toBeNull();
   });
 
+  it('still fires at exactly the 48h freshness boundary (inclusive)', () => {
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 2 * DAY_MS), { now: NOW })).not.toBeNull();
+  });
+
+  it('does not fire on a future-dated reading beyond clock-skew tolerance', () => {
+    // Device clock ahead by 1h → negative ageMs would otherwise pass the >48h
+    // check; the skew guard suppresses it. Within 15min skew still fires.
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(80, -60 * 60 * 1000), { now: NOW })).toBeNull();
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(80, -5 * 60 * 1000), { now: NOW })).not.toBeNull();
+  });
+
   it('does not fire with fewer than 30 days of history (median30/std30 undefined)', () => {
     expect(
       restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 60 * 1000, 20), { now: NOW }),

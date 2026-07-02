@@ -155,6 +155,59 @@ describe('POST /api/assessment', () => {
   });
 });
 
+describe('POST /api/assessment — demographics persistence (A6)', () => {
+  async function submitAndReadUser(handle: string, extra: Record<string, unknown>) {
+    const userId = await makeTestUser(prisma, handle);
+    currentUserMock.mockResolvedValue({ id: userId });
+    const res = await POST(makeRequest({ responses: { ...SUSTAINED_ACTIVATOR_RESPONSES, ...extra } }));
+    expect(res.status).toBe(200);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { sexAtBirth: true, birthYear: true },
+    });
+    return { userId, user };
+  }
+
+  it('persists sex_at_birth and birth_year onto the User row', async () => {
+    const { user } = await submitAndReadUser('assess-demo-set', {
+      sex_at_birth: 'female',
+      birth_year: '1985',
+    });
+    expect(user).toEqual({ sexAtBirth: 'female', birthYear: 1985 });
+  });
+
+  it('accepts a numeric birth_year (AssessmentResponses permits a raw number)', async () => {
+    const { user } = await submitAndReadUser('assess-demo-numeric', { birth_year: 1990 });
+    expect(user.birthYear).toBe(1990);
+  });
+
+  it("clears sex with 'prefer_not' and nulls an out-of-range birth_year", async () => {
+    const { user } = await submitAndReadUser('assess-demo-clear', {
+      sex_at_birth: 'prefer_not',
+      birth_year: '2099',
+    });
+    expect(user).toEqual({ sexAtBirth: null, birthYear: null });
+  });
+
+  it('leaves demographics untouched when the keys are absent', async () => {
+    const { user } = await submitAndReadUser('assess-demo-absent', {});
+    expect(user).toEqual({ sexAtBirth: null, birthYear: null });
+  });
+
+  it('does not clobber a stored year when a later submit omits birth_year', async () => {
+    const userId = await makeTestUser(prisma, 'assess-demo-preserve');
+    currentUserMock.mockResolvedValue({ id: userId });
+    await POST(makeRequest({ responses: { ...SUSTAINED_ACTIVATOR_RESPONSES, birth_year: '1970' } }));
+    currentUserMock.mockResolvedValue({ id: userId });
+    await POST(makeRequest({ responses: SUSTAINED_ACTIVATOR_RESPONSES }));
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { birthYear: true },
+    });
+    expect(user.birthYear).toBe(1970);
+  });
+});
+
 describe('GET /api/assessment', () => {
   it('returns 401 when unauthenticated', async () => {
     currentUserMock.mockResolvedValue(null);

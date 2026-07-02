@@ -91,7 +91,7 @@ export const compareToReferenceRangeHandler: ToolHandler<
 > = {
   name: 'compare_to_reference_range',
   description:
-    'Classify a biomarker\'s latest captured value against its reference range. Returns structured data (below/in-range/above) so the scribe can compose the sentence; the scribe still cites the biomarker node.',
+    "Classify a biomarker's latest captured value against its reference range. Returns structured data (below/in-range/above) so the scribe can compose the sentence; the scribe still cites the biomarker node. When a sex/age-specific band is applied, rangeSource is 'demographic' and rangeCitation carries the literature reference — cite it when presenting the finding.",
   parameters: compareToReferenceRangeSchema,
   async execute(ctx: ToolContext, args: CompareToReferenceRangeArgs) {
     const canonicalKey = args.canonicalKey.toLowerCase();

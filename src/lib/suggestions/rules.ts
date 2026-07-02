@@ -13,7 +13,7 @@
  */
 
 import type { HealthDataPoint } from '@/types';
-import { computeBaselines } from './baselines';
+import { computeBaselines, utcDayKey } from './baselines';
 import type { EvaluateContext, Rule, RuleOutcome } from './types';
 
 function mostRecent(points: HealthDataPoint[], metric: string): HealthDataPoint | null {
@@ -107,17 +107,14 @@ export const glucoseFastingDiabeticRule: Rule = {
 const RESTING_HR_METRIC = 'resting_hr';
 const RESTING_HR_BASELINE_K = 3;
 const BASELINE_FRESHNESS_MS = 48 * 60 * 60 * 1000;
+const CLOCK_SKEW_TOLERANCE_MS = 15 * 60 * 1000;
 
 /**
  * Metric aliases consumed by personal-baseline rules. The engine fetches these
  * over the longer baseline window; add a metric here when adding a baseline
  * rule that reads it.
  */
-export const BASELINE_METRICS = [RESTING_HR_METRIC];
-
-function utcDayKey(timestamp: string): string {
-  return new Date(timestamp).toISOString().slice(0, 10);
-}
+export const BASELINE_METRICS = [RESTING_HR_METRIC] as const;
 
 export const restingHrAboveBaselineRule: Rule = {
   kind: 'resting_hr_above_baseline',
@@ -126,9 +123,11 @@ export const restingHrAboveBaselineRule: Rule = {
     const latest = mostRecent(series, RESTING_HR_METRIC);
     if (!latest) return null;
 
-    // Only alert on a current reading — never on stale history.
+    // Only alert on a current reading — never on stale history, and never on a
+    // future-dated reading (device clock skew: a negative ageMs would otherwise
+    // pass the freshness check and shift latestDay past the real baseline).
     const ageMs = ctx.now.getTime() - new Date(latest.timestamp).getTime();
-    if (ageMs > BASELINE_FRESHNESS_MS) return null;
+    if (ageMs > BASELINE_FRESHNESS_MS || ageMs < -CLOCK_SKEW_TOLERANCE_MS) return null;
 
     // Baseline = resting-HR history strictly before the reading's UTC day, so
     // the value being tested is not part of the distribution it is compared to.

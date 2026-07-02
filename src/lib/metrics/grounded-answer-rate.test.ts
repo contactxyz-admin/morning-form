@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { ProvenanceItem } from '@/lib/graph/types';
+import type { GroundingSource } from './hybrid-retrieval-grounding';
 import { computeGroundedAnswerRate, type GroundedAnswerCase } from './grounded-answer-rate';
 
 // Minimal provenance items — the grounding metric only reads chunkId/documentId.
-const grounded = (): ProvenanceItem => ({ chunkId: 'c1', documentId: 'd1' }) as ProvenanceItem;
-const ungrounded = (): ProvenanceItem =>
-  ({ chunkId: null, documentId: null }) as unknown as ProvenanceItem;
+const grounded = (): GroundingSource => ({ chunkId: 'c1', documentId: 'd1' });
+const ungrounded = (): GroundingSource => ({ chunkId: null, documentId: null });
 
 describe('computeGroundedAnswerRate', () => {
   it('returns 0 for an empty corpus', () => {

@@ -3,6 +3,8 @@ import {
   computeHybridRetrievalGroundingScore,
   logHybridRetrievalGroundingScore,
   summarizeGrounding,
+  shouldGateGroundedAnswer,
+  type GroundingSummary,
   type HybridRetrievalGroundingScore,
 } from './hybrid-retrieval-grounding';
 
@@ -33,6 +35,49 @@ describe('summarizeGrounding (turn-level roll-up for the A4 gate)', () => {
 
   it('an empty retrieval does not dilute a grounded one', () => {
     expect(summarizeGrounding([score(3, 3), score(0, 0)]).score).toBe(1);
+  });
+});
+
+describe('shouldGateGroundedAnswer (A4 downgrade decision)', () => {
+  const summary = (total: number, score: number): GroundingSummary => ({
+    retrievals: total > 0 ? 1 : 0,
+    total,
+    grounded: Math.round(total * score),
+    score,
+  });
+  const base = {
+    isTopLevelRuntime: true,
+    classification: 'clinical-safe',
+    gateEnabled: true,
+    summary: summary(4, 0.25),
+    floor: 0.5,
+  };
+
+  it('downgrades a weakly-grounded top-level clinical-safe answer', () => {
+    expect(shouldGateGroundedAnswer(base)).toBe(true);
+  });
+
+  it('does not downgrade when the gate flag is off', () => {
+    expect(shouldGateGroundedAnswer({ ...base, gateEnabled: false })).toBe(false);
+  });
+
+  it('does not downgrade a compile pass / referral child (not top-level runtime)', () => {
+    expect(shouldGateGroundedAnswer({ ...base, isTopLevelRuntime: false })).toBe(false);
+  });
+
+  it('does not touch an already-deferred answer (only clinical-safe is gated)', () => {
+    expect(shouldGateGroundedAnswer({ ...base, classification: 'out-of-scope-routed' })).toBe(false);
+    expect(shouldGateGroundedAnswer({ ...base, classification: 'rejected' })).toBe(false);
+  });
+
+  it('does not penalise a turn that made no grounded retrieval (total = 0)', () => {
+    expect(shouldGateGroundedAnswer({ ...base, summary: summary(0, 0) })).toBe(false);
+  });
+
+  it('is exclusive at the floor: gates below, passes at/above', () => {
+    expect(shouldGateGroundedAnswer({ ...base, summary: summary(4, 0.49), floor: 0.5 })).toBe(true);
+    expect(shouldGateGroundedAnswer({ ...base, summary: summary(4, 0.5), floor: 0.5 })).toBe(false);
+    expect(shouldGateGroundedAnswer({ ...base, summary: summary(4, 0.75), floor: 0.5 })).toBe(false);
   });
 });
 

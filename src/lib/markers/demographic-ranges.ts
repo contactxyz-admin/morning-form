@@ -140,7 +140,9 @@ export function resolveDemographicRange(
   canonicalKey: string,
   demographics: Demographics,
 ): DemographicRange | null {
-  const resolver = RESOLVERS[canonicalKey.toLowerCase()];
-  if (!resolver) return null;
-  return resolver(demographics);
+  const key = canonicalKey.toLowerCase();
+  // Own-property guard: a bare object lookup on 'constructor'/'toString' etc.
+  // would resolve to an inherited prototype function and crash downstream.
+  if (!Object.hasOwn(RESOLVERS, key)) return null;
+  return RESOLVERS[key](demographics);
 }

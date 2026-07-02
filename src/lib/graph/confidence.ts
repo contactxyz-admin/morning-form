@@ -19,7 +19,7 @@
 /** Default half-life for confidence decay, in days (~6 months). */
 export const EFFECTIVE_CONFIDENCE_HALF_LIFE_DAYS = 180;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+export const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Age in whole/fractional days between two epoch-ms timestamps, floored at 0. */
 export function ageInDays(fromMs: number, toMs: number): number {
