@@ -42,6 +42,7 @@ import {
   type ScribeLLMClient,
 } from '@/lib/scribe/execute';
 import { getOrCreateScribeForTopic, SCRIBE_MODEL_VERSION_PENDING } from '@/lib/scribe/repo';
+import { loadUserDemographics } from '@/lib/users/demographics';
 import { getPolicy } from '@/lib/scribe/policy/registry';
 import { scanForbiddenPhrases } from '@/lib/scribe/policy/enforce';
 import type { JudgmentKind, SafetyPolicy } from '@/lib/scribe/policy/types';
@@ -296,6 +297,14 @@ async function runScribePass(args: RunScribePassArgs): Promise<TopicCompiledOutp
     modelVersion: SCRIBE_MODEL_VERSION_PENDING,
   });
 
+  // Demographics so the compiled page ranges markers by the same sex/age as chat
+  // (A6) — otherwise the same value classifies differently across surfaces.
+  // Degrades to no-demographics on failure (falls back to captured ranges).
+  const demographics = await loadUserDemographics(db, userId).catch(() => ({
+    sexAtBirth: null,
+    birthYear: null,
+  }));
+
   const userMessage = buildScribeUserMessage(output, policy.allowedJudgmentKinds);
   const sectionsForPolicy = [
     asPolicySection(output.understanding),
@@ -315,6 +324,8 @@ async function runScribePass(args: RunScribePassArgs): Promise<TopicCompiledOutp
     sections: sectionsForPolicy,
     llm: scribeLlm,
     requestId: requestIdForTest,
+    sexAtBirth: demographics.sexAtBirth,
+    birthYear: demographics.birthYear,
   });
 
   if (first.classification !== 'rejected') {
@@ -334,6 +345,8 @@ async function runScribePass(args: RunScribePassArgs): Promise<TopicCompiledOutp
     declaredJudgmentKind: declared,
     sections: sectionsForPolicy,
     llm: scribeLlm,
+    sexAtBirth: demographics.sexAtBirth,
+    birthYear: demographics.birthYear,
   });
 
   if (retry.classification === 'rejected') {

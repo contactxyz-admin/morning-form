@@ -31,6 +31,7 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { llmConsentGateResponse } from '@/lib/llm/consent';
 import { execute } from '@/lib/scribe/execute';
+import { loadUserDemographics } from '@/lib/users/demographics';
 import { getScribeLLMClient } from '@/lib/scribe/llm';
 import { getPolicy } from '@/lib/scribe/policy/registry';
 import { ScribeAuditWriteError } from '@/lib/scribe/repo';
@@ -106,6 +107,13 @@ export async function POST(req: NextRequest): Promise<Response> {
   // Run the scribe to completion before opening the stream. D11 requires the
   // audit row to land before we surface anything; streaming tokens before the
   // audit is persisted would invert that ordering for the happy path.
+  // Demographics so "explain" ranges markers by the same sex/age as chat (A6);
+  // degrade to no-demographics on failure (falls back to captured ranges).
+  const demographics = await loadUserDemographics(prisma, user.id).catch(() => ({
+    sexAtBirth: null,
+    birthYear: null,
+  }));
+
   let result;
   try {
     result = await execute({
@@ -117,6 +125,8 @@ export async function POST(req: NextRequest): Promise<Response> {
       declaredJudgmentKind: RUNTIME_JUDGMENT_KIND,
       llm,
       requestId: parsed.requestId,
+      sexAtBirth: demographics.sexAtBirth,
+      birthYear: demographics.birthYear,
     });
   } catch (err) {
     // ScribeAuditWriteError is structurally load-bearing — surface distinctly

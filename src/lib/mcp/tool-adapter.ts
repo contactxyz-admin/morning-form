@@ -115,10 +115,17 @@ export function registerScribeToolsOnMcpServer(input: RegisterScribeToolsInput):
   const { server, userId, tokenId, db, requestId } = input;
 
   // Load demographics at most once per request (the server is per-request), lazily
-  // so a request that calls no demographic-aware tool pays nothing. Shared across
-  // every tool call registered below.
+  // on the first tool call, and shared across every tool call registered below.
+  // A load failure degrades to no-demographics (tools fall back to captured
+  // ranges) — and, crucially, we cache the resolved fallback rather than a
+  // rejected promise, so one transient DB hiccup can't poison every later tool
+  // call in the request.
   let demographicsPromise: Promise<UserDemographics> | undefined;
-  const getDemographics = () => (demographicsPromise ??= loadUserDemographics(db, userId));
+  const getDemographics = () =>
+    (demographicsPromise ??= loadUserDemographics(db, userId).catch(() => ({
+      sexAtBirth: null,
+      birthYear: null,
+    })));
 
   for (const handler of SCRIBE_TOOL_HANDLERS) {
     if (!isReadAllowed(handler.name)) continue;

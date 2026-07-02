@@ -67,6 +67,12 @@ function toNumberOrNull(v: unknown): number | null {
   return null;
 }
 
+/** Normalise a unit for comparison: trim, lowercase, and fold the micro sign
+ *  (U+00B5) and Greek mu (U+03BC) to ASCII "u" so "µg/L" matches "ug/L". */
+function normalizeUnit(u: string): string {
+  return u.trim().toLowerCase().replace(/[µμ]/g, 'u');
+}
+
 function classify(
   value: number | null,
   low: number | null,
@@ -159,10 +165,17 @@ export const compareToReferenceRangeHandler: ToolHandler<
       sexAtBirth: normalizeSexAtBirth(ctx.sexAtBirth),
       ageYears: ageFromBirthYear(ctx.birthYear, new Date().getUTCFullYear()),
     });
+    // Fill-only: apply a demographic band only when the lab captured NO range of
+    // its own. We never override a lab's printed, assay-specific range — doing so
+    // could contradict or mask what the user's own report flags. Also require the
+    // stored unit to match the band's unit (micro-sign folded) so a value can't
+    // be judged against a band in a different unit.
+    const hasCapturedRange = capturedLow !== null || capturedHigh !== null;
     const useDemographic =
       demographic !== null &&
+      !hasCapturedRange &&
       unit !== null &&
-      unit.toLowerCase() === demographic.unit.toLowerCase();
+      normalizeUnit(unit) === normalizeUnit(demographic.unit);
 
     const low = useDemographic ? demographic!.low : capturedLow;
     const high = useDemographic ? demographic!.high : capturedHigh;

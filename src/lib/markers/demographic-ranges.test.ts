@@ -52,11 +52,8 @@ describe('resolveDemographicRange — testosterone_total (sex-decisive)', () => 
     });
   });
 
-  it('female band defaults to the 17–50 range when age is unknown', () => {
-    expect(resolveDemographicRange('testosterone_total', { sexAtBirth: 'female' })).toMatchObject({
-      low: 0.3,
-      high: 1.7,
-    });
+  it('returns null for an age-dependent female band when age is unknown (no guessing)', () => {
+    expect(resolveDemographicRange('testosterone_total', { sexAtBirth: 'female' })).toBeNull();
   });
 
   it('returns null when sex is unknown (never guesses a testosterone band)', () => {
@@ -110,8 +107,8 @@ describe('resolveDemographicRange — ferritin (sex + menopause age, iron-topic-
     expect(resolveDemographicRange('ferritin', { sexAtBirth: 'female', ageYears: 35 })).toMatchObject({ low: 15, high: 200 });
     expect(resolveDemographicRange('ferritin', { sexAtBirth: 'female', ageYears: 60 })).toMatchObject({ low: 30, high: 400 });
   });
-  it('premenopausal band is the default female band when age is unknown', () => {
-    expect(resolveDemographicRange('ferritin', { sexAtBirth: 'female' })).toMatchObject({ low: 15, high: 200 });
+  it('returns null for female when age is unknown (menopause-dependent — no guessing)', () => {
+    expect(resolveDemographicRange('ferritin', { sexAtBirth: 'female' })).toBeNull();
   });
   it('returns null when sex is unknown', () => {
     expect(resolveDemographicRange('ferritin', { ageYears: 40 })).toBeNull();

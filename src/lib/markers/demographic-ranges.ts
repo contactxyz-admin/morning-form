@@ -90,10 +90,13 @@ const RESOLVERS: Readonly<Record<string, Resolver>> = {
       return { low: 30, high: 400, unit: 'ug/L', source: 'Adult reference (men)' };
     }
     if (sexAtBirth === 'female') {
-      if (ageYears != null && ageYears > 50) {
-        return { low: 30, high: 400, unit: 'ug/L', source: 'Adult reference (postmenopausal women, ~>50)' };
-      }
-      return { low: 15, high: 200, unit: 'ug/L', source: 'Adult reference (premenopausal women)' };
+      // Age-dependent (menopause). Don't guess: without an age we can't tell the
+      // pre- from postmenopausal band, and defaulting to premenopausal (low 15)
+      // could mask deficiency in an older woman — fall back to the captured range.
+      if (ageYears == null) return null;
+      return ageYears > 50
+        ? { low: 30, high: 400, unit: 'ug/L', source: 'Adult reference (postmenopausal women, ~>50)' }
+        : { low: 15, high: 200, unit: 'ug/L', source: 'Adult reference (premenopausal women)' };
     }
     return null;
   },
@@ -109,10 +112,11 @@ const RESOLVERS: Readonly<Record<string, Resolver>> = {
       };
     }
     if (sexAtBirth === 'female') {
-      if (ageYears != null && ageYears > 50) {
-        return { low: 0.1, high: 1.4, unit: 'nmol/L', source: 'MedlinePlus (women >50)' };
-      }
-      return { low: 0.3, high: 1.7, unit: 'nmol/L', source: 'MedlinePlus (women 17–50)' };
+      // Age-dependent — don't guess when age is unknown (fall back to captured).
+      if (ageYears == null) return null;
+      return ageYears > 50
+        ? { low: 0.1, high: 1.4, unit: 'nmol/L', source: 'MedlinePlus (women >50)' }
+        : { low: 0.3, high: 1.7, unit: 'nmol/L', source: 'MedlinePlus (women 17–50)' };
     }
     return null;
   },
@@ -140,6 +144,3 @@ export function resolveDemographicRange(
   if (!resolver) return null;
   return resolver(demographics);
 }
-
-/** Marker canonicalKeys that have at least one demographic band (for tests/introspection). */
-export const DEMOGRAPHIC_RANGE_MARKERS: readonly string[] = Object.keys(RESOLVERS);

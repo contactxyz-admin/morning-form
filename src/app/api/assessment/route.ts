@@ -67,11 +67,17 @@ export async function POST(request: Request) {
       if (rawSex === 'male' || rawSex === 'female') sexAtBirth = rawSex;
       else if (rawSex === 'prefer_not') sexAtBirth = null;
       else sexAtBirth = undefined;
-      let birthYear: number | undefined;
-      if (typeof rawBirthYear === 'string' && /^\d{4}$/.test(rawBirthYear.trim())) {
+      // Present-but-blank/invalid clears a stale value (symmetric with sex's
+      // "prefer not to say"); an absent key leaves the column untouched.
+      let birthYear: number | null | undefined;
+      if (rawBirthYear === undefined) {
+        birthYear = undefined;
+      } else if (typeof rawBirthYear === 'string' && /^\d{4}$/.test(rawBirthYear.trim())) {
         const y = Number(rawBirthYear.trim());
         const nowYear = new Date().getUTCFullYear();
-        birthYear = y >= 1900 && y <= nowYear ? y : undefined;
+        birthYear = y >= 1900 && y <= nowYear ? y : null;
+      } else {
+        birthYear = null;
       }
       if (sexAtBirth !== undefined || birthYear !== undefined) {
         await tx.user.update({ where: { id: user.id }, data: { sexAtBirth, birthYear } });

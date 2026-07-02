@@ -411,9 +411,11 @@ export const assessmentQuestions: AssessmentQuestion[] = [
     id: 'sex_at_birth',
     group: 'safety',
     groupLabel: 'BOUNDARIES WE RESPECT',
-    groupDescription: '',
-    // Drives sex-specific reference ranges (e.g. testosterone). Normalised
-    // downstream; "Prefer not to say" leaves ranges on the lab/population default.
+    // Purpose surfaced to the user (GDPR Art 9 special-category data): this drives
+    // sex-specific reference ranges. Normalised downstream; "Prefer not to say"
+    // leaves ranges on the lab/population default.
+    groupDescription:
+      'Used only to tailor sex-specific reference ranges (e.g. haemoglobin, testosterone). Optional.',
     question: 'What was your sex assigned at birth?',
     type: 'card-select',
     required: false,
