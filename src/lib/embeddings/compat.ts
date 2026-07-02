@@ -87,3 +87,26 @@ export function isHybridRetrievalEnabled(): boolean {
 function normalizeFlag(value: string | undefined): string {
   return (value ?? '').trim().toLowerCase();
 }
+
+/**
+ * Whether the grounded-answer gate (audit A4) is ENFORCED. Off by default
+ * (grounding stays a logged metric); `true` downgrades weakly-grounded
+ * clinical-safe answers to the safe deferral.
+ */
+export function isGroundingGateEnabled(): boolean {
+  const flag = normalizeFlag(process.env.GROUNDING_GATE_ENABLED ?? env.GROUNDING_GATE_ENABLED);
+  return flag === 'true' || flag === '1' || flag === 'on';
+}
+
+/**
+ * The grounding floor: minimum fraction of a turn's retrieved results that must
+ * be backed by real chunk+document provenance for a clinical-safe answer to
+ * pass the gate. Parsed from GROUNDING_FLOOR, clamped to [0,1], default 0.5 on
+ * an absent/garbage value.
+ */
+export function getGroundingFloor(): number {
+  const raw = process.env.GROUNDING_FLOOR ?? env.GROUNDING_FLOOR;
+  const parsed = Number.parseFloat(raw ?? '');
+  if (!Number.isFinite(parsed)) return 0.5;
+  return Math.max(0, Math.min(1, parsed));
+}

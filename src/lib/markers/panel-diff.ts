@@ -19,6 +19,7 @@ import { parseJsonField } from '@/lib/graph/queries';
 import { markerJoinKey } from './marker-key';
 import { classifyChange, distanceToRange } from './classify-change';
 import type { ChangeDirection, ChangeClassification } from './classify-change';
+import { getReferenceChangeValue } from './biological-variation';
 
 // Re-exported for back-compat: the pure classifier + its types now live in
 // `classify-change.ts` (Prisma-free) so the demo can bundle them too. Existing
@@ -51,6 +52,11 @@ export interface MarkerChange {
   referenceLow: number | null;
   referenceHigh: number | null;
   direction: ChangeDirection | null; // null for `new`
+  /**
+   * Reference-range-relative classification, noise-gated: a move within the
+   * marker's Reference Change Value (analytical + biological noise) is reported
+   * as `stable` rather than improved/worsened. See `biological-variation.ts`.
+   */
   classification: ChangeClassification;
 }
 
@@ -195,6 +201,7 @@ function buildPanelChanges(
       after.value,
       after.referenceLow,
       after.referenceHigh,
+      getReferenceChangeValue(joinKey),
     );
     changes.push({
       marker: after.marker,

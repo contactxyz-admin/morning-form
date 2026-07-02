@@ -8,7 +8,15 @@
  * is strictly reference-range-relative and descriptive — it says whether a value
  * moved toward or away from its reference interval, never whether that is
  * clinically good, and never names a condition or cause.
+ *
+ * Optionally noise-gated by a Reference Change Value (audit item A7): when a
+ * marker's `rcvPct` is supplied and the observed move is within that analytical
+ * + biological noise floor, the change is reported as `stable` rather than
+ * improved/worsened — so a sub-noise wobble never gets flagged as a real move.
  */
+
+import { exceedsReferenceChangeValue } from './biological-variation';
+import type { ReferenceChangeValue } from './biological-variation';
 
 export type ChangeDirection = 'up' | 'down' | 'flat';
 export type ChangeClassification =
@@ -35,10 +43,22 @@ export function classifyChange(
   after: number,
   low: number | null,
   high: number | null,
+  /**
+   * Optional Reference Change Value (direction-specific rise/fall limits). When
+   * supplied and the move is within it, the change is analytically/biologically
+   * indistinguishable from noise and is reported as `stable` — see
+   * `biological-variation.ts`.
+   */
+  rcv?: ReferenceChangeValue | null,
 ): { direction: ChangeDirection; classification: ChangeClassification } {
   const direction: ChangeDirection = after > before ? 'up' : after < before ? 'down' : 'flat';
   if (low == null && high == null) {
     return { direction, classification: 'unclassified' };
+  }
+  // Noise gate: a sub-RCV move is not a real change, so it is neither improved
+  // nor worsened — regardless of which way it nudged relative to the range.
+  if (rcv != null && !exceedsReferenceChangeValue(before, after, rcv)) {
+    return { direction, classification: 'stable' };
   }
   const dBefore = distanceToRange(before, low, high);
   const dAfter = distanceToRange(after, low, high);

@@ -123,18 +123,91 @@ describe('ensureTodaysSuggestions', () => {
     expect(args.where.kind.notIn).toEqual([]);
   });
 
-  it('fetches a 7-day lookback window of points', async () => {
+  it('fetches the recent 7-day stream and a metric-scoped 35-day baseline as two queries', async () => {
     findManyPoints.mockResolvedValue([]);
 
     await ensureTodaysSuggestions('u1', NOW);
 
-    const call = findManyPoints.mock.calls[0][0] as {
-      where: { userId: string; timestamp: { gte: Date } };
+    expect(findManyPoints).toHaveBeenCalledTimes(2);
+
+    // Query 1: recent full stream for the threshold rules — DB-scoped to 7 days,
+    // no metric filter. This is the sole gate keeping stale points out of the
+    // threshold rules (they select via most-recent with no age guard).
+    const recent = findManyPoints.mock.calls[0][0] as {
+      where: { userId: string; metric?: unknown; timestamp: { gte: Date } };
     };
-    expect(call.where.userId).toBe('u1');
-    const gte = call.where.timestamp.gte;
-    const expected = new Date(TODAY.getTime() - 7 * 24 * 60 * 60 * 1000);
-    expect(gte.getTime()).toBe(expected.getTime());
+    expect(recent.where.userId).toBe('u1');
+    expect(recent.where.metric).toBeUndefined();
+    expect(recent.where.timestamp.gte.getTime()).toBe(
+      new Date(TODAY.getTime() - 7 * 24 * 60 * 60 * 1000).getTime(),
+    );
+
+    // Query 2: baseline window — 35 days, restricted to the baseline metrics so
+    // high-cadence streams aren't pulled over the long window.
+    const baseline = findManyPoints.mock.calls[1][0] as {
+      where: { userId: string; metric: { in: string[] }; timestamp: { gte: Date } };
+    };
+    expect(baseline.where.userId).toBe('u1');
+    expect(baseline.where.metric.in).toContain('resting_hr');
+    expect(baseline.where.timestamp.gte.getTime()).toBe(
+      new Date(TODAY.getTime() - 35 * 24 * 60 * 60 * 1000).getTime(),
+    );
+  });
+
+  it('persists a resting_hr_above_baseline row when a fresh RHR spike clears the personal baseline', async () => {
+    // 34 prior days alternating 54/56 (median 55, std 1 over the latest 30),
+    // then a fresh spike to 80 bpm today. The spike's own day is excluded from
+    // the baseline, so threshold = 55 + 3·1 = 58 and 80 fires.
+    const rows: Record<string, unknown>[] = [];
+    for (let i = 34; i >= 1; i--) {
+      const ts = new Date(NOW.getTime() - i * 24 * 60 * 60 * 1000);
+      // Alternate 54/56 so std30 > 0 but small; median ≈ 55.
+      rows.push(
+        row({
+          id: `rhr-${i}`,
+          category: 'heart',
+          metric: 'resting_hr',
+          value: i % 2 === 0 ? 54 : 56,
+          unit: 'bpm',
+          timestamp: ts,
+        }),
+      );
+    }
+    rows.push(
+      row({
+        id: 'rhr-today',
+        category: 'heart',
+        metric: 'resting_hr',
+        value: 80,
+        unit: 'bpm',
+        timestamp: new Date(NOW.getTime() - 60 * 1000), // 1 min ago → fresh
+      }),
+    );
+    findManyPoints.mockResolvedValue(rows);
+    upsertSuggestion.mockResolvedValue({
+      id: 's1',
+      userId: 'u1',
+      date: TODAY,
+      kind: 'resting_hr_above_baseline',
+      title:
+        'Your resting heart rate is running above your recent baseline — consider extra rest, hydration, and easing off hard training until it settles',
+      tier: 'moderate',
+      triggeringMetricIds: JSON.stringify(['rhr-today']),
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+
+    const result = await ensureTodaysSuggestions('u1', NOW);
+
+    const kinds = result.map((r) => r.kind);
+    expect(kinds).toContain('resting_hr_above_baseline');
+    const call = upsertSuggestion.mock.calls.find(
+      (c) => (c[0] as { where: { userId_date_kind: { kind: string } } }).where.userId_date_kind.kind === 'resting_hr_above_baseline',
+    );
+    expect(call).toBeDefined();
+    expect((call![0] as { create: { triggeringMetricIds: string } }).create.triggeringMetricIds).toBe(
+      JSON.stringify(['rhr-today']),
+    );
   });
 
   it('persists a glucose_fasting_diabetic row when a fasting 130 mg/dL reading lands', async () => {

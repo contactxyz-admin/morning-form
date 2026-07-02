@@ -3,6 +3,8 @@ import {
   getVectorSearchStrategy,
   isHybridRetrievalEnabled,
   isPgvectorAvailable,
+  isGroundingGateEnabled,
+  getGroundingFloor,
 } from './compat';
 
 const ORIGINAL_ENV = { ...process.env };
@@ -70,5 +72,33 @@ describe('embedding rollout compatibility helpers', () => {
     process.env.MOCK_LLM = '';
 
     expect(isHybridRetrievalEnabled()).toBe(false);
+  });
+});
+
+describe('grounded-answer gate config (A4)', () => {
+  it('is off by default and honours truthy flag values', () => {
+    process.env.GROUNDING_GATE_ENABLED = '';
+    expect(isGroundingGateEnabled()).toBe(false);
+    for (const v of ['true', '1', 'on', 'TRUE', ' On ']) {
+      process.env.GROUNDING_GATE_ENABLED = v;
+      expect(isGroundingGateEnabled(), v).toBe(true);
+    }
+    for (const v of ['false', '0', 'off', 'no', '']) {
+      process.env.GROUNDING_GATE_ENABLED = v;
+      expect(isGroundingGateEnabled(), v).toBe(false);
+    }
+  });
+
+  it('parses and clamps the floor, defaulting to 0.5 on garbage', () => {
+    process.env.GROUNDING_FLOOR = '0.7';
+    expect(getGroundingFloor()).toBeCloseTo(0.7, 5);
+    process.env.GROUNDING_FLOOR = '1.5';
+    expect(getGroundingFloor()).toBe(1);
+    process.env.GROUNDING_FLOOR = '-0.2';
+    expect(getGroundingFloor()).toBe(0);
+    process.env.GROUNDING_FLOOR = 'not-a-number';
+    expect(getGroundingFloor()).toBe(0.5);
+    process.env.GROUNDING_FLOOR = '';
+    expect(getGroundingFloor()).toBe(0.5);
   });
 });

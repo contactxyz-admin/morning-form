@@ -12,7 +12,7 @@ export type Baseline = {
 
 export type Baselines = Record<string, Baseline>;
 
-function utcDayKey(ts: string | Date): string {
+export function utcDayKey(ts: string | Date): string {
   return new Date(ts).toISOString().slice(0, 10);
 }
 

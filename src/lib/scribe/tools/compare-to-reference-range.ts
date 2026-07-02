@@ -20,6 +20,11 @@
  */
 import { z } from 'zod';
 import { getTopicConfig } from '@/lib/topics/registry';
+import {
+  resolveDemographicRange,
+  normalizeSexAtBirth,
+  ageFromBirthYear,
+} from '@/lib/markers/demographic-ranges';
 import type { ToolContext, ToolHandler } from './types';
 
 export const compareToReferenceRangeSchema = z.object({
@@ -35,6 +40,14 @@ export type ReferenceClassification =
   | 'insufficient-data'
   | 'not-found';
 
+/**
+ * Which range the classification used:
+ *  - `demographic`: a sex/age-specific band (A6) — see `rangeCitation`;
+ *  - `captured`: the reference range captured at ingest (lab's own or registry);
+ *  - `none`: no range available (→ `insufficient-data`).
+ */
+export type ReferenceRangeSource = 'demographic' | 'captured' | 'none';
+
 export interface CompareToReferenceRangeResult {
   canonicalKey: string;
   found: boolean;
@@ -43,11 +56,21 @@ export interface CompareToReferenceRangeResult {
   value: number | null;
   unit: string | null;
   range: { low: number | null; high: number | null } | null;
+  /** Which band produced `classification` (so the scribe can be transparent). */
+  rangeSource: ReferenceRangeSource;
+  /** Citation for a demographic band (e.g. "Travison 2017 …"); null otherwise. */
+  rangeCitation: string | null;
 }
 
 function toNumberOrNull(v: unknown): number | null {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   return null;
+}
+
+/** Normalise a unit for comparison: trim, lowercase, and fold the micro sign
+ *  (U+00B5) and Greek mu (U+03BC) to ASCII "u" so "µg/L" matches "ug/L". */
+function normalizeUnit(u: string): string {
+  return u.trim().toLowerCase().replace(/[µμ]/g, 'u');
 }
 
 function classify(
@@ -68,7 +91,7 @@ export const compareToReferenceRangeHandler: ToolHandler<
 > = {
   name: 'compare_to_reference_range',
   description:
-    'Classify a biomarker\'s latest captured value against its reference range. Returns structured data (below/in-range/above) so the scribe can compose the sentence; the scribe still cites the biomarker node.',
+    "Classify a biomarker's latest captured value against its reference range. Returns structured data (below/in-range/above) so the scribe can compose the sentence; the scribe still cites the biomarker node. When a sex/age-specific band is applied, rangeSource is 'demographic' and rangeCitation carries the literature reference — cite it when presenting the finding.",
   parameters: compareToReferenceRangeSchema,
   async execute(ctx: ToolContext, args: CompareToReferenceRangeArgs) {
     const canonicalKey = args.canonicalKey.toLowerCase();
@@ -88,6 +111,8 @@ export const compareToReferenceRangeHandler: ToolHandler<
         value: null,
         unit: null,
         range: null,
+        rangeSource: 'none',
+        rangeCitation: null,
       };
     }
 
@@ -110,6 +135,8 @@ export const compareToReferenceRangeHandler: ToolHandler<
         value: null,
         unit: null,
         range: null,
+        rangeSource: 'none',
+        rangeCitation: null,
       };
     }
 
@@ -126,9 +153,37 @@ export const compareToReferenceRangeHandler: ToolHandler<
     }
 
     const value = toNumberOrNull(attrs.latestValue);
-    const low = toNumberOrNull(attrs.referenceRangeLow);
-    const high = toNumberOrNull(attrs.referenceRangeHigh);
+    const capturedLow = toNumberOrNull(attrs.referenceRangeLow);
+    const capturedHigh = toNumberOrNull(attrs.referenceRangeHigh);
     const unit = typeof attrs.unit === 'string' ? attrs.unit : null;
+
+    // Prefer a sex/age-specific band (A6) when we have one for this marker + the
+    // user's demographics AND the stored unit matches the band's unit. A unit
+    // mismatch (e.g. testosterone stored in ng/dL vs a nmol/L band) would
+    // misclassify, so we fall back to the captured range in that case.
+    const demographic = resolveDemographicRange(canonicalKey, {
+      sexAtBirth: normalizeSexAtBirth(ctx.sexAtBirth),
+      ageYears: ageFromBirthYear(ctx.birthYear, new Date().getUTCFullYear()),
+    });
+    // Fill-only: apply a demographic band only when the lab captured NO range of
+    // its own. We never override a lab's printed, assay-specific range — doing so
+    // could contradict or mask what the user's own report flags. Also require the
+    // stored unit to match the band's unit (micro-sign folded) so a value can't
+    // be judged against a band in a different unit.
+    const hasCapturedRange = capturedLow !== null || capturedHigh !== null;
+    const useDemographic =
+      demographic !== null &&
+      !hasCapturedRange &&
+      unit !== null &&
+      normalizeUnit(unit) === normalizeUnit(demographic.unit);
+
+    const low = useDemographic ? demographic!.low : capturedLow;
+    const high = useDemographic ? demographic!.high : capturedHigh;
+    const rangeSource: ReferenceRangeSource = useDemographic
+      ? 'demographic'
+      : low === null && high === null
+        ? 'none'
+        : 'captured';
 
     return {
       canonicalKey,
@@ -138,6 +193,8 @@ export const compareToReferenceRangeHandler: ToolHandler<
       value,
       unit,
       range: low === null && high === null ? null : { low, high },
+      rangeSource,
+      rangeCitation: useDemographic ? demographic!.source : null,
     };
   },
 };

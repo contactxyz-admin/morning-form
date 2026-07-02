@@ -13,6 +13,7 @@
  */
 
 import type { HealthDataPoint } from '@/types';
+import { computeBaselines, utcDayKey } from './baselines';
 import type { EvaluateContext, Rule, RuleOutcome } from './types';
 
 function mostRecent(points: HealthDataPoint[], metric: string): HealthDataPoint | null {
@@ -84,10 +85,78 @@ export const glucoseFastingDiabeticRule: Rule = {
   },
 };
 
+// Personal-baseline anomaly detection (RHRAD; Snyder et al. 2021). Fixed
+// clinical thresholds miss a change that is abnormal *for this person* but
+// still inside the population-normal band. This rule flags a resting-heart-
+// rate reading that sits more than k standard deviations above the user's own
+// 30-day median — the RHRAD elevated-RHR early-warning signal.
+//
+// Deliberate guards (bias hard toward precision, not recall):
+//  - one-sided: only an elevation is flagged (a low RHR is not a concern here);
+//  - the baseline is the user's PRIOR history — the reading under test (its whole
+//    UTC day) is excluded, so an anomaly never contaminates the median/σ it is
+//    measured against (a flat series + today's bump can't manufacture the very
+//    variance the 3σ test needs, and a sustained elevation can't inflate the σ
+//    and silence itself). This matches RHRAD's trailing-baseline method;
+//  - needs ≥30 prior daily values so `median30`/`std30` are defined
+//    (`computeBaselines` returns null otherwise) → no alerts on thin history;
+//  - `std30 > 0` so a genuinely flat prior series can't make any wobble look
+//    like a spike;
+//  - freshness: the triggering reading must be recent, so we never alert on
+//    stale history that merely happens to be the most recent point on file.
+const RESTING_HR_METRIC = 'resting_hr';
+const RESTING_HR_BASELINE_K = 3;
+const BASELINE_FRESHNESS_MS = 48 * 60 * 60 * 1000;
+const CLOCK_SKEW_TOLERANCE_MS = 15 * 60 * 1000;
+
+/**
+ * Metric aliases consumed by personal-baseline rules. The engine fetches these
+ * over the longer baseline window; add a metric here when adding a baseline
+ * rule that reads it.
+ */
+export const BASELINE_METRICS = [RESTING_HR_METRIC] as const;
+
+export const restingHrAboveBaselineRule: Rule = {
+  kind: 'resting_hr_above_baseline',
+  evaluate(points, ctx) {
+    const series = ctx.baselinePoints ?? points;
+    const latest = mostRecent(series, RESTING_HR_METRIC);
+    if (!latest) return null;
+
+    // Only alert on a current reading — never on stale history, and never on a
+    // future-dated reading (device clock skew: a negative ageMs would otherwise
+    // pass the freshness check and shift latestDay past the real baseline).
+    const ageMs = ctx.now.getTime() - new Date(latest.timestamp).getTime();
+    if (ageMs > BASELINE_FRESHNESS_MS || ageMs < -CLOCK_SKEW_TOLERANCE_MS) return null;
+
+    // Baseline = resting-HR history strictly before the reading's UTC day, so
+    // the value being tested is not part of the distribution it is compared to.
+    const latestDay = utcDayKey(latest.timestamp);
+    const priorBaselineInput = series
+      .filter((p) => p.metric === RESTING_HR_METRIC && utcDayKey(p.timestamp) < latestDay)
+      .map((p) => ({ metric: p.metric, value: p.value, timestamp: p.timestamp }));
+    const baseline = computeBaselines(priorBaselineInput)[RESTING_HR_METRIC];
+    if (!baseline || baseline.median30 === null || baseline.std30 === null) return null;
+    if (baseline.std30 <= 0) return null;
+
+    const threshold = baseline.median30 + RESTING_HR_BASELINE_K * baseline.std30;
+    if (latest.value <= threshold) return null;
+
+    return {
+      kind: 'resting_hr_above_baseline',
+      title:
+        'Your resting heart rate is running above your recent baseline — consider extra rest, hydration, and easing off hard training until it settles',
+      tier: 'moderate',
+      triggeringMetricIds: latest.id ? [latest.id] : [],
+    };
+  },
+};
+
 export const rules: Rule[] = [
   recoveryLowRule,
   glucoseFastingElevatedRule,
   glucoseFastingDiabeticRule,
+  restingHrAboveBaselineRule,
 ];
 
 export function evaluateRules(

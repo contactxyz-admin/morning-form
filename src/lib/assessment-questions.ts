@@ -408,6 +408,36 @@ export const assessmentQuestions: AssessmentQuestion[] = [
     placeholder: 'e.g., shellfish, soy, gluten — or leave blank',
   },
   {
+    id: 'sex_at_birth',
+    group: 'safety',
+    groupLabel: 'BOUNDARIES WE RESPECT',
+    // Purpose surfaced to the user (GDPR Art 9 special-category data): this drives
+    // sex-specific reference ranges. Normalised downstream; "Prefer not to say"
+    // leaves ranges on the lab/population default.
+    groupDescription:
+      'Used only to tailor sex-specific reference ranges (e.g. haemoglobin, testosterone). Optional.',
+    question: 'What was your sex assigned at birth?',
+    type: 'card-select',
+    required: false,
+    options: [
+      { label: 'Female', value: 'female' },
+      { label: 'Male', value: 'male' },
+      { label: 'Prefer not to say', value: 'prefer_not' },
+    ],
+  },
+  {
+    id: 'birth_year',
+    group: 'safety',
+    groupLabel: 'BOUNDARIES WE RESPECT',
+    groupDescription: '',
+    // Drives age-specific reference ranges (e.g. PSA). Optional; blank leaves
+    // age-banded ranges on the lab/population default.
+    question: 'What year were you born?',
+    type: 'free-text',
+    required: false,
+    placeholder: 'e.g., 1985 — used for age-specific reference ranges',
+  },
+  {
     id: 'anything_else',
     group: 'safety',
     groupLabel: 'BOUNDARIES WE RESPECT',

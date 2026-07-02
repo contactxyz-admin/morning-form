@@ -23,6 +23,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Db, AnyToolHandler, ToolContext } from '@/lib/scribe/tools/types';
+import { loadUserDemographics, type UserDemographics } from '@/lib/users/demographics';
 import {
   SCRIBE_TOOL_HANDLERS,
   type ScribeToolName,
@@ -113,6 +114,19 @@ export interface RegisterScribeToolsInput {
 export function registerScribeToolsOnMcpServer(input: RegisterScribeToolsInput): void {
   const { server, userId, tokenId, db, requestId } = input;
 
+  // Load demographics at most once per request (the server is per-request), lazily
+  // on the first tool call, and shared across every tool call registered below.
+  // A load failure degrades to no-demographics (tools fall back to captured
+  // ranges) — and, crucially, we cache the resolved fallback rather than a
+  // rejected promise, so one transient DB hiccup can't poison every later tool
+  // call in the request.
+  let demographicsPromise: Promise<UserDemographics> | undefined;
+  const getDemographics = () =>
+    (demographicsPromise ??= loadUserDemographics(db, userId).catch(() => ({
+      sexAtBirth: null,
+      birthYear: null,
+    })));
+
   for (const handler of SCRIBE_TOOL_HANDLERS) {
     if (!isReadAllowed(handler.name)) continue;
 
@@ -132,7 +146,7 @@ export function registerScribeToolsOnMcpServer(input: RegisterScribeToolsInput):
         }
       : baseShape;
 
-    registerOne({ server, handler, inputShape, needsTopicKey, db, userId, tokenId, requestId });
+    registerOne({ server, handler, inputShape, needsTopicKey, db, userId, tokenId, requestId, getDemographics });
   }
 }
 
@@ -151,8 +165,9 @@ function registerOne(args: {
   userId: string;
   tokenId: string;
   requestId: string;
+  getDemographics: () => Promise<UserDemographics>;
 }): void {
-  const { server, handler, inputShape, needsTopicKey, db, userId, tokenId, requestId } = args;
+  const { server, handler, inputShape, needsTopicKey, db, userId, tokenId, requestId, getDemographics } = args;
 
   server.registerTool(
     handler.name,
@@ -177,7 +192,15 @@ function registerOne(args: {
           : rawArgs;
 
         const parsed = handler.parameters.parse(handlerArgs) as never;
-        const ctx: ToolContext = { db, userId, topicKey, requestId };
+        const demographics = await getDemographics();
+        const ctx: ToolContext = {
+          db,
+          userId,
+          topicKey,
+          requestId,
+          sexAtBirth: demographics.sexAtBirth,
+          birthYear: demographics.birthYear,
+        };
         const result = await handler.execute(ctx, parsed);
 
         // Best-effort audit. Don't await — let the tool response return

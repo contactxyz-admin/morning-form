@@ -153,6 +153,58 @@ describe('diffLatestPanels', () => {
     });
   });
 
+  it('holds a sub-RCV move at stable instead of flagging it as improved', async () => {
+    const userId = await makeTestUser(prisma, 'diff-rcv-noise');
+    // Creatinine down-RCV ≈ 17%. 115 → 112 is above the 110 ceiling and edging
+    // toward it (raw "improved"), but the −2.6% move is within lab noise.
+    await ingestPanel(userId, '2026-04-01', [
+      { marker: 'creatinine', display: 'Creatinine', value: 115, low: 60, high: 110, flagged: true },
+    ]);
+    await ingestPanel(userId, '2026-06-01', [
+      { marker: 'creatinine', display: 'Creatinine', value: 112, low: 60, high: 110, flagged: true },
+    ]);
+
+    const diff = await diffLatestPanels(prisma, userId);
+    const cr = (diff?.changes ?? []).find((c) => c.marker === 'Creatinine');
+    expect(cr).toMatchObject({
+      beforeValue: 115,
+      afterValue: 112,
+      direction: 'down', // raw direction preserved
+      classification: 'stable', // gated: within the noise floor, not "improved"
+    });
+  });
+
+  it('marks a supra-RCV move as a real change', async () => {
+    const userId = await makeTestUser(prisma, 'diff-rcv-real');
+    // Ferritin up-RCV ≈ 55%; 18 → 41 is +128%, well clear of the floor.
+    await ingestPanel(userId, '2026-04-01', [
+      { marker: 'ferritin', display: 'Ferritin', value: 18, low: 30, high: 400, flagged: true },
+    ]);
+    await ingestPanel(userId, '2026-06-01', [
+      { marker: 'ferritin', display: 'Ferritin', value: 41, low: 30, high: 400, flagged: false },
+    ]);
+
+    const diff = await diffLatestPanels(prisma, userId);
+    const f = (diff?.changes ?? []).find((c) => c.marker === 'Ferritin');
+    expect(f).toMatchObject({ classification: 'improved' });
+  });
+
+  it('leaves markers without biological-variation data ungated', async () => {
+    const userId = await makeTestUser(prisma, 'diff-rcv-none');
+    // vitamin_d is not in the biological-variation table.
+    await ingestPanel(userId, '2026-04-01', [
+      { marker: 'vitamin_d', display: 'Vitamin D', value: 48, low: 50, high: 200, flagged: true },
+    ]);
+    await ingestPanel(userId, '2026-06-01', [
+      { marker: 'vitamin_d', display: 'Vitamin D', value: 49, low: 50, high: 200, flagged: true },
+    ]);
+
+    const diff = await diffLatestPanels(prisma, userId);
+    const vd = (diff?.changes ?? []).find((c) => c.marker === 'Vitamin D');
+    // No RCV data → no gate → the +1 nudge toward the floor is still "improved".
+    expect(vd).toMatchObject({ classification: 'improved' });
+  });
+
   it('skips an instance-less newest document instead of letting it blank the diff', async () => {
     const userId = await makeTestUser(prisma, 'diff-skip-empty');
     await ingestPanel(userId, '2026-04-01', [

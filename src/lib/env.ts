@@ -103,6 +103,14 @@ const optional = {
   // unreviewed content. No secret needed — the accountable-clinician gate is
   // the `reviewedBy` field, not an env value.
   SUPPLEMENT_HANDOFF_ENABLED: process.env.SUPPLEMENT_HANDOFF_ENABLED ?? 'true',
+  // Grounded-answer gate (audit A4). Off by default: the hybrid-retrieval
+  // grounding score stays a logged metric. Set GROUNDING_GATE_ENABLED=true to
+  // ENFORCE it — a clinical-safe answer whose retrieval this turn scored below
+  // GROUNDING_FLOOR (fraction of results backed by real chunk+document
+  // provenance) is downgraded to the safe deferral. GROUNDING_FLOOR defaults to
+  // 0.5; parsed + clamped to [0,1] in embeddings/compat.ts.
+  GROUNDING_GATE_ENABLED: process.env.GROUNDING_GATE_ENABLED ?? '',
+  GROUNDING_FLOOR: process.env.GROUNDING_FLOOR ?? '0.5',
 };
 
 export const env = {

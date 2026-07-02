@@ -3,7 +3,7 @@
 exports[`POST /api/mcp — tools/list wire contract > returns the canonical tools/list payload (snapshot) 1`] = `
 [
   {
-    "description": "Classify a biomarker's latest captured value against its reference range. Returns structured data (below/in-range/above) so the scribe can compose the sentence; the scribe still cites the biomarker node.",
+    "description": "Classify a biomarker's latest captured value against its reference range. Returns structured data (below/in-range/above) so the scribe can compose the sentence; the scribe still cites the biomarker node. When a sex/age-specific band is applied, rangeSource is 'demographic' and rangeCitation carries the literature reference — cite it when presenting the finding.",
     "execution": {
       "taskSupport": "forbidden",
     },

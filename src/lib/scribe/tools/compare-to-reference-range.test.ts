@@ -166,4 +166,80 @@ describe('compare_to_reference_range handler', () => {
     expect(result.found).toBe(false);
     expect(result.classification).toBe('not-found');
   });
+
+  it('A6: applies a sex-specific demographic band and varies by sex (haemoglobin)', async () => {
+    const userId = await makeTestUser(prisma, 'range-demo-hb');
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'haemoglobin',
+      displayName: 'Haemoglobin',
+      attributes: { latestValue: 125, unit: 'g/L' }, // no captured range
+    });
+
+    const male: ToolContext = {
+      db: prisma, userId, topicKey: 'iron', requestId: 'r', sexAtBirth: 'male', birthYear: 1990,
+    };
+    const maleResult = await compareToReferenceRangeHandler.execute(male, { canonicalKey: 'haemoglobin' });
+    expect(maleResult.classification).toBe('below'); // 125 < 130 (male band)
+    expect(maleResult.rangeSource).toBe('demographic');
+    expect(maleResult.range).toEqual({ low: 130, high: 170 });
+
+    const female: ToolContext = {
+      db: prisma, userId, topicKey: 'iron', requestId: 'r', sexAtBirth: 'female', birthYear: 1990,
+    };
+    const femaleResult = await compareToReferenceRangeHandler.execute(female, { canonicalKey: 'haemoglobin' });
+    expect(femaleResult.classification).toBe('in-range'); // 125 within 120–160 (female band)
+    expect(femaleResult.rangeSource).toBe('demographic');
+    expect(maleResult.rangeCitation).toContain('men');
+    expect(femaleResult.rangeCitation).toContain('women');
+  });
+
+  it('A6: fill-only — a demographic band never overrides a lab\'s captured range', async () => {
+    const userId = await makeTestUser(prisma, 'range-demo-fill');
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'haemoglobin',
+      displayName: 'Haemoglobin',
+      // Lab printed its own range → the demographic band must NOT override it.
+      attributes: { latestValue: 125, unit: 'g/L', referenceRangeLow: 120, referenceRangeHigh: 160 },
+    });
+    const male: ToolContext = {
+      db: prisma, userId, topicKey: 'iron', requestId: 'r', sexAtBirth: 'male', birthYear: 1990,
+    };
+    const result = await compareToReferenceRangeHandler.execute(male, { canonicalKey: 'haemoglobin' });
+    expect(result.rangeSource).toBe('captured');
+    expect(result.range).toEqual({ low: 120, high: 160 });
+    expect(result.classification).toBe('in-range'); // captured 120–160, NOT the 130 male band
+  });
+
+  it('A6: does not apply a demographic band on a unit mismatch (no captured range)', async () => {
+    const userId = await makeTestUser(prisma, 'range-demo-unit');
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'haemoglobin',
+      displayName: 'Haemoglobin',
+      // Value in g/dL with no captured range — must NOT be judged against the g/L band.
+      attributes: { latestValue: 13.5, unit: 'g/dL' },
+    });
+    const ctx: ToolContext = {
+      db: prisma, userId, topicKey: 'iron', requestId: 'r', sexAtBirth: 'male', birthYear: 1990,
+    };
+    const result = await compareToReferenceRangeHandler.execute(ctx, { canonicalKey: 'haemoglobin' });
+    expect(result.rangeSource).toBe('none');
+    expect(result.classification).toBe('insufficient-data');
+  });
+
+  it('A6: falls back to the captured range when sex is unknown', async () => {
+    const userId = await makeTestUser(prisma, 'range-demo-nosex');
+    await addNode(prisma, userId, {
+      type: 'biomarker',
+      canonicalKey: 'haemoglobin',
+      displayName: 'Haemoglobin',
+      attributes: { latestValue: 125, unit: 'g/L', referenceRangeLow: 130, referenceRangeHigh: 175 },
+    });
+    const ctx: ToolContext = { db: prisma, userId, topicKey: 'iron', requestId: 'r' }; // no demographics
+    const result = await compareToReferenceRangeHandler.execute(ctx, { canonicalKey: 'haemoglobin' });
+    expect(result.rangeSource).toBe('captured');
+    expect(result.classification).toBe('below'); // 125 < 130 captured
+  });
 });

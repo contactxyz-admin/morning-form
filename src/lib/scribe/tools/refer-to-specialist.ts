@@ -176,6 +176,10 @@ export const referToSpecialistHandler: ToolHandler<ReferToSpecialistArgs, ReferT
       // Forward the parent's cancellation signal so an aborted parent turn
       // also short-circuits the child specialist loop.
       signal: ctx.signal,
+      // Forward demographics so the child specialist ranges markers by the same
+      // sex/age as the parent (A6). Already on ctx — no extra load.
+      sexAtBirth: ctx.sexAtBirth,
+      birthYear: ctx.birthYear,
     });
 
     // Safety net: a child whose output the forbidden-phrase scan rejected must

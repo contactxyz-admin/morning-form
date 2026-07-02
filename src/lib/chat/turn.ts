@@ -40,6 +40,7 @@ import { routeTurn, type RouteDecision } from '@/lib/scribe/router';
 import { getSpecialty } from '@/lib/scribe/specialties/registry';
 import { loadSpecialtySystemPrompt } from '@/lib/scribe/specialties/load-prompt';
 import { assembleUserContext } from '@/lib/chat/user-context';
+import { loadUserDemographics, type UserDemographics } from '@/lib/users/demographics';
 import type { ValidatedAction } from '@/lib/scribe/tools/propose-next-steps';
 import { env } from '@/lib/env';
 import {
@@ -205,6 +206,16 @@ export async function* runChatTurn(
     }
   }
 
+  // Demographics for demographic-aware reference ranges (A6). Loaded once per
+  // turn; failure degrades to no-demographics (tools fall back to captured
+  // ranges) and never blocks the turn.
+  let demographics: UserDemographics = { sexAtBirth: null, birthYear: null };
+  try {
+    demographics = await loadUserDemographics(db, userId);
+  } catch (err) {
+    console.error('[turn] demographics load failed:', err);
+  }
+
   // Investigations answers are deeper — raise the token budget so they're
   // not silently truncated at the default 2048.
   const maxTokens = answerShape === 'investigations' ? 4096 : undefined;
@@ -224,6 +235,8 @@ export async function* runChatTurn(
       signal,
       contextPreamble,
       maxTokens,
+      sexAtBirth: demographics.sexAtBirth,
+      birthYear: demographics.birthYear,
       // Only chat turns with the flag ON may offer propose_next_steps to the
       // LLM. Compile, explain, and referral-child invocations never set this,
       // so the tool stays absent from their tool-definition list and is
@@ -279,6 +292,8 @@ export async function* runChatTurn(
         signal,
         contextPreamble,
         maxTokens,
+        sexAtBirth: demographics.sexAtBirth,
+        birthYear: demographics.birthYear,
         enableProposeNextSteps: askDeep,
       });
       if (retry.classification === 'clinical-safe') {

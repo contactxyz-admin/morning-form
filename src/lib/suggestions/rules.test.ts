@@ -4,6 +4,7 @@ import {
   recoveryLowRule,
   glucoseFastingElevatedRule,
   glucoseFastingDiabeticRule,
+  restingHrAboveBaselineRule,
   evaluateRules,
   rules,
 } from './rules';
@@ -183,6 +184,107 @@ describe('glucoseFastingDiabeticRule', () => {
   });
 });
 
+describe('restingHrAboveBaselineRule', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  function rhr(id: string, value: number, msAgo: number): HealthDataPoint {
+    return {
+      id,
+      category: 'heart',
+      metric: 'resting_hr',
+      value,
+      unit: 'bpm',
+      timestamp: new Date(NOW.getTime() - msAgo).toISOString(),
+      provider: 'whoop',
+    };
+  }
+
+  // `days` prior daily readings (alternating 54/56 → median 55, std exactly 1
+  // over 30 days → threshold = 55 + 3·1 = 58), each strictly older than the
+  // single latest reading `msAgo` old. The latest reading's own day is excluded
+  // from the baseline by the rule, so it never contaminates median30/std30.
+  function windowEndingAt(latestValue: number, latestMsAgo: number, days = 30): HealthDataPoint[] {
+    const pts: HealthDataPoint[] = [];
+    for (let d = 1; d <= days; d++) {
+      pts.push(rhr(`b${d}`, d % 2 === 0 ? 54 : 56, latestMsAgo + d * DAY_MS));
+    }
+    pts.push(rhr('latest', latestValue, latestMsAgo));
+    return pts;
+  }
+
+  // 30 prior days at a single flat value (std30 = 0), plus a fresh latest. Used
+  // to prove the reading under test cannot manufacture its own baseline variance.
+  function flatPriorWindow(latestValue: number, priorValue = 55): HealthDataPoint[] {
+    const pts: HealthDataPoint[] = [];
+    for (let d = 1; d <= 30; d++) pts.push(rhr(`f${d}`, priorValue, 60 * 1000 + d * DAY_MS));
+    pts.push(rhr('latest', latestValue, 60 * 1000));
+    return pts;
+  }
+
+  it('fires when a fresh reading exceeds median30 + 3·std30, with verbatim title/tier', () => {
+    const outcome = restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 60 * 1000), { now: NOW });
+    expect(outcome).not.toBeNull();
+    expect(outcome!.kind).toBe('resting_hr_above_baseline');
+    expect(outcome!.title).toBe(
+      'Your resting heart rate is running above your recent baseline — consider extra rest, hydration, and easing off hard training until it settles',
+    );
+    expect(outcome!.tier).toBe('moderate');
+    expect(outcome!.triggeringMetricIds).toEqual(['latest']);
+  });
+
+  it('does not fire when the reading stays within k·std of the personal baseline', () => {
+    // 57 = median30 (55) + 2·std30 (1), inside the 3·std band.
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(57, 60 * 1000), { now: NOW })).toBeNull();
+  });
+
+  it('does not fire exactly at the threshold (median30 + 3·std30 = 58; boundary is exclusive)', () => {
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(58, 60 * 1000), { now: NOW })).toBeNull();
+  });
+
+  it('does not manufacture its own variance: a bump over a flat prior baseline stays quiet', () => {
+    // Prior history is dead flat (std30 = 0) → the std30 > 0 guard suppresses,
+    // instead of the reading under test inflating its own baseline into a hit.
+    expect(restingHrAboveBaselineRule.evaluate(flatPriorWindow(60), { now: NOW })).toBeNull();
+    expect(restingHrAboveBaselineRule.evaluate(flatPriorWindow(200), { now: NOW })).toBeNull();
+  });
+
+  it('does not fire on a downward deviation (one-sided: elevation only)', () => {
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(30, 60 * 1000), { now: NOW })).toBeNull();
+  });
+
+  it('does not fire on a stale reading (older than the 48h freshness window)', () => {
+    // Spike present, but the most-recent reading is 3 days old → no alert.
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 3 * DAY_MS), { now: NOW })).toBeNull();
+  });
+
+  it('still fires at exactly the 48h freshness boundary (inclusive)', () => {
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 2 * DAY_MS), { now: NOW })).not.toBeNull();
+  });
+
+  it('does not fire on a future-dated reading beyond clock-skew tolerance', () => {
+    // Device clock ahead by 1h → negative ageMs would otherwise pass the >48h
+    // check; the skew guard suppresses it. Within 15min skew still fires.
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(80, -60 * 60 * 1000), { now: NOW })).toBeNull();
+    expect(restingHrAboveBaselineRule.evaluate(windowEndingAt(80, -5 * 60 * 1000), { now: NOW })).not.toBeNull();
+  });
+
+  it('does not fire with fewer than 30 days of history (median30/std30 undefined)', () => {
+    expect(
+      restingHrAboveBaselineRule.evaluate(windowEndingAt(80, 60 * 1000, 20), { now: NOW }),
+    ).toBeNull();
+  });
+
+  it('reads ctx.baselinePoints in preference to the recent slice', () => {
+    // Recent slice has no resting_hr; the baseline window carries the history.
+    const outcome = restingHrAboveBaselineRule.evaluate([point({ id: 'r', value: 50 })], {
+      now: NOW,
+      baselinePoints: windowEndingAt(80, 60 * 1000),
+    });
+    expect(outcome).not.toBeNull();
+    expect(outcome!.kind).toBe('resting_hr_above_baseline');
+  });
+});
+
 describe('evaluateRules', () => {
   it('returns one outcome per firing rule', () => {
     const outcomes = evaluateRules([point({ id: 'p1', value: 20 })], { now: NOW });
@@ -215,6 +317,10 @@ describe('evaluateRules', () => {
   it('the default rule registry includes both glucose fasting rules', () => {
     expect(rules.map((r) => r.kind)).toContain('glucose_fasting_elevated');
     expect(rules.map((r) => r.kind)).toContain('glucose_fasting_diabetic');
+  });
+
+  it('the default rule registry includes the resting-HR personal-baseline rule', () => {
+    expect(rules.map((r) => r.kind)).toContain('resting_hr_above_baseline');
   });
 
   it('diabetic glucose at 130 fires diabetic and suppresses elevated (integration)', () => {
