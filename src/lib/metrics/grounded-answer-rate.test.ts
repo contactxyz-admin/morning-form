@@ -4,7 +4,8 @@ import { computeGroundedAnswerRate, type GroundedAnswerCase } from './grounded-a
 
 // Minimal provenance items — the grounding metric only reads chunkId/documentId.
 const grounded = (): ProvenanceItem => ({ chunkId: 'c1', documentId: 'd1' }) as ProvenanceItem;
-const ungrounded = (): ProvenanceItem => ({ chunkId: null, documentId: null }) as ProvenanceItem;
+const ungrounded = (): ProvenanceItem =>
+  ({ chunkId: null, documentId: null }) as unknown as ProvenanceItem;
 
 describe('computeGroundedAnswerRate', () => {
   it('returns 0 for an empty corpus', () => {
