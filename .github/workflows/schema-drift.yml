@@ -1,0 +1,57 @@
+name: Schema drift
+
+# Enforces the "push schema to prod BEFORE merge" invariant so prod can never
+# silently fall behind main's schema (which once broke GDPR delete/export when
+# the retest/Draw tables shipped in code but not in the DB).
+#
+# On a PR: this check stays RED until prod already contains the branch's schema,
+# turning the manual push-before-merge step into a hard merge gate. Flow when a
+# PR changes the schema: open PR -> check red -> push schema to prod -> re-run ->
+# green -> merge.
+#
+# Daily: catches any out-of-band drift (manual DB edits, a forgotten push that
+# slipped through) before the 09:00 UTC retest cron runs against it.
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 8 * * *' # daily 08:00 UTC, ahead of the 09:00 retest cron
+  workflow_dispatch:
+
+jobs:
+  prod-schema-in-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+      - run: npm ci
+      - name: Assert prod DB schema matches prisma/schema.prisma
+        env:
+          # Direct (unpooled) prod connection — migrate diff introspects the DB.
+          # ponytail: full-access URL for now; a read-only Neon role is the
+          # hardening upgrade if this secret's blast radius ever matters.
+          PROD_DATABASE_URL_UNPOOLED: ${{ secrets.PROD_DATABASE_URL_UNPOOLED }}
+        run: |
+          if [ -z "$PROD_DATABASE_URL_UNPOOLED" ]; then
+            echo "::error::PROD_DATABASE_URL_UNPOOLED secret is not set — cannot verify prod schema."
+            exit 1
+          fi
+          set +e
+          npx prisma migrate diff \
+            --from-url "$PROD_DATABASE_URL_UNPOOLED" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::error::Prod DB is behind prisma/schema.prisma (diff above). Push the schema to prod BEFORE merging: preview with 'npx prisma migrate diff --from-url <PROD_UNPOOLED> --to-schema-datamodel prisma/schema.prisma --script', then apply. Re-run this check once prod is in sync."
+            exit 1
+          elif [ "$code" -ne 0 ]; then
+            echo "::error::prisma migrate diff failed (exit $code) — could not verify prod schema."
+            exit "$code"
+          fi
+          echo "✅ Prod schema matches prisma/schema.prisma"
