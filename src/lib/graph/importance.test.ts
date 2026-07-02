@@ -162,6 +162,22 @@ describe('computeImportance', () => {
     expect(r.components.staleness).toBeGreaterThanOrEqual(-1);
   });
 
+  it('penalises staleness, not low authored confidence', () => {
+    const asOf = new Date('2026-04-17');
+    // A: full confidence but a year stale. B: low confidence, one day past the window.
+    const a = makeNode({ id: 'a', confidence: 1 });
+    const b = makeNode({ id: 'b', confidence: 0.3 });
+    const recencyMap = new Map<string, Date | null>([
+      ['a', new Date('2025-04-17')], // ~365 days
+      ['b', new Date('2026-03-17')], // ~31 days
+    ]);
+    const res = computeImportance({ nodes: [a, b], edges: [], recencyMap, asOf });
+    const sa = res.get('a')!.components.staleness;
+    const sb = res.get('b')!.components.staleness;
+    expect(sa).toBeLessThan(sb); // the stale node is penalised MORE (more negative)
+    expect(sb).toBeGreaterThan(-0.05); // barely-past-window node barely penalised despite low confidence
+  });
+
   it('staleness demotes a stale, moderately-connected node out of tier 2', () => {
     const hub = makeNode({ id: 'hub' });
     const others = Array.from({ length: 5 }, (_, i) => makeNode({ id: `o${i}` }));

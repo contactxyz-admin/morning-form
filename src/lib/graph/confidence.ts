@@ -27,6 +27,13 @@ export function ageInDays(fromMs: number, toMs: number): number {
   return Math.max(0, (toMs - fromMs) / DAY_MS);
 }
 
+/** Clamp a stored confidence to [0,1]; a non-finite value is treated as 1. */
+function normalizeStored(storedConfidence: number): number {
+  return Number.isFinite(storedConfidence)
+    ? Math.max(0, Math.min(1, storedConfidence))
+    : 1;
+}
+
 /**
  * Effective confidence after exponential decay: `stored · 2^(−ageDays/halfLife)`,
  * clamped to [0, 1]. Fresh (age 0), future-dated, or an invalid half-life returns
@@ -38,10 +45,23 @@ export function effectiveConfidence(
   ageDays: number,
   halfLifeDays: number = EFFECTIVE_CONFIDENCE_HALF_LIFE_DAYS,
 ): number {
-  const stored = Number.isFinite(storedConfidence)
-    ? Math.max(0, Math.min(1, storedConfidence))
-    : 1;
+  const stored = normalizeStored(storedConfidence);
   if (!(ageDays > 0) || !(halfLifeDays > 0)) return stored;
   const decayed = stored * Math.pow(2, -ageDays / halfLifeDays);
   return Math.max(0, Math.min(1, decayed));
+}
+
+/**
+ * Confidence LOST to decay: `normalizedStored − effectiveConfidence`. This is the
+ * "how far it has decayed" quantity — 0 when fresh, growing with age, in
+ * [0, stored]. Crucially it is INDEPENDENT of the node's base confidence LEVEL:
+ * a low-confidence but fresh node has ~0 loss, so a de-emphasis built on this
+ * reflects staleness rather than low authored confidence.
+ */
+export function confidenceDecayLoss(
+  storedConfidence: number,
+  ageDays: number,
+  halfLifeDays: number = EFFECTIVE_CONFIDENCE_HALF_LIFE_DAYS,
+): number {
+  return normalizeStored(storedConfidence) - effectiveConfidence(storedConfidence, ageDays, halfLifeDays);
 }

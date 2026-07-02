@@ -30,7 +30,7 @@
  */
 
 import type { GraphEdgeRecord, GraphNodeRecord } from './types';
-import { ageInDays, effectiveConfidence } from './confidence';
+import { ageInDays, confidenceDecayLoss } from './confidence';
 
 export type ImportanceTier = 1 | 2 | 3;
 
@@ -129,9 +129,12 @@ export function computeImportance(
     let stalenessScore = 0;
     if (evidenceAt) {
       const age = ageInDays(evidenceAt.getTime(), asOf.getTime());
-      if (age > windowDays) {
-        stalenessScore = -(1 - effectiveConfidence(node.confidence, age));
-      }
+      // Penalise the confidence LOST since the recency window edge: 0 at the
+      // boundary (continuous with the recency term — no cliff), growing as the
+      // node ages, and independent of the node's base confidence LEVEL (so a
+      // low-confidence but fresh node is not mistaken for a stale one).
+      const loss = confidenceDecayLoss(node.confidence, Math.max(0, age - windowDays));
+      stalenessScore = loss > 0 ? -loss : 0; // avoid -0
     }
 
     const score = promotedScore + degreeScore + recencyScore + changeScore + stalenessScore;
