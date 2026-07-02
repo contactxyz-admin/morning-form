@@ -14,6 +14,38 @@ export interface HybridRetrievalGroundingScore {
   rrfMax: number | null;
 }
 
+/** Turn-level roll-up of every retrieval's grounding, for the A4 answer gate. */
+export interface GroundingSummary {
+  /** Retrieval calls that returned at least one result. */
+  retrievals: number;
+  /** Total results across all retrievals this turn. */
+  total: number;
+  /** Results backed by real chunk+document provenance. */
+  grounded: number;
+  /** grounded / total (0 when no retrieval returned results). */
+  score: number;
+}
+
+/**
+ * Aggregate per-retrieval grounding scores into one turn-level summary.
+ * `score` is pooled (Σgrounded / Σtotal), so a turn with one large well-grounded
+ * retrieval isn't outweighed by a tiny ungrounded one. `retrievals` counts only
+ * calls that returned results, so an empty search doesn't dilute the ratio.
+ */
+export function summarizeGrounding(
+  scores: readonly HybridRetrievalGroundingScore[],
+): GroundingSummary {
+  let total = 0;
+  let grounded = 0;
+  let retrievals = 0;
+  for (const s of scores) {
+    total += s.total;
+    grounded += s.grounded;
+    if (s.total > 0) retrievals += 1;
+  }
+  return { retrievals, total, grounded, score: total === 0 ? 0 : grounded / total };
+}
+
 export interface HybridRetrievalGroundingLogArgs {
   userId: string;
   topicKey: string;

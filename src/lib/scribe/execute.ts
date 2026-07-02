@@ -51,6 +51,11 @@ import {
   proposeNextStepsHandler,
   type ValidatedAction,
 } from './tools/propose-next-steps';
+import {
+  summarizeGrounding,
+  type HybridRetrievalGroundingScore,
+} from '@/lib/metrics/hybrid-retrieval-grounding';
+import { getGroundingFloor, isGroundingGateEnabled } from '@/lib/embeddings/compat';
 
 export const DEFAULT_MAX_TOOL_CALLS = 6;
 
@@ -238,6 +243,11 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
 
   const requestId = req.requestId ?? randomUUID();
 
+  // A4 grounding accumulator — retrieval tools push their per-call grounding
+  // score here (via ctx.groundingSink) so we can roll them up and gate a
+  // weakly-grounded answer after the loop.
+  const groundingScores: HybridRetrievalGroundingScore[] = [];
+
   // D10: fix the context once; every handler call below uses exactly this ctx.
   const ctx: ToolContext = {
     db: req.db,
@@ -247,6 +257,7 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     signal: req.signal,
     sexAtBirth: req.sexAtBirth,
     birthYear: req.birthYear,
+    groundingSink: (score) => groundingScores.push(score),
   };
   const system = buildSystemPrompt(policy, req.systemPrompt);
   // propose_next_steps is gated: unless this invocation explicitly enables it
@@ -413,6 +424,31 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
       sections: req.sections ?? [],
     };
     classification = enforce(policy, candidate).classification;
+
+    // A4 grounded-answer gate. When enforcement passes but this turn's retrieval
+    // was weakly grounded (few results backed by real chunk+document provenance),
+    // downgrade a clinical-safe answer to the safe deferral rather than surface a
+    // confidently-worded but poorly-grounded reply. Flag-gated (default off);
+    // only ever DOWNGRADES; and only when retrieval actually returned results
+    // (a turn that made no search isn't penalised). Runs before recordAudit so
+    // the audit row reflects the enforced verdict (D11).
+    const groundingSummary = summarizeGrounding(groundingScores);
+    if (
+      classification === 'clinical-safe' &&
+      isGroundingGateEnabled() &&
+      groundingSummary.total > 0 &&
+      groundingSummary.score < getGroundingFloor()
+    ) {
+      classification = 'out-of-scope-routed';
+      console.info('[scribe.execute] grounding gate downgraded answer', {
+        requestId,
+        topicKey: req.topicKey,
+        score: groundingSummary.score,
+        floor: getGroundingFloor(),
+        total: groundingSummary.total,
+        grounded: groundingSummary.grounded,
+      });
+    }
   } catch (err) {
     loopError = err;
     output = lastTurn?.text ?? '';

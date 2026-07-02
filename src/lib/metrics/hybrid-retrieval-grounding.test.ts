@@ -2,7 +2,39 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   computeHybridRetrievalGroundingScore,
   logHybridRetrievalGroundingScore,
+  summarizeGrounding,
+  type HybridRetrievalGroundingScore,
 } from './hybrid-retrieval-grounding';
+
+const score = (total: number, grounded: number): HybridRetrievalGroundingScore => ({
+  total,
+  grounded,
+  score: total === 0 ? 0 : grounded / total,
+  rrfMin: null,
+  rrfMedian: null,
+  rrfMax: null,
+});
+
+describe('summarizeGrounding (turn-level roll-up for the A4 gate)', () => {
+  it('pools grounded/total across retrievals', () => {
+    const s = summarizeGrounding([score(4, 4), score(2, 0)]);
+    expect(s).toEqual({ retrievals: 2, total: 6, grounded: 4, score: 4 / 6 });
+  });
+
+  it('counts only non-empty retrievals and scores 0 when nothing was retrieved', () => {
+    expect(summarizeGrounding([score(0, 0), score(0, 0)])).toEqual({
+      retrievals: 0,
+      total: 0,
+      grounded: 0,
+      score: 0,
+    });
+    expect(summarizeGrounding([])).toEqual({ retrievals: 0, total: 0, grounded: 0, score: 0 });
+  });
+
+  it('an empty retrieval does not dilute a grounded one', () => {
+    expect(summarizeGrounding([score(3, 3), score(0, 0)]).score).toBe(1);
+  });
+});
 
 describe('hybrid retrieval grounding metric', () => {
   it('counts only results with SourceChunk provenance in the top citations', () => {

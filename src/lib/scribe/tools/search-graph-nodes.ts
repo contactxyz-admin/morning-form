@@ -70,13 +70,15 @@ export const searchGraphNodesHandler: ToolHandler<
             limit: limit + 1,
             requireQueryArmMatch: true,
           });
-          logHybridRetrievalGroundingScore({
-            userId: ctx.userId,
-            topicKey: ctx.topicKey,
-            toolName: 'search_graph_nodes',
-            query: args.query,
-            results: hybrid.slice(0, limit),
-          });
+          ctx.groundingSink?.(
+            logHybridRetrievalGroundingScore({
+              userId: ctx.userId,
+              topicKey: ctx.topicKey,
+              toolName: 'search_graph_nodes',
+              query: args.query,
+              results: hybrid.slice(0, limit),
+            }),
+          );
           loggedGroundingMetric = true;
           if (hybrid.length > 0) {
             const truncated = hybrid.length > limit;
@@ -93,13 +95,15 @@ export const searchGraphNodesHandler: ToolHandler<
         }
       }
       if (!loggedGroundingMetric) {
-        logHybridRetrievalGroundingScore({
-          userId: ctx.userId,
-          topicKey: ctx.topicKey,
-          toolName: 'search_graph_nodes',
-          query: args.query,
-          results: [],
-        });
+        ctx.groundingSink?.(
+          logHybridRetrievalGroundingScore({
+            userId: ctx.userId,
+            topicKey: ctx.topicKey,
+            toolName: 'search_graph_nodes',
+            query: args.query,
+            results: [],
+          }),
+        );
       }
     }
 

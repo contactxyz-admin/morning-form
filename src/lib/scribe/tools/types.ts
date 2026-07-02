@@ -11,14 +11,17 @@
  *   - `parameters` is a zod schema the executor uses to validate LLM-supplied
  *     arguments before dispatching. Any shape mismatch short-circuits with a
  *     `tool_error` frame instead of calling the handler with malformed input.
- *   - `execute` is a plain async function — no streaming, no side-channels.
- *     Tool responses are small JSON objects the LLM will incorporate into its
- *     next turn.
+ *   - `execute` is a plain async function — no streaming. The one sanctioned
+ *     side channel is `ctx.groundingSink` (A4): retrieval tools report a
+ *     grounding score out-of-band for the answer gate; it never changes the
+ *     JSON the LLM sees. Tool responses are small JSON objects the LLM will
+ *     incorporate into its next turn.
  *   - `description` is the prompt-facing one-liner the model sees. Keep it
  *     factual and bounded; safety rules belong in the policy layer, not here.
  */
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { z, ZodType } from 'zod';
+import type { HybridRetrievalGroundingScore } from '@/lib/metrics/hybrid-retrieval-grounding';
 
 export type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -49,6 +52,14 @@ export interface ToolContext {
    */
   readonly sexAtBirth?: string | null;
   readonly birthYear?: number | null;
+  /**
+   * Grounding side-channel (audit A4). Retrieval tools report their per-call
+   * grounding score here so `execute()` can roll them up and gate a weakly-
+   * grounded answer. Optional — absent on paths that don't measure grounding;
+   * tools MUST no-op when it's undefined. This is the one sanctioned side
+   * channel on ToolContext (it never affects the LLM-facing tool output).
+   */
+  readonly groundingSink?: (score: HybridRetrievalGroundingScore) => void;
 }
 
 export interface ToolHandler<Args, Result> {
