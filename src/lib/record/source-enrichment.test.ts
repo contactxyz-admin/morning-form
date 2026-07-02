@@ -15,6 +15,8 @@ function change(overrides: Partial<MarkerChange> = {}): MarkerChange {
     referenceHigh: 130,
     direction: 'up',
     classification: 'worsened',
+    referenceChangeValuePct: null,
+    withinNoise: null,
     ...overrides,
   };
 }
