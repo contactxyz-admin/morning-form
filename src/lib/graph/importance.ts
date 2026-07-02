@@ -9,6 +9,12 @@
  *                                  plan 2026-06-10-003 follow-up: so a marker
  *                                  the user just saw move can't be hidden below
  *                                  the 200-node cap)
+ *   - staleness             -1-0 (audit B4: a node whose newest evidence has
+ *                                  aged BEYOND the recency window loses standing
+ *                                  as its confidence decays — see confidence.ts.
+ *                                  0 within the window, so fresh-node scoring is
+ *                                  unchanged; a retest refreshes the evidence
+ *                                  date and clears the penalty.)
  *
  * Thresholds: tier 1 ≥ 4, tier 2 ≥ 2, tier 3 < 2.
  *
@@ -24,6 +30,7 @@
  */
 
 import type { GraphEdgeRecord, GraphNodeRecord } from './types';
+import { ageInDays, effectiveConfidence } from './confidence';
 
 export type ImportanceTier = 1 | 2 | 3;
 
@@ -50,6 +57,9 @@ export interface ImportanceResult {
     degree: number;
     recency: number;
     change: number;
+    /** ≤ 0 penalty for a node whose newest evidence has aged past the recency
+     *  window (confidence decay, audit B4); 0 within the window / no evidence. */
+    staleness: number;
   };
 }
 
@@ -109,7 +119,22 @@ export function computeImportance(
 
     const changeScore = inputs.changedNodeIds?.has(node.id) ? CHANGE_LIFT : 0;
 
-    const score = promotedScore + degreeScore + recencyScore + changeScore;
+    // Staleness (B4): once a node's newest evidence has aged BEYOND the recency
+    // window, de-emphasise it in proportion to how far its confidence has
+    // decayed. Zero within the window (fresh scoring unchanged) and zero when we
+    // have no evidence date (mirrors the recency term — don't penalise a node
+    // that simply carries no supporting chunk). A retest refreshes the evidence
+    // date, so the penalty clears on the next read.
+    const evidenceAt = inputs.recencyMap?.get(node.id) ?? null;
+    let stalenessScore = 0;
+    if (evidenceAt) {
+      const age = ageInDays(evidenceAt.getTime(), asOf.getTime());
+      if (age > windowDays) {
+        stalenessScore = -(1 - effectiveConfidence(node.confidence, age));
+      }
+    }
+
+    const score = promotedScore + degreeScore + recencyScore + changeScore + stalenessScore;
     results.set(node.id, {
       tier: tierFromScore(score),
       score,
@@ -118,6 +143,7 @@ export function computeImportance(
         degree: degreeScore,
         recency: recencyScore,
         change: changeScore,
+        staleness: stalenessScore,
       },
     });
   }

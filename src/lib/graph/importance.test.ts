@@ -136,6 +136,44 @@ describe('computeImportance', () => {
     expect(result.get('hub')!.components.degree).toBe(2);
   });
 
+  it('a fresh node within the recency window has no staleness penalty', () => {
+    const node = makeNode({ id: 'n1' });
+    const asOf = new Date('2026-04-17');
+    const recencyMap = new Map<string, Date | null>([['n1', new Date('2026-04-10')]]); // 7 days
+    const r = computeImportance({ nodes: [node], edges: [], recencyMap, asOf }).get('n1')!;
+    expect(r.components.staleness).toBe(0);
+    expect(r.components.recency).toBe(1);
+  });
+
+  it('a node with no evidence date carries no staleness penalty', () => {
+    const node = makeNode({ id: 'n1', promoted: true });
+    const r = computeImportance({ nodes: [node], edges: [] }).get('n1')!;
+    expect(r.components.staleness).toBe(0);
+    expect(r.score).toBe(3); // promoted only — unchanged by B4
+  });
+
+  it('a node whose newest evidence aged past the window gets a bounded staleness penalty', () => {
+    const node = makeNode({ id: 'n1' });
+    const asOf = new Date('2026-04-17');
+    const recencyMap = new Map<string, Date | null>([['n1', new Date('2025-01-01')]]); // ~471 days
+    const r = computeImportance({ nodes: [node], edges: [], recencyMap, asOf }).get('n1')!;
+    expect(r.components.recency).toBe(0);
+    expect(r.components.staleness).toBeLessThan(0);
+    expect(r.components.staleness).toBeGreaterThanOrEqual(-1);
+  });
+
+  it('staleness demotes a stale, moderately-connected node out of tier 2', () => {
+    const hub = makeNode({ id: 'hub' });
+    const others = Array.from({ length: 5 }, (_, i) => makeNode({ id: `o${i}` }));
+    const edges = others.map((o) => makeEdge({ from: 'hub', to: o.id })); // degree → +2
+    const asOf = new Date('2026-04-17');
+    const recencyMap = new Map<string, Date | null>([['hub', new Date('2024-06-01')]]); // very stale
+    const r = computeImportance({ nodes: [hub, ...others], edges, recencyMap, asOf }).get('hub')!;
+    expect(r.components.degree).toBe(2); // would be tier 2 on its own
+    expect(r.components.staleness).toBeLessThan(0);
+    expect(r.tier).toBe(3); // 2 + staleness(<0) < 2 → demoted
+  });
+
   it('a node earning all three signals is tier 1', () => {
     const node = makeNode({ id: 'n1', promoted: true });
     const others = Array.from({ length: 3 }, (_, i) => makeNode({ id: `o${i}` }));
