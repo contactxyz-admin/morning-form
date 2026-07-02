@@ -19,10 +19,7 @@ import { parseJsonField } from '@/lib/graph/queries';
 import { markerJoinKey } from './marker-key';
 import { classifyChange, distanceToRange } from './classify-change';
 import type { ChangeDirection, ChangeClassification } from './classify-change';
-import {
-  getReferenceChangeValuePct,
-  exceedsReferenceChangeValue,
-} from './biological-variation';
+import { getReferenceChangeValue } from './biological-variation';
 
 // Re-exported for back-compat: the pure classifier + its types now live in
 // `classify-change.ts` (Prisma-free) so the demo can bundle them too. Existing
@@ -55,19 +52,12 @@ export interface MarkerChange {
   referenceLow: number | null;
   referenceHigh: number | null;
   direction: ChangeDirection | null; // null for `new`
+  /**
+   * Reference-range-relative classification, noise-gated: a move within the
+   * marker's Reference Change Value (analytical + biological noise) is reported
+   * as `stable` rather than improved/worsened. See `biological-variation.ts`.
+   */
   classification: ChangeClassification;
-  /**
-   * The marker's Reference Change Value (% of the prior value), or null when we
-   * have no biological-variation data for it. See `biological-variation.ts`.
-   */
-  referenceChangeValuePct: number | null;
-  /**
-   * True when a prior value + an RCV both existed and the observed move was
-   * within that noise floor (so `classification` was held at `stable`). null
-   * when not assessable (a `new` marker, or no RCV data). Lets a surface say
-   * "hasn't moved beyond normal lab variation" rather than just "stable".
-   */
-  withinNoise: boolean | null;
 }
 
 export interface PanelDiff {
@@ -189,7 +179,6 @@ function buildPanelChanges(
 ): MarkerChange[] {
   const changes: MarkerChange[] = [];
   for (const [joinKey, after] of Array.from(latestReadings.entries())) {
-    const rcvPct = getReferenceChangeValuePct(joinKey);
     const before = previousReadings.get(joinKey);
     if (!before) {
       changes.push({
@@ -204,8 +193,6 @@ function buildPanelChanges(
         referenceHigh: after.referenceHigh,
         direction: null,
         classification: 'new',
-        referenceChangeValuePct: rcvPct,
-        withinNoise: null,
       });
       continue;
     }
@@ -214,10 +201,8 @@ function buildPanelChanges(
       after.value,
       after.referenceLow,
       after.referenceHigh,
-      rcvPct,
+      getReferenceChangeValue(joinKey),
     );
-    const withinNoise =
-      rcvPct == null ? null : !exceedsReferenceChangeValue(before.value, after.value, rcvPct);
     changes.push({
       marker: after.marker,
       joinKey,
@@ -230,8 +215,6 @@ function buildPanelChanges(
       referenceHigh: after.referenceHigh,
       direction,
       classification,
-      referenceChangeValuePct: rcvPct,
-      withinNoise,
     });
   }
   changes.sort((a, b) => a.marker.localeCompare(b.marker));

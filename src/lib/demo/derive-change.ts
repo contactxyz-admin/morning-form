@@ -7,7 +7,11 @@
  *
  * `diffLatestPanels` (panel-diff.ts) is DB-coupled and unusable in the demo;
  * this is the demo-side equivalent over fixture readings, sharing the same
- * pure classifier so demo and product classify identically.
+ * pure classifier so demo and product classify identically on the
+ * range-relative dimension. The authed path additionally noise-gates the
+ * classification by each marker's Reference Change Value (A7); the demo does
+ * not apply that gate (its fixtures are curated), so a curated sub-noise move
+ * would read `improved`/`worsened` here but `stable` on the authed path.
  */
 
 import { classifyChange } from '@/lib/markers/classify-change';

@@ -5,13 +5,22 @@
  * A raw delta between two lab draws blends three things: a real change, the
  * assay's analytical imprecision (CVA), and the person's own day-to-day
  * biological variation (CVI). The Reference Change Value is the threshold a
- * delta must clear to be distinguishable from the latter two:
+ * delta must clear to be distinguishable from the latter two.
  *
- *     RCV(%) = Z · √2 · √(CVA² + CVI²)          (Fraser & Harris)
+ * We use the LOG-NORMAL RCV (Fokkema 2006; EFLM), which is the appropriate form
+ * for the right-skewed distributions most blood analytes follow and, unlike the
+ * naive symmetric percentage, gives DIFFERENT up- and down-limits:
  *
- * with Z = 1.96 for a two-sided 95% probability. A change smaller than the RCV
- * is, statistically, indistinguishable from noise — so we should not tell a
- * user their marker "improved" or "worsened" on it.
+ *     σ_ln     = √2 · √( ln(1+CVA²) + ln(1+CVI²) )     (CVs as fractions)
+ *     RCV_up   = (e^{ Z·σ_ln} − 1)                     (rise limit, fraction)
+ *     RCV_down = (1 − e^{−Z·σ_ln})                     (fall limit, fraction)
+ *
+ * with Z = 1.96 for a two-sided 95% probability. For low-CV analytes the two
+ * limits are nearly equal (≈ the classic symmetric form); for high-CV skewed
+ * ones (ferritin, TSH, triglycerides) they diverge substantially, so a real
+ * fall isn't wrongly dismissed as noise. A change smaller than the
+ * direction-appropriate limit is statistically indistinguishable from noise —
+ * so we should not tell a user their marker "improved" or "worsened" on it.
  *
  * Data source: within-subject biological variation (CVI) figures are the
  * long-established desirable-specification values from the EFLM Biological
@@ -30,6 +39,17 @@ export interface BiologicalVariation {
   readonly cviPct: number;
   /** Analytical CV, % — modelled here as the desirable spec 0.5·CVI. */
   readonly cvaPct: number;
+}
+
+/**
+ * A marker's reference change value, as separate rise/fall limits (percent of
+ * the prior value). `upPct` is always ≥ `downPct` for the log-normal form.
+ */
+export interface ReferenceChangeValue {
+  /** A rise must exceed this % of the prior value to be a real change. */
+  readonly upPct: number;
+  /** A fall's magnitude must exceed this % of the prior value to be real. */
+  readonly downPct: number;
 }
 
 /** Z for a two-sided 95% reference change value. */
@@ -61,43 +81,50 @@ export const BIOLOGICAL_VARIATION: Readonly<Record<string, BiologicalVariation>>
 };
 
 /**
- * Reference Change Value as a percentage of the baseline value:
- *   RCV(%) = Z · √2 · √(CVA² + CVI²).
+ * Log-normal reference change value (rise/fall limits as % of the prior value).
  */
-export function referenceChangeValuePct(
+export function referenceChangeValue(
   cvaPct: number,
   cviPct: number,
   z: number = RCV_Z_BIDIRECTIONAL_95,
-): number {
-  return z * Math.SQRT2 * Math.sqrt(cvaPct * cvaPct + cviPct * cviPct);
+): ReferenceChangeValue {
+  const cva = cvaPct / 100;
+  const cvi = cviPct / 100;
+  const sigmaLn = Math.SQRT2 * Math.sqrt(Math.log(1 + cva * cva) + Math.log(1 + cvi * cvi));
+  return {
+    upPct: (Math.exp(z * sigmaLn) - 1) * 100,
+    downPct: (1 - Math.exp(-z * sigmaLn)) * 100,
+  };
 }
 
 /**
- * RCV% for a biomarker join key, or null when we have no biological-variation
+ * RCV for a biomarker join key, or null when we have no biological-variation
  * data for it (caller then falls back to plain range-relative classification).
  */
-export function getReferenceChangeValuePct(
+export function getReferenceChangeValue(
   markerKey: string,
   z: number = RCV_Z_BIDIRECTIONAL_95,
-): number | null {
+): ReferenceChangeValue | null {
   const bv = BIOLOGICAL_VARIATION[markerKey.toLowerCase()];
   if (!bv) return null;
-  return referenceChangeValuePct(bv.cvaPct, bv.cviPct, z);
+  return referenceChangeValue(bv.cvaPct, bv.cviPct, z);
 }
 
 /**
- * Whether the change from `before` to `after` exceeds the reference change
- * value — i.e. is distinguishable from analytical + biological noise.
- * `rcvPct` is a percentage of `before`. When `before` is 0 or non-finite the
- * percentage is undefined, so we return `true` (can't assess ⇒ don't suppress a
- * real move).
+ * Whether the change from `before` to `after` exceeds the direction-appropriate
+ * reference change value — i.e. is distinguishable from analytical + biological
+ * noise. When `before` is 0 or non-finite the percentage is undefined, so we
+ * return `true` (can't assess ⇒ don't suppress a real move). A flat move
+ * (after == before) never exceeds.
  */
 export function exceedsReferenceChangeValue(
   before: number,
   after: number,
-  rcvPct: number,
+  rcv: ReferenceChangeValue,
 ): boolean {
   if (!Number.isFinite(before) || before === 0) return true;
-  const observedPct = Math.abs((after - before) / before) * 100;
-  return observedPct > rcvPct;
+  const changePct = ((after - before) / before) * 100;
+  if (changePct > 0) return changePct > rcv.upPct;
+  if (changePct < 0) return -changePct > rcv.downPct;
+  return false;
 }

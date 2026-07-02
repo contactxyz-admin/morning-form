@@ -16,6 +16,7 @@
  */
 
 import { exceedsReferenceChangeValue } from './biological-variation';
+import type { ReferenceChangeValue } from './biological-variation';
 
 export type ChangeDirection = 'up' | 'down' | 'flat';
 export type ChangeClassification =
@@ -43,11 +44,12 @@ export function classifyChange(
   low: number | null,
   high: number | null,
   /**
-   * Optional Reference Change Value (% of `before`). When supplied and the move
-   * is within it, the change is analytically/biologically indistinguishable
-   * from noise and is reported as `stable` — see `biological-variation.ts`.
+   * Optional Reference Change Value (direction-specific rise/fall limits). When
+   * supplied and the move is within it, the change is analytically/biologically
+   * indistinguishable from noise and is reported as `stable` — see
+   * `biological-variation.ts`.
    */
-  rcvPct?: number | null,
+  rcv?: ReferenceChangeValue | null,
 ): { direction: ChangeDirection; classification: ChangeClassification } {
   const direction: ChangeDirection = after > before ? 'up' : after < before ? 'down' : 'flat';
   if (low == null && high == null) {
@@ -55,7 +57,7 @@ export function classifyChange(
   }
   // Noise gate: a sub-RCV move is not a real change, so it is neither improved
   // nor worsened — regardless of which way it nudged relative to the range.
-  if (rcvPct != null && !exceedsReferenceChangeValue(before, after, rcvPct)) {
+  if (rcv != null && !exceedsReferenceChangeValue(before, after, rcv)) {
     return { direction, classification: 'stable' };
   }
   const dBefore = distanceToRange(before, low, high);
