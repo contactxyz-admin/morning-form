@@ -33,6 +33,10 @@ now retrievable.
 - All target `VectorEmbedding` rows are 1536-d and backfilled (see Step 3).
 - Neon note: run the one-time SQL per project (UK + US replicas), as the
   migration header states.
+- Test envs too: once the schema column is `Unsupported("vector(1536)")`, the
+  vitest global-setup's `prisma db push` fails on any Postgres without pgvector
+  — install the extension on local dev and CI test databases before merging the
+  schema change.
 
 ## Steps
 
