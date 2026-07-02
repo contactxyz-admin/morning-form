@@ -20,6 +20,11 @@
  */
 import { z } from 'zod';
 import { getTopicConfig } from '@/lib/topics/registry';
+import {
+  resolveDemographicRange,
+  normalizeSexAtBirth,
+  ageFromBirthYear,
+} from '@/lib/markers/demographic-ranges';
 import type { ToolContext, ToolHandler } from './types';
 
 export const compareToReferenceRangeSchema = z.object({
@@ -35,6 +40,14 @@ export type ReferenceClassification =
   | 'insufficient-data'
   | 'not-found';
 
+/**
+ * Which range the classification used:
+ *  - `demographic`: a sex/age-specific band (A6) — see `rangeCitation`;
+ *  - `captured`: the reference range captured at ingest (lab's own or registry);
+ *  - `none`: no range available (→ `insufficient-data`).
+ */
+export type ReferenceRangeSource = 'demographic' | 'captured' | 'none';
+
 export interface CompareToReferenceRangeResult {
   canonicalKey: string;
   found: boolean;
@@ -43,6 +56,10 @@ export interface CompareToReferenceRangeResult {
   value: number | null;
   unit: string | null;
   range: { low: number | null; high: number | null } | null;
+  /** Which band produced `classification` (so the scribe can be transparent). */
+  rangeSource: ReferenceRangeSource;
+  /** Citation for a demographic band (e.g. "Travison 2017 …"); null otherwise. */
+  rangeCitation: string | null;
 }
 
 function toNumberOrNull(v: unknown): number | null {
@@ -88,6 +105,8 @@ export const compareToReferenceRangeHandler: ToolHandler<
         value: null,
         unit: null,
         range: null,
+        rangeSource: 'none',
+        rangeCitation: null,
       };
     }
 
@@ -110,6 +129,8 @@ export const compareToReferenceRangeHandler: ToolHandler<
         value: null,
         unit: null,
         range: null,
+        rangeSource: 'none',
+        rangeCitation: null,
       };
     }
 
@@ -126,9 +147,30 @@ export const compareToReferenceRangeHandler: ToolHandler<
     }
 
     const value = toNumberOrNull(attrs.latestValue);
-    const low = toNumberOrNull(attrs.referenceRangeLow);
-    const high = toNumberOrNull(attrs.referenceRangeHigh);
+    const capturedLow = toNumberOrNull(attrs.referenceRangeLow);
+    const capturedHigh = toNumberOrNull(attrs.referenceRangeHigh);
     const unit = typeof attrs.unit === 'string' ? attrs.unit : null;
+
+    // Prefer a sex/age-specific band (A6) when we have one for this marker + the
+    // user's demographics AND the stored unit matches the band's unit. A unit
+    // mismatch (e.g. testosterone stored in ng/dL vs a nmol/L band) would
+    // misclassify, so we fall back to the captured range in that case.
+    const demographic = resolveDemographicRange(canonicalKey, {
+      sexAtBirth: normalizeSexAtBirth(ctx.sexAtBirth),
+      ageYears: ageFromBirthYear(ctx.birthYear, new Date().getUTCFullYear()),
+    });
+    const useDemographic =
+      demographic !== null &&
+      unit !== null &&
+      unit.toLowerCase() === demographic.unit.toLowerCase();
+
+    const low = useDemographic ? demographic!.low : capturedLow;
+    const high = useDemographic ? demographic!.high : capturedHigh;
+    const rangeSource: ReferenceRangeSource = useDemographic
+      ? 'demographic'
+      : low === null && high === null
+        ? 'none'
+        : 'captured';
 
     return {
       canonicalKey,
@@ -138,6 +180,8 @@ export const compareToReferenceRangeHandler: ToolHandler<
       value,
       unit,
       range: low === null && high === null ? null : { low, high },
+      rangeSource,
+      rangeCitation: useDemographic ? demographic!.source : null,
     };
   },
 };

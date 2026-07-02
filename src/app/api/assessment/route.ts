@@ -58,6 +58,25 @@ export async function POST(request: Request) {
         create: { userId: user.id, responses: JSON.stringify(responses) },
       });
 
+      // Persist demographics onto the User row so they're queryable for
+      // demographic-aware reference ranges (A6). `undefined` leaves a column
+      // untouched; an explicit "prefer not to say" clears the stored sex.
+      const rawSex = responses['sex_at_birth'];
+      const rawBirthYear = responses['birth_year'];
+      let sexAtBirth: string | null | undefined;
+      if (rawSex === 'male' || rawSex === 'female') sexAtBirth = rawSex;
+      else if (rawSex === 'prefer_not') sexAtBirth = null;
+      else sexAtBirth = undefined;
+      let birthYear: number | undefined;
+      if (typeof rawBirthYear === 'string' && /^\d{4}$/.test(rawBirthYear.trim())) {
+        const y = Number(rawBirthYear.trim());
+        const nowYear = new Date().getUTCFullYear();
+        birthYear = y >= 1900 && y <= nowYear ? y : undefined;
+      }
+      if (sexAtBirth !== undefined || birthYear !== undefined) {
+        await tx.user.update({ where: { id: user.id }, data: { sexAtBirth, birthYear } });
+      }
+
       await tx.stateProfile.upsert({
         where: { userId: user.id },
         update: {

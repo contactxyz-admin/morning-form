@@ -39,6 +39,16 @@ export interface ToolContext {
    * parent turn also stops the child loop. Most handlers ignore it.
    */
   readonly signal?: AbortSignal;
+  /**
+   * Captured demographic context for demographic-aware reference ranges (A6).
+   * Raw stored values from the User row (sex-at-birth is free-form; birth year
+   * is a plain year); `compare_to_reference_range` normalises them and picks a
+   * sex/age-appropriate band. Optional — absent on paths that don't load
+   * demographics, or for users who haven't provided them, in which case the
+   * tool falls back to the lab's captured reference range.
+   */
+  readonly sexAtBirth?: string | null;
+  readonly birthYear?: number | null;
 }
 
 export interface ToolHandler<Args, Result> {

@@ -177,6 +177,14 @@ export interface ScribeExecuteRequest {
    * (which never set it) can never invoke or persist suggested actions.
    */
   enableProposeNextSteps?: boolean;
+  /**
+   * Captured demographics for demographic-aware reference ranges (A6), passed
+   * straight onto the tool context. Set by `turn.ts` (loaded once per turn) and
+   * forwarded to referral children; omitted by compile/explain. Absent → tools
+   * fall back to captured reference ranges.
+   */
+  sexAtBirth?: string | null;
+  birthYear?: number | null;
 }
 
 export interface ScribeExecuteResult {
@@ -237,6 +245,8 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     topicKey: req.topicKey,
     requestId,
     signal: req.signal,
+    sexAtBirth: req.sexAtBirth,
+    birthYear: req.birthYear,
   };
   const system = buildSystemPrompt(policy, req.systemPrompt);
   // propose_next_steps is gated: unless this invocation explicitly enables it
