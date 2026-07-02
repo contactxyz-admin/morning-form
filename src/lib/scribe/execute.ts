@@ -432,8 +432,16 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
     // only ever DOWNGRADES; and only when retrieval actually returned results
     // (a turn that made no search isn't penalised). Runs before recordAudit so
     // the audit row reflects the enforced verdict (D11).
+    // Scope to TOP-LEVEL RUNTIME answers (chat + explain). Compile passes
+    // (mode 'compile') and referral children (parentRequestId set) also run
+    // through execute(), but gating them is wrong: a downgraded compile would
+    // mislabel its audit row, and a downgraded referral child is surfaced RAW
+    // by refer-to-specialist (which only withholds on 'rejected'), so the
+    // suppression wouldn't actually hold on that path.
+    const isTopLevelRuntime = req.mode === 'runtime' && req.parentRequestId == null;
     const groundingSummary = summarizeGrounding(groundingScores);
     if (
+      isTopLevelRuntime &&
       classification === 'clinical-safe' &&
       isGroundingGateEnabled() &&
       groundingSummary.total > 0 &&
@@ -447,6 +455,7 @@ export async function execute(req: ScribeExecuteRequest): Promise<ScribeExecuteR
         floor: getGroundingFloor(),
         total: groundingSummary.total,
         grounded: groundingSummary.grounded,
+        retrievals: groundingSummary.retrievals,
       });
     }
   } catch (err) {

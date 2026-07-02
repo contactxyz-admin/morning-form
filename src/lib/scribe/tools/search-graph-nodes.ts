@@ -70,15 +70,17 @@ export const searchGraphNodesHandler: ToolHandler<
             limit: limit + 1,
             requireQueryArmMatch: true,
           });
-          ctx.groundingSink?.(
-            logHybridRetrievalGroundingScore({
-              userId: ctx.userId,
-              topicKey: ctx.topicKey,
-              toolName: 'search_graph_nodes',
-              query: args.query,
-              results: hybrid.slice(0, limit),
-            }),
-          );
+          // Log unconditionally (compute first); only the sink push is optional,
+          // so an absent groundingSink (e.g. the MCP path) can't short-circuit
+          // the metric log via optional-call argument elision.
+          const metric = logHybridRetrievalGroundingScore({
+            userId: ctx.userId,
+            topicKey: ctx.topicKey,
+            toolName: 'search_graph_nodes',
+            query: args.query,
+            results: hybrid.slice(0, limit),
+          });
+          ctx.groundingSink?.(metric);
           loggedGroundingMetric = true;
           if (hybrid.length > 0) {
             const truncated = hybrid.length > limit;
@@ -95,15 +97,14 @@ export const searchGraphNodesHandler: ToolHandler<
         }
       }
       if (!loggedGroundingMetric) {
-        ctx.groundingSink?.(
-          logHybridRetrievalGroundingScore({
-            userId: ctx.userId,
-            topicKey: ctx.topicKey,
-            toolName: 'search_graph_nodes',
-            query: args.query,
-            results: [],
-          }),
-        );
+        const metric = logHybridRetrievalGroundingScore({
+          userId: ctx.userId,
+          topicKey: ctx.topicKey,
+          toolName: 'search_graph_nodes',
+          query: args.query,
+          results: [],
+        });
+        ctx.groundingSink?.(metric);
       }
     }
 

@@ -28,9 +28,10 @@ export interface GroundingSummary {
 
 /**
  * Aggregate per-retrieval grounding scores into one turn-level summary.
- * `score` is pooled (Σgrounded / Σtotal), so a turn with one large well-grounded
- * retrieval isn't outweighed by a tiny ungrounded one. `retrievals` counts only
- * calls that returned results, so an empty search doesn't dilute the ratio.
+ * `score` is POOLED (Σgrounded / Σtotal) — that pooling is what keeps an empty
+ * search from diluting the ratio (0/0 contributes nothing). `retrievals` is a
+ * separate observability count of calls that returned results (surfaced in the
+ * gate log), not part of the score math.
  */
 export function summarizeGrounding(
   scores: readonly HybridRetrievalGroundingScore[],

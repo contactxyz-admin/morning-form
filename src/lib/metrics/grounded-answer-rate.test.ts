@@ -60,4 +60,22 @@ describe('grounded-answer-rate benchmark (golden corpus)', () => {
     }));
     expect(computeGroundedAnswerRate(regressed, { floor: 0.5 }).rate).toBeLessThan(CI_FLOOR);
   });
+
+  // Pin the actual sensitivity boundary: 6 cases at an 0.8 floor tolerates ONE
+  // ungrounded query (5/6 = 0.833 ≥ 0.8) but not TWO (4/6 = 0.667 < 0.8).
+  const ungroundCase = (
+    cases: GroundedAnswerCase[],
+    i: number,
+  ): GroundedAnswerCase[] =>
+    cases.map((c, idx) => (idx === i ? { ...c, results: [{ sources: [ungrounded()] }] } : c));
+
+  it('tolerates one ungrounded query but not two (at the 0.8 floor)', () => {
+    const one = ungroundCase(GOLDEN, 0);
+    expect(computeGroundedAnswerRate(one, { floor: 0.5 }).rate).toBeCloseTo(5 / 6, 5);
+    expect(computeGroundedAnswerRate(one, { floor: 0.5 }).rate).toBeGreaterThanOrEqual(CI_FLOOR);
+
+    const two = ungroundCase(ungroundCase(GOLDEN, 0), 1);
+    expect(computeGroundedAnswerRate(two, { floor: 0.5 }).rate).toBeCloseTo(4 / 6, 5);
+    expect(computeGroundedAnswerRate(two, { floor: 0.5 }).rate).toBeLessThan(CI_FLOOR);
+  });
 });
