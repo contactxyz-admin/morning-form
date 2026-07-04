@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LogoLockup } from '@/components/brand/logo-lockup';
 import { CtaBlock } from './cta-block';
 import { HeroBlock } from './hero-block';
 import { FaqBlock } from './faq-block';
@@ -31,9 +32,9 @@ export function PageTemplate({ page }: PageTemplateProps) {
         <Link
           href={`/${page.market}`}
           aria-label="Morning Form — home"
-          className="font-display font-light text-subheading -tracking-[0.02em] text-text-primary"
+          className="text-text-primary"
         >
-          Morning Form
+          <LogoLockup />
         </Link>
         <nav className="hidden sm:flex items-center gap-6">
           <Link href={`/${page.market}`} className={NAV_LINK_CLASS}>Home</Link>
@@ -102,14 +103,15 @@ export function PageTemplate({ page }: PageTemplateProps) {
       </section>
       </main>
 
-      {/* Footer — text-only wordmark, mono-uppercase nav. */}
+      {/* Footer — brand lockup, mono-uppercase nav. */}
       <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
           <Link
             href={`/${page.market}`}
-            className="font-display font-light text-heading -tracking-[0.02em] text-text-primary"
+            aria-label="Morning Form — home"
+            className="text-text-primary"
           >
-            Morning Form
+            <LogoLockup imageClassName="w-[188px]" textClassName="text-heading" />
           </Link>
           <div className="flex flex-col gap-3 sm:items-end">
             <div className="flex flex-wrap gap-7">

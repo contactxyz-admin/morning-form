@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { LogoLockup } from '@/components/brand/logo-lockup';
 import { FaqBlock } from '@/components/marketing/faq-block';
 import { RecordPreview } from '@/components/marketing/record-preview';
 import { TestingVisual } from '@/components/marketing/testing-visual';
@@ -142,15 +143,15 @@ export default function TestingPage({ params }: TestingPageProps) {
       />
       <FaqPage entries={TESTING_FAQ.entries} />
 
-      {/* Header — text-only wordmark + mono-uppercase tabs, matching the
+      {/* Header — brand lockup + mono-uppercase tabs, matching the
           market homepage. */}
       <header className="px-6 sm:px-10 lg:px-16 pt-7 pb-4 flex items-center justify-between max-w-[1400px] mx-auto">
         <Link
           href={`/${market}`}
           aria-label="Morning Form — home"
-          className="font-display font-light text-subheading -tracking-[0.02em] text-text-primary"
+          className="text-text-primary"
         >
-          Morning Form
+          <LogoLockup />
         </Link>
         <nav className="hidden sm:flex items-center gap-6">
           <Link href="#ways" className={NAV_LINK_CLASS}>Two ways to test</Link>
@@ -449,14 +450,15 @@ export default function TestingPage({ params }: TestingPageProps) {
         </section>
       </main>
 
-      {/* Footer — text-only wordmark, mono-uppercase nav. */}
+      {/* Footer — brand lockup, mono-uppercase nav. */}
       <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
           <Link
             href={`/${market}`}
-            className="font-display font-light text-heading -tracking-[0.02em] text-text-primary"
+            aria-label="Morning Form — home"
+            className="text-text-primary"
           >
-            Morning Form
+            <LogoLockup imageClassName="w-[188px]" textClassName="text-heading" />
           </Link>
           <div className="flex flex-col gap-3 sm:items-end">
             <div className="flex flex-wrap gap-7">
