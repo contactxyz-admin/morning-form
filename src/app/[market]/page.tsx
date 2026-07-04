@@ -30,6 +30,8 @@ interface MarketHomeProps {
   params: { market: string };
 }
 
+// Testing lives per-market (src/app/[market]/testing), so the nav is
+// built inside the component where `market` is in scope.
 const NAV_LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: 'How it works', href: '#how' },
   { label: "What's inside", href: '#inside' },
@@ -67,7 +69,7 @@ export default function LandingPage({ params }: MarketHomeProps) {
           Morning Form
         </Link>
         <nav className="hidden sm:flex items-center gap-6">
-          {NAV_LINKS.map((t) => (
+          {[{ label: 'Testing', href: `/${market}/testing` }, ...NAV_LINKS].map((t) => (
             <Link key={t.href} href={t.href} className={NAV_LINK_CLASS}>
               {t.label}
             </Link>
