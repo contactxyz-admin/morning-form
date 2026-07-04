@@ -18,10 +18,10 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { prisma } from '@/lib/db';
 import { isStaff } from '@/lib/ops/config';
-import { OPS_STATUS_VALUES, type OpsStatus } from '@/lib/ops/schema';
+import { OPS_STATUS_VALUES, OpsOwnerEmailSchema, type OpsStatus } from '@/lib/ops/schema';
 import { writeOpsAudit } from '@/lib/ops/audit';
 import { notifyDelegation } from '@/lib/ops/notify';
-import { assignTask } from '@/lib/ops/assign';
+import { assignTask, applyOwnerAwareUpdate } from '@/lib/ops/assign';
 
 export interface RegisterOpsToolsInput {
   server: McpServer;
@@ -39,7 +39,7 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
     {
       board: z.string().optional(),
       status: z.enum(OPS_STATUS_VALUES).optional(),
-      ownerEmail: z.string().email().optional(),
+      ownerEmail: OpsOwnerEmailSchema.optional(),
     },
     async (rawArgs) => {
       const args = rawArgs as { board?: string; status?: OpsStatus; ownerEmail?: string };
@@ -65,7 +65,7 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
       title: z.string().min(1),
       detail: z.string().optional(),
       phase: z.string().optional(),
-      ownerEmail: z.string().email().nullish(),
+      ownerEmail: OpsOwnerEmailSchema.nullish(),
       dueDate: z.coerce.date().nullish(),
     },
     async (rawArgs) => {
@@ -109,7 +109,7 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
     'Assign (or reassign, or unassign with ownerEmail=null) an existing ops task to a MorningForm staff member. Notifies the new owner exactly once per real change.',
     {
       taskId: z.string().min(1),
-      ownerEmail: z.string().email().nullable(),
+      ownerEmail: OpsOwnerEmailSchema.nullable(),
     },
     async (rawArgs) => {
       const args = rawArgs as { taskId: string; ownerEmail: string | null };
@@ -146,10 +146,9 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
         detail?: string;
         dueDate?: Date | null;
       };
-      const existing = await prisma.companyOpsTask.findUnique({ where: { id: taskId } });
-      if (!existing) throw new Error('Task not found.');
-      const task = await prisma.companyOpsTask.update({ where: { id: taskId }, data: rest });
-      return { task };
+      const result = await applyOwnerAwareUpdate(prisma, { taskId, data: rest, actorEmail: founderEmail });
+      if (!result) throw new Error('Task not found.');
+      return { task: result.task };
     },
   );
 }

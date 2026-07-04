@@ -60,7 +60,11 @@ export default async function OpsPage() {
           Owner + status on every line — this is the shared, live board. Changing Owner notifies the assignee by
           email (and Slack, if configured).
         </p>
-        <OpsBoardClient initialTasks={tasks.map(serializeTask)} members={members()} />
+        <OpsBoardClient
+          initialTasks={tasks.map(serializeTask)}
+          // Strip slackId — it's server-side notify routing, not client UI state.
+          members={members().map(({ email, name }) => ({ email, name }))}
+        />
       </main>
       <div className={styles.savebar}>
         Shared board — every edit here is saved to Postgres and visible to the other founders on refresh.

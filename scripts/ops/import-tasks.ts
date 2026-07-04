@@ -65,11 +65,36 @@ function validateRow(row: unknown, index: number): ImportRow {
     phase: typeof r.phase === 'string' ? r.phase : undefined,
     title: r.title,
     detail: typeof r.detail === 'string' ? r.detail : undefined,
-    ownerEmail: typeof r.ownerEmail === 'string' ? r.ownerEmail : null,
+    // Lowercased to match the REST/MCP write paths (src/lib/ops/schema.ts) —
+    // keeps ownerEmail comparisons (the notify idempotency check) consistent
+    // regardless of which surface wrote the row.
+    ownerEmail: typeof r.ownerEmail === 'string' ? r.ownerEmail.toLowerCase() : null,
     status: typeof r.status === 'string' ? r.status : undefined,
     dueDate: typeof r.dueDate === 'string' ? r.dueDate : null,
     orderIndex: typeof r.orderIndex === 'number' ? r.orderIndex : undefined,
   };
+}
+
+/**
+ * Every REST/MCP write path validates ownerEmail against
+ * COMPANY_OPS_ALLOWLIST before persisting; this bulk importer warns instead
+ * of blocking (you're feeding it your own backlog file, and the allowlist
+ * may not be finalized yet), but the inconsistency is worth flagging loudly.
+ */
+function warnOnUnknownOwners(rows: ImportRow[]): void {
+  const allowlist = new Set(
+    (process.env.COMPANY_OPS_ALLOWLIST ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  if (allowlist.size === 0) return; // not configured locally — nothing to check against
+  const unknown = new Set(rows.map((r) => r.ownerEmail).filter((e): e is string => !!e && !allowlist.has(e)));
+  if (unknown.size > 0) {
+    console.warn(
+      `[import-tasks] warning: these ownerEmail values are not in COMPANY_OPS_ALLOWLIST: ${Array.from(unknown).join(', ')}`,
+    );
+  }
 }
 
 async function main(): Promise<void> {
@@ -91,6 +116,7 @@ async function main(): Promise<void> {
   }
 
   const rows = parsed.map((row, i) => validateRow(row, i));
+  warnOnUnknownOwners(rows);
 
   const prisma = new PrismaClient();
   try {

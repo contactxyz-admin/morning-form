@@ -108,6 +108,28 @@ describe('assignTask', () => {
     });
     expect(result).toBeNull();
   });
+
+  it('two concurrent assignments of the same null -> email transition notify exactly once (race safety)', async () => {
+    const task = await makeTask({ ownerEmail: null });
+
+    const [a, b] = await Promise.all([
+      assignTask(prisma, { taskId: task.id, newOwnerEmail: 'joe@contact.xyz', actorEmail: 'reuben@contact.xyz' }),
+      assignTask(prisma, { taskId: task.id, newOwnerEmail: 'joe@contact.xyz', actorEmail: 'reuben@contact.xyz' }),
+    ]);
+
+    // Exactly one of the two racing requests won the compare-and-swap.
+    const notifiedCount = [a?.notified, b?.notified].filter(Boolean).length;
+    expect(notifiedCount).toBe(1);
+    expect(notifyMock).toHaveBeenCalledTimes(1);
+
+    const audits = await prisma.companyOpsAudit.findMany({
+      where: { taskId: task.id, action: 'task.assign' },
+    });
+    expect(audits).toHaveLength(1);
+
+    const finalTask = await prisma.companyOpsTask.findUnique({ where: { id: task.id } });
+    expect(finalTask?.ownerEmail).toBe('joe@contact.xyz');
+  });
 });
 
 describe('maybeNotifyAssignment', () => {

@@ -185,6 +185,22 @@ describe('PATCH /api/ops/task/[id]', () => {
     expect(assignAudits).toHaveLength(0);
   });
 
+  it('reassigning to the same owner with different casing does not notify', async () => {
+    currentUserMock.mockResolvedValue({ id: 'u1', email: 'reuben@contact.xyz' });
+    const task = await makeTask({ ownerEmail: 'joe@contact.xyz' });
+
+    const { req, ctx } = patchReq(task.id, { ownerEmail: 'JOE@CONTACT.XYZ' });
+    const res = await PATCH(req, ctx);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { task: { ownerEmail: string | null } };
+    expect(body.task.ownerEmail).toBe('joe@contact.xyz');
+
+    const assignAudits = await prisma.companyOpsAudit.findMany({
+      where: { taskId: task.id, action: 'task.assign' },
+    });
+    expect(assignAudits).toHaveLength(0);
+  });
+
   it('unassigning (ownerEmail: null) does not notify', async () => {
     currentUserMock.mockResolvedValue({ id: 'u1', email: 'reuben@contact.xyz' });
     const task = await makeTask({ ownerEmail: 'joe@contact.xyz' });
@@ -242,5 +258,17 @@ describe('DELETE /api/ops/task/[id]', () => {
       where: { taskId: task.id, action: 'task.delete' },
     });
     expect(audits).toHaveLength(1);
+  });
+
+  it('two concurrent deletes of the same task: one 200, one 404 — never a raw 500', async () => {
+    currentUserMock.mockResolvedValue({ id: 'u1', email: 'reuben@contact.xyz' });
+    const task = await makeTask();
+
+    const a = deleteReq(task.id);
+    const b = deleteReq(task.id);
+    const [resA, resB] = await Promise.all([DELETE(a.req, a.ctx), DELETE(b.req, b.ctx)]);
+
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses).toEqual([200, 404]);
   });
 });
