@@ -37,6 +37,7 @@ export function PageTemplate({ page }: PageTemplateProps) {
         </Link>
         <nav className="hidden sm:flex items-center gap-6">
           <Link href={`/${page.market}`} className={NAV_LINK_CLASS}>Home</Link>
+          <Link href={`/${page.market}/testing`} className={NAV_LINK_CLASS}>Testing</Link>
           <Link href="/demo" className={NAV_LINK_CLASS}>Live demo</Link>
           <Link href="/sign-in" className={NAV_LINK_CLASS}>Sign in</Link>
         </nav>

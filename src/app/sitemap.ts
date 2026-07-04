@@ -30,6 +30,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
+  // Testing product page — a bespoke route (src/app/[market]/testing),
+  // not a registry page, so it is listed explicitly per market.
+  const testingPages: MetadataRoute.Sitemap = MARKETS.map((market) => ({
+    url: buildCanonicalUrl(market, 'testing'),
+    lastModified: new Date(),
+    changeFrequency: 'weekly',
+    priority: 0.9,
+  }));
+
   // Market-neutral trust pages (src/app/(info)/*) — linked from every
   // marketing footer; indexed deliberately, unlike the noindex /demo.
   const infoPages: MetadataRoute.Sitemap = ['/privacy', '/safety', '/contact'].map((path) => ({
@@ -39,5 +48,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.3,
   }));
 
-  return [...homepages, ...anchorPages, ...infoPages];
+  return [...homepages, ...testingPages, ...anchorPages, ...infoPages];
 }
