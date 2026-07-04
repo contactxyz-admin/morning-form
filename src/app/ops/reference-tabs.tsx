@@ -14,6 +14,34 @@ const BAR_CLASS: Record<string, string> = {
   gold: styles.barGold,
 };
 
+// Buckets the varied free-text status vocabulary across the reference tabs
+// (decision log, contacts/outreach) into the same 4-tone system the live
+// Workstream tab already uses, so "status" reads consistently everywhere.
+const PILL_TONE: Record<string, string> = {
+  Done: styles.pillGreen,
+  Decided: styles.pillGreen,
+  Verified: styles.pillGreen,
+  Connected: styles.pillGreen,
+  Confirmed: styles.pillGreen,
+  Replied: styles.pillGreen,
+  Open: styles.pillPeach,
+  'In progress': styles.pillPeach,
+  Sent: styles.pillPeach,
+  'Draft sent': styles.pillPeach,
+  'Draft ready': styles.pillPeach,
+  'Call booked': styles.pillPeach,
+  Blocked: styles.pillRed,
+  Bounced: styles.pillRed,
+  Declined: styles.pillRed,
+  'Not started': styles.pillGrey,
+  Parked: styles.pillGrey,
+  Deferred: styles.pillGrey,
+};
+
+function StatusPill({ value }: { value: string }) {
+  return <span className={`${styles.pill} ${PILL_TONE[value] ?? styles.pillGrey}`}>{value}</span>;
+}
+
 export function StartHereTab() {
   return (
     <>
@@ -29,11 +57,11 @@ export function StartHereTab() {
       </div>
       <div className={styles.card}>
         <p className={styles.kick}>This Week&rsquo;s 3</p>
-        <ul className={styles.list}>
+        <ol className={styles.list}>
           {PILOT_PLAN.week3.map((w) => (
             <li key={w}>{w}</li>
           ))}
-        </ul>
+        </ol>
       </div>
       <div className={styles.card}>
         <p className={styles.kick}>Operating Rhythm</p>
@@ -261,21 +289,22 @@ export function FunnelTab() {
   return (
     <>
       <h2 className={styles.h2}>Pilot Funnel</h2>
-      <p className={styles.sub}>The funnel this pilot needs to prove out. Fill actuals once the pilot is running.</p>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th className={styles.th}>Funnel stage</th>
-          </tr>
-        </thead>
-        <tbody>
-          {PILOT_PLAN.funnel.map((s, i) => (
-            <tr key={s} className={i % 2 === 1 ? styles.trEven : undefined}>
-              <td className={styles.td}>{s}</td>
-            </tr>
+      <p className={styles.sub}>The funnel this pilot needs to prove out, in order.</p>
+      <div className={styles.card}>
+        <div className={styles.funnelFlow}>
+          {PILOT_PLAN.funnel.map((stage, i) => (
+            <div className={styles.funnelStep} key={stage}>
+              <span className={styles.funnelIndex}>{i + 1}</span>
+              <span>{stage}</span>
+              {i < PILOT_PLAN.funnel.length - 1 && (
+                <span className={styles.funnelArrow} aria-hidden="true">
+                  →
+                </span>
+              )}
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      </div>
     </>
   );
 }
@@ -300,7 +329,9 @@ export function DecisionsTab() {
               <td className={styles.td}>{name}</td>
               <td className={`${styles.td} ${styles.note}`}>{options}</td>
               <td className={styles.td}>{rationale}</td>
-              <td className={styles.td}>{status}</td>
+              <td className={styles.td}>
+                <StatusPill value={status ?? 'Open'} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -382,7 +413,9 @@ export function ContactsTab() {
               </td>
               <td className={`${styles.td} ${styles.note}`}>{contact}</td>
               <td className={styles.td}>{type}</td>
-              <td className={styles.td}>{status}</td>
+              <td className={styles.td}>
+                <StatusPill value={status} />
+              </td>
               <td className={`${styles.td} ${styles.note}`}>{next}</td>
             </tr>
           ))}

@@ -44,14 +44,15 @@ export default async function OpsPage({ searchParams }: { searchParams: { tab?: 
     <div className={styles.opsRoot}>
       <header className={styles.header}>
         {/* eslint-disable-next-line @next/next/no-img-element -- fixed static asset, next/image adds no value here */}
-        <img className={styles.logo} alt="MorningForm" src="/brand/ops-logo.png" />
-        <span className={styles.headerTitle}>MorningForm — Pilot Ops</span>
+        <img className={styles.logo} alt="Morning Form" src="/brand/morningform-horizontal-lockup-white.svg" />
+        <span className={styles.headerTitle}>Pilot Ops</span>
         <span className={styles.headerSub}>Shared Company Ops Board · signed in as {user.email}</span>
       </header>
       <nav className={styles.nav}>
         <a href="?" className={`${styles.navLink} ${!activeTab ? styles.navLinkOn : ''}`}>
           Workstream
         </a>
+        <span className={styles.navDivider} aria-hidden="true" />
         {REFERENCE_TABS.map(({ key, label }) => (
           <a
             key={key}

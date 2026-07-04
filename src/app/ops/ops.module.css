@@ -220,6 +220,12 @@
   color: #fff;
   border-color: var(--ink);
 }
+.navDivider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+  margin: 2px 4px;
+}
 
 .card {
   background: #fff;
@@ -245,13 +251,71 @@
   font-size: 12px;
 }
 .list {
-  margin: 4px 0 0 18px;
+  margin: 6px 0 0 20px;
 }
 .list li {
-  margin: 3px 0;
+  margin: 4px 0;
+  padding-left: 2px;
+}
+/* Tailwind's global preflight resets list-style on every ul/ol in the app;
+   restore it explicitly here rather than fighting it per-usage. */
+ul.list {
+  list-style: disc;
+}
+ol.list {
+  list-style: decimal;
+  font-variant-numeric: tabular-nums;
 }
 .dim {
   color: var(--grey);
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+.pillGreen {
+  background: #d9e5cd;
+}
+.pillPeach {
+  background: #fbe4cc;
+}
+.pillRed {
+  background: #f3cbc6;
+}
+.pillGrey {
+  background: #eceae4;
+}
+
+.funnelFlow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.funnelStep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.funnelIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.funnelArrow {
+  color: var(--grey);
+  font-size: 15px;
 }
 .rhythmRow {
   margin: 6px 0;
