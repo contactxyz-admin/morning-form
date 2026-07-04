@@ -1,0 +1,203 @@
+/* Visual system ported from the public pilot-ops gist's <style> block, scoped
+   to .opsRoot instead of :root so it never leaks into the rest of the app. */
+.opsRoot {
+  --ink: #1a1818;
+  --off: #f5f4f0;
+  --coral: #de815c;
+  --sage: #6f8a57;
+  --gold: #c39a3e;
+  --grey: #8c877e;
+  --line: #e5e2db;
+  background: var(--off);
+  color: var(--ink);
+  font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  min-height: 100vh;
+}
+
+.header {
+  background: var(--ink);
+  color: #f5f4f0;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.headerTitle {
+  font-size: 17px;
+  letter-spacing: 0.3px;
+  font-weight: 700;
+}
+.logo {
+  height: 24px;
+  display: block;
+}
+.headerSub {
+  color: #a8a196;
+  font-size: 12px;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.navBtn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: default;
+  font-size: 13px;
+}
+.navBtnOn {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.main {
+  padding: 18px 20px 60px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.h2 {
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+.sub {
+  color: var(--grey);
+  font-size: 12.5px;
+  margin: 0 0 16px;
+}
+.error {
+  color: #a3392f;
+  font-size: 12.5px;
+  margin: 0 0 10px;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.th {
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  text-align: left;
+  padding: 8px 10px;
+  font-weight: 600;
+}
+.td {
+  border-top: 1px solid var(--line);
+  padding: 7px 10px;
+  vertical-align: top;
+  font-size: 13px;
+}
+.trEven td {
+  background: #fbfbfa;
+}
+.phaseRow {
+  background: var(--off);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.statusSelect {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.statusNotStarted {
+  background: #eceae4;
+}
+.statusInProgress {
+  background: #fbe4cc;
+}
+.statusBlocked {
+  background: #f3cbc6;
+}
+.statusDone {
+  background: #d9e5cd;
+}
+
+.ownerSelect,
+.inputCell {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 7px;
+  font-size: 13px;
+  width: 100%;
+  font-family: inherit;
+  background: #fff;
+  color: var(--ink);
+}
+
+.deleteBtn {
+  border: none;
+  background: none;
+  color: var(--grey);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+}
+.deleteBtn:hover {
+  color: #a3392f;
+}
+
+.addRow {
+  padding: 14px 0 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.addInput {
+  max-width: 320px;
+}
+.addBtn {
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.savebar {
+  font-size: 11px;
+  color: var(--grey);
+  padding: 10px 20px;
+  background: #fff;
+  border-top: 1px solid var(--line);
+}
+
+.restricted {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: var(--grey);
+  font-size: 14px;
+  text-align: center;
+  padding: 0 20px;
+}

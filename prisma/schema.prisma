@@ -956,3 +956,37 @@ model AccountDeletionTombstone {
 
   @@index([emailHash])
 }
+
+// Company Ops Board (build brief 2026-07-04). Standalone island for the 3
+// founders' shared pilot-ops task board — deliberately FK-less, same posture
+// as AccountDeletionTombstone above: never reachable from per-user health
+// models, the GDPR export/delete paths, or the health scribe/MCP tools.
+model CompanyOpsTask {
+  id         String    @id @default(cuid())
+  board      String    @default("pilot") // namespace, e.g. "pilot"
+  title      String
+  detail     String    @default("")
+  phase      String    @default("") // free text grouping, e.g. "0 - Decide"
+  ownerEmail String? // assignee; null = unassigned
+  status     String    @default("not_started") // not_started | in_progress | blocked | done
+  dueDate    DateTime?
+  orderIndex Int       @default(0)
+  createdBy  String // actor email
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([board, status])
+  @@index([ownerEmail])
+}
+
+model CompanyOpsAudit {
+  id     String  @id @default(cuid())
+  actor  String // email or "mcp:<email>"
+  action String // task.create | task.update | task.assign | task.delete | notify.sent | notify.failed | mcp.<tool> | mcp.rate_limited
+  taskId String?
+  detail String  @default("") // stringified JSON payload
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -111,6 +111,22 @@ const optional = {
   // 0.5; parsed + clamped to [0,1] in embeddings/compat.ts.
   GROUNDING_GATE_ENABLED: process.env.GROUNDING_GATE_ENABLED ?? '',
   GROUNDING_FLOOR: process.env.GROUNDING_FLOOR ?? '0.5',
+  // Company Ops Board (build brief 2026-07-04). Off by default. Standalone
+  // founder-only surface — see src/lib/ops/config.ts. Gates /ops, every
+  // /api/ops/* route, and the ops MCP endpoint.
+  COMPANY_OPS_ENABLED: process.env.COMPANY_OPS_ENABLED ?? '',
+  // Comma-separated founder emails. The only allowlist in the app today —
+  // magic-link sign-in itself stays open to any email.
+  COMPANY_OPS_ALLOWLIST: process.env.COMPANY_OPS_ALLOWLIST ?? '',
+  // JSON: [{ email, name, slackId? }] — notification routing (display name
+  // in emails, optional Slack @mention).
+  COMPANY_OPS_MEMBERS: process.env.COMPANY_OPS_MEMBERS ?? '',
+  // Slack incoming webhook URL. Optional — empty means email-only notify.
+  COMPANY_OPS_SLACK_WEBHOOK: process.env.COMPANY_OPS_SLACK_WEBHOOK ?? '',
+  // JSON: [{ email, token }] — per-founder bearer tokens for the ops MCP.
+  // Env-based for v1; upgrade to a DB-backed CompanyOpsToken table only if
+  // per-token revocation-without-redeploy becomes a real need.
+  COMPANY_OPS_MCP_TOKENS: process.env.COMPANY_OPS_MCP_TOKENS ?? '',
 };
 
 export const env = {
