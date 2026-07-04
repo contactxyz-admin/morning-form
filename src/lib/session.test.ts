@@ -5,11 +5,20 @@ import { getTestPrisma, makeTestUser, setupTestDb, teardownTestDb } from '@/lib/
 
 // In-memory cookie jar so we can drive set/get/delete without next/headers.
 const cookieJar = new Map<string, string>();
+// Toggle to simulate Next.js's real restriction: cookies().set() throws when
+// called during a plain Server Component render (only Route Handlers/Server
+// Actions/Middleware may write cookies).
+let cookieSetThrows = false;
 
 vi.mock('next/headers', () => ({
   cookies: () => ({
     get: (name: string) => (cookieJar.has(name) ? { value: cookieJar.get(name)! } : undefined),
     set: (name: string, value: string) => {
+      if (cookieSetThrows) {
+        throw new Error(
+          'Cookies can only be modified in a Server Action or Route Handler. Read more: https://nextjs.org/docs/app/api-reference/functions/cookies#cookiessetname-value-options',
+        );
+      }
       cookieJar.set(name, value);
     },
     delete: (name: string) => {
@@ -57,6 +66,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   cookieJar.clear();
+  cookieSetThrows = false;
 });
 
 describe('createSession', () => {
@@ -125,6 +135,28 @@ describe('getCurrentUser', () => {
     });
     const user = await getCurrentUser();
     expect(user).toBeNull();
+  });
+
+  it('still returns the user when the rolling-TTL cookie write is rejected (Server Component render)', async () => {
+    // Regression test for the prod incident (2026-07-04): getCurrentUser() is
+    // called from plain Server Component pages (e.g. src/app/ops/page.tsx),
+    // where cookies().set() throws. Before the fix, that throw propagated
+    // out of getCurrentUser() and 500'd the page for any session idle >5min.
+    const userId = await makeTestUser(prisma, 'session-sc-render');
+    const { rawToken } = await createSession(userId);
+    await prisma.session.updateMany({
+      where: { tokenHash: hashSessionToken(rawToken) },
+      data: { lastSeenAt: new Date(Date.now() - 10 * 60 * 1000) },
+    });
+
+    cookieSetThrows = true;
+    const user = await getCurrentUser();
+    expect(user).not.toBeNull();
+    expect(user!.id).toBe(userId);
+
+    // The DB bump must still land even though the cookie write was rejected.
+    const row = await prisma.session.findUnique({ where: { tokenHash: hashSessionToken(rawToken) } });
+    expect(row!.lastSeenAt.getTime()).toBeGreaterThan(Date.now() - 5000);
   });
 
   it('rotating SESSION_SECRET invalidates all existing sessions (via rehash mismatch)', async () => {

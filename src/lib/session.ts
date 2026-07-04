@@ -90,13 +90,23 @@ export async function getCurrentUser() {
         data: { lastSeenAt: new Date(now), expiresAt: newExpiresAt },
       })
       .catch(() => {});
-    cookies().set(SESSION_COOKIE, raw, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: env.NODE_ENV === 'production',
-      path: '/',
-      expires: newExpiresAt,
-    });
+    // getCurrentUser() is called from plain Server Component pages (not just
+    // Route Handlers/Server Actions), where cookies() is read-only and this
+    // throws "Cookies can only be modified in a Server Action or Route
+    // Handler." The DB bump above already landed, so the cookie refresh here
+    // is a best-effort optimization — safe to skip when the render context
+    // forbids it (the cookie's old expiry just won't get pushed out this call).
+    try {
+      cookies().set(SESSION_COOKIE, raw, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: env.NODE_ENV === 'production',
+        path: '/',
+        expires: newExpiresAt,
+      });
+    } catch {
+      // Ignore — expected when called from a Server Component render.
+    }
   }
   return session.user;
 }
