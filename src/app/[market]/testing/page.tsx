@@ -6,6 +6,7 @@ import { FaqBlock } from '@/components/marketing/faq-block';
 import { RecordPreview } from '@/components/marketing/record-preview';
 import { TestingVisual } from '@/components/marketing/testing-visual';
 import { FaqPage } from '@/components/structured-data/faq-page';
+import { MedicalWebPage } from '@/components/structured-data/medical-webpage';
 import { isMarket } from '@/lib/marketing/market';
 import { MARKET_CLINICIAN, MARKETS, type Market } from '@/lib/marketing/constants';
 import { TrackMount } from '@/lib/funnel/track-mount';
@@ -85,6 +86,13 @@ const HOW_IT_WORKS: ReadonlyArray<{ n: string; title: string; body: string }> = 
   },
 ];
 
+// Page identity — shared by generateMetadata (the <title>/OG tags) and the
+// MedicalWebPage JSON-LD so the SEO name/description have a single source.
+const PAGE_TITLE = 'Blood testing at your club or at home — Morning Form';
+const PAGE_NAME = 'Blood testing at your club or at home';
+const PAGE_DESCRIPTION =
+  'Sixty-plus markers from one venous draw — booked in seconds at a partner club, or collected at home. Read in plain English inside your Morning Form record.';
+
 export function generateStaticParams(): Array<{ market: string }> {
   return MARKETS.map((market) => ({ market }));
 }
@@ -93,9 +101,8 @@ export function generateMetadata({ params }: TestingPageProps): Metadata {
   if (!isMarket(params.market)) return {};
   const market = params.market;
 
-  const title = 'Blood testing at your club or at home — Morning Form';
-  const description =
-    'Sixty-plus markers from one venous draw — booked in seconds at a partner club, or collected at home. Read in plain English inside your Morning Form record.';
+  const title = PAGE_TITLE;
+  const description = PAGE_DESCRIPTION;
 
   return {
     title,
@@ -125,6 +132,14 @@ export default function TestingPage({ params }: TestingPageProps) {
   return (
     <div className="min-h-screen bg-bg">
       <TrackMount event={FUNNEL_EVENTS.TESTING_VIEWED} properties={{ market }} />
+      <MedicalWebPage
+        url={`/${market}/testing`}
+        name={PAGE_NAME}
+        description={PAGE_DESCRIPTION}
+        market={market}
+        lastReviewed={TESTING_FAQ.lastReviewedAt}
+        reviewerOrgName="Morning Form"
+      />
       <FaqPage entries={TESTING_FAQ.entries} />
 
       {/* Header — text-only wordmark + mono-uppercase tabs, matching the
@@ -162,10 +177,10 @@ export default function TestingPage({ params }: TestingPageProps) {
               </h1>
 
               <p className="mt-8 text-body-lg text-text-secondary max-w-xl leading-relaxed">
-                A single venous panel across eight systems — metabolic, hormonal, recovery,
-                inflammation, nutrients, organ health — read in plain English against the
-                wearable data you already track. Book a draw at a partner club in seconds,
-                or test from home with a posted kit.
+                A single venous panel across eight body systems — from metabolic and
+                hormonal to recovery, inflammation and organ health — read in plain English
+                against the wearable data you already track. Book a draw at a partner club
+                in seconds, or test from home with a posted kit.
               </p>
 
               <div className="mt-10 flex items-center gap-6 flex-wrap">
@@ -268,9 +283,9 @@ export default function TestingPage({ params }: TestingPageProps) {
             Sixty-plus markers, one baseline.
           </h2>
           <p className="mt-8 text-body-lg text-text-secondary max-w-2xl leading-relaxed">
-            One venous draw across eight systems, from metabolic and hormonal to
-            recovery, inflammation and nutrients. Comprehensive by design, read through
-            an energy and recovery lens.
+            One venous draw across eight body systems, grouped into the six panels below —
+            from metabolic and hormonal to recovery, inflammation and organ health.
+            Comprehensive by design, read through an energy and recovery lens.
           </p>
 
           <div className="mt-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">

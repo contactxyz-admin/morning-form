@@ -29,7 +29,7 @@ export const TESTING_FAQ = defineHomeFaq({
     {
       question: 'Which markers are in the baseline panel?',
       answer:
-        'One venous draw across eight systems: metabolic and heart, hormones and thyroid, recovery and iron, inflammation and immune, nutrients and vitamins, and liver and kidney function — sixty-plus markers, finalised with our medical director and processed by an accredited reference lab.',
+        'One venous draw across eight body systems, grouped into six panels: metabolic and heart, hormones and thyroid, recovery and iron, inflammation and immune, nutrients and vitamins, and liver and kidney function — sixty-plus markers, finalised with our medical director and processed by an accredited reference lab.',
     },
     {
       question: 'Is this a diagnosis?',

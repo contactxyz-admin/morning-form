@@ -10,7 +10,14 @@
 
 const MONO_LABEL = 'font-mono text-[10px] uppercase tracking-[0.14em]';
 
-const OPEN_SLOTS = ['07:20', '07:40', '08:20'] as const;
+// Static preview fiction — one morning's slots, with the taken one flagged
+// in-line so the rendered order and the booked state live in one place.
+const SLOTS: ReadonlyArray<{ time: string; booked?: boolean }> = [
+  { time: '07:20' },
+  { time: '07:40' },
+  { time: '08:00', booked: true },
+  { time: '08:20' },
+];
 
 export function TestingVisual({ className }: { className?: string }) {
   return (
@@ -43,20 +50,23 @@ export function TestingVisual({ className }: { className?: string }) {
 
           <p className={`mt-5 mb-2.5 ${MONO_LABEL} text-text-tertiary`}>Morning slots</p>
           <div className="flex flex-wrap gap-2">
-            {OPEN_SLOTS.slice(0, 2).map((slot) => (
-              <span
-                key={slot}
-                className="rounded-chip border border-border bg-surface px-3 py-1.5 text-caption text-text-secondary font-mono"
-              >
-                {slot}
-              </span>
-            ))}
-            <span className="rounded-chip bg-text-primary px-3 py-1.5 text-caption text-bg font-mono">
-              08:00 · booked
-            </span>
-            <span className="rounded-chip border border-border bg-surface px-3 py-1.5 text-caption text-text-secondary font-mono">
-              {OPEN_SLOTS[2]}
-            </span>
+            {SLOTS.map((slot) =>
+              slot.booked ? (
+                <span
+                  key={slot.time}
+                  className="rounded-chip bg-text-primary px-3 py-1.5 text-caption text-bg font-mono"
+                >
+                  {slot.time} · booked
+                </span>
+              ) : (
+                <span
+                  key={slot.time}
+                  className="rounded-chip border border-border bg-surface px-3 py-1.5 text-caption text-text-secondary font-mono"
+                >
+                  {slot.time}
+                </span>
+              ),
+            )}
           </div>
 
           <div className="rule mt-5" />
