@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { LogoLockup } from '@/components/brand/logo-lockup';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { track } from '@/lib/funnel/track';
@@ -83,9 +84,13 @@ export default function SignInPage() {
       <header className="px-5 sm:px-8 pt-8">
         <Link
           href="/"
-          className="text-label uppercase text-text-tertiary hover:text-text-primary transition-colors"
+          aria-label="Morning Form — home"
+          className="text-text-primary"
         >
-          Morning Form
+          <LogoLockup
+            imageClassName="w-[150px]"
+            textClassName="font-sans text-label font-normal uppercase tracking-[0.14em] text-text-tertiary"
+          />
         </Link>
       </header>
 

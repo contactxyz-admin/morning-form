@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { LogoLockup } from '@/components/brand/logo-lockup';
 import { ActionIllustration } from '@/components/marketing/illustrations/action-illustration';
 import { ReadIllustration } from '@/components/marketing/illustrations/read-illustration';
 import { TrendIllustration } from '@/components/marketing/illustrations/trend-illustration';
@@ -58,15 +59,15 @@ export default function LandingPage({ params }: MarketHomeProps) {
   return (
     <div className="min-h-screen bg-bg">
       <TrackMount event={FUNNEL_EVENTS.LANDING_VIEWED} properties={{ market }} />
-      {/* Header — text-only wordmark + mono-uppercase tabs, matching the
+      {/* Header — brand lockup + mono-uppercase tabs, matching the
           /demo branding voice. */}
       <header className="px-6 sm:px-10 lg:px-16 pt-7 pb-4 flex items-center justify-between max-w-[1400px] mx-auto">
         <Link
           href={`/${market}`}
           aria-label="Morning Form — home"
-          className="font-display font-light text-subheading -tracking-[0.02em] text-text-primary"
+          className="text-text-primary"
         >
-          Morning Form
+          <LogoLockup />
         </Link>
         <nav className="hidden sm:flex items-center gap-6">
           {[{ label: 'Testing', href: `/${market}/testing` }, ...NAV_LINKS].map((t) => (
@@ -375,14 +376,15 @@ export default function LandingPage({ params }: MarketHomeProps) {
         </div>
       </section>
 
-      {/* Footer — text-only wordmark, mono-uppercase nav. */}
+      {/* Footer — brand lockup, mono-uppercase nav. */}
       <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
           <Link
             href={`/${market}`}
-            className="font-display font-light text-heading -tracking-[0.02em] text-text-primary"
+            aria-label="Morning Form — home"
+            className="text-text-primary"
           >
-            Morning Form
+            <LogoLockup imageClassName="w-[188px]" textClassName="text-heading" />
           </Link>
           <div className="flex flex-col gap-3 sm:items-end">
             <div className="flex flex-wrap gap-7">

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LogoLockup } from '@/components/brand/logo-lockup';
 
 /**
  * Public info pages — /privacy, /safety, /contact. No auth, no session,
@@ -26,9 +27,10 @@ export default function InfoLayout({ children }: { children: React.ReactNode }) 
         <div className="max-w-3xl mx-auto">
           <Link
             href="/"
-            className="font-display font-light text-subheading -tracking-[0.02em] text-text-primary"
+            aria-label="Morning Form — home"
+            className="text-text-primary"
           >
-            Morning Form
+            <LogoLockup />
           </Link>
         </div>
       </header>

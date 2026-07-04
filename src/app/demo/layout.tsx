@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { LogoLockup } from '@/components/brand/logo-lockup';
 import { DemoTab } from '@/components/demo/demo-tab';
 import { TrackMount } from '@/lib/funnel/track-mount';
 import { FUNNEL_EVENTS } from '@/lib/funnel/event';
@@ -37,9 +38,10 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <Link
             href="/demo"
-            className="font-display font-light text-subheading -tracking-[0.02em] text-text-primary"
+            aria-label="Morning Form — demo"
+            className="text-text-primary"
           >
-            Morning Form
+            <LogoLockup />
           </Link>
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
             Synthetic demo
