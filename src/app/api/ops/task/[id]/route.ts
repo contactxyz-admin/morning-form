@@ -1,17 +1,19 @@
 /**
  * PATCH/DELETE /api/ops/task/[id] — partial update and hard delete for a
- * single task. PATCH always writes a task.update audit row; when the body
- * changes ownerEmail to a genuinely new, non-null value it additionally
- * fires the task.assign audit + notifyDelegation via applyOwnerAwareUpdate()
- * (src/lib/ops/assign.ts) — never on an unrelated field edit, never on
- * reassigning to the same owner, and race-safe against two concurrent
- * requests reassigning the same task (compare-and-swap on ownerEmail).
+ * single task. PATCH writes a task.update audit row only when its own edits
+ * actually applied; when the body changes ownerEmail to a genuinely new,
+ * non-null value it additionally fires the task.assign audit + notification
+ * via applyOwnerAwareUpdate() (src/lib/ops/assign.ts) — never on an unrelated
+ * field edit, never on reassigning to the same owner. Race-safe against two
+ * concurrent requests touching the same task's ownerEmail: the loser gets a
+ * 409 (never a false-success 200), same convention as
+ * src/app/api/actions/[id]/transition/route.ts.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireOpsStaff } from '@/lib/ops/rest-guard';
-import { isStaff } from '@/lib/ops/config';
+import { ownerEmailValidationError } from '@/lib/ops/config';
 import { OpsTaskUpdateSchema } from '@/lib/ops/schema';
 import { writeOpsAudit } from '@/lib/ops/audit';
 import { applyOwnerAwareUpdate } from '@/lib/ops/assign';
@@ -32,8 +34,9 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  if (body.ownerEmail && !isStaff(body.ownerEmail)) {
-    return NextResponse.json({ error: 'ownerEmail must be a MorningForm staff member.' }, { status: 400 });
+  const ownerError = ownerEmailValidationError(body.ownerEmail);
+  if (ownerError) {
+    return NextResponse.json({ error: ownerError }, { status: 400 });
   }
 
   const result = await applyOwnerAwareUpdate(prisma, {
@@ -43,6 +46,12 @@ export async function PATCH(
   });
   if (!result) {
     return NextResponse.json({ error: 'Task not found.' }, { status: 404 });
+  }
+  if (result.raced) {
+    return NextResponse.json(
+      { error: 'Task was updated concurrently — please refresh and try again.' },
+      { status: 409 },
+    );
   }
 
   await writeOpsAudit(prisma, {

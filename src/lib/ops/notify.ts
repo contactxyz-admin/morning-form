@@ -83,31 +83,34 @@ export async function notifyDelegation(db: Db, input: NotifyDelegationInput): Pr
   const member = memberByEmail(newOwnerEmail);
   const { text, html } = buildMessage(task, actorEmail);
 
-  const channels: string[] = [];
-  let emailError: string | undefined;
-  let emailOk = false;
-  try {
-    const result = await sendEmail({
+  // Email and Slack are independent I/O with no data dependency between
+  // them — run concurrently rather than paying both latencies in serial.
+  const [emailResult, slackOk] = await Promise.all([
+    sendEmail({
       to: newOwnerEmail,
       subject: `MorningForm: you have been assigned "${task.title}"`,
       text,
       html,
-    });
+    })
+      .then((result) => ({ ok: true as const, sent: result.sent }))
+      .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err) })),
+    postToSlack(text, member?.slackId),
+  ]);
+
+  const channels: string[] = [];
+  let emailError: string | undefined;
+  if (emailResult.ok) {
     // `sent: false` in dev/test (no RESEND_API_KEY) is expected, logged
     // behaviour, not a failure — still counts as the email channel firing.
-    emailOk = true;
-    if (result.sent) channels.push('email');
-    else channels.push('email (dev-logged)');
-  } catch (err) {
-    emailError = err instanceof Error ? err.message : String(err);
+    channels.push(emailResult.sent ? 'email' : 'email (dev-logged)');
+  } else {
+    emailError = emailResult.error;
   }
-
-  const slackOk = await postToSlack(text, member?.slackId);
   if (slackOk) channels.push('slack');
 
   await writeOpsAudit(db, {
     actor: actorEmail,
-    action: emailOk || slackOk ? 'notify.sent' : 'notify.failed',
+    action: emailResult.ok || slackOk ? 'notify.sent' : 'notify.failed',
     taskId: task.id,
     detail: { newOwnerEmail, channels, emailError },
   });

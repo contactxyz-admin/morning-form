@@ -164,6 +164,7 @@ describe('POST /api/ops/mcp — tools', () => {
       where: { taskId: result!.task.id, action: 'notify.sent' },
     });
     expect(notifyAudits).toHaveLength(1);
+    expect(notifyAudits[0].actor).toBe('mcp:reuben@contact.xyz');
 
     const callAudits = await prisma.companyOpsAudit.findMany({
       where: { actor: 'mcp:reuben@contact.xyz', action: 'mcp.create_ops_task' },
@@ -209,6 +210,51 @@ describe('POST /api/ops/mcp — tools', () => {
       where: { taskId: task.id, action: 'notify.sent' },
     });
     expect(notifyAudits).toHaveLength(1);
+    // The inner task.assign/notify.sent audit rows must carry the same
+    // mcp:-prefixed actor as the outer per-call audit, not the bare email.
+    expect(notifyAudits[0].actor).toBe('mcp:reuben@contact.xyz');
+    const assignAudits = await prisma.companyOpsAudit.findMany({
+      where: { taskId: task.id, action: 'task.assign' },
+    });
+    expect(assignAudits[0].actor).toBe('mcp:reuben@contact.xyz');
+  });
+
+  it('two concurrent assign_ops_task calls to the same owner never double-notify or double-audit', async () => {
+    // Same target owner for both concurrent calls (not two different
+    // owners) so the invariant under test is deterministic regardless of
+    // whether the two requests' internal reads actually overlap in time —
+    // true overlap makes the CAS reject the loser (surfaced as a tool
+    // error); no overlap makes the second call a legitimate idempotent
+    // no-op. Either way, exactly one notify/task.assign must land.
+    const task = await prisma.companyOpsTask.create({
+      data: { title: 'Race target', createdBy: 'reuben@contact.xyz' },
+    });
+
+    const [a, b] = await Promise.all([
+      callTool('reuben-token', 'assign_ops_task', { taskId: task.id, ownerEmail: 'joe@contact.xyz' }, 10),
+      callTool('reuben-token', 'assign_ops_task', { taskId: task.id, ownerEmail: 'joe@contact.xyz' }, 11),
+    ]);
+
+    const errors = [a.isError, b.isError].filter(Boolean);
+    expect(errors.length).toBeLessThanOrEqual(1);
+
+    const finalTask = await prisma.companyOpsTask.findUnique({ where: { id: task.id } });
+    expect(finalTask?.ownerEmail).toBe('joe@contact.xyz');
+
+    const notifyAudits = await prisma.companyOpsAudit.findMany({
+      where: { taskId: task.id, action: 'notify.sent' },
+    });
+    expect(notifyAudits).toHaveLength(1);
+
+    const assignAudits = await prisma.companyOpsAudit.findMany({
+      where: { taskId: task.id, action: 'task.assign' },
+    });
+    expect(assignAudits).toHaveLength(1);
+  });
+
+  it('create_ops_task rejects an explicit empty-string board instead of silently orphaning the task', async () => {
+    const { isError } = await callTool('reuben-token', 'create_ops_task', { title: 'orphan?', board: '' }, 12);
+    expect(isError).toBe(true);
   });
 
   it('update_ops_task updates status without touching ownerEmail or notifying', async () => {

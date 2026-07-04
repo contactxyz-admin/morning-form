@@ -13,6 +13,7 @@ import type { CompanyOpsTask } from '@prisma/client';
 import { getCurrentUser } from '@/lib/session';
 import { prisma } from '@/lib/db';
 import { isCompanyOpsEnabled, isStaff, members } from '@/lib/ops/config';
+import { listOpsTasks } from '@/lib/ops/queries';
 import { OpsBoardClient, type OpsTaskDto } from './board-client';
 import styles from './ops.module.css';
 
@@ -36,10 +37,7 @@ export default async function OpsPage() {
     );
   }
 
-  const tasks = await prisma.companyOpsTask.findMany({
-    where: { board: 'pilot' },
-    orderBy: [{ phase: 'asc' }, { orderIndex: 'asc' }],
-  });
+  const tasks = await listOpsTasks(prisma, { board: 'pilot' });
 
   return (
     <div className={styles.opsRoot}>

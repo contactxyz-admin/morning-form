@@ -171,6 +171,36 @@ describe('PATCH /api/ops/task/[id]', () => {
     expect(notifyAudits).toHaveLength(1);
   });
 
+  it('two concurrent PATCH requests reassigning the same task never produce a false-success audit for a request whose edits did not apply', async () => {
+    // Same target ownerEmail for both concurrent requests (not two
+    // different owners) so the assertions are deterministic regardless of
+    // whether the two requests' internal reads truly overlap in time: a
+    // real overlap makes the CAS reject the loser (409, no audit); no
+    // overlap makes both legitimately succeed sequentially (200, 200, two
+    // real audits) — either way, the count of task.update audit rows must
+    // exactly match the count of 200 responses, never more.
+    currentUserMock.mockResolvedValue({ id: 'u1', email: 'reuben@contact.xyz' });
+    const task = await makeTask({ ownerEmail: null });
+
+    const a = patchReq(task.id, { ownerEmail: 'joe@contact.xyz', title: 'Renamed by A' });
+    const b = patchReq(task.id, { ownerEmail: 'joe@contact.xyz', title: 'Renamed by B' });
+    const [resA, resB] = await Promise.all([PATCH(a.req, a.ctx), PATCH(b.req, b.ctx)]);
+    const statuses = [resA.status, resB.status];
+
+    expect(statuses.every((s) => s === 200 || s === 409)).toBe(true);
+    const successCount = statuses.filter((s) => s === 200).length;
+    expect(successCount).toBeGreaterThanOrEqual(1);
+
+    const updateAudits = await prisma.companyOpsAudit.findMany({
+      where: { taskId: task.id, action: 'task.update' },
+    });
+    expect(updateAudits).toHaveLength(successCount);
+
+    const final = await prisma.companyOpsTask.findUnique({ where: { id: task.id } });
+    expect(['Renamed by A', 'Renamed by B']).toContain(final?.title);
+    expect(final?.ownerEmail).toBe('joe@contact.xyz');
+  });
+
   it('reassigning to the same owner does not notify again', async () => {
     currentUserMock.mockResolvedValue({ id: 'u1', email: 'reuben@contact.xyz' });
     const task = await makeTask({ ownerEmail: 'joe@contact.xyz' });

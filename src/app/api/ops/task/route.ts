@@ -6,7 +6,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireOpsStaff } from '@/lib/ops/rest-guard';
-import { isStaff } from '@/lib/ops/config';
+import { ownerEmailValidationError } from '@/lib/ops/config';
 import { OpsTaskCreateSchema } from '@/lib/ops/schema';
 import { writeOpsAudit } from '@/lib/ops/audit';
 import { notifyDelegation } from '@/lib/ops/notify';
@@ -24,8 +24,9 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  if (body.ownerEmail && !isStaff(body.ownerEmail)) {
-    return NextResponse.json({ error: 'ownerEmail must be a MorningForm staff member.' }, { status: 400 });
+  const ownerError = ownerEmailValidationError(body.ownerEmail);
+  if (ownerError) {
+    return NextResponse.json({ error: ownerError }, { status: 400 });
   }
 
   const task = await prisma.companyOpsTask.create({

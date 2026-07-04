@@ -5,7 +5,7 @@
  * a real change to a non-null owner) and the race-safety around it, so
  * neither can drift between the two call sites: the REST PATCH route (which
  * may change several fields in one request, ownerEmail among them) and the
- * MCP `assign_ops_task` tool (which only ever changes ownerEmail).
+ * MCP `assign_ops_task`/`update_ops_task` tools.
  *
  * Race safety: a plain read-then-write (findUnique -> update) lets two
  * concurrent requests that both read the same previous owner both "win" the
@@ -13,9 +13,10 @@
  * task.assign audit + notification. `applyOwnerAwareUpdate` closes that gap
  * with a compare-and-swap: the write is conditioned on ownerEmail still
  * matching what was just read (mirrors the conditional-updateMany pattern in
- * src/app/api/actions/[id]/transition/route.ts). Whichever request loses the
- * race sees `count === 0`, re-reads the row the winner already produced, and
- * skips the audit/notify — exactly one of the two ever fires it.
+ * src/app/api/actions/[id]/transition/route.ts). The losing request's write
+ * never applies at all — none of its fields are persisted — so it's
+ * reported back via `raced: true` rather than silently returning 200 with a
+ * false "success" audit row; callers must surface that as a 409, not a 200.
  */
 import { Prisma, type CompanyOpsTask, type PrismaClient } from '@prisma/client';
 import { writeOpsAudit } from '@/lib/ops/audit';
@@ -64,6 +65,13 @@ export interface ApplyOwnerAwareUpdateResult {
   task: CompanyOpsTask;
   /** True only for the request that actually won a real owner change and fired notify. */
   assigned: boolean;
+  /**
+   * True when a concurrent request changed ownerEmail first: this call's
+   * write did NOT apply (none of `data`'s fields were persisted), and `task`
+   * reflects the other request's result, not this one's intent. Callers
+   * must treat this as a conflict (409), never as success.
+   */
+  raced: boolean;
 }
 
 export async function applyOwnerAwareUpdate(
@@ -78,7 +86,7 @@ export async function applyOwnerAwareUpdate(
   if (!touchesOwner) {
     try {
       const task = await db.companyOpsTask.update({ where: { id: taskId }, data });
-      return { task, assigned: false };
+      return { task, assigned: false, raced: false };
     } catch (err) {
       // P2025: deleted by a concurrent request between our read and write.
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') return null;
@@ -98,16 +106,22 @@ export async function applyOwnerAwareUpdate(
   if (cas.count === 0) {
     const current = await db.companyOpsTask.findUnique({ where: { id: taskId } });
     if (!current) return null;
-    return { task: current, assigned: false };
+    return { task: current, assigned: false, raced: true };
   }
 
-  const task = await db.companyOpsTask.findUniqueOrThrow({ where: { id: taskId } });
+  // Our write won the CAS. Re-fetch rather than assume — but tolerate the
+  // row having been deleted by someone else in the narrow window since our
+  // own write (not a "raced" write conflict; the update did apply, the row
+  // just no longer exists to report back), same as the plain-update branch.
+  const task = await db.companyOpsTask.findUnique({ where: { id: taskId } });
+  if (!task) return null;
+
   const assigned = await maybeNotifyAssignment(db, {
     previousOwnerEmail: existing.ownerEmail,
     updatedTask: task,
     actorEmail,
   });
-  return { task, assigned };
+  return { task, assigned, raced: false };
 }
 
 export interface AssignTaskInput {
@@ -119,6 +133,7 @@ export interface AssignTaskInput {
 export interface AssignTaskResult {
   task: CompanyOpsTask;
   notified: boolean;
+  raced: boolean;
 }
 
 /**
@@ -133,5 +148,5 @@ export async function assignTask(db: Db, input: AssignTaskInput): Promise<Assign
     actorEmail: input.actorEmail,
   });
   if (!result) return null;
-  return { task: result.task, notified: result.assigned };
+  return { task: result.task, notified: result.assigned, raced: result.raced };
 }

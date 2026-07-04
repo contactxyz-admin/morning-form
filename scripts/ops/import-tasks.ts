@@ -25,8 +25,10 @@
  */
 import { readFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
+import { OPS_STATUS_VALUES } from '../../src/lib/ops/schema';
+import { staffAllowlist } from '../../src/lib/ops/config';
 
-const STATUS_VALUES = new Set(['not_started', 'in_progress', 'blocked', 'done']);
+const STATUS_VALUES = new Set<string>(OPS_STATUS_VALUES);
 
 interface ImportRow {
   board?: string;
@@ -82,12 +84,7 @@ function validateRow(row: unknown, index: number): ImportRow {
  * may not be finalized yet), but the inconsistency is worth flagging loudly.
  */
 function warnOnUnknownOwners(rows: ImportRow[]): void {
-  const allowlist = new Set(
-    (process.env.COMPANY_OPS_ALLOWLIST ?? '')
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  );
+  const allowlist = new Set(staffAllowlist());
   if (allowlist.size === 0) return; // not configured locally — nothing to check against
   const unknown = new Set(rows.map((r) => r.ownerEmail).filter((e): e is string => !!e && !allowlist.has(e)));
   if (unknown.size > 0) {

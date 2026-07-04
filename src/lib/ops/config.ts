@@ -34,6 +34,21 @@ export function isStaff(email: string | null | undefined): boolean {
   return staffAllowlist().includes(email.toLowerCase());
 }
 
+/**
+ * Single source of truth for "is this a legal task owner" — every write path
+ * (both REST routes and both owner-setting MCP tools) must reject a
+ * non-staff ownerEmail before persisting it, since assigning a task also
+ * triggers a notification email. Returns an error message string if invalid,
+ * or null if the value is fine (including null/undefined — unassigning is
+ * always allowed).
+ */
+export function ownerEmailValidationError(ownerEmail: string | null | undefined): string | null {
+  if (ownerEmail && !isStaff(ownerEmail)) {
+    return 'ownerEmail must be a MorningForm staff member.';
+  }
+  return null;
+}
+
 export function members(): OpsMember[] {
   try {
     const parsed = JSON.parse(env.COMPANY_OPS_MEMBERS || '[]');

@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from 'react';
 import styles from './ops.module.css';
+import { dueDateInputValue, groupTasksByPhase } from './board-grouping';
 
 export interface OpsTaskDto {
   id: string;
@@ -93,12 +94,7 @@ export function OpsBoardClient({
     }
   }
 
-  const groups: { phase: string; rows: OpsTaskDto[] }[] = [];
-  for (const t of tasks) {
-    const current = groups[groups.length - 1];
-    if (current && current.phase === t.phase) current.rows.push(t);
-    else groups.push({ phase: t.phase, rows: [t] });
-  }
+  const groups = groupTasksByPhase(tasks);
 
   return (
     <div>
@@ -172,8 +168,11 @@ export function OpsBoardClient({
                       key={`due-${t.id}`}
                       type="date"
                       className={styles.inputCell}
-                      defaultValue={t.dueDate ? t.dueDate.slice(0, 10) : ''}
-                      onBlur={(e) => patchTask(t.id, { dueDate: e.target.value || null })}
+                      defaultValue={dueDateInputValue(t.dueDate)}
+                      onBlur={(e) =>
+                        e.target.value !== dueDateInputValue(t.dueDate) &&
+                        patchTask(t.id, { dueDate: e.target.value || null })
+                      }
                     />
                   </td>
                   <td className={styles.td}>

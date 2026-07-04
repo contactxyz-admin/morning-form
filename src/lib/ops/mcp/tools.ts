@@ -7,21 +7,29 @@
  * Every call (success or error) writes exactly one CompanyOpsAudit row,
  * actor `mcp:<founderEmail>`, action `mcp.<toolName>`. Awaited (not
  * fire-and-forget like the health MCP's audit writes) — call volume here is
- * tiny (3 founders), and tests assert exact audit-row counts.
+ * tiny (3 founders), and tests assert exact audit-row counts. The SAME
+ * `mcp:`-prefixed `actor` is threaded into every notify/assign call below —
+ * not the bare founderEmail — so the resulting task.assign/notify.sent rows
+ * are attributable back to the MCP surface, not indistinguishable from a
+ * REST-originated action.
  *
  * `inputSchema` is typed `Record<string, z.ZodTypeAny>` (not a narrower
  * generic) to match the McpServer overload that accepts a plain
  * Record<string, unknown> callback arg — same choice tool-adapter.ts makes
- * for the health MCP, for the same reason.
+ * for the health MCP, for the same reason. The SDK itself validates (and
+ * applies zod coercions, e.g. `z.coerce.date()`) against this same shape
+ * before invoking the callback below, so there's no need to re-parse here —
+ * the callback's `args` already reflects the validated/coerced shape.
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { prisma } from '@/lib/db';
-import { isStaff } from '@/lib/ops/config';
+import { ownerEmailValidationError } from '@/lib/ops/config';
 import { OPS_STATUS_VALUES, OpsOwnerEmailSchema, type OpsStatus } from '@/lib/ops/schema';
 import { writeOpsAudit } from '@/lib/ops/audit';
 import { notifyDelegation } from '@/lib/ops/notify';
 import { assignTask, applyOwnerAwareUpdate } from '@/lib/ops/assign';
+import { listOpsTasks } from '@/lib/ops/queries';
 
 export interface RegisterOpsToolsInput {
   server: McpServer;
@@ -43,14 +51,7 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
     },
     async (rawArgs) => {
       const args = rawArgs as { board?: string; status?: OpsStatus; ownerEmail?: string };
-      const tasks = await prisma.companyOpsTask.findMany({
-        where: {
-          board: args.board ?? 'pilot',
-          ...(args.status ? { status: args.status } : {}),
-          ...(args.ownerEmail ? { ownerEmail: args.ownerEmail } : {}),
-        },
-        orderBy: [{ phase: 'asc' }, { orderIndex: 'asc' }],
-      });
+      const tasks = await listOpsTasks(prisma, args);
       return { tasks };
     },
   );
@@ -61,7 +62,7 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
     'create_ops_task',
     'Create a new task on the shared MorningForm ops board. Setting ownerEmail immediately delegates it and notifies the assignee.',
     {
-      board: z.string().optional(),
+      board: z.string().min(1).optional(),
       title: z.string().min(1),
       detail: z.string().optional(),
       phase: z.string().optional(),
@@ -77,9 +78,9 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
         ownerEmail?: string | null;
         dueDate?: Date | null;
       };
-      if (args.ownerEmail && !isStaff(args.ownerEmail)) {
-        throw new Error('ownerEmail must be a MorningForm staff member.');
-      }
+      const ownerError = ownerEmailValidationError(args.ownerEmail);
+      if (ownerError) throw new Error(ownerError);
+
       const task = await prisma.companyOpsTask.create({
         data: {
           board: args.board ?? 'pilot',
@@ -95,7 +96,7 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
         await notifyDelegation(prisma, {
           task,
           newOwnerEmail: task.ownerEmail,
-          actorEmail: founderEmail,
+          actorEmail: actor,
         });
       }
       return { task };
@@ -113,15 +114,16 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
     },
     async (rawArgs) => {
       const args = rawArgs as { taskId: string; ownerEmail: string | null };
-      if (args.ownerEmail && !isStaff(args.ownerEmail)) {
-        throw new Error('ownerEmail must be a MorningForm staff member.');
-      }
+      const ownerError = ownerEmailValidationError(args.ownerEmail);
+      if (ownerError) throw new Error(ownerError);
+
       const result = await assignTask(prisma, {
         taskId: args.taskId,
         newOwnerEmail: args.ownerEmail,
-        actorEmail: founderEmail,
+        actorEmail: actor,
       });
       if (!result) throw new Error('Task not found.');
+      if (result.raced) throw new Error('Task was updated concurrently — please retry.');
       return { task: result.task, notified: result.notified };
     },
   );
@@ -146,8 +148,9 @@ export function registerOpsToolsOnMcpServer({ server, founderEmail }: RegisterOp
         detail?: string;
         dueDate?: Date | null;
       };
-      const result = await applyOwnerAwareUpdate(prisma, { taskId, data: rest, actorEmail: founderEmail });
+      const result = await applyOwnerAwareUpdate(prisma, { taskId, data: rest, actorEmail: actor });
       if (!result) throw new Error('Task not found.');
+      if (result.raced) throw new Error('Task was updated concurrently — please retry.');
       return { task: result.task };
     },
   );
@@ -161,20 +164,18 @@ function registerTool(
   shape: Record<string, z.ZodTypeAny>,
   handler: (args: Record<string, unknown>) => Promise<Record<string, unknown>>,
 ): void {
-  const schema = z.object(shape);
   server.registerTool(
     name,
     { description, inputSchema: shape },
-    async (rawArgs: Record<string, unknown>) => {
+    async (args: Record<string, unknown>) => {
       const startedAt = Date.now();
       try {
-        const parsed = schema.parse(rawArgs);
-        const result = await handler(parsed);
+        const result = await handler(args);
         await writeOpsAudit(prisma, {
           actor,
           action: `mcp.${name}`,
           taskId: extractTaskId(result),
-          detail: { params: parsed, resultStatus: 'success', latencyMs: Date.now() - startedAt },
+          detail: { params: args, resultStatus: 'success', latencyMs: Date.now() - startedAt },
         });
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
@@ -185,7 +186,7 @@ function registerTool(
           actor,
           action: `mcp.${name}`,
           detail: {
-            params: rawArgs,
+            params: args,
             resultStatus: 'error',
             errorMessage: message,
             latencyMs: Date.now() - startedAt,
