@@ -201,3 +201,116 @@
   text-align: center;
   padding: 0 20px;
 }
+
+/* Reference tabs (Start Here, Objectives & KPIs, Timeline, Product & Tech,
+   Scorecard, Pilot Funnel, Decisions, Risk & Compliance, Contacts) — static
+   read-only content ported from the pilot-ops gist, see pilot-plan-data.ts. */
+.navLink {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  text-decoration: none;
+  display: inline-block;
+}
+.navLinkOn {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+.kick {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--coral);
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+.big {
+  font-size: 15px;
+  font-weight: 600;
+}
+.note {
+  color: var(--grey);
+  font-size: 12px;
+}
+.list {
+  margin: 4px 0 0 18px;
+}
+.list li {
+  margin: 3px 0;
+}
+.dim {
+  color: var(--grey);
+}
+.rhythmRow {
+  margin: 6px 0;
+}
+.tot {
+  font-weight: 700;
+  text-align: center;
+}
+
+.timelineWrap {
+  overflow-x: auto;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 200px repeat(12, 1fr);
+  gap: 2px;
+  align-items: stretch;
+}
+.glabel {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+.gwk {
+  font-size: 10px;
+  color: var(--grey);
+  text-align: center;
+  padding: 2px 0;
+}
+.gcell {
+  min-height: 18px;
+  border-radius: 3px;
+  background: var(--off);
+}
+.gcellEmpty {
+  background: transparent;
+}
+.gcellMile {
+  text-align: center;
+  font-size: 12px;
+}
+.barCoral {
+  background: var(--coral);
+}
+.barSage {
+  background: var(--sage);
+}
+.barGold {
+  background: var(--gold);
+}
+.barPurple {
+  background: #8a6fae;
+}
+.barBlue {
+  background: #5c86ae;
+}
+.legend {
+  font-size: 11px;
+  color: var(--grey);
+  margin-top: 8px;
+}
