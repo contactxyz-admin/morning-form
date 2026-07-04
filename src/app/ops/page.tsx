@@ -15,11 +15,12 @@ import { prisma } from '@/lib/db';
 import { isCompanyOpsEnabled, isStaff, members } from '@/lib/ops/config';
 import { listOpsTasks } from '@/lib/ops/queries';
 import { OpsBoardClient, type OpsTaskDto } from './board-client';
+import { REFERENCE_TABS, type ReferenceTabKey } from './reference-tabs';
 import styles from './ops.module.css';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OpsPage() {
+export default async function OpsPage({ searchParams }: { searchParams: { tab?: string } }) {
   if (!isCompanyOpsEnabled()) {
     notFound();
   }
@@ -37,7 +38,7 @@ export default async function OpsPage() {
     );
   }
 
-  const tasks = await listOpsTasks(prisma, { board: 'pilot' });
+  const activeTab = REFERENCE_TABS.find((t) => t.key === searchParams.tab)?.key as ReferenceTabKey | undefined;
 
   return (
     <div className={styles.opsRoot}>
@@ -48,26 +49,49 @@ export default async function OpsPage() {
         <span className={styles.headerSub}>Shared Company Ops Board · signed in as {user.email}</span>
       </header>
       <nav className={styles.nav}>
-        <button className={`${styles.navBtn} ${styles.navBtnOn}`} type="button">
+        <a href="?" className={`${styles.navLink} ${!activeTab ? styles.navLinkOn : ''}`}>
           Workstream
-        </button>
+        </a>
+        {REFERENCE_TABS.map(({ key, label }) => (
+          <a
+            key={key}
+            href={`?tab=${key}`}
+            className={`${styles.navLink} ${activeTab === key ? styles.navLinkOn : ''}`}
+          >
+            {label}
+          </a>
+        ))}
       </nav>
-      <main className={styles.main}>
-        <h2 className={styles.h2}>Workstream Tracker</h2>
-        <p className={styles.sub}>
-          Owner + status on every line — this is the shared, live board. Changing Owner notifies the assignee by
-          email (and Slack, if configured).
-        </p>
-        <OpsBoardClient
-          initialTasks={tasks.map(serializeTask)}
-          // Strip slackId — it's server-side notify routing, not client UI state.
-          members={members().map(({ email, name }) => ({ email, name }))}
-        />
-      </main>
+      <main className={styles.main}>{activeTab ? <ReferenceTab tabKey={activeTab} /> : await WorkstreamTab()}</main>
       <div className={styles.savebar}>
-        Shared board — every edit here is saved to Postgres and visible to the other founders on refresh.
+        {activeTab
+          ? 'Reference material ported from the original pilot-ops plan — read-only. Live edits happen on the Workstream tab.'
+          : 'Shared board — every edit here is saved to Postgres and visible to the other founders on refresh.'}
       </div>
     </div>
+  );
+}
+
+function ReferenceTab({ tabKey }: { tabKey: ReferenceTabKey }) {
+  const { Component } = REFERENCE_TABS.find((t) => t.key === tabKey)!;
+  return <Component />;
+}
+
+async function WorkstreamTab() {
+  const tasks = await listOpsTasks(prisma, { board: 'pilot' });
+  return (
+    <>
+      <h2 className={styles.h2}>Workstream Tracker</h2>
+      <p className={styles.sub}>
+        Owner + status on every line — this is the shared, live board. Changing Owner notifies the assignee by email
+        (and Slack, if configured).
+      </p>
+      <OpsBoardClient
+        initialTasks={tasks.map(serializeTask)}
+        // Strip slackId — it's server-side notify routing, not client UI state.
+        members={members().map(({ email, name }) => ({ email, name }))}
+      />
+    </>
   );
 }
 
