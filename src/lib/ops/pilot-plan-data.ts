@@ -246,66 +246,89 @@ export const PILOT_PLAN = {
       "label": "7 Sep"
     }
   ],
+  // Bar tuple: [label, fromWeek, toWeek, colorKey, lane, isCriticalPath].
+  // Lane and critical-path are explicit data, not derived from color or
+  // label text — edit them here, not in timeline-helpers.ts.
   "bars": [
     [
       "Phase 0 · Decide & line up",
       1,
       3,
-      "coral"
+      "coral",
+      "Operating phase",
+      false
     ],
     [
       "Gym partnerships: deck → outreach → secure",
       1,
       4,
-      "gym"
+      "gym",
+      "Gym partnerships",
+      true
     ],
     [
       "Phlebotomy partner: outreach → select",
       1,
       3,
-      "coral"
+      "coral",
+      "Partnerships",
+      true
     ],
     [
       "Product · build the MVP",
       2,
       8,
-      "tech"
+      "tech",
+      "Product build",
+      true
     ],
     [
       "Phase 1 · Build the rails",
       4,
       7,
-      "coral"
+      "coral",
+      "Operating phase",
+      false
     ],
     [
       "Phase 2 · Run the pilot",
       9,
       10,
-      "sage"
+      "sage",
+      "Pilot live",
+      false
     ],
     [
       "Phase 3 · Decide & scale",
       10,
       12,
-      "coral"
+      "coral",
+      "Operating phase",
+      false
     ],
     [
       "Raise · Draft investor deck",
       2,
       6,
-      "gold"
+      "gold",
+      "Fundraise",
+      false
     ],
     [
       "Raise · Data room + targets",
       5,
       8,
-      "gold"
+      "gold",
+      "Fundraise",
+      false
     ],
     [
       "Raise · Open the raise",
       11,
       12,
-      "gold"
+      "gold",
+      "Fundraise",
+      false
     ]
   ],
   "milestones": {

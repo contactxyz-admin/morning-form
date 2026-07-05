@@ -6,7 +6,12 @@
 import { Fragment } from 'react';
 import styles from './ops.module.css';
 import { PILOT_PLAN } from '@/lib/ops/pilot-plan-data';
-import { buildTimelineModel, type PilotWeekStatus, type TimelineColorKey } from './timeline-helpers';
+import {
+  buildTimelineModel,
+  milestoneLabelsForWeeks,
+  timelineWindowCopy,
+  type TimelineColorKey,
+} from './timeline-helpers';
 
 const BAR_CLASS: Record<TimelineColorKey, string> = {
   coral: styles.barCoral,
@@ -42,16 +47,6 @@ const PILL_TONE: Record<string, string> = {
 
 function StatusPill({ value }: { value: string }) {
   return <span className={`${styles.pill} ${PILL_TONE[value] ?? styles.pillGrey}`}>{value}</span>;
-}
-
-function timelineWindowCopy(status: PilotWeekStatus) {
-  if (status.state === 'before') return 'Pilot window has not started yet. Week 1 begins on 22 Jun.';
-  if (status.state === 'after') return 'Pilot window is complete. Use this as the final 12-week reference.';
-  return `Active now: week ${status.week}, starting ${status.label}.`;
-}
-
-function milestoneLabelsForWeeks(weeks: number[], milestonesByWeek: Partial<Record<number, string>>) {
-  return weeks.map((week) => milestonesByWeek[week]).filter((label): label is string => Boolean(label));
 }
 
 export function StartHereTab() {
@@ -125,9 +120,10 @@ export function KpisTab() {
 export function TimelineTab() {
   const timeline = buildTimelineModel();
   const activeWeek = timeline.currentWeek.state === 'active' ? timeline.currentWeek.week : null;
-  const milestoneEntries = timeline.weeks
-    .map((week) => ({ week, label: timeline.milestonesByWeek[week.w] }))
-    .filter(({ label }) => label);
+  const milestoneEntries = timeline.weeks.flatMap((week) => {
+    const label = timeline.milestonesByWeek[week.w];
+    return label ? [{ week, label }] : [];
+  });
 
   return (
     <>

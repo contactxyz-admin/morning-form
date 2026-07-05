@@ -343,6 +343,10 @@ ol.list {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 4px;
+  /* Keeps row labels readable when the 1040px grid scrolls on mid-width viewports. */
+  position: sticky;
+  left: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -479,5 +483,10 @@ ol.list {
   .mobileTimeline {
     display: grid;
     gap: 10px;
+  }
+  /* The visible mobile cards carry the same content; keeping .srOnly here
+     would double-announce every row to screen readers. */
+  .srOnly {
+    display: none;
   }
 }

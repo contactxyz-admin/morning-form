@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildTimelineModel, getPilotWeekStatus } from './timeline-helpers';
+import {
+  buildTimelineModel,
+  getPilotWeekStatus,
+  milestoneLabelsForWeeks,
+  timelineWindowCopy,
+} from './timeline-helpers';
 
 describe('getPilotWeekStatus', () => {
   it('returns before before the pilot starts', () => {
@@ -57,5 +62,44 @@ describe('buildTimelineModel', () => {
 
     expect(model.milestonesByWeek[4]).toBe('Gyms secured');
     expect(model.milestonesByWeek[2]).toBeUndefined();
+  });
+
+  it('flags exactly the critical-path rows', () => {
+    const model = buildTimelineModel(new Date('2026-07-06T12:00:00Z'));
+    const critical = model.rows.filter((row) => row.isCritical).map((row) => row.label);
+
+    expect(critical).toEqual([
+      'Gym partnerships: deck → outreach → secure',
+      'Phlebotomy partner: outreach → select',
+      'Product · build the MVP',
+    ]);
+  });
+});
+
+describe('timelineWindowCopy', () => {
+  it('names the week-1 start date before the window opens', () => {
+    expect(timelineWindowCopy({ state: 'before' })).toBe(
+      'Pilot window has not started yet. Week 1 begins on 22 Jun.',
+    );
+  });
+
+  it('names the active week', () => {
+    expect(timelineWindowCopy({ state: 'active', week: 4, label: '13 Jul' })).toBe(
+      'Active now: week 4, starting 13 Jul.',
+    );
+  });
+
+  it('marks the window complete after the final week', () => {
+    expect(timelineWindowCopy({ state: 'after' })).toBe(
+      'Pilot window is complete. Use this as the final 12-week reference.',
+    );
+  });
+});
+
+describe('milestoneLabelsForWeeks', () => {
+  it('collects only weeks that have milestones, in order', () => {
+    expect(
+      milestoneLabelsForWeeks([1, 2, 3, 4], { 1: 'Kickoff', 3: 'Partner signed', 4: 'Gyms secured' }),
+    ).toEqual(['Kickoff', 'Partner signed', 'Gyms secured']);
   });
 });
