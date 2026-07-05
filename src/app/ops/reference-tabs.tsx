@@ -3,10 +3,12 @@
  * src/lib/ops/pilot-plan-data.ts for the content and why this is static
  * rather than a live/editable surface.
  */
+import { Fragment } from 'react';
 import styles from './ops.module.css';
 import { PILOT_PLAN } from '@/lib/ops/pilot-plan-data';
+import { buildTimelineModel, type PilotWeekStatus, type TimelineColorKey } from './timeline-helpers';
 
-const BAR_CLASS: Record<string, string> = {
+const BAR_CLASS: Record<TimelineColorKey, string> = {
   coral: styles.barCoral,
   gym: styles.barPurple,
   tech: styles.barBlue,
@@ -40,6 +42,16 @@ const PILL_TONE: Record<string, string> = {
 
 function StatusPill({ value }: { value: string }) {
   return <span className={`${styles.pill} ${PILL_TONE[value] ?? styles.pillGrey}`}>{value}</span>;
+}
+
+function timelineWindowCopy(status: PilotWeekStatus) {
+  if (status.state === 'before') return 'Pilot window has not started yet. Week 1 begins on 22 Jun.';
+  if (status.state === 'after') return 'Pilot window is complete. Use this as the final 12-week reference.';
+  return `Active now: week ${status.week}, starting ${status.label}.`;
+}
+
+function milestoneLabelsForWeeks(weeks: number[], milestonesByWeek: Partial<Record<number, string>>) {
+  return weeks.map((week) => milestonesByWeek[week]).filter((label): label is string => Boolean(label));
 }
 
 export function StartHereTab() {
@@ -111,47 +123,108 @@ export function KpisTab() {
 }
 
 export function TimelineTab() {
+  const timeline = buildTimelineModel();
+  const activeWeek = timeline.currentWeek.state === 'active' ? timeline.currentWeek.week : null;
+  const milestoneEntries = timeline.weeks
+    .map((week) => ({ week, label: timeline.milestonesByWeek[week.w] }))
+    .filter(({ label }) => label);
+
   return (
     <>
       <h2 className={styles.h2}>Timeline</h2>
-      <p className={styles.sub}>12-week roadmap from Mon 22 Jun 2026.</p>
+      <p className={styles.sub}>12-week roadmap from Mon 22 Jun 2026. {timelineWindowCopy(timeline.currentWeek)}</p>
       <div className={styles.timelineWrap}>
-        <div className={styles.grid}>
+        <div className={styles.grid} aria-hidden="true">
           <div className={styles.glabel}>Workstream</div>
-          {PILOT_PLAN.weeks.map((w) => (
-            <div key={w.w} className={styles.gwk}>
-              W{w.w}
+          {timeline.weeks.map((w) => (
+            <div key={w.w} className={`${styles.gwk} ${activeWeek === w.w ? styles.currentWeek : ''}`}>
+              <span>W{w.w}</span>
               <br />
               {w.label}
             </div>
           ))}
-          {PILOT_PLAN.bars.map(([label, from, to, color]) => (
-            <>
-              <div key={`${label}-label`} className={styles.glabel}>
-                {label}
+          {timeline.rows.map((row) => (
+            <Fragment key={row.label}>
+              <div className={styles.glabel}>
+                <span className={styles.timelineLabel}>{row.label}</span>
+                <span className={styles.timelineMeta}>
+                  {row.lane} · W{row.from}-W{row.to}
+                </span>
+                {row.isCritical && <span className={styles.criticalPill}>Critical</span>}
               </div>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((w) => (
+              {timeline.weeks.map((week) => (
                 <div
-                  key={`${label}-${w}`}
-                  className={`${styles.gcell} ${w >= from && w <= to ? BAR_CLASS[color] : styles.gcellEmpty}`}
+                  key={`${row.label}-${week.w}`}
+                  className={`${styles.gcell} ${activeWeek === week.w ? styles.currentWeekCell : ''} ${
+                    week.w >= row.from && week.w <= row.to ? BAR_CLASS[row.colorClassKey] : styles.gcellEmpty
+                  }`}
                 />
               ))}
-            </>
+            </Fragment>
           ))}
-          <div className={styles.glabel}>▲ Milestones</div>
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((w) => (
-            <div key={`mile-${w}`} className={`${styles.gcell} ${styles.gcellMile}`}>
-              {(PILOT_PLAN.milestones as Record<string, string>)[String(w)] ? '▲' : ''}
+          <div className={styles.glabel}>Milestones</div>
+          {timeline.weeks.map((week) => (
+            <div
+              key={`mile-${week.w}`}
+              className={`${styles.gcell} ${styles.gcellMile} ${activeWeek === week.w ? styles.currentWeekCell : ''}`}
+            >
+              {timeline.milestonesByWeek[week.w] && (
+                <span>
+                  W{week.w} {timeline.milestonesByWeek[week.w]}
+                </span>
+              )}
             </div>
           ))}
         </div>
-        <div className={styles.legend}>
-          {Object.entries(PILOT_PLAN.milestones)
-            .map(([k, v]) => `W${k} ${v}`)
-            .join('  ·  ')}
+
+        <div className={styles.mobileTimeline}>
+          {timeline.rows.map((row) => {
+            const rowMilestones = milestoneLabelsForWeeks(row.weeks, timeline.milestonesByWeek);
+
+            return (
+              <article key={row.label} className={styles.mobileTimelineRow}>
+                <div>
+                  <span className={styles.timelineMeta}>{row.lane}</span>
+                  <h3 className={styles.mobileTimelineTitle}>{row.label}</h3>
+                </div>
+                <div className={styles.mobileTimelineFacts}>
+                  <span>
+                    W{row.from}-W{row.to} · {row.startLabel} to {row.endLabel}
+                  </span>
+                  {row.isCritical && <span className={styles.criticalPill}>Critical</span>}
+                  {activeWeek && row.weeks.includes(activeWeek) && <span className={styles.activePill}>Active now</span>}
+                </div>
+                {rowMilestones.length > 0 && (
+                  <p className={styles.mobileTimelineMilestones}>Milestones: {rowMilestones.join(', ')}</p>
+                )}
+              </article>
+            );
+          })}
+          <div className={styles.mobileTimelineMilestoneList}>
+            <p className={styles.kick}>Milestones</p>
+            {milestoneEntries.map(({ week, label }) => (
+              <div key={week.w}>
+                <b>W{week.w}</b> · {label}
+              </div>
+            ))}
+          </div>
         </div>
-        <div className={styles.legend}>
-          Coral = build/scale · Purple = gym partnerships · Blue = product build · Green = pilot live · Gold = fundraise
+
+        <div className={styles.srOnly}>
+          <h3>Pilot timeline workstreams and milestones</h3>
+          <ul>
+            {timeline.rows.map((row) => {
+              const rowMilestones = milestoneLabelsForWeeks(row.weeks, timeline.milestonesByWeek);
+
+              return (
+                <li key={row.label}>
+                  {row.label}. Lane: {row.lane}. Weeks {row.from} through {row.to}, {row.startLabel} to {row.endLabel}.
+                  {row.isCritical ? ' Critical path.' : ' Not critical path.'} Milestones:{' '}
+                  {rowMilestones.length > 0 ? rowMilestones.join(', ') : 'none'}.
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </div>
     </>
