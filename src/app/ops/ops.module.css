@@ -326,37 +326,95 @@ ol.list {
 }
 
 .timelineWrap {
+  position: relative;
   overflow-x: auto;
 }
 .grid {
   display: grid;
-  grid-template-columns: 200px repeat(12, 1fr);
+  grid-template-columns: minmax(190px, 220px) repeat(12, minmax(62px, 1fr));
   gap: 2px;
   align-items: stretch;
+  min-width: 1040px;
 }
 .glabel {
   font-size: 11px;
   font-weight: 600;
-  padding: 4px 6px;
-  white-space: nowrap;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  /* Keeps row labels readable when the 1040px grid scrolls on mid-width viewports. */
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 .gwk {
   font-size: 10px;
   color: var(--grey);
   text-align: center;
-  padding: 2px 0;
+  padding: 4px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.gwk span {
+  color: var(--ink);
+  font-weight: 700;
+}
+.currentWeek {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  border-radius: 4px;
+}
+.timelineLabel {
+  color: var(--ink);
+}
+.timelineMeta {
+  color: var(--grey);
+  font-size: 10px;
+  font-weight: 500;
+}
+.criticalPill,
+.activePill {
+  align-self: flex-start;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 6px;
+}
+.activePill {
+  border-color: var(--sage);
+  color: var(--sage);
 }
 .gcell {
-  min-height: 18px;
+  min-height: 28px;
   border-radius: 3px;
   background: var(--off);
+}
+.currentWeekCell {
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 .gcellEmpty {
   background: transparent;
 }
 .gcellMile {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  display: flex;
+  font-size: 10px;
+  font-weight: 600;
+  justify-content: center;
+  line-height: 1.2;
+  min-height: 44px;
+  padding: 4px;
   text-align: center;
-  font-size: 12px;
 }
 .barCoral {
   background: var(--coral);
@@ -373,8 +431,62 @@ ol.list {
 .barBlue {
   background: #5c86ae;
 }
-.legend {
-  font-size: 11px;
+.mobileTimeline {
+  display: none;
+}
+
+.mobileTimelineRow,
+.mobileTimelineMilestoneList {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.mobileTimelineTitle {
+  font-size: 14px;
+  line-height: 1.25;
+  margin: 3px 0 8px;
+}
+.mobileTimelineFacts {
+  align-items: center;
   color: var(--grey);
-  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 11px;
+  gap: 6px;
+}
+.mobileTimelineMilestones {
+  color: var(--ink);
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
+.srOnly {
+  border: 0;
+  clip: rect(0 0 0 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@media (max-width: 720px) {
+  .timelineWrap {
+    overflow-x: visible;
+  }
+  .grid {
+    display: none;
+  }
+  .mobileTimeline {
+    display: grid;
+    gap: 10px;
+  }
+  /* The visible mobile cards carry the same content; keeping .srOnly here
+     would double-announce every row to screen readers. */
+  .srOnly {
+    display: none;
+  }
 }
