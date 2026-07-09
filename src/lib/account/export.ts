@@ -103,6 +103,12 @@ export const EXPORT_DOMAIN_MODELS: ReadonlySet<string> = new Set([
   'GraphEdge',
   'GraphNodeLayout',
   'TopicPage',
+  // In-gym pilot (plan 2026-07-04): procedure consents, clinician reviews,
+  // slot bookings. PilotSlot itself is inventory (no user FK) — correctly
+  // absent from both this set and EXCLUSIONS; the dmmf guard skips it.
+  'ConsentRecord',
+  'ResultReview',
+  'PilotSlotBooking',
 ]);
 
 export interface ExclusionEntry {
@@ -250,6 +256,9 @@ async function assembleDomains(prisma: PrismaClient, userId: string): Promise<Do
     bookingRequests,
     actionOutcomes,
     draws,
+    consentRecords,
+    resultReviews,
+    pilotSlotBookings,
   ] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
     prisma.userPreferences.findUnique({ where: { userId } }),
@@ -283,6 +292,15 @@ async function assembleDomains(prisma: PrismaClient, userId: string): Promise<Do
     prisma.bookingRequest.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
     prisma.actionOutcome.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
     prisma.draw.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
+    prisma.consentRecord.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
+    prisma.resultReview.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } }),
+    // Slot venue/time included so the booking rows are intelligible on their
+    // own (the slot itself is shared inventory, not part of the user's data).
+    prisma.pilotSlotBooking.findMany({
+      where: { userId },
+      include: { slot: { select: { venueName: true, venueAddress: true, startsAt: true } } },
+      orderBy: { createdAt: 'asc' },
+    }),
   ]);
 
   // record domain: graph + source documents (chunk text included; embeddings
@@ -352,6 +370,9 @@ async function assembleDomains(prisma: PrismaClient, userId: string): Promise<Do
     one('bookingRequests', ['BookingRequest'], bookingRequests),
     one('actionOutcomes', ['ActionOutcome'], actionOutcomes),
     one('draws', ['Draw'], draws),
+    one('consentRecords', ['ConsentRecord'], consentRecords),
+    one('resultReviews', ['ResultReview'], resultReviews),
+    one('pilotSlotBookings', ['PilotSlotBooking'], pilotSlotBookings),
     {
       key: 'record',
       models: ['GraphNode', 'GraphEdge', 'GraphNodeLayout', 'TopicPage', 'SourceDocument', 'SourceDocumentAlias', 'SourceChunk'],

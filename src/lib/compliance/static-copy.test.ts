@@ -42,6 +42,11 @@ const SCAN_ROOTS = [
   // would be silently unscanned. Scoped to src/lib/retest deliberately (no
   // policy modules quoting forbidden phrases live here).
   'src/lib/retest',
+  // In-gym pilot copy (plan 2026-07-04): procedure-consent text and booking
+  // emails in src/lib/pilot, escalation emails in src/lib/review — all
+  // member-visible, all must stay in the descriptive register.
+  'src/lib/pilot',
+  'src/lib/review',
 ];
 
 // Files that are allowed to mention these strings because that is their job.
