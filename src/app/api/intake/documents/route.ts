@@ -54,6 +54,7 @@ import { buildLabObservationGraphInputs } from '@/lib/intake/lab-observations';
 import { diffLatestPanels } from '@/lib/markers/panel-diff';
 import { linkTemporalSucceedsForUser } from '@/lib/markers/temporal-succeeds';
 import { completeDrawForSourceDocument } from '@/lib/retest/draws';
+import { createReviewForDocument } from '@/lib/review/queue';
 import { writeFunnelEvent, FUNNEL_EVENTS } from '@/lib/funnel/event';
 import { env } from '@/lib/env';
 
@@ -317,6 +318,30 @@ export async function POST(req: Request) {
       } catch (drawErr) {
         const msg = drawErr instanceof Error ? drawErr.message : String(drawErr);
         console.error(`[API] intake/documents retest draw hook failed post-ingest (non-fatal): ${msg}`);
+      }
+    }
+
+    // Clinician review (pilot MVP plan 2026-07-04): every ingested panel gets
+    // a pending review row for the clinic queue. Post-commit + flag-gated +
+    // non-fatal like the sibling hooks (an upload must never fail because
+    // review bookkeeping failed); a dropped hook is surfaced by the /clinic
+    // reconciliation banner (countRecentDocsWithoutReview) rather than being
+    // silently invisible. Idempotent under retry via the @unique(sourceDocumentId)
+    // constraint; the contentHash dedup above returns before any hook on
+    // re-upload, so no duplicate reviews structurally.
+    if (env.CLINICIAN_REVIEW_ENABLED === 'true') {
+      try {
+        await createReviewForDocument(prisma, {
+          userId: user.id,
+          sourceDocumentId: persisted.documentId,
+          documentCapturedAt: capturedAt,
+          biomarkers: validBiomarkers,
+          labProvider: panel.labProvider ?? null,
+          sourceRef: file.name,
+        });
+      } catch (reviewErr) {
+        const msg = reviewErr instanceof Error ? reviewErr.message : String(reviewErr);
+        console.error(`[API] intake/documents review hook failed post-ingest (non-fatal): ${msg}`);
       }
     }
 

@@ -139,6 +139,9 @@ export const config = {
     // cookie gate would reject every valid MCP request. The token-
     // management subroute IS cookie-authed and DOES belong here.
     '/api/mcp/tokens/:path*',
+    // Clinician review decisions (cookie-authed; clinician allowlist enforced
+    // in the route's own guard).
+    '/api/clinic/:path*',
     // /api/ops/mcp itself is intentionally NOT in the matcher, for the same
     // reason as /api/mcp above — it's bearer-auth only. The cookie-authed
     // REST routes for the board ARE listed here.

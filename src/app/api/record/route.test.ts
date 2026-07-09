@@ -27,12 +27,19 @@ vi.mock('@/lib/graph/queries', () => ({
 // diff and a dynamic LONGITUDINAL_GRAPH_ENABLED flag; all other env fields
 // pass through to the real env so unrelated readers (registry, importance)
 // are unaffected.
-const { diffLatestPanelsMock, envState } = vi.hoisted(() => ({
+const { diffLatestPanelsMock, envState, loadEscalatedMarkerKeysMock } = vi.hoisted(() => ({
   diffLatestPanelsMock: vi.fn(),
-  envState: { LONGITUDINAL_GRAPH_ENABLED: '' },
+  envState: { LONGITUDINAL_GRAPH_ENABLED: '', CLINICIAN_REVIEW_ENABLED: '' },
+  loadEscalatedMarkerKeysMock: vi.fn(),
 }));
 vi.mock('@/lib/markers/panel-diff', () => ({
   diffLatestPanels: (...args: unknown[]) => diffLatestPanelsMock(...args),
+}));
+// Clinician-escalation override (pilot MVP plan 2026-07-04): stubbed —
+// the fold itself is unit-tested in src/lib/review/overrides.test.ts; here we
+// assert the route's wiring (flag gating + decoration placement).
+vi.mock('@/lib/review/overrides', () => ({
+  loadEscalatedMarkerKeys: (...args: unknown[]) => loadEscalatedMarkerKeysMock(...args),
 }));
 vi.mock('@/lib/env', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/env')>();
@@ -42,7 +49,9 @@ vi.mock('@/lib/env', async (importOriginal) => {
       get: (target, prop) =>
         prop === 'LONGITUDINAL_GRAPH_ENABLED'
           ? envState.LONGITUDINAL_GRAPH_ENABLED
-          : (target as Record<string, unknown>)[prop as string],
+          : prop === 'CLINICIAN_REVIEW_ENABLED'
+            ? envState.CLINICIAN_REVIEW_ENABLED
+            : (target as Record<string, unknown>)[prop as string],
     }),
   };
 });
@@ -86,7 +95,9 @@ describe('GET /api/record', () => {
     topicPageFindMany.mockResolvedValue([]);
     getLatestSupportCapturedAt.mockResolvedValue(new Map());
     envState.LONGITUDINAL_GRAPH_ENABLED = '';
+    envState.CLINICIAN_REVIEW_ENABLED = '';
     diffLatestPanelsMock.mockResolvedValue(null);
+    loadEscalatedMarkerKeysMock.mockResolvedValue(new Set());
   });
 
   function ferritinDiff() {
@@ -358,5 +369,63 @@ describe('GET /api/record', () => {
     const body = await res.json();
 
     expect(body.nodes[0]).not.toHaveProperty('change');
+  });
+
+  // Clinician-escalation override (pilot MVP plan 2026-07-04).
+  it('escalation override: flag ON forces the escalation tier on a BASELINE panel with the longitudinal flag OFF', async () => {
+    envState.CLINICIAN_REVIEW_ENABLED = 'true';
+    // Longitudinal deliberately OFF — the safety flag must not depend on it.
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    loadEscalatedMarkerKeysMock.mockResolvedValue(new Set(['ferritin']));
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(body.nodes[0].interpretation?.flag).toBe('escalation');
+    expect(diffLatestPanelsMock).not.toHaveBeenCalled();
+  });
+
+  it('escalation override: a clinician escalation OVERRIDES the authored interpretation on a diffed panel', async () => {
+    envState.LONGITUDINAL_GRAPH_ENABLED = 'true';
+    envState.CLINICIAN_REVIEW_ENABLED = 'true';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    diffLatestPanelsMock.mockResolvedValue(ferritinDiff());
+    loadEscalatedMarkerKeysMock.mockResolvedValue(new Set(['ferritin']));
+
+    const res = await GET();
+    const body = await res.json();
+
+    // The authored interpretation for improved-ferritin would not be
+    // 'escalation' — the human decision must win.
+    expect(body.nodes[0].interpretation?.flag).toBe('escalation');
+  });
+
+  it('escalation override: flag OFF never loads the override set and adds no decoration', async () => {
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(loadEscalatedMarkerKeysMock).not.toHaveBeenCalled();
+    expect(body.nodes[0]).not.toHaveProperty('interpretation');
+  });
+
+  it('escalation override: a load failure degrades to no decoration, never a 500', async () => {
+    envState.CLINICIAN_REVIEW_ENABLED = 'true';
+    getCurrentUser.mockResolvedValue({ id: 'user-1' });
+    getFullGraphForUser.mockResolvedValue({ nodes: [makeNode('n1', 'ferritin')], edges: [] });
+    getLatestSupportCapturedAt.mockResolvedValue(new Map([['n1', null]]));
+    loadEscalatedMarkerKeysMock.mockRejectedValue(new Error('db down'));
+
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.nodes[0]).not.toHaveProperty('interpretation');
   });
 });

@@ -10,10 +10,13 @@ import { aggregateRecord } from '@/lib/record/aggregate';
 import { diffLatestPanels, type PanelDiff } from '@/lib/markers/panel-diff';
 import {
   applyChangesToWireNodes,
+  applyEscalationsToWireNodes,
   applyInterpretationsToWireNodes,
   changedNodeIds,
   meaningfulMoves,
 } from '@/lib/markers/node-change-map';
+import { isClinicianReviewEnabled } from '@/lib/review/config';
+import { loadEscalatedMarkerKeys } from '@/lib/review/overrides';
 
 /**
  * GET /api/record
@@ -46,7 +49,11 @@ export async function GET() {
     // with <2 lab panels. Flag-off → never runs. A diff failure degrades to
     // null (no lift, no decoration) — it must never 500 the vault.
     const longitudinal = env.LONGITUDINAL_GRAPH_ENABLED === 'true';
-    const [{ nodes, edges }, sources, topics, diff] = await Promise.all([
+    // Clinician-escalation override set (pilot MVP plan 2026-07-04): loaded in
+    // the same parallel batch. Degrades to an empty set on failure — the vault
+    // must never 500 over review bookkeeping; the escalation email is the
+    // primary notification channel, this decoration is reinforcement.
+    const [{ nodes, edges }, sources, topics, diff, escalatedKeys] = await Promise.all([
       getFullGraphForUser(prisma, user.id),
       prisma.sourceDocument.findMany({
         where: { userId: user.id },
@@ -63,6 +70,13 @@ export async function GET() {
             return null as PanelDiff | null;
           })
         : Promise.resolve(null as PanelDiff | null),
+      isClinicianReviewEnabled()
+        ? loadEscalatedMarkerKeys(prisma, user.id).catch((esclErr: unknown) => {
+            const msg = esclErr instanceof Error ? esclErr.message : String(esclErr);
+            console.error(`[API] record escalation-override load failed (non-fatal): ${msg}`);
+            return new Set<string>();
+          })
+        : Promise.resolve(new Set<string>()),
     ]);
 
     // Lift markers that MEANINGFULLY moved (excl. `stable`) BEFORE the cap so
@@ -102,6 +116,11 @@ export async function GET() {
       applyChangesToWireNodes(index.nodes, diff.changes);
       applyInterpretationsToWireNodes(index.nodes, diff.changes);
     }
+
+    // Clinician escalation LAST and OUTSIDE the diff gate: a human decision
+    // overrides any authored interpretation, and must render on a baseline
+    // (first) panel where no diff exists — see applyEscalationsToWireNodes.
+    applyEscalationsToWireNodes(index.nodes, escalatedKeys);
 
     return NextResponse.json(index, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {

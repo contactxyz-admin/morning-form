@@ -6,6 +6,8 @@ import { parseJsonField } from '@/lib/graph/queries';
 import { buildSourceView } from '@/lib/record/source-view';
 import { enrichGroundedNodes } from '@/lib/record/source-enrichment';
 import { diffLatestPanels } from '@/lib/markers/panel-diff';
+import { isClinicianReviewEnabled } from '@/lib/review/config';
+import { loadEscalatedMarkerKeys } from '@/lib/review/overrides';
 
 /**
  * GET /api/record/source/[id]
@@ -32,7 +34,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     // or flag-off → name-only markers, never a 500). It short-circuits cheaply
     // for users with <2 lab panels.
     const longitudinal = env.LONGITUDINAL_GRAPH_ENABLED === 'true';
-    const [source, diff] = await Promise.all([
+    const [source, diff, escalatedKeys] = await Promise.all([
       prisma.sourceDocument.findFirst({
         where: { id: params.id, userId: user.id },
         select: {
@@ -57,6 +59,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
             return null;
           })
         : Promise.resolve(null),
+      // Clinician-escalation override set — same load/degrade posture as
+      // /api/record so the two member surfaces never disagree on the flag.
+      isClinicianReviewEnabled()
+        ? loadEscalatedMarkerKeys(prisma, user.id).catch((esclErr: unknown) => {
+            const msg = esclErr instanceof Error ? esclErr.message : String(esclErr);
+            console.error(`[API] source escalation-override load failed (non-fatal): ${msg}`);
+            return new Set<string>();
+          })
+        : Promise.resolve(new Set<string>()),
     ]);
 
     if (!source) {
@@ -87,6 +98,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         attributes: parseJsonField(n.attributes),
       })),
       diff,
+      escalatedKeys,
     );
 
     const view = buildSourceView({

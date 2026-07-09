@@ -13,7 +13,7 @@
  */
 
 import type { PanelDiff, MarkerChange } from '@/lib/markers/panel-diff';
-import { markerChangeToWire } from '@/lib/markers/node-change-map';
+import { ESCALATION_INTERPRETATION, markerChangeToWire } from '@/lib/markers/node-change-map';
 import { markerJoinKey } from '@/lib/markers/marker-key';
 import { interpret, isAuthoredMarker } from '@/lib/markers/clinical-interpretation';
 import { deriveSourceAbnormality } from '@/lib/markers/source-abnormality';
@@ -41,6 +41,14 @@ export interface GroundedNodeInput {
 export function enrichGroundedNodes(
   nodes: readonly GroundedNodeInput[],
   diff: PanelDiff | null,
+  /**
+   * Clinician-escalation join keys (pilot MVP plan 2026-07-04). Applied LAST
+   * per node so a human escalation overrides any authored interpretation —
+   * and INDEPENDENT of the panel diff, so a baseline-panel escalation renders
+   * here exactly as it does on the record map (the two member surfaces must
+   * never disagree about a safety flag).
+   */
+  escalatedKeys?: ReadonlySet<string>,
 ): SourceViewNodeRow[] {
   // One map of the full MarkerChange (carries the reference range `interpret`
   // needs); the leaner wire `change` is projected from it via the canonical
@@ -71,10 +79,16 @@ export function enrichGroundedNodes(
     );
     const withFlag: SourceViewNodeRow = sourceFlag ? { ...base, sourceFlag } : base;
 
-    if (!usable) return withFlag;
     const joinKey = markerJoinKey(n.canonicalKey, n.attributes.registryKey);
+    const escalated = escalatedKeys?.has(joinKey) === true;
+
+    if (!usable) {
+      return escalated ? { ...withFlag, interpretation: ESCALATION_INTERPRETATION } : withFlag;
+    }
     const mc = mcByKey.get(joinKey);
-    if (!mc) return withFlag;
+    if (!mc) {
+      return escalated ? { ...withFlag, interpretation: ESCALATION_INTERPRETATION } : withFlag;
+    }
     const change = markerChangeToWire(mc);
     // Authored-only clinical judgement (plan 2026-06-17): show value/direction
     // for every changed biomarker, but attach an interpretation (the flag) ONLY
@@ -82,13 +96,15 @@ export function enrichGroundedNodes(
     // by the SAME joinKey the change matched on (registryKey ?? canonicalKey),
     // not the raw canonicalKey, so a registryKey-matched marker resolves its
     // authored rule instead of silently falling through to the default.
-    const interpretation = isAuthoredMarker(joinKey)
-      ? interpret(joinKey, change, {
-          value: mc.afterValue,
-          low: mc.referenceLow,
-          high: mc.referenceHigh,
-        })
-      : undefined;
+    const interpretation = escalated
+      ? ESCALATION_INTERPRETATION
+      : isAuthoredMarker(joinKey)
+        ? interpret(joinKey, change, {
+            value: mc.afterValue,
+            low: mc.referenceLow,
+            high: mc.referenceHigh,
+          })
+        : undefined;
     return { ...withFlag, change, ...(interpretation ? { interpretation } : {}) };
   });
 }

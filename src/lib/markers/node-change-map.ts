@@ -9,7 +9,7 @@
  * marker that didn't survive the importance cap simply carries no decoration.
  */
 
-import type { GraphNodeWire, NodeChangeWire } from '@/types/graph';
+import type { GraphNodeWire, NodeChangeWire, NodeInterpretation } from '@/types/graph';
 import type { MarkerChange } from './panel-diff';
 import { markerJoinKey } from './marker-key';
 import { interpret, isAuthoredMarker } from './clinical-interpretation';
@@ -130,6 +130,49 @@ export function applyInterpretationsToWireNodes(
       low: mc.referenceLow,
       high: mc.referenceHigh,
     });
+  }
+  return nodes;
+}
+
+/**
+ * The clinician-escalation interpretation (pilot MVP plan 2026-07-04). The
+ * node-detail sheet's `escalation` branch renders its own fixed handover copy
+ * and never shows the other interpretation fields, so the filler strings
+ * below are not user-visible — the flag tier is the payload.
+ */
+export const ESCALATION_INTERPRETATION: NodeInterpretation = {
+  whereItIsNow: 'Flagged for clinician handover',
+  signalClarity: 'Reviewed by a clinician',
+  nextStep: 'Discuss with your GP',
+  flag: 'escalation',
+  plainEnglish: 'A clinician has flagged this result for a GP conversation.',
+};
+
+/**
+ * Clinician-escalation override (pilot MVP plan 2026-07-04): force the
+ * 'escalation' flag tier on the biomarker nodes whose join key is in
+ * `escalatedKeys` — the set of markers whose MOST RECENT clinical decision
+ * was an escalation (src/lib/review/overrides.ts).
+ *
+ * Deliberately a SIBLING of applyInterpretationsToWireNodes, not a change to
+ * it: that function only runs when a panel diff exists AND
+ * LONGITUDINAL_GRAPH_ENABLED is on, but an escalation on a member's first
+ * (baseline) panel must render regardless — a safety surface can't be
+ * coupled to an analytics flag. Callers apply this AFTER it, unconditionally
+ * (gated only on CLINICIAN_REVIEW_ENABLED), so the human decision overrides
+ * any authored interpretation. Mutates and returns the array.
+ */
+export function applyEscalationsToWireNodes(
+  nodes: GraphNodeWire[],
+  escalatedKeys: ReadonlySet<string>,
+): GraphNodeWire[] {
+  if (escalatedKeys.size === 0) return nodes;
+  for (const node of nodes) {
+    if (node.type !== 'biomarker') continue;
+    const joinKey = markerJoinKey(node.canonicalKey, node.attributes?.registryKey);
+    if (escalatedKeys.has(joinKey)) {
+      node.interpretation = ESCALATION_INTERPRETATION;
+    }
   }
   return nodes;
 }

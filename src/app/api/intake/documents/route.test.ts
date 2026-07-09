@@ -39,13 +39,21 @@ vi.mock('@/lib/session', () => ({
   getCurrentUser: () => currentUserMock(),
 }));
 
+// Mutable flag state so individual tests can flip feature flags (clinician
+// review hook); everything else stays the static test baseline.
+const { envState } = vi.hoisted(() => ({
+  envState: { CLINICIAN_REVIEW_ENABLED: '' },
+}));
 vi.mock('@/lib/env', () => ({
-  env: {
-    MOCK_LLM: 'true',
-    NODE_ENV: 'test',
-    ANTHROPIC_API_KEY: '',
-    DATABASE_URL: 'file:./prisma/.test-graph.db',
-    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+  get env() {
+    return {
+      MOCK_LLM: 'true',
+      NODE_ENV: 'test',
+      ANTHROPIC_API_KEY: '',
+      DATABASE_URL: 'file:./prisma/.test-graph.db',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      CLINICIAN_REVIEW_ENABLED: envState.CLINICIAN_REVIEW_ENABLED,
+    };
   },
 }));
 
@@ -107,6 +115,7 @@ afterEach(() => {
   restoreEnv('EMBEDDING_PROVIDER', originalEmbeddingProvider);
   restoreEnv('OPENAI_API_KEY', originalOpenAiKey);
   restoreEnv('MOCK_LLM', originalMockLlm);
+  envState.CLINICIAN_REVIEW_ENABLED = '';
 });
 
 // Enough plain text to clear the 200-non-whitespace-char 'no_text_layer' floor.
@@ -622,3 +631,89 @@ async function eventuallyVectorEmbedding(sourceChunkId: string) {
   }
   return prisma.vectorEmbedding.findUnique({ where: { sourceChunkId } });
 }
+
+describe('POST /api/intake/documents — clinician review hook (pilot MVP plan 2026-07-04)', () => {
+  function primeUpload(): void {
+    mockGetText.mockResolvedValue({
+      pages: [{ num: 1, text: LAB_PAGE_TEXT }],
+      text: '',
+      total: 1,
+    });
+    setExtraction({
+      biomarkers: [
+        {
+          canonicalKey: 'ferritin',
+          displayName: 'Ferritin',
+          value: 18,
+          unit: 'ug/L',
+          referenceRangeLow: 30,
+          referenceRangeHigh: 400,
+          flaggedOutOfRange: true,
+          collectionDate: '2026-04-01',
+          supportingChunkIndices: [0],
+        },
+      ],
+      reportCollectionDate: '2026-04-01',
+      labProvider: 'Medichecks',
+    });
+  }
+
+  it('flag on — upload creates exactly one pending review with the panel snapshot', async () => {
+    envState.CLINICIAN_REVIEW_ENABLED = 'true';
+    const userId = await makeTestUser(prisma, 'docs-review-on');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeUpload();
+
+    const res = await POST(makeRequest({}));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    const review = await prisma.resultReview.findUnique({
+      where: { sourceDocumentId: body.documentId },
+    });
+    expect(review?.status).toBe('pending');
+    expect(review?.userId).toBe(userId);
+    const summary = JSON.parse(review?.panelSummary ?? '{}');
+    expect(summary.labProvider).toBe('Medichecks');
+    expect(summary.markers).toHaveLength(1);
+    expect(summary.markers[0].joinKey).toBe('ferritin');
+    expect(summary.markers[0].flaggedOutOfRange).toBe(true);
+  });
+
+  it('flag off (default) — upload creates no review row', async () => {
+    const userId = await makeTestUser(prisma, 'docs-review-off');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeUpload();
+
+    const res = await POST(makeRequest({}));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const review = await prisma.resultReview.findUnique({
+      where: { sourceDocumentId: body.documentId },
+    });
+    expect(review).toBeNull();
+  });
+
+  it('flag on — deduped re-upload does not create a second review', async () => {
+    envState.CLINICIAN_REVIEW_ENABLED = 'true';
+    const userId = await makeTestUser(prisma, 'docs-review-dedup');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeUpload();
+
+    const bytes = new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x99])], {
+      type: 'application/pdf',
+    });
+    const first = await POST(makeRequest({ file: new File([bytes], 'same.pdf', { type: 'application/pdf' }) }));
+    const firstBody = await first.json();
+
+    primeUpload();
+    const second = await POST(makeRequest({ file: new File([bytes], 'same.pdf', { type: 'application/pdf' }) }));
+    const secondBody = await second.json();
+    expect(secondBody.deduped).toBe(true);
+
+    const count = await prisma.resultReview.count({
+      where: { sourceDocumentId: firstBody.documentId },
+    });
+    expect(count).toBe(1);
+  });
+});
