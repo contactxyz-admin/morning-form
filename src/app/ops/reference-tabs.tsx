@@ -1,7 +1,12 @@
 /**
- * Read-only reference tabs ported from the pilot-ops planning gist — see
- * src/lib/ops/pilot-plan-data.ts for the content and why this is static
- * rather than a live/editable surface.
+ * Reference tabs ported from the pilot-ops planning gist — see
+ * src/lib/ops/pilot-plan-data.ts for the content. The underlying plan data
+ * stays static/read-only, but the tabs themselves are now interactive where
+ * that earns its keep: the scorecard is a what-if sandbox, the funnel works
+ * the conversion math backwards from the draw goal, contacts/decisions get
+ * pipeline filters, and the KPI/timeline/rhythm views are aware of today's
+ * date. If a section needs to become live/collaborative (edits that persist),
+ * promote it to a real table the way the Workstream tab already works.
  */
 import { Fragment } from 'react';
 import styles from './ops.module.css';
@@ -12,6 +17,11 @@ import {
   timelineWindowCopy,
   type TimelineColorKey,
 } from './timeline-helpers';
+import { kpiWeekFlag, rhythmIndexForDate, type KpiWeekFlag } from './intelligence';
+import { ScorecardClient } from './scorecard-client';
+import { FunnelClient } from './funnel-client';
+import { ContactsClient } from './contacts-client';
+import { DecisionsClient } from './decisions-client';
 
 const BAR_CLASS: Record<TimelineColorKey, string> = {
   coral: styles.barCoral,
@@ -21,35 +31,8 @@ const BAR_CLASS: Record<TimelineColorKey, string> = {
   gold: styles.barGold,
 };
 
-// Buckets the varied free-text status vocabulary across the reference tabs
-// (decision log, contacts/outreach) into the same 4-tone system the live
-// Workstream tab already uses, so "status" reads consistently everywhere.
-const PILL_TONE: Record<string, string> = {
-  Done: styles.pillGreen,
-  Decided: styles.pillGreen,
-  Verified: styles.pillGreen,
-  Connected: styles.pillGreen,
-  Confirmed: styles.pillGreen,
-  Replied: styles.pillGreen,
-  Open: styles.pillPeach,
-  'In progress': styles.pillPeach,
-  Sent: styles.pillPeach,
-  'Draft sent': styles.pillPeach,
-  'Draft ready': styles.pillPeach,
-  'Call booked': styles.pillPeach,
-  Blocked: styles.pillRed,
-  Bounced: styles.pillRed,
-  Declined: styles.pillRed,
-  'Not started': styles.pillGrey,
-  Parked: styles.pillGrey,
-  Deferred: styles.pillGrey,
-};
-
-function StatusPill({ value }: { value: string }) {
-  return <span className={`${styles.pill} ${PILL_TONE[value] ?? styles.pillGrey}`}>{value}</span>;
-}
-
 export function StartHereTab() {
+  const todayRhythmIndex = rhythmIndexForDate(new Date());
   return (
     <>
       <h2 className={styles.h2}>Start Here</h2>
@@ -72,9 +55,11 @@ export function StartHereTab() {
       </div>
       <div className={styles.card}>
         <p className={styles.kick}>Operating Rhythm</p>
-        {PILOT_PLAN.rhythm.map(([when, what]) => (
-          <div key={when} className={styles.rhythmRow}>
-            <b>{when}</b> — <span className={styles.note}>{what}</span>
+        {PILOT_PLAN.rhythm.map(([when, what], i) => (
+          <div key={when} className={`${styles.rhythmRow} ${i === todayRhythmIndex ? styles.rhythmToday : ''}`}>
+            <b>{when}</b>
+            {i === todayRhythmIndex && <span className={styles.todayPill}>Today</span>} —{' '}
+            <span className={styles.note}>{what}</span>
           </div>
         ))}
       </div>
@@ -90,27 +75,46 @@ export function StartHereTab() {
   );
 }
 
+function KpiWeekChip({ flag }: { flag: KpiWeekFlag }) {
+  if (flag.state === 'passed') {
+    return <span className={`${styles.pill} ${styles.pillRed}`}>was due W{flag.week} — check</span>;
+  }
+  if (flag.state === 'this_week') {
+    return <span className={`${styles.pill} ${styles.pillPeach}`}>due this week (W{flag.week})</span>;
+  }
+  return <span className={`${styles.pill} ${styles.pillGrey}`}>due W{flag.week}</span>;
+}
+
 export function KpisTab() {
+  const now = new Date();
   return (
     <>
       <h2 className={styles.h2}>Objectives &amp; KPIs</h2>
-      <p className={styles.sub}>Targets from the original plan. Update actuals in the Workstream tracker.</p>
+      <p className={styles.sub}>
+        Targets from the original plan, flagged against today&rsquo;s pilot week. Update actuals in the Workstream
+        tracker.
+      </p>
       <table className={styles.table}>
         <thead>
           <tr>
             <th className={styles.th}>Objective / key result</th>
             <th className={styles.th}>Target</th>
+            <th className={styles.th}>When</th>
             <th className={styles.th}>Notes</th>
           </tr>
         </thead>
         <tbody>
-          {PILOT_PLAN.kpis.map(([name, target, note], i) => (
-            <tr key={name} className={i % 2 === 1 ? styles.trEven : undefined}>
-              <td className={styles.td}>{name}</td>
-              <td className={styles.td}>{target}</td>
-              <td className={`${styles.td} ${styles.note}`}>{note}</td>
-            </tr>
-          ))}
+          {PILOT_PLAN.kpis.map(([name, target, note], i) => {
+            const flag = kpiWeekFlag(target, now);
+            return (
+              <tr key={name} className={i % 2 === 1 ? styles.trEven : undefined}>
+                <td className={styles.td}>{name}</td>
+                <td className={styles.td}>{target}</td>
+                <td className={styles.td}>{flag ? <KpiWeekChip flag={flag} /> : <span className={styles.note}>—</span>}</td>
+                <td className={`${styles.td} ${styles.note}`}>{note}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </>
@@ -120,6 +124,8 @@ export function KpisTab() {
 export function TimelineTab() {
   const timeline = buildTimelineModel();
   const activeWeek = timeline.currentWeek.state === 'active' ? timeline.currentWeek.week : null;
+  const afterWindow = timeline.currentWeek.state === 'after';
+  const weekPassed = (w: number) => afterWindow || (activeWeek !== null && w < activeWeek);
   const milestoneEntries = timeline.weeks.flatMap((week) => {
     const label = timeline.milestonesByWeek[week.w];
     return label ? [{ week, label }] : [];
@@ -166,6 +172,7 @@ export function TimelineTab() {
             >
               {timeline.milestonesByWeek[week.w] && (
                 <span>
+                  {weekPassed(week.w) && <span className={styles.mileTick}>✓ </span>}
                   W{week.w} {timeline.milestonesByWeek[week.w]}
                 </span>
               )}
@@ -200,6 +207,7 @@ export function TimelineTab() {
             <p className={styles.kick}>Milestones</p>
             {milestoneEntries.map(({ week, label }) => (
               <div key={week.w}>
+                {weekPassed(week.w) && <span className={styles.mileTick}>✓ </span>}
                 <b>W{week.w}</b> · {label}
               </div>
             ))}
@@ -288,60 +296,14 @@ export function ProductTechTab() {
 }
 
 export function ScorecardTab() {
-  const wsum = PILOT_PLAN.criteria.reduce((a, c) => a + c[1], 0);
-  const totals = PILOT_PLAN.partners.map((_, pi) => {
-    const s = PILOT_PLAN.criteria.reduce((acc, c) => acc + c[2][pi] * c[1], 0);
-    return s / wsum;
-  });
-  const ranks = totals.map((x) => 1 + totals.filter((y) => y > x).length);
   return (
     <>
       <h2 className={styles.h2}>Partner Scorecard</h2>
-      <p className={styles.sub}>Starting hypotheses from the original plan (1–5 per criterion, weighted).</p>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th className={styles.th}>Criterion</th>
-            <th className={styles.th}>Wt %</th>
-            {PILOT_PLAN.partners.map((p) => (
-              <th className={styles.th} key={p}>
-                {p}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {PILOT_PLAN.criteria.map(([name, weight, scores], i) => (
-            <tr key={name} className={i % 2 === 1 ? styles.trEven : undefined}>
-              <td className={styles.td}>{name}</td>
-              <td className={styles.td}>{weight}</td>
-              {scores.map((s, pi) => (
-                <td className={styles.td} key={pi}>
-                  {s}
-                </td>
-              ))}
-            </tr>
-          ))}
-          <tr>
-            <td className={`${styles.td} ${styles.tot}`}>Weighted (1–5)</td>
-            <td className={styles.td} />
-            {totals.map((t, pi) => (
-              <td className={`${styles.td} ${styles.tot}`} key={pi}>
-                {t.toFixed(2)}
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <td className={`${styles.td} ${styles.tot}`}>Rank</td>
-            <td className={styles.td} />
-            {ranks.map((r, pi) => (
-              <td className={`${styles.td} ${styles.tot}`} key={pi}>
-                #{r}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
+      <p className={styles.sub}>
+        Starting hypotheses from the original plan (1–5 per criterion, weighted) — now a live sandbox: poke the
+        scores as diligence answers land and watch the ranking move.
+      </p>
+      <ScorecardClient />
       <div className={styles.card} style={{ marginTop: 14 }}>
         <p className={styles.kick}>Diligence questions — ask every partner</p>
         <ol className={styles.list}>
@@ -358,22 +320,10 @@ export function FunnelTab() {
   return (
     <>
       <h2 className={styles.h2}>Pilot Funnel</h2>
-      <p className={styles.sub}>The funnel this pilot needs to prove out, in order.</p>
-      <div className={styles.card}>
-        <div className={styles.funnelFlow}>
-          {PILOT_PLAN.funnel.map((stage, i) => (
-            <div className={styles.funnelStep} key={stage}>
-              <span className={styles.funnelIndex}>{i + 1}</span>
-              <span>{stage}</span>
-              {i < PILOT_PLAN.funnel.length - 1 && (
-                <span className={styles.funnelArrow} aria-hidden="true">
-                  →
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      <p className={styles.sub}>
+        The funnel this pilot needs to prove out — worked backwards from the draw goal at target conversion rates.
+      </p>
+      <FunnelClient />
     </>
   );
 }
@@ -383,28 +333,7 @@ export function DecisionsTab() {
     <>
       <h2 className={styles.h2}>Decision Log</h2>
       <p className={styles.sub}>Log the call the day you make it.</p>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th className={styles.th}>Decision</th>
-            <th className={styles.th}>Options</th>
-            <th className={styles.th}>Decision / rationale</th>
-            <th className={styles.th}>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {PILOT_PLAN.decisions.map(([name, options, rationale, status], i) => (
-            <tr key={name} className={i % 2 === 1 ? styles.trEven : undefined}>
-              <td className={styles.td}>{name}</td>
-              <td className={`${styles.td} ${styles.note}`}>{options}</td>
-              <td className={styles.td}>{rationale}</td>
-              <td className={styles.td}>
-                <StatusPill value={status ?? 'Open'} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DecisionsClient />
     </>
   );
 }
@@ -463,33 +392,10 @@ export function ContactsTab() {
   return (
     <>
       <h2 className={styles.h2}>Contacts &amp; Outreach</h2>
-      <p className={styles.sub}>Who&rsquo;s contacted, what&rsquo;s next.</p>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th className={styles.th}>Org / person</th>
-            <th className={styles.th}>Known contact</th>
-            <th className={styles.th}>Type</th>
-            <th className={styles.th}>Status</th>
-            <th className={styles.th}>Next step</th>
-          </tr>
-        </thead>
-        <tbody>
-          {PILOT_PLAN.contacts.map(([org, contact, type, status, next], i) => (
-            <tr key={org} className={i % 2 === 1 ? styles.trEven : undefined}>
-              <td className={styles.td} style={{ fontWeight: 600 }}>
-                {org}
-              </td>
-              <td className={`${styles.td} ${styles.note}`}>{contact}</td>
-              <td className={styles.td}>{type}</td>
-              <td className={styles.td}>
-                <StatusPill value={status} />
-              </td>
-              <td className={`${styles.td} ${styles.note}`}>{next}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <p className={styles.sub}>
+        Who&rsquo;s contacted, what&rsquo;s next — bucketed by what each one demands of us today.
+      </p>
+      <ContactsClient />
     </>
   );
 }
