@@ -40,11 +40,16 @@ export interface ImportanceInputs {
   /** nodeId -> latest supporting-doc capturedAt (null/absent if none). */
   recencyMap?: Map<string, Date | null>;
   /**
-   * Node ids that changed since the user's last panel (longitudinal feature).
-   * Each gets `CHANGE_LIFT` added so a freshly-moved marker stays in the
-   * importance-ranked, capped node set rather than being silently dropped.
+   * Node ids that MUST survive the importance cap. Each gets `CHANGE_LIFT`
+   * added so the node stays in the ranked, capped set rather than being
+   * silently dropped. Two callers feed this today with different stakes:
+   * markers that changed since the last panel (longitudinal analytics), and
+   * clinician-ESCALATED markers (a safety guarantee — the escalation
+   * decoration only runs over cap survivors). Do not weaken, flag-gate, or
+   * decay this lift for longitudinal reasons without splitting the safety
+   * lift out first.
    */
-  changedNodeIds?: ReadonlySet<string>;
+  liftedNodeIds?: ReadonlySet<string>;
   asOf?: Date;
   recencyWindowDays?: number;
 }
@@ -116,7 +121,7 @@ export function computeImportance(
       ? 1
       : 0;
 
-    const changeScore = inputs.changedNodeIds?.has(node.id) ? CHANGE_LIFT : 0;
+    const changeScore = inputs.liftedNodeIds?.has(node.id) ? CHANGE_LIFT : 0;
 
     // Staleness (B4): once a node's newest evidence has aged BEYOND the recency
     // window, de-emphasise it in proportion to how far its confidence has

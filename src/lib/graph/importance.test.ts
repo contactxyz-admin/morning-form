@@ -56,7 +56,7 @@ describe('computeImportance', () => {
     const result = computeImportance({
       nodes: [node],
       edges: [],
-      changedNodeIds: new Set(['n1']),
+      liftedNodeIds: new Set(['n1']),
     });
     const score = result.get('n1')!;
     expect(score.components.change).toBe(2);
@@ -72,7 +72,7 @@ describe('computeImportance', () => {
     const result = computeImportance({
       nodes: [a, b],
       edges: [],
-      changedNodeIds: new Set(['a']),
+      liftedNodeIds: new Set(['a']),
     });
     expect(result.get('a')!.components.change).toBe(2);
     expect(result.get('b')!.components.change).toBe(0);

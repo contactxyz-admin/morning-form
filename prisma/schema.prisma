@@ -75,6 +75,13 @@ model User {
   // docs/plans/2026-06-04-001-feat-first-session-completeness-plan.md.
   exportRequests        ExportRequest[]
   accountDeletionTokens AccountDeletionToken[]
+
+  // In-gym pilot (procedure consent, clinician review, slot bookings). All
+  // three are user-owned health-adjacent data — wired into the GDPR
+  // export/delete paths, unlike the FK-less CompanyOps island.
+  consentRecords    ConsentRecord[]
+  resultReviews     ResultReview[]
+  pilotSlotBookings PilotSlotBooking[]
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +232,8 @@ model SourceDocument {
   // docs from one visit may attach to one draw (dedup); SetNull on draw erase.
   drawId      String?
   draw        Draw?                 @relation(fields: [drawId], references: [id], onDelete: SetNull)
+  // Clinician review (pilot MVP): at most one review per ingested panel.
+  review      ResultReview?
   createdAt   DateTime              @default(now())
 
   @@unique([userId, contentHash])
@@ -989,6 +998,119 @@ model CompanyOpsAudit {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// In-gym pilot MVP (plan 2026-07-04): procedure e-consent, clinician review,
+// and event-day slot booking. These ARE user-owned health-adjacent records —
+// all user-FK'd models below are wired into the GDPR export/delete paths
+// (src/lib/account/export.ts + delete.ts), the opposite posture from the
+// FK-less CompanyOps island above.
+// ---------------------------------------------------------------------------
+
+// A per-event consent artifact (e.g. consent to a venipuncture blood draw),
+// distinct from User.llmConsentAcceptedAt (data-processing consent). One row
+// per capture; re-booking captures a fresh row. signedName is the typed
+// full-name e-signature; documentVersion pins exactly which consent copy the
+// member saw (src/lib/pilot/consent.ts).
+model ConsentRecord {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            String // 'procedure_blood_draw' (extensible)
+  documentVersion String // e.g. 'blood_draw_v1'
+  signedName      String // typed full-name e-signature
+  acceptedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  bookings        PilotSlotBooking[]
+
+  @@index([userId, type])
+}
+
+// Clinician-in-the-loop review: one row per ingested lab panel; the row IS
+// the clinician sign-off audit record (clinicianEmail + decidedAt + status +
+// escalationReason). panelSummary is a creation-time snapshot of the
+// extracted markers — what the clinician actually saw at sign-off — so the
+// audit record is self-contained and survives later graph rewrites.
+// OPEN LEGAL QUESTION (flagged, not resolved here): clinical sign-off records
+// may carry retention obligations that conflict with Art. 17 erasure. v1
+// erases with the user (explicit deleteMany in src/lib/account/delete.ts);
+// if legal requires retention, migrate to a de-identified tombstone (the
+// AccountDeletionTombstone pattern) in a follow-up.
+model ResultReview {
+  id                 String          @id @default(cuid())
+  userId             String
+  user               User            @relation(fields: [userId], references: [id])
+  // Nullable + SetNull: outside account erasure, deleting a document must not
+  // silently destroy the sign-off audit record. Unique = one review per panel
+  // (multiple NULLs coexist in PG, so orphaned decided reviews survive).
+  sourceDocumentId   String?         @unique
+  sourceDocument     SourceDocument? @relation(fields: [sourceDocumentId], references: [id], onDelete: SetNull)
+  status             String          @default("pending") // pending | approved | escalated
+  // Stringified JSON snapshot at creation ({ labProvider, sourceRef, markers:
+  // [{ displayName, joinKey, value, unit, referenceRangeLow,
+  //    referenceRangeHigh, flaggedOutOfRange, collectionDate }] }).
+  // Zod-validated at write (src/lib/review/snapshot.ts).
+  panelSummary       String
+  // Snapshot of the document's capturedAt — the ordering key for the
+  // latest-decision-per-marker override; survives document deletion.
+  documentCapturedAt DateTime
+  clinicianEmail     String?
+  decidedAt          DateTime?
+  escalationReason   String? // required at escalate; null on approve
+  // Stringified JSON array of joinKeys the escalation applies to (subset of
+  // the snapshot's markers). Null on approve.
+  escalatedMarkerKeys String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([status, createdAt]) // the clinic queue query
+  @@index([userId, status]) // member-facing override + GDPR paths
+}
+
+// Event-day draw slot INVENTORY (venue + time + capacity) — deliberately no
+// availability engine for the pilot; founders create a handful of slots per
+// gym event day. Not user-owned (createdBy is a staff email, same posture as
+// CompanyOpsTask.createdBy), so it is correctly outside the export/delete
+// paths; member linkage lives on PilotSlotBooking.
+model PilotSlot {
+  id           String             @id @default(cuid())
+  venueName    String
+  venueAddress String
+  startsAt     DateTime // UTC; rendered Europe/London in the UI
+  capacity     Int                @default(1)
+  notes        String? // member-visible prep notes (e.g. fasting)
+  createdBy    String // staff email (allowlist-verified at POST)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  bookings     PilotSlotBooking[]
+
+  @@index([startsAt])
+}
+
+model PilotSlotBooking {
+  id              String        @id @default(cuid())
+  slotId          String
+  // Cascade is safe: the slot DELETE route refuses while any status='booked'
+  // row exists, so cascade only ever sweeps cancelled history with the slot.
+  slot            PilotSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  status          String        @default("booked") // booked | cancelled | attended (reserved; not written in v1)
+  // The procedure consent captured atomically with this booking. Re-booking
+  // after cancel captures a fresh ConsentRecord and repoints this FK.
+  consentRecordId String
+  consentRecord   ConsentRecord @relation(fields: [consentRecordId], references: [id])
+  cancelledAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // One row per user per slot EVER: rebook-after-cancel reuses the row
+  // (flips cancelled -> booked) — DB-enforced uniqueness without partial
+  // indexes/raw SQL (this repo is db-push only, no migration chain).
+  @@unique([slotId, userId])
+  @@index([userId, status])
+  @@index([slotId, status])
 }
 
 // Outreach pipeline row — the live successor to the static PILOT_PLAN.contacts

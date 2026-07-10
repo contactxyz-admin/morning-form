@@ -64,6 +64,9 @@ export type EdgeType = (typeof EDGE_TYPES)[number];
 
 export const SOURCE_DOCUMENT_KINDS = [
   'lab_pdf',
+  // CSV lab export ingested via the intake fallback (pilot MVP plan
+  // 2026-07-04) — same extraction pipeline as lab_pdf, different container.
+  'lab_csv',
   'gp_record',
   'intake_text',
   'wearable_window',

@@ -28,8 +28,11 @@ Assessment that authorises these transfers.
   zero-retention tier, no training on customer data, and breach notification
   terms.
 - **DPA artifact gate:** `docs/legal/anthropic-dpa-signed.pdf`; sha256 asserted
-  against `ANTHROPIC_DPA_SHA256` at boot (U2). The app refuses to boot in
-  production if the file is missing or the hash mismatches.
+  against `ANTHROPIC_DPA_SHA256` at deploy time (U2, implemented as a build
+  gate — `scripts/verify-dpa-artifact.ts` runs at the front of `vercel-build`
+  and fails the deploy if the file is missing or the hash mismatches; see
+  `src/lib/compliance/dpa-gate.ts` for why build-time beats runtime boot).
+  Dormant until `ANTHROPIC_DPA_SHA256` is set in Vercel.
 - **Consent:** Named explicitly on the onboarding consent screen and on
   `/settings/privacy`. Users can withdraw consent to LLM processing at any
   time by contacting `privacy@morningform.health`.

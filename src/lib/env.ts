@@ -127,6 +127,21 @@ const optional = {
   // Env-based for v1; upgrade to a DB-backed CompanyOpsToken table only if
   // per-token revocation-without-redeploy becomes a real need.
   COMPANY_OPS_MCP_TOKENS: process.env.COMPANY_OPS_MCP_TOKENS ?? '',
+  // Clinician-in-the-loop review (pilot MVP plan 2026-07-04). Off by default.
+  // Gates review-row creation on lab ingest, the /clinic queue, the decision
+  // route, and the member-facing escalation override on /api/record.
+  CLINICIAN_REVIEW_ENABLED: process.env.CLINICIAN_REVIEW_ENABLED ?? '',
+  // Comma-separated clinician emails (magic-link sign-in + this allowlist =
+  // the clinician role; mirrors COMPANY_OPS_ALLOWLIST).
+  CLINICIAN_ALLOWLIST: process.env.CLINICIAN_ALLOWLIST ?? '',
+  // In-gym event-day slot booking (pilot MVP plan 2026-07-04). Off by default.
+  // Gates /book, /book/manage, and every /api/pilot/* route.
+  IN_GYM_BOOKING_ENABLED: process.env.IN_GYM_BOOKING_ENABLED ?? '',
+  // SHA-256 of docs/legal/anthropic-dpa-signed.pdf. When set, the deploy gate
+  // (scripts/verify-dpa-artifact.ts, wired into vercel-build) fails the build
+  // unless the committed artifact matches — the artifact-backed DPA assertion
+  // from docs/compliance/dpia.md. Empty = gate dormant (artifact with legal).
+  ANTHROPIC_DPA_SHA256: process.env.ANTHROPIC_DPA_SHA256 ?? '',
 };
 
 export const env = {
@@ -164,6 +179,18 @@ export function assertAuthEnv(): void {
   if (env.RETEST_LOOP_ENABLED === 'true') {
     if (!env.CRON_SECRET || env.CRON_SECRET.length < 32) {
       missing.push('CRON_SECRET (>=32 chars, required when RETEST_LOOP_ENABLED)');
+    }
+  }
+  // Clinician review (pilot MVP plan 2026-07-04) — fail closed: with the flag
+  // on, an empty allowlist means reviews accumulate pending with nobody able
+  // to see the queue (a silent safety failure), and a missing OPS_EMAIL means
+  // escalation notices to ops silently drop.
+  if (env.CLINICIAN_REVIEW_ENABLED === 'true') {
+    if (!env.CLINICIAN_ALLOWLIST.trim()) {
+      missing.push('CLINICIAN_ALLOWLIST (required when CLINICIAN_REVIEW_ENABLED)');
+    }
+    if (!env.OPS_EMAIL) {
+      missing.push('OPS_EMAIL (required when CLINICIAN_REVIEW_ENABLED)');
     }
   }
   if (missing.length) {

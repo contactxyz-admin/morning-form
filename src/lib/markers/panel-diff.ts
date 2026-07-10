@@ -86,7 +86,9 @@ interface InstanceRow {
  */
 export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDiff | null> {
   const docs = await db.sourceDocument.findMany({
-    where: { userId, kind: 'lab_pdf' },
+    // Both lab containers count as panels — a member whose baseline was a
+    // PDF and whose retest arrived as a CSV must still get their diff.
+    where: { userId, kind: { in: ['lab_pdf', 'lab_csv'] } },
     orderBy: { capturedAt: 'desc' },
     take: MAX_PANEL_SCAN,
     select: { id: true, capturedAt: true },
@@ -129,7 +131,8 @@ export async function diffLatestPanels(db: Db, userId: string): Promise<PanelDif
  * never invert (improved↔worsened) just because the caller passed the ids in
  * the wrong order. Both docs are validated to belong to the caller and to be
  * lab panels; returns null when either is missing, not owned, or not a
- * `lab_pdf` (the route maps that to a 404). Reuses the same pure classifier +
+ * lab panel (`lab_pdf`/`lab_csv` — the route maps that to a 404). Reuses the
+ * same pure classifier +
  * instance loader as `diffLatestPanels`, so classification semantics are
  * identical.
  */
@@ -141,7 +144,7 @@ export async function diffPanels(
 ): Promise<PanelDiff | null> {
   const ids = Array.from(new Set([fromDocumentId, toDocumentId]));
   const docs = await db.sourceDocument.findMany({
-    where: { userId, kind: 'lab_pdf', id: { in: ids } },
+    where: { userId, kind: { in: ['lab_pdf', 'lab_csv'] }, id: { in: ids } },
     select: { id: true, capturedAt: true },
   });
   const a = docs.find((d) => d.id === fromDocumentId);

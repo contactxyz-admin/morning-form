@@ -215,6 +215,11 @@ export async function eraseAccount(
       deletedCounts.healthDataPoints = (await tx.healthDataPoint.deleteMany({ where: { userId } })).count;
       deletedCounts.suggestions = (await tx.suggestion.deleteMany({ where: { userId } })).count;
       deletedCounts.userPreferences = (await tx.userPreferences.deleteMany({ where: { userId } })).count;
+      // ResultReview BEFORE SourceDocument: the review→document FK is SetNull,
+      // so this order avoids a pointless SetNull pass. Erasing the clinician
+      // sign-off records with the user is the documented v1 posture (see the
+      // model's OPEN LEGAL QUESTION comment re clinical retention).
+      deletedCounts.resultReviews = (await tx.resultReview.deleteMany({ where: { userId } })).count;
       deletedCounts.sourceDocuments = (await tx.sourceDocument.deleteMany({ where: { userId } })).count;
       deletedCounts.graphEdges = (await tx.graphEdge.deleteMany({ where: { userId } })).count;
       deletedCounts.graphNodes = (await tx.graphNode.deleteMany({ where: { userId } })).count;
@@ -231,6 +236,11 @@ export async function eraseAccount(
       // FK references the Draw rows — they delete cleanly and the residue scan
       // finds zero Draw.userId.
       deletedCounts.draws = (await tx.draw.deleteMany({ where: { userId } })).count;
+      // In-gym pilot: bookings BEFORE consents (booking→consent FK is
+      // Restrict), both before user.delete() (their user FKs are Restrict /
+      // audit-counted rather than cascade-swept).
+      deletedCounts.pilotSlotBookings = (await tx.pilotSlotBooking.deleteMany({ where: { userId } })).count;
+      deletedCounts.consentRecords = (await tx.consentRecord.deleteMany({ where: { userId } })).count;
 
       // user.delete() sweeps the cascade-annotated models. Counts for those are
       // not individually recoverable here — record 'cascade'.

@@ -10,10 +10,14 @@ import { aggregateRecord } from '@/lib/record/aggregate';
 import { diffLatestPanels, type PanelDiff } from '@/lib/markers/panel-diff';
 import {
   applyChangesToWireNodes,
+  applyEscalationsToWireNodes,
   applyInterpretationsToWireNodes,
   changedNodeIds,
+  escalatedNodeIds,
   meaningfulMoves,
 } from '@/lib/markers/node-change-map';
+import { isClinicianReviewEnabled } from '@/lib/review/config';
+import { loadEscalatedMarkerKeys } from '@/lib/review/overrides';
 
 /**
  * GET /api/record
@@ -46,7 +50,11 @@ export async function GET() {
     // with <2 lab panels. Flag-off → never runs. A diff failure degrades to
     // null (no lift, no decoration) — it must never 500 the vault.
     const longitudinal = env.LONGITUDINAL_GRAPH_ENABLED === 'true';
-    const [{ nodes, edges }, sources, topics, diff] = await Promise.all([
+    // Clinician-escalation override set (pilot MVP plan 2026-07-04): loaded in
+    // the same parallel batch. Degrades to an empty set on failure — the vault
+    // must never 500 over review bookkeeping; the escalation email is the
+    // primary notification channel, this decoration is reinforcement.
+    const [{ nodes, edges }, sources, topics, diff, escalatedKeys] = await Promise.all([
       getFullGraphForUser(prisma, user.id),
       prisma.sourceDocument.findMany({
         where: { userId: user.id },
@@ -63,6 +71,13 @@ export async function GET() {
             return null as PanelDiff | null;
           })
         : Promise.resolve(null as PanelDiff | null),
+      isClinicianReviewEnabled()
+        ? loadEscalatedMarkerKeys(prisma, user.id).catch((esclErr: unknown) => {
+            const msg = esclErr instanceof Error ? esclErr.message : String(esclErr);
+            console.error(`[API] record escalation-override load failed (non-fatal): ${msg}`);
+            return new Set<string>();
+          })
+        : Promise.resolve(new Set<string>()),
     ]);
 
     // Lift markers that MEANINGFULLY moved (excl. `stable`) BEFORE the cap so
@@ -72,6 +87,17 @@ export async function GET() {
       diff && diff.previousPanelAt
         ? changedNodeIds(nodes, meaningfulMoves(diff.changes))
         : undefined;
+
+    // Escalated markers get the same pre-cap lift: the decoration below runs
+    // over cap-survivors only, so without this a >cap graph could drop the
+    // very node the clinician flagged.
+    const escalated = escalatedNodeIds(nodes, escalatedKeys);
+    let lifted = changed;
+    if (escalated.size > 0) {
+      const merged = new Set<string>(changed ?? []);
+      escalated.forEach((id) => merged.add(id));
+      lifted = merged;
+    }
 
     // Recency map is computed only when there are nodes — otherwise the IN ()
     // would round-trip for nothing. Importance scoring still works without
@@ -90,7 +116,7 @@ export async function GET() {
     // Keep the vault index importance-first for PR7; a future semantic boost
     // belongs here behind a separate rollout flag after grounding + latency
     // canary gates are met.
-    const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap, changedNodeIds: changed });
+    const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap, liftedNodeIds: lifted });
 
     // Decorate the (now cap-surviving) biomarker nodes with their change, plus
     // the consumer-facing clinical interpretation for CMO-authored markers
@@ -102,6 +128,11 @@ export async function GET() {
       applyChangesToWireNodes(index.nodes, diff.changes);
       applyInterpretationsToWireNodes(index.nodes, diff.changes);
     }
+
+    // Clinician escalation LAST and OUTSIDE the diff gate: a human decision
+    // overrides any authored interpretation, and must render on a baseline
+    // (first) panel where no diff exists — see applyEscalationsToWireNodes.
+    applyEscalationsToWireNodes(index.nodes, escalatedKeys);
 
     return NextResponse.json(index, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {

@@ -22,6 +22,7 @@ import type { FlagTier } from '@/types/graph';
 export function authorityLabel(kind: string): string {
   switch (kind) {
     case 'lab_pdf':
+    case 'lab_csv':
     case 'private_lab_panel':
     case 'longevity_panel':
     case 'pathology_report':

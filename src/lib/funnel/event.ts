@@ -53,6 +53,28 @@ export const FUNNEL_EVENTS = {
   // segmented by prior-result engagement so a low number can be attributed to
   // the nudge (Bet A) vs the result not feeling worth it (Bet B).
   RESULT_VIEWED: 'result_viewed',
+  // In-gym pilot booking (pilot MVP plan 2026-07-04). Fired server-side when
+  // a member books a draw slot (new/reactivated bookings only — idempotent
+  // replays never double-count). funnelId = booking id (opaque, per the
+  // DRAW_COMPLETED precedent). Properties: { slotId }.
+  SLOT_BOOKED: 'slot_booked',
+  // Pilot funnel stages (pilot MVP plan 2026-07-04). Each uses the owning
+  // entity's id as funnelId (opaque cuid, DRAW_COMPLETED precedent), so
+  // re-fires for the same entity collapse under distinct-funnelId counting.
+  //
+  // BOOKING_REQUESTED: concierge test request created (funnelId =
+  // BookingRequest id). Properties: { market, retestLinked }.
+  BOOKING_REQUESTED: 'booking_requested',
+  // RESULT_INGESTED: a lab panel landed — UNCONDITIONAL, not behind the retest
+  // flag, so "result returned" is measurable before the loop goes live
+  // (funnelId = SourceDocument id; the contentHash dedup returns before this
+  // fires, so re-uploads never double-count). Properties: { kind,
+  // biomarkerCount }.
+  RESULT_INGESTED: 'result_ingested',
+  // PROTOCOL_DELIVERED: assessment persisted a Priorities row — the member has
+  // their protocol (funnelId = Priorities id, stable per user, so
+  // re-submissions collapse under distinct-funnelId counting).
+  PROTOCOL_DELIVERED: 'protocol_delivered',
 } as const;
 
 /**

@@ -118,7 +118,8 @@ export interface AggregateInput {
    * so a freshly-moved marker survives the node cap (plan 2026-06-10-003
    * follow-up). Supplied flag-on by the route; omit otherwise.
    */
-  changedNodeIds?: ReadonlySet<string>;
+  /** Must-survive-the-cap lift set (changed-since-last-panel + clinician-escalated). */
+  liftedNodeIds?: ReadonlySet<string>;
   /** Defaults to 200 (matches the previous `/api/graph` cap). */
   nodeCap?: number;
 }

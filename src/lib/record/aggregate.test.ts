@@ -384,7 +384,7 @@ describe('aggregateRecord', () => {
       expect(recent.score).toBeGreaterThan(stale.score);
     });
 
-    it('changedNodeIds lift saves a moved marker from the node cap (longitudinal follow-up)', () => {
+    it('liftedNodeIds lift saves a moved marker from the node cap (longitudinal follow-up)', () => {
       const nodes = [
         node('a', 'biomarker', 'ma', 'A'),
         node('moved', 'biomarker', 'mb', 'B'),
@@ -398,7 +398,7 @@ describe('aggregateRecord', () => {
         sources: [],
         edges: [],
         nodeCap: 1,
-        changedNodeIds: new Set(['moved']),
+        liftedNodeIds: new Set(['moved']),
       });
 
       expect(result.truncated).toBe(true);

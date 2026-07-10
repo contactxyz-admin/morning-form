@@ -26,6 +26,7 @@ import { DecisionsClient } from './decisions-client';
 import type { FocusDto } from './focus-card';
 import { currentWeekStartUtc, parseFocusItems } from './intelligence';
 import { REFERENCE_TABS, type ReferenceTabKey } from './reference-tabs';
+import { LiveKpisTab } from './live-kpis-tab';
 import styles from './ops.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -35,12 +36,14 @@ const LIVE_TABS = [
   { key: 'work', label: 'Workstream' },
   { key: 'decisions', label: 'Decisions' },
   { key: 'contacts', label: 'Contacts' },
+  { key: 'live', label: 'Live KPIs' },
 ] as const;
 type LiveTabKey = (typeof LIVE_TABS)[number]['key'];
 
 const SAVEBAR_COPY = {
   brief: 'Live briefing — computed from the shared tracker and the pilot plan on every load. This Week’s 3 is the one editable card.',
   live: 'Shared board — every edit here is saved to Postgres and visible to the other founders on refresh.',
+  kpis: 'Live aggregates from the product database — anonymous counts only, never member-level rows.',
   reference:
     'Reference tabs from the original pilot-ops plan — filters and what-if edits here are local to you and reset on reload. Live edits happen on the live tabs.',
 } as const;
@@ -108,7 +111,13 @@ export default async function OpsPage({ searchParams }: { searchParams: { tab?: 
       <div className={styles.savebar}>
         {/* Derive from the classification above — a hand-maintained key list
             would silently show the wrong copy for the next live tab added. */}
-        {referenceTab ? SAVEBAR_COPY.reference : activeTab === 'brief' ? SAVEBAR_COPY.brief : SAVEBAR_COPY.live}
+        {referenceTab
+          ? SAVEBAR_COPY.reference
+          : activeTab === 'brief'
+            ? SAVEBAR_COPY.brief
+            : activeTab === 'live'
+              ? SAVEBAR_COPY.kpis
+              : SAVEBAR_COPY.live}
       </div>
     </div>
   );
@@ -148,6 +157,8 @@ async function renderTab(activeTab: LiveTabKey | ReferenceTabKey, memberDtos: Op
       const contacts = await listOpsContacts(prisma);
       return <ContactsClient initialContacts={contacts.map(serializeOpsContact)} />;
     }
+    case 'live':
+      return <LiveKpisTab />;
     default: {
       const { Component } = REFERENCE_TABS.find((t) => t.key === activeTab)!;
       return <Component />;

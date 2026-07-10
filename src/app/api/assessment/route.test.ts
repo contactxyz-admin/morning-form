@@ -125,6 +125,30 @@ describe('POST /api/assessment', () => {
     expect(priorities).toBe(1);
   });
 
+  it('fires PROTOCOL_DELIVERED keyed to the priorities id; re-submits share the funnelId', async () => {
+    const userId = await makeTestUser(prisma, 'assess-funnel');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    await POST(makeRequest({ responses: SUSTAINED_ACTIVATOR_RESPONSES }));
+    const priorities = await prisma.priorities.findUniqueOrThrow({ where: { userId } });
+
+    const first = await prisma.funnelEvent.findMany({
+      where: { event: 'protocol_delivered', userId },
+    });
+    expect(first).toHaveLength(1);
+    expect(first[0].funnelId).toBe(priorities.id);
+
+    // Re-submission fires again but against the SAME stable funnelId, so
+    // distinct-funnelId counting (the read model) still counts one protocol.
+    currentUserMock.mockResolvedValue({ id: userId });
+    await POST(makeRequest({ responses: SUSTAINED_ACTIVATOR_RESPONSES }));
+    const all = await prisma.funnelEvent.findMany({
+      where: { event: 'protocol_delivered', userId },
+    });
+    expect(all).toHaveLength(2);
+    expect(new Set(all.map((e) => e.funnelId)).size).toBe(1);
+  });
+
   it('rewrites PriorityMarkers on re-submit when responses change the archetype', async () => {
     const userId = await makeTestUser(prisma, 'assess-archetype-flip');
     currentUserMock.mockResolvedValue({ id: userId });

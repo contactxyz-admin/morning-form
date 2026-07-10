@@ -234,6 +234,31 @@
   padding: 16px 18px;
   margin-bottom: 14px;
 }
+/* Live KPIs stat tiles (aggregate counts only — see src/lib/ops/funnel.ts). */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.statTile {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.statNum {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.statLabel {
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--grey);
+}
 .kick {
   font-size: 11px;
   letter-spacing: 1.2px;

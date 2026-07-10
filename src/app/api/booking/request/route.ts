@@ -24,6 +24,7 @@ import {
   checkAndConsumeBookingRateLimit,
   refundBookingRateLimit,
 } from '@/lib/booking/rate-limit';
+import { writeFunnelEvent, FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 export const dynamic = 'force-dynamic';
 
@@ -177,6 +178,16 @@ export async function POST(req: NextRequest): Promise<Response> {
       );
     }
   }
+
+  // Pilot funnel (pilot MVP plan 2026-07-04): the row is final past the
+  // ops-email gate above (the delete-on-failure path has already returned).
+  // writeFunnelEvent swallows its own failures — never blocks the response.
+  await writeFunnelEvent(prisma, {
+    funnelId: booking.id,
+    userId: user.id,
+    event: FUNNEL_EVENTS.BOOKING_REQUESTED,
+    properties: { market: body.market, retestLinked: drawId !== null },
+  });
 
   // User confirmation email (no code promises; names the partner; links status).
   // Non-blocking — if this fails, ops already has the reference.

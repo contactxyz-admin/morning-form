@@ -39,21 +39,29 @@ vi.mock('@/lib/session', () => ({
   getCurrentUser: () => currentUserMock(),
 }));
 
+// Mutable flag state so individual tests can flip feature flags (clinician
+// review hook); everything else stays the static test baseline.
+const { envState } = vi.hoisted(() => ({
+  envState: { CLINICIAN_REVIEW_ENABLED: '' },
+}));
 vi.mock('@/lib/env', () => ({
-  env: {
-    MOCK_LLM: 'true',
-    NODE_ENV: 'test',
-    ANTHROPIC_API_KEY: '',
-    DATABASE_URL: 'file:./prisma/.test-graph.db',
-    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+  get env() {
+    return {
+      MOCK_LLM: 'true',
+      NODE_ENV: 'test',
+      ANTHROPIC_API_KEY: '',
+      DATABASE_URL: 'file:./prisma/.test-graph.db',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+      CLINICIAN_REVIEW_ENABLED: envState.CLINICIAN_REVIEW_ENABLED,
+    };
   },
 }));
 
 // Stub the storage module — we don't care about real blob/filesystem writes
 // in route tests, and the @vercel/blob `put` would otherwise require network.
 vi.mock('@/lib/intake/storage', () => ({
-  storePdf: vi.fn((userId: string, contentHash: string) =>
-    Promise.resolve(`uploads/${userId}/${contentHash}.pdf`),
+  storeLabDocument: vi.fn((userId: string, contentHash: string, _buffer: Buffer, format = 'pdf') =>
+    Promise.resolve(`uploads/${userId}/${contentHash}.${format}`),
   ),
 }));
 
@@ -107,6 +115,7 @@ afterEach(() => {
   restoreEnv('EMBEDDING_PROVIDER', originalEmbeddingProvider);
   restoreEnv('OPENAI_API_KEY', originalOpenAiKey);
   restoreEnv('MOCK_LLM', originalMockLlm);
+  envState.CLINICIAN_REVIEW_ENABLED = '';
 });
 
 // Enough plain text to clear the 200-non-whitespace-char 'no_text_layer' floor.
@@ -163,7 +172,7 @@ describe('POST /api/intake/documents', () => {
     expect((await res.json()).error).toMatch(/Missing `file`/);
   });
 
-  it('returns 400 on non-PDF content-type', async () => {
+  it('returns 400 on a content-type that is neither PDF nor CSV', async () => {
     const userId = await makeTestUser(prisma, 'docs-bad-mime');
     currentUserMock.mockResolvedValue({ id: userId });
     const blob = new Blob(['hello'], { type: 'image/png' });
@@ -175,7 +184,7 @@ describe('POST /api/intake/documents', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/PDF only/);
+    expect((await res.json()).error).toMatch(/PDF or CSV only/);
   });
 
   it('happy path — persists SourceDocument, chunks, biomarker nodes, promotes iron stub→full', async () => {
@@ -622,3 +631,251 @@ async function eventuallyVectorEmbedding(sourceChunkId: string) {
   }
   return prisma.vectorEmbedding.findUnique({ where: { sourceChunkId } });
 }
+
+describe('POST /api/intake/documents — clinician review hook (pilot MVP plan 2026-07-04)', () => {
+  function primeUpload(): void {
+    mockGetText.mockResolvedValue({
+      pages: [{ num: 1, text: LAB_PAGE_TEXT }],
+      text: '',
+      total: 1,
+    });
+    setExtraction({
+      biomarkers: [
+        {
+          canonicalKey: 'ferritin',
+          displayName: 'Ferritin',
+          value: 18,
+          unit: 'ug/L',
+          referenceRangeLow: 30,
+          referenceRangeHigh: 400,
+          flaggedOutOfRange: true,
+          collectionDate: '2026-04-01',
+          supportingChunkIndices: [0],
+        },
+      ],
+      reportCollectionDate: '2026-04-01',
+      labProvider: 'Medichecks',
+    });
+  }
+
+  it('flag on — upload creates exactly one pending review with the panel snapshot', async () => {
+    envState.CLINICIAN_REVIEW_ENABLED = 'true';
+    const userId = await makeTestUser(prisma, 'docs-review-on');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeUpload();
+
+    const res = await POST(makeRequest({}));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+
+    const review = await prisma.resultReview.findUnique({
+      where: { sourceDocumentId: body.documentId },
+    });
+    expect(review?.status).toBe('pending');
+    expect(review?.userId).toBe(userId);
+    const summary = JSON.parse(review?.panelSummary ?? '{}');
+    expect(summary.labProvider).toBe('Medichecks');
+    expect(summary.markers).toHaveLength(1);
+    expect(summary.markers[0].joinKey).toBe('ferritin');
+    expect(summary.markers[0].flaggedOutOfRange).toBe(true);
+  });
+
+  it('flag off (default) — upload creates no review row', async () => {
+    const userId = await makeTestUser(prisma, 'docs-review-off');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeUpload();
+
+    const res = await POST(makeRequest({}));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const review = await prisma.resultReview.findUnique({
+      where: { sourceDocumentId: body.documentId },
+    });
+    expect(review).toBeNull();
+  });
+
+  it('flag on — deduped re-upload does not create a second review', async () => {
+    envState.CLINICIAN_REVIEW_ENABLED = 'true';
+    const userId = await makeTestUser(prisma, 'docs-review-dedup');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeUpload();
+
+    const bytes = new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x99])], {
+      type: 'application/pdf',
+    });
+    const first = await POST(makeRequest({ file: new File([bytes], 'same.pdf', { type: 'application/pdf' }) }));
+    const firstBody = await first.json();
+
+    primeUpload();
+    const second = await POST(makeRequest({ file: new File([bytes], 'same.pdf', { type: 'application/pdf' }) }));
+    const secondBody = await second.json();
+    expect(secondBody.deduped).toBe(true);
+
+    const count = await prisma.resultReview.count({
+      where: { sourceDocumentId: firstBody.documentId },
+    });
+    expect(count).toBe(1);
+  });
+
+  it('RESULT_INGESTED fires once per fresh ingest — unconditionally, never on dedup', async () => {
+    // No flags set: the event must fire with everything dark.
+    const userId = await makeTestUser(prisma, 'docs-funnel');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeUpload();
+
+    const bytes = new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x77])], {
+      type: 'application/pdf',
+    });
+    const first = await POST(makeRequest({ file: new File([bytes], 'panel.pdf', { type: 'application/pdf' }) }));
+    expect(first.status).toBe(200);
+    const firstBody = await first.json();
+
+    const events = await prisma.funnelEvent.findMany({
+      where: { funnelId: firstBody.documentId, event: 'result_ingested' },
+    });
+    expect(events).toHaveLength(1);
+    expect(JSON.parse(JSON.stringify(events[0].properties))).toMatchObject({
+      kind: 'lab_pdf',
+      biomarkerCount: 1,
+    });
+
+    primeUpload();
+    const second = await POST(makeRequest({ file: new File([bytes], 'panel.pdf', { type: 'application/pdf' }) }));
+    expect((await second.json()).deduped).toBe(true);
+    expect(
+      await prisma.funnelEvent.count({
+        where: { funnelId: firstBody.documentId, event: 'result_ingested' },
+      }),
+    ).toBe(1);
+  });
+});
+
+describe('POST /api/intake/documents — CSV fallback (pilot MVP plan 2026-07-04)', () => {
+  const CSV_TEXT = [
+    'Biomarker,Value,Units,Reference Range,Flag',
+    'Ferritin,18,ug/L,30-400,L',
+    'Vitamin D,42,nmol/L,50-200,L',
+  ].join('\n');
+
+  function csvFile(text: string, name = 'panel.csv'): File {
+    return new File([text], name, { type: 'text/csv' });
+  }
+
+  function primeCsvExtraction(): void {
+    setExtraction({
+      biomarkers: [
+        {
+          canonicalKey: 'ferritin',
+          displayName: 'Ferritin',
+          value: 18,
+          unit: 'ug/L',
+          referenceRangeLow: 30,
+          referenceRangeHigh: 400,
+          flaggedOutOfRange: true,
+          collectionDate: '2026-04-01',
+          supportingChunkIndices: [0],
+        },
+      ],
+      reportCollectionDate: '2026-04-01',
+      labProvider: 'Medichecks',
+    });
+  }
+
+  it('happy path — UTF-8 CSV (with BOM) ingests as a single chunk, kind=lab_csv', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-happy');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeCsvExtraction();
+
+    // Excel-style export: leading BOM must be stripped, not break ingestion.
+    const res = await POST(makeRequest({ file: csvFile('\uFEFF' + CSV_TEXT) }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.deduped).toBe(false);
+    expect(body.chunkCount).toBe(1);
+    expect(body.biomarkerCount).toBe(1);
+
+    const doc = await prisma.sourceDocument.findUniqueOrThrow({ where: { id: body.documentId } });
+    expect(doc.kind).toBe('lab_csv');
+    expect(doc.storagePath).toMatch(/\.csv$/);
+
+    // The single chunk carries the decoded text WITHOUT the BOM.
+    const chunks = await prisma.sourceChunk.findMany({ where: { sourceDocumentId: body.documentId } });
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].text.startsWith('Biomarker,')).toBe(true);
+
+    // Downstream rode the same path: biomarker node persisted + funnel event.
+    expect(
+      await prisma.funnelEvent.count({
+        where: { funnelId: body.documentId, event: 'result_ingested' },
+      }),
+    ).toBe(1);
+  });
+
+  it('dedup — second upload of identical CSV bytes returns the existing document', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-dedup');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeCsvExtraction();
+
+    const first = await POST(makeRequest({ file: csvFile(CSV_TEXT) }));
+    const firstBody = await first.json();
+    expect(firstBody.deduped).toBe(false);
+
+    primeCsvExtraction();
+    const second = await POST(makeRequest({ file: csvFile(CSV_TEXT) }));
+    const secondBody = await second.json();
+    expect(secondBody.deduped).toBe(true);
+    expect(secondBody.documentId).toBe(firstBody.documentId);
+  });
+
+  it('422 not_text_csv on UTF-16/binary bytes BEFORE any LLM call', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-utf16');
+    currentUserMock.mockResolvedValue({ id: userId });
+    // No setExtraction(): if the route reached the LLM the mock harness
+    // would throw on the unmatched prompt — passing proves the gate runs
+    // before extraction spend.
+
+    // UTF-16LE bytes for "a,b" (BOM FF FE + interleaved NULs), as Excel's
+    // "Unicode Text" export produces.
+    const utf16 = new Uint8Array([0xff, 0xfe, 0x61, 0x00, 0x2c, 0x00, 0x62, 0x00]);
+    const file = new File([utf16], 'panel.csv', { type: 'text/csv' });
+    const res = await POST(makeRequest({ file }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).kind).toBe('not_text_csv');
+    expect(await prisma.sourceDocument.count({ where: { userId } })).toBe(0);
+  });
+
+  it('422 empty_document on a whitespace-only CSV', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-empty');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    const res = await POST(makeRequest({ file: csvFile('\uFEFF \n \n ') }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).kind).toBe('empty_document');
+  });
+
+  it('400 on a CSV above the 1MB cap (tighter than the PDF cap)', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-big');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    const big = 'a,b,c\n'.repeat(200_000); // ~1.2MB
+    const res = await POST(makeRequest({ file: csvFile(big) }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/CSV exceeds 1MB/);
+  });
+
+  it("accepts Excel's application/vnd.ms-excel alias for .csv, rejects it for .xls", async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-excel');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeCsvExtraction();
+
+    const aliased = new File([CSV_TEXT], 'panel.csv', { type: 'application/vnd.ms-excel' });
+    const ok = await POST(makeRequest({ file: aliased, fileName: 'panel.csv' }));
+    expect(ok.status).toBe(200);
+    const body = await ok.json();
+    const doc = await prisma.sourceDocument.findUniqueOrThrow({ where: { id: body.documentId } });
+    expect(doc.kind).toBe('lab_csv');
+
+    const realXls = new File(['binary'], 'panel.xls', { type: 'application/vnd.ms-excel' });
+    expect((await POST(makeRequest({ file: realXls, fileName: 'panel.xls' }))).status).toBe(400);
+  });
+});
