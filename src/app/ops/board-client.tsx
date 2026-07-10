@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useState } from 'react';
 import styles from './ops.module.css';
 import { dueDateInputValue, groupTasksByPhase } from './board-grouping';
 import { filterTasks, taskDueState, type BoardFilters, type BoardStatusFilter } from './intelligence';
@@ -65,8 +65,10 @@ export function OpsBoardClient({
   const [status, setStatus] = useState<BoardStatusFilter>('all');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  // One clock per render keeps every row's overdue check consistent.
-  const now = useMemo(() => new Date(), []);
+  // One clock per render pass keeps every row's overdue check consistent,
+  // and any interaction (filtering, editing) naturally refreshes it — no
+  // frozen-at-mount date drifting stale across midnight.
+  const now = new Date();
 
   async function patchTask(id: string, patch: TaskPatch) {
     setError(null);

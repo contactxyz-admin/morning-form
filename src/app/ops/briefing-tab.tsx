@@ -40,7 +40,9 @@ export function BriefingTab({
 }) {
   const briefing = buildBriefing(tasks, now);
   const nameFor = (email: string | null) =>
-    email === null ? 'Unassigned' : (members.find((m) => m.email === email)?.name ?? email);
+    email === null
+      ? 'Unassigned'
+      : (members.find((m) => m.email.toLowerCase() === email.toLowerCase())?.name ?? email);
 
   return (
     <>

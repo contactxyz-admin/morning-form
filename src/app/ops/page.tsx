@@ -56,7 +56,11 @@ export default async function OpsPage({ searchParams }: { searchParams: { tab?: 
 
   const memberDtos: OpsMemberDto[] =
     // Strip slackId — it's server-side notify routing, not client UI state.
-    members().map(({ email, name }) => ({ email, name }));
+    // Lowercase emails so they match stored ownerEmail values, which every
+    // write path normalizes to lowercase (see OpsOwnerEmailSchema) — a
+    // mixed-case COMPANY_OPS_MEMBERS entry must not break owner selects,
+    // the owner filter, or briefing name lookups.
+    members().map(({ email, name }) => ({ email: email.toLowerCase(), name }));
   // One fetch serves both live tabs; reference tabs skip the query entirely.
   const tasks = activeTab === 'brief' || activeTab === 'work' ? await listOpsTasks(prisma, { board: 'pilot' }) : null;
 

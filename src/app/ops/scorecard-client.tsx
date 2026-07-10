@@ -32,9 +32,12 @@ export function ScorecardClient() {
   }
 
   function setWeight(c: number, value: number) {
+    // Clamp to a sane finite range — "1e999" is valid number-input syntax and
+    // an Infinity weight would turn every total into NaN.
+    const clamped = Number.isFinite(value) ? Math.min(99, Math.max(0, value)) : 0;
     setState((prev) => ({
       ...prev,
-      weights: prev.weights.map((w, ci) => (ci === c ? Math.max(0, value) : w)),
+      weights: prev.weights.map((w, ci) => (ci === c ? clamped : w)),
     }));
   }
 
