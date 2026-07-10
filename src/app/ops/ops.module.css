@@ -538,10 +538,11 @@ ol.list {
   color: var(--grey);
   white-space: nowrap;
 }
-.mileDone {
-  background: #d9e5cd;
-  border-color: #d9e5cd;
-  color: var(--ink);
+/* Past = the week elapsed, NOT "milestone achieved" — dim, never a green ✓. */
+.milePast {
+  background: var(--off);
+  color: var(--grey);
+  opacity: 0.75;
 }
 .mileNow {
   border-color: var(--ink);
@@ -572,7 +573,9 @@ ol.list {
   font-size: 12px;
 }
 .attEmpty {
-  color: var(--sage);
+  /* Darker sage than the palette's --sage: 13px text on a white card needs
+     >= 4.5:1 (this is ~5.9:1); --sage itself only reaches 3.85:1. */
+  color: #526b3f;
   font-size: 13px;
   padding: 4px 0;
 }
@@ -726,6 +729,12 @@ ol.list {
   border-color: var(--ink);
   color: #fff;
 }
+/* .chipBtn sets explicit colors + cursor, which suppresses the browser's
+   default disabled greying — restore a visible disabled state. */
+.chipBtn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
 .chipCount {
   font-variant-numeric: tabular-nums;
   opacity: 0.65;
@@ -825,7 +834,8 @@ ol.list {
   background: #f3f6ee;
 }
 .leaderPill {
-  background: var(--sage);
+  /* Darker sage so white 10px text clears WCAG AA (~5.9:1 vs 3.85:1 on --sage). */
+  background: #526b3f;
   border-radius: 999px;
   color: #fff;
   font-size: 10px;
@@ -896,10 +906,6 @@ ol.list {
 /* KPI week flags + timeline ticks                                     */
 /* ------------------------------------------------------------------ */
 
-.mileTick {
-  color: var(--sage);
-  font-weight: 700;
-}
 .buildNowCell {
   font-weight: 600;
 }

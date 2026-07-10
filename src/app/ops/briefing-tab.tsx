@@ -99,12 +99,16 @@ export function BriefingTab({
         </div>
         <div>
           <div className={styles.card}>
-            <p className={styles.kick}>This week&rsquo;s 3</p>
+            <p className={styles.kick}>This week&rsquo;s 3 · set 4 Jul</p>
             <ol className={styles.list}>
               {PILOT_PLAN.week3.map((w) => (
                 <li key={w}>{w}</li>
               ))}
             </ol>
+            <p className={styles.note} style={{ marginTop: 8 }}>
+              Snapshot from the plan — reset it each Monday (it lives in pilot-plan-data.ts until it&rsquo;s promoted
+              to the tracker).
+            </p>
           </div>
           <TodayRhythmCard now={now} />
         </div>
@@ -125,7 +129,9 @@ function StatTiles({ briefing }: { briefing: BriefingModel }) {
   const liveTile =
     daysToPilotLive > 0
       ? { num: `${daysToPilotLive} days`, sub: 'to Pilot LIVE · W9 · 17 Aug' }
-      : { num: 'LIVE', sub: 'pilot window is open' };
+      : week.state === 'after'
+        ? { num: 'Closed', sub: 'pilot window ended W12 · 7 Sep' }
+        : { num: 'LIVE', sub: 'pilot window is open' };
 
   const milestoneTile = nextMilestone
     ? {
@@ -177,11 +183,17 @@ function MilestoneStrip({ briefing }: { briefing: BriefingModel }) {
     <div className={styles.mileStrip}>
       {Object.entries(PILOT_PLAN.milestones).map(([weekStr, label]) => {
         const week = Number(weekStr);
-        const done = afterWindow || (activeWeek !== null && week < activeWeek);
+        // "Week elapsed" is a calendar fact; whether the milestone was HIT
+        // lives in the tracker — so past weeks dim rather than claim ✓ done.
+        const past = afterWindow || (activeWeek !== null && week < activeWeek);
         const current = activeWeek === week;
         return (
-          <span key={weekStr} className={`${styles.mile} ${done ? styles.mileDone : ''} ${current ? styles.mileNow : ''}`}>
-            <span className={styles.mileWeek}>{done ? '✓' : `W${week}`}</span>
+          <span
+            key={weekStr}
+            className={`${styles.mile} ${past ? styles.milePast : ''} ${current ? styles.mileNow : ''}`}
+            title={past ? 'Week elapsed — confirm the outcome in the tracker' : undefined}
+          >
+            <span className={styles.mileWeek}>W{week}</span>
             {label}
           </span>
         );

@@ -58,6 +58,8 @@ export function FunnelClient() {
               aria-hidden="true"
             />
             <span className={styles.funnelCount}>{stage.count.toLocaleString('en-GB')}</span>
+            {/* Text marker so the goal stage never rides on bar color alone. */}
+            {stage.label === GOAL_STAGE && <span className={styles.todayPill}>Goal</span>}
           </span>
         </div>
       ))}

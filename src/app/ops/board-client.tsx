@@ -219,11 +219,16 @@ export function OpsBoardClient({
               </td>
             </tr>
           )}
-          {groups.map((group, gi) => {
+          {groups.map((group) => {
             const phaseDone = group.rows.filter((t) => t.status === 'done').length;
             const isCollapsed = collapsed.has(group.phase);
             return (
-              <Fragment key={`${group.phase}-${gi}`}>
+              // Phase text alone is unique (groupTasksByPhase dedupes) and
+              // stable: an index-suffixed key would remount every later group
+              // (wiping in-flight uncontrolled edits) whenever an async PATCH
+              // response makes an earlier group appear or disappear under an
+              // active filter.
+              <Fragment key={group.phase || '∅unphased'}>
                 <tr>
                   <td className={styles.phaseRow} colSpan={6}>
                     <button

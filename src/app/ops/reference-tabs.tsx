@@ -124,8 +124,6 @@ export function KpisTab() {
 export function TimelineTab() {
   const timeline = buildTimelineModel();
   const activeWeek = timeline.currentWeek.state === 'active' ? timeline.currentWeek.week : null;
-  const afterWindow = timeline.currentWeek.state === 'after';
-  const weekPassed = (w: number) => afterWindow || (activeWeek !== null && w < activeWeek);
   const milestoneEntries = timeline.weeks.flatMap((week) => {
     const label = timeline.milestonesByWeek[week.w];
     return label ? [{ week, label }] : [];
@@ -172,7 +170,6 @@ export function TimelineTab() {
             >
               {timeline.milestonesByWeek[week.w] && (
                 <span>
-                  {weekPassed(week.w) && <span className={styles.mileTick}>✓ </span>}
                   W{week.w} {timeline.milestonesByWeek[week.w]}
                 </span>
               )}
@@ -207,7 +204,6 @@ export function TimelineTab() {
             <p className={styles.kick}>Milestones</p>
             {milestoneEntries.map(({ week, label }) => (
               <div key={week.w}>
-                {weekPassed(week.w) && <span className={styles.mileTick}>✓ </span>}
                 <b>W{week.w}</b> · {label}
               </div>
             ))}
@@ -273,12 +269,13 @@ export function ProductTechTab() {
         <p className={styles.kick}>Build &amp; design timeline</p>
         <table>
           <tbody>
+            {/* "passed" dims because the calendar window elapsed — it makes
+                no claim the work in it actually finished. */}
             {PILOT_PLAN.buildplan.map(([when, what]) => {
               const state = buildWindowState(when, now);
               return (
                 <tr key={when} className={state === 'passed' ? styles.dim : undefined}>
                   <td style={{ fontWeight: 700, whiteSpace: 'nowrap', verticalAlign: 'top', paddingRight: 10 }}>
-                    {state === 'passed' && <span className={styles.mileTick}>✓ </span>}
                     {when}
                     {state === 'now' && <span className={styles.todayPill}>Now</span>}
                   </td>

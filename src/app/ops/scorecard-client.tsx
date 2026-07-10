@@ -18,8 +18,11 @@ export function ScorecardClient() {
 
   const totals = weightedTotals(state);
   const rankByPartner = ranks(totals);
-  const leaderIndex = rankByPartner.indexOf(1);
   const weightSum = state.weights.reduce((a, w) => a + w, 0);
+  // Only crown a leader when the math supports exactly one — never on a
+  // rank-1 tie, never when every weight is zeroed out.
+  const leaderIndex =
+    weightSum > 0 && rankByPartner.filter((r) => r === 1).length === 1 ? rankByPartner.indexOf(1) : -1;
   const dirty =
     JSON.stringify(state.scores) !== JSON.stringify(baselineScorecard().scores) ||
     JSON.stringify(state.weights) !== JSON.stringify(baselineScorecard().weights);
