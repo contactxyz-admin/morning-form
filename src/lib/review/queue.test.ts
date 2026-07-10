@@ -6,6 +6,7 @@ import {
   decideReview,
   listPendingReviews,
   countRecentDocsWithoutReview,
+  SelfReviewError,
   UnknownMarkerKeysError,
 } from './queue';
 import type { ExtractedMarkerInput } from './snapshot';
@@ -109,6 +110,7 @@ describe('decideReview', () => {
     const result = await decideReview(prisma, {
       reviewId: review.id,
       clinicianEmail: 'dr@clinic.org',
+      clinicianUserId: 'clinician-user-id',
       action: 'approve',
     });
     expect(result.decided).toBe(true);
@@ -128,6 +130,7 @@ describe('decideReview', () => {
     const result = await decideReview(prisma, {
       reviewId: review.id,
       clinicianEmail: 'dr@clinic.org',
+      clinicianUserId: 'clinician-user-id',
       action: 'escalate',
       reason: 'Ferritin well below range; recommend GP follow-up.',
     });
@@ -148,6 +151,7 @@ describe('decideReview', () => {
     const result = await decideReview(prisma, {
       reviewId: review.id,
       clinicianEmail: 'dr@clinic.org',
+      clinicianUserId: 'clinician-user-id',
       action: 'escalate',
       reason: 'Pattern across the panel warrants a GP conversation.',
     });
@@ -165,6 +169,7 @@ describe('decideReview', () => {
       decideReview(prisma, {
         reviewId: review.id,
         clinicianEmail: 'dr@clinic.org',
+      clinicianUserId: 'clinician-user-id',
         action: 'escalate',
         reason: 'Escalating a marker that is not in this panel.',
         markerKeys: ['ferritin', 'not_in_panel'],
@@ -180,10 +185,11 @@ describe('decideReview', () => {
     const { review } = await makeReview(userId, 'cas');
 
     const [a, b] = await Promise.all([
-      decideReview(prisma, { reviewId: review.id, clinicianEmail: 'a@clinic.org', action: 'approve' }),
+      decideReview(prisma, { reviewId: review.id, clinicianEmail: 'a@clinic.org', clinicianUserId: 'clin-a', action: 'approve' }),
       decideReview(prisma, {
         reviewId: review.id,
         clinicianEmail: 'b@clinic.org',
+        clinicianUserId: 'clin-b',
         action: 'escalate',
         reason: 'Concurrent escalate attempt for the CAS test.',
       }),
@@ -199,9 +205,26 @@ describe('decideReview', () => {
     const result = await decideReview(prisma, {
       reviewId: 'does-not-exist',
       clinicianEmail: 'dr@clinic.org',
+      clinicianUserId: 'clinician-user-id',
       action: 'approve',
     });
     expect(result).toEqual({ decided: false, currentStatus: null });
+  });
+
+  it('a clinician cannot decide a review of their own results', async () => {
+    const userId = await makeTestUser(prisma, 'rq-self');
+    const { review } = await makeReview(userId, 'self');
+
+    await expect(
+      decideReview(prisma, {
+        reviewId: review.id,
+        clinicianEmail: 'dr@clinic.org',
+        clinicianUserId: userId,
+        action: 'approve',
+      }),
+    ).rejects.toBeInstanceOf(SelfReviewError);
+    const untouched = await prisma.resultReview.findUniqueOrThrow({ where: { id: review.id } });
+    expect(untouched.status).toBe('pending');
   });
 });
 
@@ -210,7 +233,7 @@ describe('queue reads', () => {
     const userId = await makeTestUser(prisma, 'rq-list');
     const { review: first } = await makeReview(userId, 'list-1');
     const { review: second } = await makeReview(userId, 'list-2');
-    await decideReview(prisma, { reviewId: second.id, clinicianEmail: 'dr@c.org', action: 'approve' });
+    await decideReview(prisma, { reviewId: second.id, clinicianEmail: 'dr@c.org', clinicianUserId: 'clinician-user-id', action: 'approve' });
 
     const pending = await listPendingReviews(prisma);
     const mine = pending.filter((r) => r.userId === userId);

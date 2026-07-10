@@ -10,6 +10,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requirePilotMember } from '@/lib/pilot/guard';
 import { BookingError, bookSlot } from '@/lib/pilot/booking';
@@ -60,6 +61,15 @@ export async function POST(req: NextRequest): Promise<Response> {
             { status: 409 },
           );
       }
+    }
+    // P2028: transaction timed out waiting on the slot advisory lock (an
+    // event-day rush serializes on it) — retryable, same mapping as the
+    // slot-delete route, not an unhandled 500.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2028') {
+      return NextResponse.json(
+        { error: 'The slot is busy right now — try again in a moment.' },
+        { status: 503 },
+      );
     }
     throw err;
   }

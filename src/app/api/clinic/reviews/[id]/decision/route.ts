@@ -13,7 +13,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireClinician } from '@/lib/review/guard';
-import { decideReview, EmptyEscalationError, UnknownMarkerKeysError } from '@/lib/review/queue';
+import {
+  decideReview,
+  EmptyEscalationError,
+  SelfReviewError,
+  UnknownMarkerKeysError,
+} from '@/lib/review/queue';
 import {
   sendMemberEscalationEmail,
   sendOpsEscalationNotice,
@@ -49,6 +54,7 @@ export async function POST(
     result = await decideReview(prisma, {
       reviewId: params.id,
       clinicianEmail: guard.clinician.email,
+      clinicianUserId: guard.clinician.id,
       ...(body.action === 'approve'
         ? { action: 'approve' as const }
         : { action: 'escalate' as const, reason: body.reason, markerKeys: body.markerKeys }),
@@ -62,6 +68,9 @@ export async function POST(
     }
     if (err instanceof EmptyEscalationError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    if (err instanceof SelfReviewError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
     }
     throw err;
   }

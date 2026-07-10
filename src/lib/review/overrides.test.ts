@@ -164,7 +164,9 @@ describe('loadEscalatedMarkerKeys — latest-decision-per-marker fold', () => {
     });
 
     const keys = await loadEscalatedMarkerKeys(prisma, userId);
-    // The malformed row contributes nothing; the good row still folds.
-    expect(keys).toEqual(new Set(['hba1c']));
+    // The malformed snapshot only loses its 'clear' pass — its independently
+    // parseable escalation flags MUST survive (fail closed in the safety
+    // direction); the good row still folds.
+    expect(keys).toEqual(new Set(['ferritin', 'hba1c']));
   });
 });

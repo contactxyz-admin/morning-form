@@ -51,9 +51,15 @@ export function DecisionPanel({ reviewId, markers }: { reviewId: string; markers
         return;
       }
       if (action === 'escalate' && data.memberEmailSent === false) {
+        // Deliberately NO router.refresh() here: refreshing swaps the server
+        // page to its decided branch, which unmounts this panel and destroys
+        // the warning before the clinician can read it. The warning stays
+        // until explicitly acknowledged (the button below does the refresh).
         setEmailWarning(
           'The decision is recorded, but the member email failed to send — follow up manually.',
         );
+        setDone(true);
+        return;
       }
       setDone(true);
       router.refresh();
@@ -68,7 +74,18 @@ export function DecisionPanel({ reviewId, markers }: { reviewId: string; markers
     return (
       <div className="mt-8 border border-border rounded-card p-4 bg-surface">
         <p className="text-body text-text-primary">Decision recorded.</p>
-        {emailWarning && <p className="mt-2 text-caption text-amber-800">{emailWarning}</p>}
+        {emailWarning && (
+          <>
+            <p className="mt-2 text-caption text-amber-800">{emailWarning}</p>
+            <button
+              type="button"
+              onClick={() => router.refresh()}
+              className="mt-3 rounded-full border border-border px-4 py-1.5 text-caption text-text-primary"
+            >
+              Understood — I&apos;ll follow up
+            </button>
+          </>
+        )}
       </div>
     );
   }

@@ -79,10 +79,11 @@ export async function getReviewForClinician(db: Db, id: string) {
 }
 
 export type DecideReviewInput =
-  | { reviewId: string; clinicianEmail: string; action: 'approve' }
+  | { reviewId: string; clinicianEmail: string; clinicianUserId: string; action: 'approve' }
   | {
       reviewId: string;
       clinicianEmail: string;
+      clinicianUserId: string;
       action: 'escalate';
       reason: string;
       markerKeys?: string[];
@@ -102,6 +103,12 @@ export type DecideReviewResult =
 export async function decideReview(db: Db, input: DecideReviewInput): Promise<DecideReviewResult> {
   const existing = await db.resultReview.findUnique({ where: { id: input.reviewId } });
   if (!existing) return { decided: false, currentStatus: null };
+
+  // Independence of the sign-off record: an allowlisted clinician who is
+  // also a pilot member must never decide their own panel.
+  if (existing.userId === input.clinicianUserId) {
+    throw new SelfReviewError();
+  }
 
   let escalatedMarkerKeys: string[] = [];
   if (input.action === 'escalate') {
@@ -156,6 +163,13 @@ export class UnknownMarkerKeysError extends Error {
   constructor(public readonly keys: string[]) {
     super(`markerKeys not present in this panel: ${keys.join(', ')}`);
     this.name = 'UnknownMarkerKeysError';
+  }
+}
+
+export class SelfReviewError extends Error {
+  constructor() {
+    super('You cannot decide a review of your own results — another clinician must sign this off.');
+    this.name = 'SelfReviewError';
   }
 }
 
