@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import styles from './ops.module.css';
 import { dueDateInputValue, groupTasksByPhase } from './board-grouping';
 import { filterTasks, taskDueState, type BoardFilters, type BoardStatusFilter } from './intelligence';
@@ -70,8 +70,17 @@ export function OpsBoardClient({
   // frozen-at-mount date drifting stale across midnight.
   const now = new Date();
 
+  // Monotonic per-row edit counter: a slow response for an OLD edit must not
+  // clobber a newer one already applied optimistically (two quick status
+  // changes racing would otherwise leave the stale value on screen).
+  const editSeq = useRef(new Map<string, number>());
+
   async function patchTask(id: string, patch: TaskPatch) {
+    const seq = (editSeq.current.get(id) ?? 0) + 1;
+    editSeq.current.set(id, seq);
     setError(null);
+    // Optimistic: selects would otherwise visibly snap back for the whole round-trip.
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
     try {
       const res = await fetch(`/api/ops/task/${id}`, {
         method: 'PATCH',
@@ -80,9 +89,11 @@ export function OpsBoardClient({
       });
       if (!res.ok) throw new Error();
       const { task } = (await res.json()) as { task: OpsTaskDto };
-      setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
+      if (editSeq.current.get(id) === seq) {
+        setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
+      }
     } catch {
-      setError('Update failed — refresh and try again.');
+      setError('Update failed — refresh to see the saved state.');
     }
   }
 
@@ -112,6 +123,18 @@ export function OpsBoardClient({
       const { task } = (await res.json()) as { task: OpsTaskDto };
       setTasks((prev) => [...prev, task]);
       setNewTitle('');
+      // The new row must be visible immediately — a silent save under an
+      // active filter or collapsed phase reads as a failed create and invites
+      // a duplicate. Clear anything that would hide it.
+      setQuery('');
+      setOwner('all');
+      setStatus('all');
+      setCollapsed((prev) => {
+        if (!prev.has(task.phase)) return prev;
+        const next = new Set(prev);
+        next.delete(task.phase);
+        return next;
+      });
     } catch {
       setError('Create failed — refresh and try again.');
     }

@@ -8,6 +8,7 @@
  */
 import { useState } from 'react';
 import styles from './ops.module.css';
+import { parseFocusItems } from './intelligence';
 
 export interface FocusDto {
   items: string[];
@@ -46,7 +47,9 @@ export function FocusCard({ initialFocus, planFallback }: { initialFocus: FocusD
       const { focus: saved } = (await res.json()) as {
         focus: { items: string; updatedBy: string; updatedAt: string };
       };
-      setFocus({ items: JSON.parse(saved.items), updatedBy: saved.updatedBy, updatedAt: saved.updatedAt });
+      // Fail-soft parse: a malformed response must not throw here and report
+      // "Save failed" for a save that actually succeeded server-side.
+      setFocus({ items: parseFocusItems(saved.items), updatedBy: saved.updatedBy, updatedAt: saved.updatedAt });
       setEditing(false);
     } catch {
       setError('Save failed — refresh and try again.');

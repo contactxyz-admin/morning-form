@@ -7,10 +7,17 @@
  * bumps the row's last-touched clock, which drives the staleness column.
  * An empty table offers a one-shot import of the plan's reference rows.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import styles from './ops.module.css';
 import { OPS_CONTACT_STATUS_VALUES } from '@/lib/ops/schema';
-import { CONTACT_BUCKET_LABELS, CONTACT_BUCKETS, contactBucket, daysBetweenUtc, type ContactBucket } from './intelligence';
+import {
+  CONTACT_BUCKET_LABELS,
+  CONTACT_BUCKETS,
+  contactBucket,
+  daysBetweenUtc,
+  STALE_CONTACT_DAYS,
+  type ContactBucket,
+} from './intelligence';
 import { StatusPill } from './status-pill';
 
 export interface OpsContactDto {
@@ -27,9 +34,6 @@ export interface OpsContactDto {
 type BucketFilter = 'all' | ContactBucket;
 type ContactPatch = Partial<Pick<OpsContactDto, 'org' | 'contact' | 'type' | 'status' | 'nextStep'>>;
 
-/** Days without a touch after which an active-pipeline row gets flagged. */
-const STALE_DAYS = 5;
-
 export function ContactsClient({ initialContacts }: { initialContacts: OpsContactDto[] }) {
   const [contacts, setContacts] = useState(initialContacts);
   const [error, setError] = useState<string | null>(null);
@@ -41,8 +45,15 @@ export function ContactsClient({ initialContacts }: { initialContacts: OpsContac
 
   const now = new Date();
 
+  // Monotonic per-row edit counter (same convention as board-client): a slow
+  // response for an old edit must not clobber a newer optimistic one.
+  const editSeq = useRef(new Map<string, number>());
+
   async function patchContact(id: string, patch: ContactPatch) {
+    const seq = (editSeq.current.get(id) ?? 0) + 1;
+    editSeq.current.set(id, seq);
     setError(null);
+    setContacts((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
     try {
       const res = await fetch(`/api/ops/contact/${id}`, {
         method: 'PATCH',
@@ -51,9 +62,11 @@ export function ContactsClient({ initialContacts }: { initialContacts: OpsContac
       });
       if (!res.ok) throw new Error();
       const { contact } = (await res.json()) as { contact: OpsContactDto };
-      setContacts((prev) => prev.map((c) => (c.id === id ? contact : c)));
+      if (editSeq.current.get(id) === seq) {
+        setContacts((prev) => prev.map((c) => (c.id === id ? contact : c)));
+      }
     } catch {
-      setError('Update failed — refresh and try again.');
+      setError('Update failed — refresh to see the saved state.');
     }
   }
 
@@ -124,7 +137,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: OpsContac
       <h2 className={styles.h2}>Contacts &amp; Outreach</h2>
       <p className={styles.sub}>
         Live pipeline — edits save for every founder. Bucketed by what each contact demands of us today; &ldquo;last
-        touch&rdquo; flags anything in play that hasn&rsquo;t moved in {STALE_DAYS}+ days.
+        touch&rdquo; flags anything in play that hasn&rsquo;t moved in {STALE_CONTACT_DAYS}+ days.
       </p>
       {error && <p className={styles.error}>{error}</p>}
 
@@ -208,8 +221,9 @@ export function ContactsClient({ initialContacts }: { initialContacts: OpsContac
             )}
             {visible.map((c, i) => {
               const days = daysBetweenUtc(c.updatedAt, now);
-              const inPlay = contactBucket(c.status) === 'act_now' || contactBucket(c.status) === 'waiting';
-              const stale = inPlay && days >= STALE_DAYS;
+              const bucket_ = contactBucket(c.status);
+              const inPlay = bucket_ === 'act_now' || bucket_ === 'waiting';
+              const stale = inPlay && days >= STALE_CONTACT_DAYS;
               return (
                 <tr key={c.id} className={i % 2 === 1 ? styles.trEven : undefined}>
                   <td className={styles.td}>
@@ -258,16 +272,21 @@ export function ContactsClient({ initialContacts }: { initialContacts: OpsContac
                     </div>
                   </td>
                   <td className={styles.td}>
-                    <input
+                    {/* Textarea, not input: next steps carry whole sentences
+                        (TDL's is ~140 chars) and must stay readable. */}
+                    <textarea
                       key={`next-${c.id}`}
-                      className={styles.inputCell}
+                      className={`${styles.inputCell} ${styles.textareaCell}`}
+                      rows={2}
                       defaultValue={c.nextStep}
                       aria-label={`Next step for ${c.org}`}
                       onBlur={(e) => e.target.value !== c.nextStep && patchContact(c.id, { nextStep: e.target.value })}
                     />
                   </td>
                   <td className={styles.td}>
-                    <span className={stale ? styles.dueTag : styles.note}>
+                    {/* Day-granular text can differ between SSR and hydration
+                        across a midnight boundary — not worth a hydration error. */}
+                    <span className={stale ? styles.dueTag : styles.note} suppressHydrationWarning>
                       {days === 0 ? 'today' : `${days}d ago`}
                       {stale ? ' · stale' : ''}
                     </span>

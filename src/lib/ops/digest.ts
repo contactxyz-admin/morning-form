@@ -6,7 +6,14 @@
  */
 import type { OpsTaskDto } from '@/app/ops/board-client';
 import type { OpsContactDto } from '@/app/ops/contacts-client';
-import { buildBriefing, contactBucket, daysBetweenUtc } from '@/app/ops/intelligence';
+import {
+  buildBriefing,
+  contactBucket,
+  daysBetweenUtc,
+  shortDayMonth,
+  STALE_CONTACT_DAYS,
+} from '@/app/ops/intelligence';
+import { escapeHtml } from '@/lib/ops/html';
 
 export interface OpsDigest {
   subject: string;
@@ -31,17 +38,7 @@ export interface BuildOpsDigestInput {
 
 const REASON_LABEL = { overdue: 'OVERDUE', blocked: 'BLOCKED', due_soon: 'due soon' } as const;
 const DONE_LIST_CAP = 6;
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-function shortDue(iso: string | null): string {
-  if (!iso) return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-}
+const CONTACT_LIST_CAP = 5;
 
 export function buildOpsDigest(input: BuildOpsDigestInput): OpsDigest {
   const { tasks, contacts, doneThisWeek, focusItems, now, appUrl } = input;
@@ -59,7 +56,7 @@ export function buildOpsDigest(input: BuildOpsDigestInput): OpsDigest {
     : null;
 
   const attentionLines = briefing.attention.map(({ task, reason }) => {
-    const due = reason !== 'blocked' ? shortDue(task.dueDate) : '';
+    const due = reason !== 'blocked' ? (shortDayMonth(task.dueDate) ?? '') : '';
     const owner = task.ownerEmail ?? 'unassigned';
     return `[${REASON_LABEL[reason]}${due ? ` ${due}` : ''}] ${task.title} — ${owner}`;
   });
@@ -67,9 +64,12 @@ export function buildOpsDigest(input: BuildOpsDigestInput): OpsDigest {
   const actNow = contacts.filter((c) => contactBucket(c.status) === 'act_now');
   const stale = contacts.filter((c) => {
     const b = contactBucket(c.status);
-    return (b === 'act_now' || b === 'waiting') && daysBetweenUtc(c.updatedAt, now) >= 5;
+    return (b === 'act_now' || b === 'waiting') && daysBetweenUtc(c.updatedAt, now) >= STALE_CONTACT_DAYS;
   });
-  const contactLines = actNow.slice(0, 5).map((c) => `${c.org} (${c.status}) — ${c.nextStep || 'no next step set'}`);
+  const contactLines = actNow
+    .slice(0, CONTACT_LIST_CAP)
+    .map((c) => `${c.org} (${c.status}) — ${c.nextStep || 'no next step set'}`);
+  const contactOverflow = actNow.length - contactLines.length;
   const doneShown = doneThisWeek.slice(0, DONE_LIST_CAP);
   const doneOverflow = doneThisWeek.length - doneShown.length;
 
@@ -91,8 +91,13 @@ export function buildOpsDigest(input: BuildOpsDigestInput): OpsDigest {
       : ['', 'Nothing overdue, blocked, or due in the next 7 days.']),
     ...(briefing.attentionOverflow > 0 ? [`(+${briefing.attentionOverflow} more on the board)`] : []),
     '',
-    `CONTACTS — ${actNow.length} need action${stale.length ? ` · ${stale.length} in play untouched 5+ days` : ''}`,
+    contacts.length === 0
+      ? 'CONTACTS — pipeline not seeded yet. Import the plan list from the Contacts tab so outreach shows up here.'
+      : `CONTACTS — ${actNow.length} need action${
+          stale.length ? ` · ${stale.length} in play untouched ${STALE_CONTACT_DAYS}+ days` : ''
+        }`,
     ...contactLines.map((l) => `- ${l}`),
+    ...(contactOverflow > 0 ? [`(+${contactOverflow} more need action)`] : []),
     ...(focusItems && focusItems.length ? ['', "THIS WEEK'S 3", ...focusItems.map((f, i) => `${i + 1}. ${f}`)] : []),
     '',
     `Friday review: update statuses, log any decisions, honest gut-check against the target date.`,
@@ -115,10 +120,15 @@ ${
       }`
     : '<p>Nothing overdue, blocked, or due in the next 7 days.</p>'
 }
-<p><strong>Contacts</strong> — ${actNow.length} need action${
-    stale.length ? ` · ${stale.length} in play untouched 5+ days` : ''
-  }</p>
+${
+  contacts.length === 0
+    ? '<p><strong>Contacts</strong> — pipeline not seeded yet. Import the plan list from the Contacts tab so outreach shows up here.</p>'
+    : `<p><strong>Contacts</strong> — ${actNow.length} need action${
+        stale.length ? ` · ${stale.length} in play untouched ${STALE_CONTACT_DAYS}+ days` : ''
+      }</p>`
+}
 ${contactLines.length ? `<ul>${contactLines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>` : ''}
+${contactOverflow > 0 ? `<p>+${contactOverflow} more need action</p>` : ''}
 ${
   focusItems && focusItems.length
     ? `<p><strong>This week's 3</strong></p><ol>${focusItems.map((f) => `<li>${escapeHtml(f)}</li>`).join('')}</ol>`

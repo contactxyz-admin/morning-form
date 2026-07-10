@@ -12,6 +12,12 @@ import styles from './ops.module.css';
 import { PILOT_PLAN } from '@/lib/ops/pilot-plan-data';
 import { baselineScorecard, cycleScore, ranks, weightedTotals } from './scorecard-math';
 
+// The baseline never changes at runtime — compare against one precomputed
+// snapshot instead of rebuilding + re-stringifying it on every render.
+// Key order is stable: state always starts as baselineScorecard() and both
+// setters spread the previous object.
+const BASELINE_JSON = JSON.stringify(baselineScorecard());
+
 export function ScorecardClient() {
   const [state, setState] = useState(baselineScorecard);
   const baseline = useMemo(() => weightedTotals(baselineScorecard()), []);
@@ -23,9 +29,7 @@ export function ScorecardClient() {
   // rank-1 tie, never when every weight is zeroed out.
   const leaderIndex =
     weightSum > 0 && rankByPartner.filter((r) => r === 1).length === 1 ? rankByPartner.indexOf(1) : -1;
-  const dirty =
-    JSON.stringify(state.scores) !== JSON.stringify(baselineScorecard().scores) ||
-    JSON.stringify(state.weights) !== JSON.stringify(baselineScorecard().weights);
+  const dirty = JSON.stringify(state) !== BASELINE_JSON;
 
   function setScore(c: number, p: number) {
     setState((prev) => ({

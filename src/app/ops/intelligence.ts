@@ -6,12 +6,15 @@
  * Vitest (same convention as board-grouping.ts).
  */
 import type { OpsTaskDto } from './board-client';
+import type { OpsContactStatus } from '@/lib/ops/schema';
 import { PILOT_PLAN } from '@/lib/ops/pilot-plan-data';
 import { getPilotWeekStatus, PILOT_START_UTC, WEEK_MS, type PilotWeekStatus } from './timeline-helpers';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Days ahead (inclusive) that count as "due soon" on the board + briefing. */
 export const DUE_SOON_DAYS = 7;
+/** Days without a touch after which an in-play contact is flagged stale — one constant for the tab AND the digest. */
+export const STALE_CONTACT_DAYS = 5;
 
 function dayUtcOf(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
@@ -346,30 +349,27 @@ export const CONTACT_BUCKET_LABELS: Record<ContactBucket, string> = {
  * Buckets the outreach status vocabulary by what it demands of US:
  * a reply or a ready draft or a booked call needs action today; "Sent"
  * means the ball is in their court; everything untouched is queue.
+ * Typed as an exhaustive record over OPS_CONTACT_STATUS_VALUES so adding a
+ * status to the vocabulary without choosing its bucket is a compile error,
+ * not a silent fall-through to "queue".
  */
+const BUCKET_BY_STATUS: Record<OpsContactStatus, ContactBucket> = {
+  Replied: 'act_now',
+  'Draft ready': 'act_now',
+  'Draft sent': 'act_now',
+  'Call booked': 'act_now',
+  Bounced: 'act_now', // bounce = fix the address and resend, action on us
+  Sent: 'waiting',
+  Done: 'done',
+  Connected: 'done',
+  'Not started': 'queue',
+  Parked: 'parked',
+  Deferred: 'parked',
+  Declined: 'parked', // dead lead — out of the active pipeline
+};
+
 export function contactBucket(status: string): ContactBucket {
-  switch (status) {
-    case 'Replied':
-    case 'Draft ready':
-    case 'Draft sent':
-    case 'Call booked':
-    case 'Bounced': // bounce = fix the address and resend, action on us
-      return 'act_now';
-    case 'Sent':
-      return 'waiting';
-    case 'Done':
-    case 'Connected':
-    case 'Confirmed':
-    case 'Verified':
-    case 'Decided':
-      return 'done';
-    case 'Parked':
-    case 'Deferred':
-    case 'Declined': // dead lead — out of the active pipeline
-      return 'parked';
-    default:
-      return 'queue';
-  }
+  return (BUCKET_BY_STATUS as Record<string, ContactBucket | undefined>)[status] ?? 'queue';
 }
 
 /**
@@ -388,4 +388,26 @@ export function daysBetweenUtc(from: string | Date, to: Date): number {
   if (Number.isNaN(fromMs)) return 0;
   const fromDay = dayUtcOf(new Date(fromMs));
   return Math.round((dayUtcOf(to) - fromDay) / DAY_MS);
+}
+
+/** "8 Jul" from an ISO date string — the one date format the Briefing and the digest share. */
+export function shortDayMonth(iso: string | null): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+/**
+ * Decodes CompanyOpsFocus.items ("JSON array of up to 3 strings") with one
+ * fail-soft behavior for every consumer (page, digest cron, focus card):
+ * bad data is an empty list, never a throw.
+ */
+export function parseFocusItems(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
 }

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { NextRequest } from 'next/server';
 import type { PrismaClient } from '@prisma/client';
 import { setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
-import { PILOT_PLAN } from '@/lib/ops/pilot-plan-data';
+import { PILOT_PLAN, planDecisionSeeds } from '@/lib/ops/pilot-plan-data';
 
 const currentUserMock = vi.fn<() => Promise<{ id: string; email: string } | null>>();
 
@@ -82,7 +82,8 @@ describe('POST /api/ops/import-plan', () => {
 
     const rows = await prisma.companyOpsDecision.findMany({ where: { board: 'pilot' } });
     const decided = rows.filter((r) => r.status === 'decided');
-    expect(decided.length).toBe(PILOT_PLAN.decisions.filter((d) => d[3] === 'Decided').length);
+    expect(decided.length).toBe(planDecisionSeeds().filter((s) => s.decided).length);
+    expect(decided.length).toBeGreaterThan(0);
     expect(decided.every((r) => r.decidedAt === null)).toBe(true);
     expect(rows.every((r) => r.status === 'decided' || r.status === 'open')).toBe(true);
   });

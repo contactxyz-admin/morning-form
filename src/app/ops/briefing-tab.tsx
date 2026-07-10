@@ -9,7 +9,7 @@ import styles from './ops.module.css';
 import { PILOT_PLAN } from '@/lib/ops/pilot-plan-data';
 import type { OpsMemberDto, OpsTaskDto } from './board-client';
 import { FocusCard, type FocusDto } from './focus-card';
-import { buildBriefing, rhythmIndexForDate, type AttentionItem, type BriefingModel } from './intelligence';
+import { buildBriefing, rhythmIndexForDate, shortDayMonth, type AttentionItem, type BriefingModel } from './intelligence';
 
 const REASON_LABEL: Record<AttentionItem['reason'], string> = {
   overdue: 'Overdue',
@@ -22,13 +22,6 @@ const REASON_PILL: Record<AttentionItem['reason'], string> = {
   blocked: styles.pillRed,
   due_soon: styles.pillPeach,
 };
-
-function shortDate(iso: string | null): string | null {
-  if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-}
 
 export function BriefingTab({
   tasks,
@@ -214,7 +207,7 @@ function AttentionList({
   return (
     <>
       {briefing.attention.map(({ task, reason }) => {
-        const due = shortDate(task.dueDate);
+        const due = shortDayMonth(task.dueDate);
         return (
           <div key={task.id} className={styles.attRow}>
             <span className={`${styles.pill} ${REASON_PILL[reason]}`}>

@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { timingSafeEqual } from 'node:crypto';
+import { bearerAuthorized } from '@/lib/auth/bearer';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
 import { runRetestNudges } from '@/lib/retest/nudge';
@@ -17,16 +17,9 @@ import { sendRetestNudgeEmail } from '@/lib/retest/nudge-email';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Constant-time bearer check (mirrors src/app/api/booking/ops/status/route.ts).
- * A missing CRON_SECRET fails closed — every request is rejected.
- */
+/** Shared constant-time bearer check; a missing CRON_SECRET fails closed. */
 function authorized(req: Request): boolean {
-  if (!env.CRON_SECRET) return false;
-  const header = req.headers.get('authorization') ?? '';
-  const expected = Buffer.from(`Bearer ${env.CRON_SECRET}`);
-  const actual = Buffer.from(header);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+  return bearerAuthorized(req, env.CRON_SECRET);
 }
 
 export async function GET(req: Request): Promise<Response> {

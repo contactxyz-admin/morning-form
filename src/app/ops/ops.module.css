@@ -289,34 +289,6 @@ ol.list {
   background: #eceae4;
 }
 
-.funnelFlow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-.funnelStep {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.funnelIndex {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-.funnelArrow {
-  color: var(--grey);
-  font-size: 15px;
-}
 .rhythmRow {
   margin: 6px 0;
 }
@@ -665,18 +637,13 @@ ol.list {
   padding: 2px 7px;
   vertical-align: 1px;
 }
-.linkBtn {
-  border: 1px solid var(--line);
-  background: #fff;
-  border-radius: 20px;
-  color: var(--ink);
-  display: inline-block;
-  font-size: 12.5px;
-  padding: 5px 13px;
-  text-decoration: none;
-}
-.linkBtn:hover {
-  border-color: var(--ink);
+/* Multi-line editable cells (decision rationale/options, contact next step)
+   — inherits .inputCell's chrome, adds wrap + vertical resize. */
+.textareaCell {
+  display: block;
+  line-height: 1.35;
+  min-height: 30px;
+  resize: vertical;
 }
 
 /* ------------------------------------------------------------------ */

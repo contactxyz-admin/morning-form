@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireOpsStaff } from '@/lib/ops/rest-guard';
-import { OpsDecisionUpdateSchema } from '@/lib/ops/schema';
+import { decidedAtTransition, OpsDecisionUpdateSchema, type OpsDecisionStatus } from '@/lib/ops/schema';
 import { writeOpsAudit } from '@/lib/ops/audit';
 
 export const dynamic = 'force-dynamic';
@@ -26,17 +26,17 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  const existing = await prisma.companyOpsDecision.findUnique({ where: { id: params.id } });
-  if (!existing) {
-    return NextResponse.json({ error: 'Decision not found.' }, { status: 404 });
+  // The pre-read exists only to compute the decidedAt transition — text-only
+  // edits (the common blur-save shape) skip it; the update's P2025 catch
+  // already covers not-found.
+  let decidedAt: Date | null | undefined;
+  if (body.status !== undefined) {
+    const existing = await prisma.companyOpsDecision.findUnique({ where: { id: params.id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Decision not found.' }, { status: 404 });
+    }
+    decidedAt = decidedAtTransition(existing.status as OpsDecisionStatus, body.status);
   }
-
-  const decidedAt =
-    body.status === undefined || body.status === existing.status
-      ? undefined // status untouched -> leave decidedAt alone
-      : body.status === 'decided'
-        ? new Date()
-        : null;
 
   let decision;
   try {

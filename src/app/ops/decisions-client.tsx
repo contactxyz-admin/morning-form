@@ -6,7 +6,7 @@
  * the log and the status flip is a single click (the API owns decidedAt).
  * An empty table offers a one-shot import of the plan's reference rows.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import styles from './ops.module.css';
 import { daysBetweenUtc } from './intelligence';
 import { StatusPill } from './status-pill';
@@ -34,8 +34,15 @@ export function DecisionsClient({ initialDecisions }: { initialDecisions: OpsDec
 
   const now = new Date();
 
+  // Monotonic per-row edit counter (same convention as board-client): a slow
+  // response for an old edit must not clobber a newer optimistic one.
+  const editSeq = useRef(new Map<string, number>());
+
   async function patchDecision(id: string, patch: DecisionPatch) {
+    const seq = (editSeq.current.get(id) ?? 0) + 1;
+    editSeq.current.set(id, seq);
     setError(null);
+    setDecisions((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
     try {
       const res = await fetch(`/api/ops/decision/${id}`, {
         method: 'PATCH',
@@ -44,9 +51,11 @@ export function DecisionsClient({ initialDecisions }: { initialDecisions: OpsDec
       });
       if (!res.ok) throw new Error();
       const { decision } = (await res.json()) as { decision: OpsDecisionDto };
-      setDecisions((prev) => prev.map((d) => (d.id === id ? decision : d)));
+      if (editSeq.current.get(id) === seq) {
+        setDecisions((prev) => prev.map((d) => (d.id === id ? decision : d)));
+      }
     } catch {
-      setError('Update failed — refresh and try again.');
+      setError('Update failed — refresh to see the saved state.');
     }
   }
 
@@ -173,18 +182,23 @@ export function DecisionsClient({ initialDecisions }: { initialDecisions: OpsDec
                     />
                   </td>
                   <td className={styles.td}>
-                    <input
+                    {/* Textareas, not inputs: options and especially rationale
+                        run to whole paragraphs — a one-line field truncates the
+                        exact reasoning the log exists to preserve. */}
+                    <textarea
                       key={`options-${d.id}`}
-                      className={styles.inputCell}
+                      className={`${styles.inputCell} ${styles.textareaCell}`}
+                      rows={2}
                       defaultValue={d.options}
                       aria-label={`Options for ${d.name}`}
                       onBlur={(e) => e.target.value !== d.options && patchDecision(d.id, { options: e.target.value })}
                     />
                   </td>
                   <td className={styles.td}>
-                    <input
+                    <textarea
                       key={`rationale-${d.id}`}
-                      className={styles.inputCell}
+                      className={`${styles.inputCell} ${styles.textareaCell}`}
+                      rows={3}
                       defaultValue={d.rationale}
                       aria-label={`Rationale for ${d.name}`}
                       onBlur={(e) => e.target.value !== d.rationale && patchDecision(d.id, { rationale: e.target.value })}
@@ -201,7 +215,9 @@ export function DecisionsClient({ initialDecisions }: { initialDecisions: OpsDec
                     </button>
                     <div style={{ marginTop: 4 }}>
                       <StatusPill value={d.status === 'decided' ? 'Decided' : 'Open'} />{' '}
-                      <span className={styles.note}>
+                      {/* Day-granular text can differ between SSR and hydration
+                          across a midnight boundary. */}
+                      <span className={styles.note} suppressHydrationWarning>
                         {d.status === 'open'
                           ? `in the log ${openDays === 0 ? 'since today' : `${openDays}d`}`
                           : decidedDays === null

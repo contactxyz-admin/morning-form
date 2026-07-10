@@ -66,7 +66,9 @@ export const OpsContactCreateSchema = z.object({
   type: z.string().default(''),
   status: z.enum(OPS_CONTACT_STATUS_VALUES).default('Not started'),
   nextStep: z.string().default(''),
-  orderIndex: z.number().int().default(0),
+  // No default: an omitted orderIndex means "append after the current max",
+  // which the route computes against the live table.
+  orderIndex: z.number().int().optional(),
 });
 
 export const OpsContactUpdateSchema = z.object({
@@ -81,13 +83,28 @@ export const OpsContactUpdateSchema = z.object({
 export const OPS_DECISION_STATUS_VALUES = ['open', 'decided'] as const;
 export type OpsDecisionStatus = (typeof OPS_DECISION_STATUS_VALUES)[number];
 
+/**
+ * The one place the "status transition owns decidedAt" invariant lives
+ * (stamp on open -> decided, clear on reopen, untouched otherwise) — every
+ * writer (POST, PATCH, future MCP tools) must go through this so a reopened
+ * decision can never keep a stale timestamp.
+ */
+export function decidedAtTransition(
+  previousStatus: OpsDecisionStatus | null,
+  nextStatus: OpsDecisionStatus | undefined,
+): Date | null | undefined {
+  if (nextStatus === undefined || nextStatus === previousStatus) return undefined; // leave as-is
+  return nextStatus === 'decided' ? new Date() : null;
+}
+
 export const OpsDecisionCreateSchema = z.object({
   board: z.string().min(1).default('pilot'),
   name: z.string().min(1),
   options: z.string().default(''),
   rationale: z.string().default(''),
   status: z.enum(OPS_DECISION_STATUS_VALUES).default('open'),
-  orderIndex: z.number().int().default(0),
+  // No default: omitted orderIndex = "append after the current max" (route-computed).
+  orderIndex: z.number().int().optional(),
 });
 
 export const OpsDecisionUpdateSchema = z.object({

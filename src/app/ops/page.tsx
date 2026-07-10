@@ -24,7 +24,7 @@ import { BriefingTab } from './briefing-tab';
 import { ContactsClient } from './contacts-client';
 import { DecisionsClient } from './decisions-client';
 import type { FocusDto } from './focus-card';
-import { currentWeekStartUtc } from './intelligence';
+import { currentWeekStartUtc, parseFocusItems } from './intelligence';
 import { REFERENCE_TABS, type ReferenceTabKey } from './reference-tabs';
 import styles from './ops.module.css';
 
@@ -106,11 +106,9 @@ export default async function OpsPage({ searchParams }: { searchParams: { tab?: 
       </nav>
       <main className={styles.main}>{await renderTab(activeTab, memberDtos)}</main>
       <div className={styles.savebar}>
-        {activeTab === 'brief'
-          ? SAVEBAR_COPY.brief
-          : activeTab === 'work' || activeTab === 'decisions' || activeTab === 'contacts'
-            ? SAVEBAR_COPY.live
-            : SAVEBAR_COPY.reference}
+        {/* Derive from the classification above — a hand-maintained key list
+            would silently show the wrong copy for the next live tab added. */}
+        {referenceTab ? SAVEBAR_COPY.reference : activeTab === 'brief' ? SAVEBAR_COPY.brief : SAVEBAR_COPY.live}
       </div>
     </div>
   );
@@ -154,15 +152,5 @@ async function renderTab(activeTab: LiveTabKey | ReferenceTabKey, memberDtos: Op
       const { Component } = REFERENCE_TABS.find((t) => t.key === activeTab)!;
       return <Component />;
     }
-  }
-}
-
-/** items is a JSON array column; fail soft to an empty list on bad data. */
-function parseFocusItems(raw: string): string[] {
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
   }
 }

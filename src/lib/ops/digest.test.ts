@@ -76,6 +76,22 @@ describe('buildOpsDigest', () => {
     expect(digest.text).not.toContain('MARKED DONE');
     expect(digest.text).not.toContain("THIS WEEK'S 3");
     expect(digest.html).not.toContain('<ol>');
+    // An unseeded pipeline is called out, never reported as "0 need action".
+    expect(digest.text).toContain('pipeline not seeded yet');
+  });
+
+  it('marks act-now truncation instead of silently dropping contacts', () => {
+    const digest = buildOpsDigest({
+      tasks: [],
+      contacts: Array.from({ length: 8 }, (_, i) => contact({ id: `c${i}`, org: `Org ${i}`, status: 'Replied' })),
+      doneThisWeek: [],
+      focusItems: null,
+      appUrl: 'https://x.test',
+      now: NOW,
+    });
+    expect(digest.text).toContain('CONTACTS — 8 need action');
+    expect(digest.text).toContain('(+3 more need action)');
+    expect(digest.html).toContain('+3 more need action');
   });
 
   it('escapes HTML in titles and org names', () => {

@@ -22,8 +22,14 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
+  // Append to the bottom: a fresh row must sort after the existing ones on
+  // every founder's screen, not jump to the top tied at orderIndex 0.
+  const { _max } = await prisma.companyOpsContact.aggregate({
+    where: { board: body.board },
+    _max: { orderIndex: true },
+  });
   const contact = await prisma.companyOpsContact.create({
-    data: { ...body, createdBy: guard.user.email },
+    data: { ...body, orderIndex: body.orderIndex ?? (_max.orderIndex ?? -1) + 1, createdBy: guard.user.email },
   });
 
   await writeOpsAudit(prisma, {

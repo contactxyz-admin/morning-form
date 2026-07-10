@@ -8,9 +8,9 @@
  * outcome lands in one CompanyOpsAudit row.
  */
 import { NextResponse } from 'next/server';
-import { timingSafeEqual } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
+import { bearerAuthorized } from '@/lib/auth/bearer';
 import { sendEmail } from '@/lib/auth/email';
 import { isCompanyOpsEnabled, members } from '@/lib/ops/config';
 import { getOpsFocus, listOpsContacts, listOpsTasks } from '@/lib/ops/queries';
@@ -18,26 +18,17 @@ import { serializeOpsContact, serializeOpsTask } from '@/lib/ops/serialize';
 import { buildOpsDigest } from '@/lib/ops/digest';
 import { postToSlack } from '@/lib/ops/notify';
 import { writeOpsAudit } from '@/lib/ops/audit';
-import { currentWeekStartUtc } from '@/app/ops/intelligence';
+import { currentWeekStartUtc, parseFocusItems } from '@/app/ops/intelligence';
 
 export const dynamic = 'force-dynamic';
 
 const DONE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Constant-time bearer check; a missing CRON_SECRET fails closed. */
-function authorized(req: Request): boolean {
-  if (!env.CRON_SECRET) return false;
-  const header = req.headers.get('authorization') ?? '';
-  const expected = Buffer.from(`Bearer ${env.CRON_SECRET}`);
-  const actual = Buffer.from(header);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
-}
-
 export async function GET(req: Request): Promise<Response> {
   if (!isCompanyOpsEnabled()) {
     return NextResponse.json({ error: 'Not found.' }, { status: 404 });
   }
-  if (!authorized(req)) {
+  if (!bearerAuthorized(req, env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
@@ -51,15 +42,7 @@ export async function GET(req: Request): Promise<Response> {
   const doneThisWeek = tasks
     .filter((t) => t.status === 'done' && now.getTime() - t.updatedAt.getTime() <= DONE_WINDOW_MS)
     .map((t) => t.title);
-  let focusItems: string[] | null = null;
-  if (focusRow) {
-    try {
-      const parsed = JSON.parse(focusRow.items);
-      focusItems = Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : null;
-    } catch {
-      focusItems = null;
-    }
-  }
+  const focusItems = focusRow ? parseFocusItems(focusRow.items) : null;
 
   const digest = buildOpsDigest({
     tasks: tasks.map(serializeOpsTask),
@@ -70,15 +53,18 @@ export async function GET(req: Request): Promise<Response> {
     now,
   });
 
+  // Email fan-out and the Slack post are independent I/O — run them together.
   const recipients = members().map((m) => m.email);
-  const emailResults = await Promise.all(
-    recipients.map((to) =>
-      sendEmail({ to, subject: digest.subject, text: digest.text, html: digest.html })
-        .then(() => ({ to, ok: true as const }))
-        .catch((err) => ({ to, ok: false as const, error: err instanceof Error ? err.message : String(err) })),
+  const [emailResults, slackOk] = await Promise.all([
+    Promise.all(
+      recipients.map((to) =>
+        sendEmail({ to, subject: digest.subject, text: digest.text, html: digest.html })
+          .then(() => ({ to, ok: true as const }))
+          .catch((err) => ({ to, ok: false as const, error: err instanceof Error ? err.message : String(err) })),
+      ),
     ),
-  );
-  const slackOk = await postToSlack(digest.text);
+    postToSlack(digest.text),
+  ]);
 
   const sent = emailResults.filter((r) => r.ok).map((r) => r.to);
   const failed = emailResults.filter((r) => !r.ok);
