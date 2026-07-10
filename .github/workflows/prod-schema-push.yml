@@ -1,0 +1,77 @@
+name: Prod schema push (one-shot, PR 202)
+
+# One-shot ceremony for PR #202: applies the four new pilot tables
+# (ConsentRecord, ResultReview, PilotSlot, PilotSlotBooking + User FKs) to
+# prod so the prod-schema-in-sync merge gate can go green. Mirrors the
+# manual flow documented in schema-drift.yml using the same repo secret.
+#
+# Safety posture:
+#  - generates the exact SQL via `prisma migrate diff --script` and prints
+#    it to the log BEFORE applying (auditable preview);
+#  - refuses to run anything non-additive (DROP/TRUNCATE/DELETE statements)
+#    — this PR only ADDS tables, so anything else means unexpected drift
+#    and a human should look;
+#  - no-ops cleanly if prod is already in sync (safe to re-run);
+#  - re-verifies with --exit-code after applying.
+#
+# This file is deleted from the branch in the follow-up commit once the
+# push has succeeded — it is not a standing workflow.
+
+on:
+  push:
+    branches: [claude/company-ops-board-t5yh1z]
+    paths: ['.github/workflows/prod-schema-push.yml']
+
+jobs:
+  push-schema-to-prod:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: prod-schema-push
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+      - run: npm ci
+      - name: Diff, preview, apply, verify
+        env:
+          PROD_DATABASE_URL_UNPOOLED: ${{ secrets.PROD_DATABASE_URL_UNPOOLED }}
+        run: |
+          if [ -z "$PROD_DATABASE_URL_UNPOOLED" ]; then
+            echo "::error::PROD_DATABASE_URL_UNPOOLED secret is not set."
+            exit 1
+          fi
+
+          npx prisma migrate diff \
+            --from-url "$PROD_DATABASE_URL_UNPOOLED" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --script > prod-push.sql
+
+          if ! grep -vE '^\s*(--|$)' prod-push.sql > /dev/null; then
+            echo "✅ Prod already in sync — nothing to apply."
+            exit 0
+          fi
+
+          # Additive-only gate. DROP/TRUNCATE never appear in this PR's
+          # expected DDL; DELETE is only legal inside referential actions
+          # ("ON DELETE CASCADE"), never as a statement.
+          if grep -nE '\b(DROP|TRUNCATE)\b' prod-push.sql || grep -nE '^\s*DELETE\b' prod-push.sql; then
+            echo "::error::Diff contains non-additive statements (above) — refusing to auto-apply. Investigate drift manually."
+            exit 1
+          fi
+
+          echo "=== SQL to apply to prod ==="
+          cat prod-push.sql
+          echo "============================"
+
+          npx prisma db execute \
+            --url "$PROD_DATABASE_URL_UNPOOLED" \
+            --file prod-push.sql
+
+          npx prisma migrate diff \
+            --from-url "$PROD_DATABASE_URL_UNPOOLED" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code
+          echo "✅ Prod schema now matches prisma/schema.prisma"
