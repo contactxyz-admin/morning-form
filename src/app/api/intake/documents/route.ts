@@ -1,23 +1,30 @@
 /**
- * POST /api/intake/documents — lab-PDF ingestion endpoint.
+ * POST /api/intake/documents — lab document ingestion endpoint (PDF or CSV).
  *
  * Flow:
- *   1. Parse multipart/form-data (`file` field). PDF only for v1.
+ *   1. Parse multipart/form-data (`file` field). PDF or CSV.
  *   2. Hash content for dedup. Re-upload of the same bytes short-circuits.
- *   3. Persist bytes via `storePdf` — Vercel Blob (access='private') in
- *      prod/preview, local FS in dev. Returns an opaque storagePath for
+ *   3. Persist bytes via `storeLabDocument` — Vercel Blob (access='private')
+ *      in prod/preview, local FS in dev. Returns an opaque storagePath for
  *      the audit-trail column.
- *   4. pdf-parse → page-aware text → chunk by layout heuristics.
+ *   4. PDF: pdf-parse → page-aware text → chunk by layout heuristics.
+ *      CSV: UTF-8 decode → the whole file as a single chunk (lab CSVs vary
+ *      too much for a deterministic parser before a partner format exists;
+ *      the LLM extraction is format-agnostic and the same trust boundary).
  *   5. Claude Opus extracts biomarkers (structured-output, Zod-validated).
  *   6. Single transaction writes SourceDocument + chunks + biomarker nodes
- *      with SUPPORTS edges (ingestExtraction handles the wiring).
+ *      with SUPPORTS edges (ingestExtraction handles the wiring). CSV
+ *      uploads persist as kind='lab_csv'; everything downstream (graph
+ *      normalization, observations, temporal chaining, review-row creation,
+ *      funnel events) rides the same code path untouched.
  *   7. Promotion check: any TopicPage(status=stub) whose promotion threshold
  *      is met by the newly-written biomarkers flips to status=full and will
  *      be picked up by U8's compile worker on its next pass.
  *
  * Errors:
- *   - 400 on missing file, oversized file, or non-PDF mime
- *   - 422 on malformed/image-only PDF (no_text_layer, empty_document)
+ *   - 400 on missing file, oversized file, or a mime that is neither PDF nor CSV
+ *   - 422 on malformed/image-only PDF (no_text_layer, empty_document) or an
+ *     effectively-empty CSV
  *   - 502 on LLM failures (auth / transient / validation)
  *   - 500 on anything else
  *
@@ -31,7 +38,7 @@ import { createHash } from 'node:crypto';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { llmConsentGateResponse } from '@/lib/llm/consent';
-import { storePdf } from '@/lib/intake/storage';
+import { storeLabDocument } from '@/lib/intake/storage';
 import { LLMClient } from '@/lib/llm/client';
 import {
   LLMAuthError,
@@ -66,7 +73,11 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 const MAX_PDF_BYTES = 20 * 1024 * 1024; // 20MB — generous for a lab panel scan
-const ALLOWED_MIME = new Set(['application/pdf']);
+// A CSV export of a lab panel is kilobytes; unlike the PDF path there is no
+// chunking heuristic between the raw bytes and the extraction prompt, so a
+// tighter cap keeps a pathological upload from becoming a megaprompt.
+const MAX_CSV_BYTES = 1 * 1024 * 1024; // 1MB
+const ALLOWED_MIME = new Set(['application/pdf', 'text/csv']);
 
 /**
  * Inline promotion rules. U8 replaces this with a proper TopicRegistry. Each
@@ -120,7 +131,14 @@ export async function POST(req: Request) {
   }
   if (!ALLOWED_MIME.has(file.type)) {
     return NextResponse.json(
-      { error: `Unsupported content-type "${file.type}"; PDF only in v1` },
+      { error: `Unsupported content-type "${file.type}"; PDF or CSV only` },
+      { status: 400 },
+    );
+  }
+  const isCsv = file.type === 'text/csv';
+  if (isCsv && file.size > MAX_CSV_BYTES) {
+    return NextResponse.json(
+      { error: `CSV exceeds ${MAX_CSV_BYTES / (1024 * 1024)}MB limit` },
       { status: 400 },
     );
   }
@@ -154,16 +172,34 @@ export async function POST(req: Request) {
       });
     }
 
-    const extracted = await extractPdfText(buffer);
-    const chunks = chunkLabReport(extracted.pages);
-    if (chunks.length === 0) {
-      console.warn(
-        `[API] intake/documents 422 no_chunks file=${file.name} pages=${extracted.pages.length} textLen=${extracted.text.length}`,
-      );
-      return NextResponse.json(
-        { error: 'No extractable content found in PDF', kind: 'no_chunks' },
-        { status: 422 },
-      );
+    let chunks: ReturnType<typeof chunkLabReport>;
+    let pageCount: number | null = null;
+    if (isCsv) {
+      // CSV branch: no text layer to extract, no layout to chunk. Decode as
+      // UTF-8 (BOM stripped — Excel exports lead with one) and hand the whole
+      // file to the extraction prompt as a single chunk.
+      const csvText = buffer.toString('utf8').replace(/^\uFEFF/, '');
+      if (csvText.trim().length === 0) {
+        console.warn(`[API] intake/documents 422 empty_document (csv) file=${file.name}`);
+        return NextResponse.json(
+          { error: 'No extractable content found in CSV', kind: 'empty_document' },
+          { status: 422 },
+        );
+      }
+      chunks = [{ index: 0, text: csvText, offsetStart: 0, offsetEnd: csvText.length }];
+    } else {
+      const extracted = await extractPdfText(buffer);
+      pageCount = extracted.pages.length;
+      chunks = chunkLabReport(extracted.pages);
+      if (chunks.length === 0) {
+        console.warn(
+          `[API] intake/documents 422 no_chunks file=${file.name} pages=${extracted.pages.length} textLen=${extracted.text.length}`,
+        );
+        return NextResponse.json(
+          { error: 'No extractable content found in PDF', kind: 'no_chunks' },
+          { status: 422 },
+        );
+      }
     }
 
     const client = new LLMClient();
@@ -190,7 +226,7 @@ export async function POST(req: Request) {
       b.supportingChunkIndices.every((i) => i >= 0 && i <= maxChunkIndex),
     );
 
-    const storagePath = await storePdf(user.id, contentHash, buffer);
+    const storagePath = await storeLabDocument(user.id, contentHash, buffer, isCsv ? 'csv' : 'pdf');
     const capturedAt = panel.reportCollectionDate
       ? new Date(panel.reportCollectionDate)
       : new Date();
@@ -207,7 +243,7 @@ export async function POST(req: Request) {
 
     const input: IngestExtractionInput = {
       document: {
-        kind: 'lab_pdf',
+        kind: isCsv ? 'lab_csv' : 'lab_pdf',
         sourceRef: file.name,
         contentHash,
         capturedAt,
@@ -215,7 +251,8 @@ export async function POST(req: Request) {
         metadata: {
           labProvider: panel.labProvider,
           sizeBytes: file.size,
-          pageCount: extracted.pages.length,
+          // CSV has no pages; omit rather than fake a count.
+          ...(pageCount !== null ? { pageCount } : {}),
         },
       },
       chunks,

@@ -103,6 +103,9 @@ export interface SourceView {
  */
 const KIND_LABELS: Record<SourceDocumentKind, string> = {
   lab_pdf: 'Lab report',
+  // Same member-facing label as lab_pdf — the container format is an
+  // ingestion detail, not a trust distinction.
+  lab_csv: 'Lab report',
   gp_record: 'GP record',
   intake_text: 'Intake notes',
   wearable_window: 'Wearable',

@@ -60,8 +60,8 @@ vi.mock('@/lib/env', () => ({
 // Stub the storage module — we don't care about real blob/filesystem writes
 // in route tests, and the @vercel/blob `put` would otherwise require network.
 vi.mock('@/lib/intake/storage', () => ({
-  storePdf: vi.fn((userId: string, contentHash: string) =>
-    Promise.resolve(`uploads/${userId}/${contentHash}.pdf`),
+  storeLabDocument: vi.fn((userId: string, contentHash: string, _buffer: Buffer, format = 'pdf') =>
+    Promise.resolve(`uploads/${userId}/${contentHash}.${format}`),
   ),
 }));
 
@@ -172,7 +172,7 @@ describe('POST /api/intake/documents', () => {
     expect((await res.json()).error).toMatch(/Missing `file`/);
   });
 
-  it('returns 400 on non-PDF content-type', async () => {
+  it('returns 400 on a content-type that is neither PDF nor CSV', async () => {
     const userId = await makeTestUser(prisma, 'docs-bad-mime');
     currentUserMock.mockResolvedValue({ id: userId });
     const blob = new Blob(['hello'], { type: 'image/png' });
@@ -184,7 +184,7 @@ describe('POST /api/intake/documents', () => {
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toMatch(/PDF only/);
+    expect((await res.json()).error).toMatch(/PDF or CSV only/);
   });
 
   it('happy path — persists SourceDocument, chunks, biomarker nodes, promotes iron stub→full', async () => {
@@ -747,5 +747,102 @@ describe('POST /api/intake/documents — clinician review hook (pilot MVP plan 2
         where: { funnelId: firstBody.documentId, event: 'result_ingested' },
       }),
     ).toBe(1);
+  });
+});
+
+describe('POST /api/intake/documents — CSV fallback (pilot MVP plan 2026-07-04)', () => {
+  const CSV_TEXT = [
+    'Biomarker,Value,Units,Reference Range,Flag',
+    'Ferritin,18,ug/L,30-400,L',
+    'Vitamin D,42,nmol/L,50-200,L',
+  ].join('\n');
+
+  function csvFile(text: string, name = 'panel.csv'): File {
+    return new File([text], name, { type: 'text/csv' });
+  }
+
+  function primeCsvExtraction(): void {
+    setExtraction({
+      biomarkers: [
+        {
+          canonicalKey: 'ferritin',
+          displayName: 'Ferritin',
+          value: 18,
+          unit: 'ug/L',
+          referenceRangeLow: 30,
+          referenceRangeHigh: 400,
+          flaggedOutOfRange: true,
+          collectionDate: '2026-04-01',
+          supportingChunkIndices: [0],
+        },
+      ],
+      reportCollectionDate: '2026-04-01',
+      labProvider: 'Medichecks',
+    });
+  }
+
+  it('happy path — UTF-8 CSV (with BOM) ingests as a single chunk, kind=lab_csv', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-happy');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeCsvExtraction();
+
+    // Excel-style export: leading BOM must be stripped, not break ingestion.
+    const res = await POST(makeRequest({ file: csvFile('\uFEFF' + CSV_TEXT) }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.deduped).toBe(false);
+    expect(body.chunkCount).toBe(1);
+    expect(body.biomarkerCount).toBe(1);
+
+    const doc = await prisma.sourceDocument.findUniqueOrThrow({ where: { id: body.documentId } });
+    expect(doc.kind).toBe('lab_csv');
+    expect(doc.storagePath).toMatch(/\.csv$/);
+
+    // The single chunk carries the decoded text WITHOUT the BOM.
+    const chunks = await prisma.sourceChunk.findMany({ where: { sourceDocumentId: body.documentId } });
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].text.startsWith('Biomarker,')).toBe(true);
+
+    // Downstream rode the same path: biomarker node persisted + funnel event.
+    expect(
+      await prisma.funnelEvent.count({
+        where: { funnelId: body.documentId, event: 'result_ingested' },
+      }),
+    ).toBe(1);
+  });
+
+  it('dedup — second upload of identical CSV bytes returns the existing document', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-dedup');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeCsvExtraction();
+
+    const first = await POST(makeRequest({ file: csvFile(CSV_TEXT) }));
+    const firstBody = await first.json();
+    expect(firstBody.deduped).toBe(false);
+
+    primeCsvExtraction();
+    const second = await POST(makeRequest({ file: csvFile(CSV_TEXT) }));
+    const secondBody = await second.json();
+    expect(secondBody.deduped).toBe(true);
+    expect(secondBody.documentId).toBe(firstBody.documentId);
+  });
+
+  it('422 empty_document on a whitespace-only CSV', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-empty');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    const res = await POST(makeRequest({ file: csvFile('\uFEFF \n \n ') }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).kind).toBe('empty_document');
+  });
+
+  it('400 on a CSV above the 1MB cap (tighter than the PDF cap)', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-big');
+    currentUserMock.mockResolvedValue({ id: userId });
+
+    const big = 'a,b,c\n'.repeat(200_000); // ~1.2MB
+    const res = await POST(makeRequest({ file: csvFile(big) }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/CSV exceeds 1MB/);
   });
 });

@@ -49,7 +49,7 @@ export async function backfillBaselineDrawForUser(
   if (existing > 0) return { userId, status: 'skipped-has-draws' };
 
   const labs = await prisma.sourceDocument.findMany({
-    where: { userId, kind: 'lab_pdf' },
+    where: { userId, kind: { in: ['lab_pdf', 'lab_csv'] } },
     orderBy: { capturedAt: 'asc' },
     select: { id: true, capturedAt: true },
   });
