@@ -9,6 +9,7 @@
 import { useMemo, useState } from 'react';
 import { Chip } from '@/components/ui/chip';
 import { ConsentStep } from '@/components/pilot/consent-step';
+import { formatSlotDay, formatSlotTimeOfDay } from '@/lib/pilot/format';
 
 export interface BookableSlot {
   id: string;
@@ -27,22 +28,8 @@ export interface OwnBookingView {
   notes: string | null;
 }
 
-function formatSlotLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/London',
-  });
-}
-
-function formatDayLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'Europe/London',
-  });
-}
+const formatSlotLabel = (iso: string) => formatSlotTimeOfDay(new Date(iso));
+const formatDayLabel = (iso: string) => formatSlotDay(new Date(iso));
 
 export function BookClient({
   initialSlots,
@@ -121,6 +108,10 @@ export function BookClient({
         notes: picked.notes,
       });
       setPicked(null);
+      // Consent is per-capture: any future rebook must start from an
+      // unticked checkbox and an empty signature, never a prefilled one.
+      setSignedName('');
+      setConsentAccepted(false);
     } catch {
       setError('Network error — refresh and try again.');
     } finally {
@@ -140,6 +131,9 @@ export function BookClient({
         return;
       }
       setOwnBooking(null);
+      // Fresh consent required for any rebooking after a cancel.
+      setSignedName('');
+      setConsentAccepted(false);
       void refreshSlots();
     } catch {
       setError('Network error — refresh and try again.');

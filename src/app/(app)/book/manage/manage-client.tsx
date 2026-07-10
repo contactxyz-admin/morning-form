@@ -6,6 +6,7 @@
  */
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatSlotShort } from '@/lib/pilot/format';
 
 export interface ManagedSlot {
   id: string;
@@ -17,16 +18,7 @@ export interface ManagedSlot {
   bookings: { id: string; memberEmail: string; memberName: string | null }[];
 }
 
-function formatSlot(iso: string): string {
-  return new Date(iso).toLocaleString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Europe/London',
-  });
-}
+const formatSlot = (iso: string) => formatSlotShort(new Date(iso));
 
 export function ManageClient({ initialSlots }: { initialSlots: ManagedSlot[] }) {
   const router = useRouter();
@@ -112,7 +104,17 @@ export function ManageClient({ initialSlots }: { initialSlots: ManagedSlot[] }) 
         <input className={`${inputClass} mt-2`} placeholder="Prep notes shown to members (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
         <button
           type="button"
-          disabled={submitting || !venueName.trim() || !venueAddress.trim() || !startsAt}
+          disabled={
+            submitting ||
+            !venueName.trim() ||
+            !venueAddress.trim() ||
+            !startsAt ||
+            // Mirror the server's 1..50 integer bound so a cleared or
+            // fractional capacity can't reach the generic Zod 400.
+            !Number.isInteger(Number(capacity)) ||
+            Number(capacity) < 1 ||
+            Number(capacity) > 50
+          }
           onClick={() => void createSlot()}
           className="mt-3 rounded-full bg-text-primary text-bg px-5 py-2 text-body font-medium disabled:opacity-50"
         >

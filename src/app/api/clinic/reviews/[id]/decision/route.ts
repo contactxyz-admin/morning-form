@@ -13,7 +13,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireClinician } from '@/lib/review/guard';
-import { decideReview, UnknownMarkerKeysError } from '@/lib/review/queue';
+import { decideReview, EmptyEscalationError, UnknownMarkerKeysError } from '@/lib/review/queue';
 import {
   sendMemberEscalationEmail,
   sendOpsEscalationNotice,
@@ -59,6 +59,9 @@ export async function POST(
         { error: `markerKeys not in this panel: ${err.keys.join(', ')}` },
         { status: 400 },
       );
+    }
+    if (err instanceof EmptyEscalationError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
     throw err;
   }

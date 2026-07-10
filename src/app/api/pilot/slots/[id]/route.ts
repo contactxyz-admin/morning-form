@@ -8,6 +8,10 @@
  * booking between the check and the delete would be silently cascaded away
  * while holding a confirmation email. (Slot lock only; bookSlot's user→slot
  * lock order stays deadlock-free since we never take a user lock here.)
+ *
+ * Past slots with bookings are intentionally NOT deletable: their rows stay
+ * status='booked' (v1 never writes 'attended'), and they are the member's
+ * draw history — /book/manage filters them out of the list instead.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { Prisma } from '@prisma/client';
@@ -49,6 +53,15 @@ export async function DELETE(
     }
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
       return NextResponse.json({ error: 'Slot not found.' }, { status: 404 });
+    }
+    // P2028: transaction timed out waiting for the advisory lock (e.g. a
+    // booking rush holding the slot lock). Contention is retryable, not a
+    // server fault — don't surface it as an unhandled 500.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2028') {
+      return NextResponse.json(
+        { error: 'Slot is busy with live bookings right now — try again shortly.' },
+        { status: 503 },
+      );
     }
     throw err;
   }

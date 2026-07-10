@@ -11,5 +11,6 @@ export function isInGymBookingEnabled(): boolean {
 export const SLOT_CAPACITY_MIN = 1;
 export const SLOT_CAPACITY_MAX = 50;
 
-/** The pilot is UK-only; slot times render in this zone on every surface. */
-export const PILOT_TIMEZONE = 'Europe/London';
+// Lives in ./format (dependency-free, client-importable); re-exported here
+// for server callers that already import config.
+export { PILOT_TIMEZONE } from './format';

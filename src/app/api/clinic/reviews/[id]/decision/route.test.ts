@@ -194,6 +194,41 @@ describe('POST /api/clinic/reviews/[id]/decision — flow', () => {
     expect(row.status).toBe('pending');
   });
 
+  it('escalate on a zero-marker panel → 400, review stays pending, no emails', async () => {
+    currentUserMock.mockResolvedValue(CLINICIAN);
+    // Review whose snapshot has no markers (extraction yielded nothing).
+    const userId = await makeTestUser(prisma, 'dec-zeromark');
+    const doc = await prisma.sourceDocument.create({
+      data: {
+        userId,
+        kind: 'lab_pdf',
+        sourceRef: 'empty-panel.pdf',
+        contentHash: `hash-dec-zeromark-${Math.random().toString(36).slice(2)}`,
+        capturedAt: new Date('2026-07-01T00:00:00Z'),
+      },
+    });
+    await createReviewForDocument(prisma, {
+      userId,
+      sourceDocumentId: doc.id,
+      documentCapturedAt: doc.capturedAt,
+      biomarkers: [],
+      labProvider: null,
+      sourceRef: doc.sourceRef,
+    });
+    const review = await prisma.resultReview.findUniqueOrThrow({ where: { sourceDocumentId: doc.id } });
+
+    const { req, ctx } = postWith(review.id, {
+      action: 'escalate',
+      reason: 'Escalating a panel with no markers must be refused.',
+    });
+    expect((await POST(req, ctx)).status).toBe(400);
+
+    const row = await prisma.resultReview.findUniqueOrThrow({ where: { id: review.id } });
+    expect(row.status).toBe('pending');
+    expect(memberEmailMock).not.toHaveBeenCalled();
+    expect(opsEmailMock).not.toHaveBeenCalled();
+  });
+
   it('already-decided review → 409 with the current status', async () => {
     currentUserMock.mockResolvedValue(CLINICIAN);
     const { review } = await makePendingReview('decided');

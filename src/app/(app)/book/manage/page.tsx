@@ -29,7 +29,13 @@ export default async function ManageSlotsPage() {
     );
   }
 
+  // Upcoming (+24h grace so event-day staff still see today's slots after
+  // they start). Past slots are retained history — their bookings stay
+  // status='booked' (v1 never writes 'attended'), so they'd be forever
+  // 409-undeletable anyway; keeping them out of this list bounds the page
+  // as event days accumulate and removes the urge to delete them.
   const slots = await prisma.pilotSlot.findMany({
+    where: { startsAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
     orderBy: { startsAt: 'asc' },
     include: {
       bookings: {

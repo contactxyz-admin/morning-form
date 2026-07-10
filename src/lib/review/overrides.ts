@@ -15,6 +15,17 @@ import { parsePanelSummary } from './snapshot';
 type Db = PrismaClient | Prisma.TransactionClient;
 
 export async function loadEscalatedMarkerKeys(db: Db, userId: string): Promise<Set<string>> {
+  // Cheap escape hatch for the overwhelmingly common case: only escalated
+  // rows can ever ADD a key to the result, so zero escalated rows means the
+  // answer is provably empty — one indexed count instead of streaming every
+  // decided review's full panelSummary blob on the two hottest member read
+  // paths (/api/record and the source-detail route), a cost that otherwise
+  // grows with every panel the member ever ingests.
+  const escalatedCount = await db.resultReview.count({
+    where: { userId, status: 'escalated' },
+  });
+  if (escalatedCount === 0) return new Set();
+
   const decided = await db.resultReview.findMany({
     where: { userId, status: { in: ['approved', 'escalated'] } },
     // createdAt tiebreak: two panels captured at the same instant would

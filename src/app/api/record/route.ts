@@ -116,7 +116,7 @@ export async function GET() {
     // Keep the vault index importance-first for PR7; a future semantic boost
     // belongs here behind a separate rollout flag after grounding + latency
     // canary gates are met.
-    const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap, changedNodeIds: lifted });
+    const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap, liftedNodeIds: lifted });
 
     // Decorate the (now cap-surviving) biomarker nodes with their change, plus
     // the consumer-facing clinical interpretation for CMO-authored markers

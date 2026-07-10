@@ -5,7 +5,9 @@
  * scan root).
  */
 import { sendEmail } from '@/lib/auth/email';
-import { PILOT_TIMEZONE } from './config';
+import { formatSlotTime } from './format';
+
+export { formatSlotTime } from './format';
 
 export interface SlotBookingEmailInput {
   name: string | null;
@@ -13,17 +15,6 @@ export interface SlotBookingEmailInput {
   venueAddress: string;
   startsAt: Date;
   notes: string | null;
-}
-
-export function formatSlotTime(startsAt: Date): string {
-  return startsAt.toLocaleString('en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: PILOT_TIMEZONE,
-  });
 }
 
 export function buildSlotBookingConfirmationEmail(input: SlotBookingEmailInput): {

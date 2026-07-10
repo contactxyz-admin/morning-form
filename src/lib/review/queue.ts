@@ -117,6 +117,14 @@ export async function decideReview(db: Db, input: DecideReviewInput): Promise<De
       const flagged = summary?.markers.filter((m) => m.flaggedOutOfRange).map((m) => m.joinKey) ?? [];
       escalatedMarkerKeys = flagged.length > 0 ? flagged : Array.from(panelKeys);
     }
+    // An escalation must always name at least one marker: with an empty set
+    // the member gets the "sign in to see which results are flagged" email
+    // while no surface ever renders a flag. Reachable only via direct API on
+    // a zero-marker or malformed-snapshot review (the UI disables the button
+    // in both states) — refuse rather than record a pointless escalation.
+    if (escalatedMarkerKeys.length === 0) {
+      throw new EmptyEscalationError();
+    }
   }
 
   const now = new Date();
@@ -148,6 +156,15 @@ export class UnknownMarkerKeysError extends Error {
   constructor(public readonly keys: string[]) {
     super(`markerKeys not present in this panel: ${keys.join(', ')}`);
     this.name = 'UnknownMarkerKeysError';
+  }
+}
+
+export class EmptyEscalationError extends Error {
+  constructor() {
+    super(
+      'This panel has no markers to escalate (empty or unreadable snapshot) — contact the member directly instead.',
+    );
+    this.name = 'EmptyEscalationError';
   }
 }
 

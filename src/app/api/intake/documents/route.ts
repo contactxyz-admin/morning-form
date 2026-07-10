@@ -184,6 +184,27 @@ export async function POST(req: Request) {
       // UTF-8 (BOM stripped — Excel exports lead with one) and hand the whole
       // file to the extraction prompt as a single chunk.
       const csvText = buffer.toString('utf8').replace(/^\uFEFF/, '');
+      // Content sanity gate — the PDF path structurally validates bytes
+      // before the LLM ever runs; this is the CSV analog. Rejects:
+      //  - UTF-16 exports (Excel "Unicode Text") and OLE2 .xls binaries
+      //    renamed .csv: both decode from utf8 into NUL-riddled text. NUL
+      //    would also poison the chunk INSERT (Postgres rejects \\u0000 in
+      //    text columns), which would 500 AFTER the LLM spend with no dedup
+      //    row committed — so every retry would re-spend the extraction.
+      //  - General binary mojibake (high U+FFFD replacement-char ratio),
+      //    which would otherwise feed the extraction prompt garbage it could
+      //    hallucinate plausible-looking biomarkers from.
+      const replacementChars = (csvText.match(/\uFFFD/g) ?? []).length;
+      if (csvText.includes('\u0000') || replacementChars > csvText.length * 0.01) {
+        console.warn(`[API] intake/documents 422 not_text_csv file=${file.name}`);
+        return NextResponse.json(
+          {
+            error: 'File is not a plain-text CSV (binary or unsupported encoding) — export as UTF-8 CSV',
+            kind: 'not_text_csv',
+          },
+          { status: 422 },
+        );
+      }
       if (csvText.trim().length === 0) {
         console.warn(`[API] intake/documents 422 empty_document (csv) file=${file.name}`);
         return NextResponse.json(

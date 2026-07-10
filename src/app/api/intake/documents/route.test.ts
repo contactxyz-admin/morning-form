@@ -827,6 +827,23 @@ describe('POST /api/intake/documents — CSV fallback (pilot MVP plan 2026-07-04
     expect(secondBody.documentId).toBe(firstBody.documentId);
   });
 
+  it('422 not_text_csv on UTF-16/binary bytes BEFORE any LLM call', async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-utf16');
+    currentUserMock.mockResolvedValue({ id: userId });
+    // No setExtraction(): if the route reached the LLM the mock harness
+    // would throw on the unmatched prompt — passing proves the gate runs
+    // before extraction spend.
+
+    // UTF-16LE bytes for "a,b" (BOM FF FE + interleaved NULs), as Excel's
+    // "Unicode Text" export produces.
+    const utf16 = new Uint8Array([0xff, 0xfe, 0x61, 0x00, 0x2c, 0x00, 0x62, 0x00]);
+    const file = new File([utf16], 'panel.csv', { type: 'text/csv' });
+    const res = await POST(makeRequest({ file }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).kind).toBe('not_text_csv');
+    expect(await prisma.sourceDocument.count({ where: { userId } })).toBe(0);
+  });
+
   it('422 empty_document on a whitespace-only CSV', async () => {
     const userId = await makeTestUser(prisma, 'docs-csv-empty');
     currentUserMock.mockResolvedValue({ id: userId });
