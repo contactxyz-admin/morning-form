@@ -982,11 +982,63 @@ model CompanyOpsTask {
 model CompanyOpsAudit {
   id     String  @id @default(cuid())
   actor  String // email or "mcp:<email>"
-  action String // task.create | task.update | task.assign | task.delete | notify.sent | notify.failed | mcp.<tool> | mcp.rate_limited
+  action String // task.create | task.update | task.assign | task.delete | contact.* | decision.* | focus.update | plan.import | digest.sent | digest.failed | notify.sent | notify.failed | mcp.<tool> | mcp.rate_limited
   taskId String?
   detail String  @default("") // stringified JSON payload
 
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// Outreach pipeline row — the live successor to the static PILOT_PLAN.contacts
+// reference list (importable once via POST /api/ops/import-plan). `updatedAt`
+// doubles as "last touched" for staleness nudges on the Contacts tab.
+model CompanyOpsContact {
+  id         String   @id @default(cuid())
+  board      String   @default("pilot")
+  org        String
+  contact    String   @default("") // known contact person / address
+  type       String   @default("") // Partner | Reference lab | Fractional lead | Advisor | ...
+  status     String   @default("Not started") // free vocab, bucketed in the UI (see contactBucket)
+  nextStep   String   @default("")
+  orderIndex Int      @default(0)
+  createdBy  String // actor email
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([board, status])
+}
+
+// Decision log row — live successor to PILOT_PLAN.decisions. decidedAt is set
+// when status flips to "decided" (and cleared if reopened) so the log can show
+// honest aging on open calls.
+model CompanyOpsDecision {
+  id         String    @id @default(cuid())
+  board      String    @default("pilot")
+  name       String
+  options    String    @default("")
+  rationale  String    @default("")
+  status     String    @default("open") // open | decided
+  decidedAt  DateTime?
+  orderIndex Int       @default(0)
+  createdBy  String // actor email
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([board, status])
+}
+
+// "This Week's 3" — one row per board per week (weekStart = Monday 00:00 UTC).
+// Replaces the static PILOT_PLAN.week3 snapshot on the Briefing when present.
+model CompanyOpsFocus {
+  id        String   @id @default(cuid())
+  board     String   @default("pilot")
+  weekStart DateTime
+  items     String   @default("[]") // JSON array of up to 3 strings
+  updatedBy String // actor email
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([board, weekStart])
 }

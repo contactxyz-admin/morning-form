@@ -26,3 +26,23 @@ export async function listOpsTasks(db: Db, input: ListOpsTasksInput = {}): Promi
     orderBy: [{ phase: 'asc' }, { orderIndex: 'asc' }],
   });
 }
+
+export async function listOpsContacts(db: Db, board = 'pilot') {
+  return db.companyOpsContact.findMany({
+    where: { board },
+    orderBy: [{ orderIndex: 'asc' }, { createdAt: 'asc' }],
+  });
+}
+
+export async function listOpsDecisions(db: Db, board = 'pilot') {
+  return db.companyOpsDecision.findMany({
+    where: { board },
+    orderBy: [{ orderIndex: 'asc' }, { createdAt: 'asc' }],
+  });
+}
+
+export async function getOpsFocus(db: Db, weekStart: Date, board = 'pilot') {
+  return db.companyOpsFocus.findUnique({
+    where: { board_weekStart: { board, weekStart } },
+  });
+}

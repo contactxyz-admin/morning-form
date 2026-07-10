@@ -353,6 +353,7 @@ export function contactBucket(status: string): ContactBucket {
     case 'Draft ready':
     case 'Draft sent':
     case 'Call booked':
+    case 'Bounced': // bounce = fix the address and resend, action on us
       return 'act_now';
     case 'Sent':
       return 'waiting';
@@ -364,8 +365,27 @@ export function contactBucket(status: string): ContactBucket {
       return 'done';
     case 'Parked':
     case 'Deferred':
+    case 'Declined': // dead lead — out of the active pipeline
       return 'parked';
     default:
       return 'queue';
   }
+}
+
+/**
+ * Monday 00:00 UTC of the week containing `date` — the key CompanyOpsFocus
+ * rows are stored under (pilot weeks also start on Mondays).
+ */
+export function currentWeekStartUtc(date: Date): number {
+  const day = dayUtcOf(date);
+  const dow = new Date(day).getUTCDay(); // 0=Sun..6=Sat
+  return day - ((dow + 6) % 7) * DAY_MS;
+}
+
+/** Whole days from `from` to `to` (UTC date-only), negative if `to` is earlier. */
+export function daysBetweenUtc(from: string | Date, to: Date): number {
+  const fromMs = typeof from === 'string' ? Date.parse(from) : from.getTime();
+  if (Number.isNaN(fromMs)) return 0;
+  const fromDay = dayUtcOf(new Date(fromMs));
+  return Math.round((dayUtcOf(to) - fromDay) / DAY_MS);
 }

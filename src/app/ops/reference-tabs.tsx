@@ -20,8 +20,6 @@ import {
 import { buildWindowState, kpiWeekFlag, rhythmIndexForDate, type KpiWeekFlag } from './intelligence';
 import { ScorecardClient } from './scorecard-client';
 import { FunnelClient } from './funnel-client';
-import { ContactsClient } from './contacts-client';
-import { DecisionsClient } from './decisions-client';
 
 const BAR_CLASS: Record<TimelineColorKey, string> = {
   coral: styles.barCoral,
@@ -331,16 +329,6 @@ export function FunnelTab() {
   );
 }
 
-export function DecisionsTab() {
-  return (
-    <>
-      <h2 className={styles.h2}>Decision Log</h2>
-      <p className={styles.sub}>Log the call the day you make it.</p>
-      <DecisionsClient />
-    </>
-  );
-}
-
 export function RiskTab() {
   return (
     <>
@@ -391,18 +379,8 @@ export function RiskTab() {
   );
 }
 
-export function ContactsTab() {
-  return (
-    <>
-      <h2 className={styles.h2}>Contacts &amp; Outreach</h2>
-      <p className={styles.sub}>
-        Who&rsquo;s contacted, what&rsquo;s next — bucketed by what each one demands of us today.
-      </p>
-      <ContactsClient />
-    </>
-  );
-}
-
+// Decisions and Contacts graduated to live, DB-backed tabs (see page.tsx) —
+// only genuinely static reference material remains here.
 export const REFERENCE_TABS = [
   { key: 'start', label: 'Start Here', Component: StartHereTab },
   { key: 'kpis', label: 'Objectives & KPIs', Component: KpisTab },
@@ -410,9 +388,7 @@ export const REFERENCE_TABS = [
   { key: 'product', label: 'Product & Tech', Component: ProductTechTab },
   { key: 'scorecard', label: 'Scorecard', Component: ScorecardTab },
   { key: 'funnel', label: 'Pilot Funnel', Component: FunnelTab },
-  { key: 'decisions', label: 'Decisions', Component: DecisionsTab },
   { key: 'risk', label: 'Risk & Compliance', Component: RiskTab },
-  { key: 'contacts', label: 'Contacts', Component: ContactsTab },
 ] as const;
 
 export type ReferenceTabKey = (typeof REFERENCE_TABS)[number]['key'];

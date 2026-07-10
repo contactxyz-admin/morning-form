@@ -8,6 +8,7 @@ import Link from 'next/link';
 import styles from './ops.module.css';
 import { PILOT_PLAN } from '@/lib/ops/pilot-plan-data';
 import type { OpsMemberDto, OpsTaskDto } from './board-client';
+import { FocusCard, type FocusDto } from './focus-card';
 import { buildBriefing, rhythmIndexForDate, type AttentionItem, type BriefingModel } from './intelligence';
 
 const REASON_LABEL: Record<AttentionItem['reason'], string> = {
@@ -33,10 +34,12 @@ export function BriefingTab({
   tasks,
   members,
   now,
+  focus,
 }: {
   tasks: OpsTaskDto[];
   members: OpsMemberDto[];
   now: Date;
+  focus: FocusDto | null;
 }) {
   const briefing = buildBriefing(tasks, now);
   const nameFor = (email: string | null) =>
@@ -98,18 +101,7 @@ export function BriefingTab({
           </div>
         </div>
         <div>
-          <div className={styles.card}>
-            <p className={styles.kick}>This week&rsquo;s 3 · set 4 Jul</p>
-            <ol className={styles.list}>
-              {PILOT_PLAN.week3.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ol>
-            <p className={styles.note} style={{ marginTop: 8 }}>
-              Snapshot from the plan — reset it each Monday (it lives in pilot-plan-data.ts until it&rsquo;s promoted
-              to the tracker).
-            </p>
-          </div>
+          <FocusCard initialFocus={focus} planFallback={[...PILOT_PLAN.week3]} />
           <TodayRhythmCard now={now} />
         </div>
       </div>

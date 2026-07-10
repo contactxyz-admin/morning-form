@@ -62,7 +62,8 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-async function postToSlack(text: string, slackId: string | undefined): Promise<boolean> {
+/** Also used by the weekly digest cron (no mention when slackId is absent). */
+export async function postToSlack(text: string, slackId?: string): Promise<boolean> {
   if (!env.COMPANY_OPS_SLACK_WEBHOOK) return false;
   try {
     const mention = slackId ? `<@${slackId}> ` : '';

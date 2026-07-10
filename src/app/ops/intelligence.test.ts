@@ -5,6 +5,8 @@ import {
   buildBriefing,
   buildWindowState,
   contactBucket,
+  currentWeekStartUtc,
+  daysBetweenUtc,
   filterTasks,
   funnelScenario,
   kpiWeekFlag,
@@ -242,11 +244,31 @@ describe('contactBucket', () => {
     expect(contactBucket('Replied')).toBe('act_now');
     expect(contactBucket('Draft ready')).toBe('act_now');
     expect(contactBucket('Call booked')).toBe('act_now');
+    expect(contactBucket('Bounced')).toBe('act_now');
     expect(contactBucket('Sent')).toBe('waiting');
     expect(contactBucket('Done')).toBe('done');
     expect(contactBucket('Connected')).toBe('done');
     expect(contactBucket('Parked')).toBe('parked');
+    expect(contactBucket('Declined')).toBe('parked');
     expect(contactBucket('Not started')).toBe('queue');
     expect(contactBucket('anything else')).toBe('queue');
+  });
+});
+
+describe('currentWeekStartUtc', () => {
+  it('returns Monday 00:00 UTC of the containing week', () => {
+    // Thu 9 Jul 2026 -> Mon 6 Jul; Mon itself maps to itself; Sun maps back 6 days.
+    expect(currentWeekStartUtc(new Date('2026-07-09T22:30:00Z'))).toBe(Date.UTC(2026, 6, 6));
+    expect(currentWeekStartUtc(new Date('2026-07-06T00:00:00Z'))).toBe(Date.UTC(2026, 6, 6));
+    expect(currentWeekStartUtc(new Date('2026-07-12T23:59:00Z'))).toBe(Date.UTC(2026, 6, 6));
+    expect(currentWeekStartUtc(new Date('2026-07-13T00:00:00Z'))).toBe(Date.UTC(2026, 6, 13));
+  });
+});
+
+describe('daysBetweenUtc', () => {
+  it('counts whole UTC days regardless of time-of-day', () => {
+    expect(daysBetweenUtc('2026-07-01T23:00:00.000Z', new Date('2026-07-09T01:00:00Z'))).toBe(8);
+    expect(daysBetweenUtc('2026-07-09T00:00:00.000Z', new Date('2026-07-09T23:00:00Z'))).toBe(0);
+    expect(daysBetweenUtc('not-a-date', new Date('2026-07-09T00:00:00Z'))).toBe(0);
   });
 });
