@@ -7,6 +7,47 @@
  * real table the way the Workstream tab already works.
  */
 
+/**
+ * Named views over the positional contact/decision tuples below — the
+ * import-plan route (their only remaining programmatic consumer) reads
+ * these instead of raw indexes, so a column reshuffle in the JSON blob
+ * breaks here, loudly, rather than silently writing e.g. a priority
+ * string into the status column.
+ */
+export interface PlanContactSeed {
+  org: string;
+  contact: string;
+  type: string;
+  status: string;
+  nextStep: string;
+}
+
+export function planContactSeeds(): PlanContactSeed[] {
+  return PILOT_PLAN.contacts.map(([org, contact, type, status, nextStep]) => ({
+    org,
+    contact,
+    type,
+    status,
+    nextStep,
+  }));
+}
+
+export interface PlanDecisionSeed {
+  name: string;
+  options: string;
+  rationale: string;
+  decided: boolean;
+}
+
+export function planDecisionSeeds(): PlanDecisionSeed[] {
+  return PILOT_PLAN.decisions.map(([name, options, rationale, status]) => ({
+    name,
+    options,
+    rationale: rationale ?? '',
+    decided: status === 'Decided',
+  }));
+}
+
 export const PILOT_PLAN = {
   "goal": "Stand up temporary, members-only blood-draw clinics inside premium London gyms — the distribution wedge for MorningForm's energy & recovery product. Prove the member → booked → drawn → result → protocol → retest funnel with real numbers, then choose the long-term partner.",
   "northstar": "First in-gym pop-up LIVE in ~8 weeks — target the week of 17 Aug 2026. Securing gym venues is the gating dependency.",

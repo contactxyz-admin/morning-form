@@ -19,8 +19,8 @@ export type TimelineRow = {
   endLabel: string;
 };
 
-const PILOT_START_UTC = Date.UTC(2026, 5, 22);
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+export const PILOT_START_UTC = Date.UTC(2026, 5, 22);
+export const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function getPilotWeekStatus(date: Date): PilotWeekStatus {
   const dayUtc = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());

@@ -19,7 +19,7 @@
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { timingSafeEqual } from 'node:crypto';
+import { bearerAuthorized } from '@/lib/auth/bearer';
 import { prisma } from '@/lib/db';
 import { env } from '@/lib/env';
 import { encryptToken } from '@/lib/health/crypto';
@@ -40,11 +40,7 @@ const ActionSchema = z.discriminatedUnion('action', [
 ]);
 
 function auth(req: NextRequest): boolean {
-  if (!env.OPS_SECRET) return false;
-  const header = req.headers.get('authorization') ?? '';
-  const expected = Buffer.from(`Bearer ${env.OPS_SECRET}`);
-  const actual = Buffer.from(header);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+  return bearerAuthorized(req, env.OPS_SECRET);
 }
 
 export async function POST(req: NextRequest): Promise<Response> {

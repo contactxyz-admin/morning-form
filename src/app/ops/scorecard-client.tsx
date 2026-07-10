@@ -1,0 +1,134 @@
+'use client';
+
+/**
+ * Interactive what-if sandbox over the partner scorecard: click a score to
+ * cycle it 1–5, edit criterion weights, watch the weighted totals + ranks
+ * re-rank live. Deliberately not persisted — the plan's hypothesis stays the
+ * baseline; deltas against it are shown so a "what would it take" exploration
+ * can't quietly overwrite the starting position.
+ */
+import { useMemo, useState } from 'react';
+import styles from './ops.module.css';
+import { PILOT_PLAN } from '@/lib/ops/pilot-plan-data';
+import { baselineScorecard, cycleScore, ranks, weightedTotals } from './scorecard-math';
+
+// The baseline never changes at runtime — compare against one precomputed
+// snapshot instead of rebuilding + re-stringifying it on every render.
+// Key order is stable: state always starts as baselineScorecard() and both
+// setters spread the previous object.
+const BASELINE_JSON = JSON.stringify(baselineScorecard());
+
+export function ScorecardClient() {
+  const [state, setState] = useState(baselineScorecard);
+  const baseline = useMemo(() => weightedTotals(baselineScorecard()), []);
+
+  const totals = weightedTotals(state);
+  const rankByPartner = ranks(totals);
+  const weightSum = state.weights.reduce((a, w) => a + w, 0);
+  // Only crown a leader when the math supports exactly one — never on a
+  // rank-1 tie, never when every weight is zeroed out.
+  const leaderIndex =
+    weightSum > 0 && rankByPartner.filter((r) => r === 1).length === 1 ? rankByPartner.indexOf(1) : -1;
+  const dirty = JSON.stringify(state) !== BASELINE_JSON;
+
+  function setScore(c: number, p: number) {
+    setState((prev) => ({
+      ...prev,
+      scores: prev.scores.map((row, ci) => (ci === c ? row.map((s, pi) => (pi === p ? cycleScore(s) : s)) : row)),
+    }));
+  }
+
+  function setWeight(c: number, value: number) {
+    // Clamp to a sane finite range — "1e999" is valid number-input syntax and
+    // an Infinity weight would turn every total into NaN.
+    const clamped = Number.isFinite(value) ? Math.min(99, Math.max(0, value)) : 0;
+    setState((prev) => ({
+      ...prev,
+      weights: prev.weights.map((w, ci) => (ci === c ? clamped : w)),
+    }));
+  }
+
+  return (
+    <>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th className={styles.th}>Criterion</th>
+            <th className={styles.th}>Wt %</th>
+            {PILOT_PLAN.partners.map((p, pi) => (
+              <th className={`${styles.th}`} key={p}>
+                {p}
+                {pi === leaderIndex && <span className={styles.leaderPill}>Leader</span>}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {PILOT_PLAN.criteria.map(([name], c) => (
+            <tr key={name} className={c % 2 === 1 ? styles.trEven : undefined}>
+              <td className={styles.td}>{name}</td>
+              <td className={styles.td}>
+                <input
+                  className={styles.weightInput}
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={state.weights[c]}
+                  aria-label={`Weight for ${name}`}
+                  onChange={(e) => setWeight(c, Number(e.target.value))}
+                />
+              </td>
+              {state.scores[c].map((score, p) => (
+                <td className={`${styles.td} ${p === leaderIndex ? styles.leaderCol : ''}`} key={p}>
+                  <button
+                    type="button"
+                    className={styles.scoreBtn}
+                    title="Click to cycle 1–5"
+                    aria-label={`${PILOT_PLAN.partners[p]} on ${name}: ${score} of 5 — click to cycle`}
+                    onClick={() => setScore(c, p)}
+                  >
+                    {score}
+                  </button>
+                </td>
+              ))}
+            </tr>
+          ))}
+          <tr>
+            <td className={`${styles.td} ${styles.tot}`}>Weighted (1–5)</td>
+            <td className={`${styles.td} ${styles.note}`}>{weightSum > 0 ? `${weightSum} pts` : 'no weight'}</td>
+            {totals.map((t, pi) => {
+              const delta = t - baseline[pi];
+              return (
+                <td className={`${styles.td} ${styles.tot} ${pi === leaderIndex ? styles.leaderCol : ''}`} key={pi}>
+                  {t.toFixed(2)}
+                  {Math.abs(delta) >= 0.005 && (
+                    <span className={styles.delta}>
+                      {delta > 0 ? '+' : '−'}
+                      {Math.abs(delta).toFixed(2)} vs plan
+                    </span>
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+          <tr>
+            <td className={`${styles.td} ${styles.tot}`}>Rank</td>
+            <td className={styles.td} />
+            {rankByPartner.map((r, pi) => (
+              <td className={`${styles.td} ${styles.tot} ${pi === leaderIndex ? styles.leaderCol : ''}`} key={pi}>
+                #{r}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+      <p className={styles.sandboxNote}>
+        Sandbox — click scores to cycle 1–5 and edit weights; ranking recomputes live. Nothing is saved: reload (or{' '}
+        <button type="button" className={styles.chipBtn} onClick={() => setState(baselineScorecard())} disabled={!dirty}>
+          reset to plan
+        </button>
+        ) restores the starting hypotheses.
+      </p>
+    </>
+  );
+}
