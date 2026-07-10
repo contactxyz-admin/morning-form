@@ -133,6 +133,15 @@ export async function cancelBooking(
     data: { status: 'cancelled', cancelledAt: new Date() },
   });
   if (cas.count === 0) return { cancelled: false, reason: 'already_cancelled' };
+
+  // Withdrawal evidence on the consent artifact itself: cancelling the
+  // booking withdraws the procedure consent (per the consent copy), and the
+  // ConsentRecord outlives the booking row (staff slot delete cascades
+  // cancelled bookings away), so the withdrawal must be stamped here.
+  await db.consentRecord.update({
+    where: { id: booking.consentRecordId },
+    data: { withdrawnAt: new Date() },
+  });
   return { cancelled: true };
 }
 

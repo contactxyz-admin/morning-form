@@ -51,10 +51,13 @@ afterAll(async () => {
   await teardownTestDb();
 });
 
-afterEach(() => {
+afterEach(async () => {
   sendEmailMock.mockReset();
   envMock.COMPANY_OPS_ENABLED = 'true';
   envMock.CRON_SECRET = 'test-cron-secret';
+  // The route's double-send guard reads digest.sent receipts — clear them so
+  // each test starts from "nothing sent this window".
+  await prisma.companyOpsAudit.deleteMany({ where: { action: { in: ['digest.sent', 'digest.failed'] } } });
 });
 
 function req(auth?: string): Request {
@@ -92,6 +95,18 @@ describe('GET /api/cron/ops-digest', () => {
       orderBy: { createdAt: 'desc' },
     });
     expect(audit?.actor).toBe('cron:ops-digest');
+  });
+
+  it('skips without emailing when a digest.sent receipt exists in the last 20h', async () => {
+    await prisma.companyOpsAudit.create({
+      data: { actor: 'cron:ops-digest', action: 'digest.sent', detail: '{}' },
+    });
+    sendEmailMock.mockResolvedValue({ sent: true });
+    const res = await GET(req('Bearer test-cron-secret'));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; skipped?: string };
+    expect(body.skipped).toBe('already_sent');
+    expect(sendEmailMock).not.toHaveBeenCalled();
   });
 
   it('reports digest.failed when every channel fails', async () => {

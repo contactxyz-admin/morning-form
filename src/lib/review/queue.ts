@@ -73,7 +73,9 @@ export async function getReviewForClinician(db: Db, id: string) {
     where: { id },
     include: {
       user: { select: { email: true, name: true } },
-      sourceDocument: { select: { sourceRef: true } },
+      // storagePath tells the page whether the original file is servable
+      // (the /source route re-loads and streams it); kind picks the label.
+      sourceDocument: { select: { sourceRef: true, storagePath: true, kind: true } },
     },
   });
 }

@@ -18,10 +18,15 @@ export async function POST(
   const guard = await requirePilotMember();
   if (!guard.ok) return guard.response;
 
-  const result = await cancelBooking(prisma, {
-    userId: guard.user.id,
-    bookingId: params.id,
-  });
+  // Transaction: the status CAS and the consent withdrawnAt stamp must land
+  // together — a cancelled booking with an un-stamped consent is exactly the
+  // audit gap the stamp exists to close.
+  const result = await prisma.$transaction((tx) =>
+    cancelBooking(tx, {
+      userId: guard.user.id,
+      bookingId: params.id,
+    }),
+  );
 
   if (!result.cancelled) {
     switch (result.reason) {

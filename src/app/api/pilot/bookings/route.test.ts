@@ -39,6 +39,8 @@ function getTestPrismaSync(): PrismaClient {
 }
 
 import { POST } from './route';
+import { PROCEDURE_CONSENT_VERSION } from '@/lib/pilot/consent';
+import { PILOT_BOOKING_RATE_LIMIT, PILOT_BOOKING_RATE_LIMIT_SUBJECT_KIND } from '@/lib/booking/rate-limit';
 
 beforeAll(async () => {
   prisma = await setupTestDb();
@@ -108,7 +110,7 @@ describe('POST /api/pilot/bookings — guards and validation', () => {
     await signIn('shortname');
     const slot = await makeSlot();
     const res = await POST(
-      postWith({ slotId: slot.id, signedName: ' J ', consentAccepted: true }),
+      postWith({ slotId: slot.id, signedName: ' J ', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }),
     );
     expect(res.status).toBe(400);
   });
@@ -119,7 +121,7 @@ describe('POST /api/pilot/bookings — flow', () => {
     await signIn('happy');
     const slot = await makeSlot();
 
-    const res = await POST(postWith({ slotId: slot.id, signedName: 'Jane Doe', consentAccepted: true }));
+    const res = await POST(postWith({ slotId: slot.id, signedName: 'Jane Doe', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }));
     expect(res.status).toBe(201);
     const { booking } = (await res.json()) as { booking: { id: string; status: string } };
     expect(booking.status).toBe('booked');
@@ -138,8 +140,8 @@ describe('POST /api/pilot/bookings — flow', () => {
     await signIn('replay');
     const slot = await makeSlot();
 
-    const first = await POST(postWith({ slotId: slot.id, signedName: 'Jane Doe', consentAccepted: true }));
-    const second = await POST(postWith({ slotId: slot.id, signedName: 'Jane Doe', consentAccepted: true }));
+    const first = await POST(postWith({ slotId: slot.id, signedName: 'Jane Doe', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }));
+    const second = await POST(postWith({ slotId: slot.id, signedName: 'Jane Doe', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }));
     expect(first.status).toBe(201);
     expect(second.status).toBe(200);
 
@@ -158,11 +160,11 @@ describe('POST /api/pilot/bookings — flow', () => {
     const fullSlot = await makeSlot({ capacity: 1 });
     const occupant = await makeTestUser(prisma, 'bkr-occupant');
     currentUserMock.mockResolvedValue({ id: occupant, email: 'occupant@example.com' });
-    await POST(postWith({ slotId: fullSlot.id, signedName: 'First In', consentAccepted: true }));
+    await POST(postWith({ slotId: fullSlot.id, signedName: 'First In', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }));
 
     await signIn('conflict');
     const fullRes = await POST(
-      postWith({ slotId: fullSlot.id, signedName: 'Too Late', consentAccepted: true }),
+      postWith({ slotId: fullSlot.id, signedName: 'Too Late', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }),
     );
     expect(fullRes.status).toBe(409);
     expect(((await fullRes.json()) as { code: string }).code).toBe('slot_full');
@@ -170,9 +172,9 @@ describe('POST /api/pilot/bookings — flow', () => {
     // Same caller books an open slot, then tries a second one.
     const slotA = await makeSlot();
     const slotB = await makeSlot();
-    await POST(postWith({ slotId: slotA.id, signedName: 'Jane Doe', consentAccepted: true }));
+    await POST(postWith({ slotId: slotA.id, signedName: 'Jane Doe', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }));
     const capRes = await POST(
-      postWith({ slotId: slotB.id, signedName: 'Jane Doe', consentAccepted: true }),
+      postWith({ slotId: slotB.id, signedName: 'Jane Doe', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }),
     );
     expect(capRes.status).toBe(409);
     expect(((await capRes.json()) as { code: string }).code).toBe('active_booking_exists');
@@ -182,10 +184,10 @@ describe('POST /api/pilot/bookings — flow', () => {
     await signIn('gone');
     const past = await makeSlot({ startsAt: new Date(Date.now() - 60 * 60 * 1000) });
     expect(
-      (await POST(postWith({ slotId: past.id, signedName: 'Jane Doe', consentAccepted: true }))).status,
+      (await POST(postWith({ slotId: past.id, signedName: 'Jane Doe', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }))).status,
     ).toBe(410);
     expect(
-      (await POST(postWith({ slotId: 'nope', signedName: 'Jane Doe', consentAccepted: true }))).status,
+      (await POST(postWith({ slotId: 'nope', signedName: 'Jane Doe', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }))).status,
     ).toBe(404);
   });
 
@@ -194,10 +196,46 @@ describe('POST /api/pilot/bookings — flow', () => {
     await signIn('mailfail');
     const slot = await makeSlot();
 
-    const res = await POST(postWith({ slotId: slot.id, signedName: 'Jane Doe', consentAccepted: true }));
+    const res = await POST(postWith({ slotId: slot.id, signedName: 'Jane Doe', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }));
     expect(res.status).toBe(201);
     const { booking } = (await res.json()) as { booking: { id: string } };
     const row = await prisma.pilotSlotBooking.findUniqueOrThrow({ where: { id: booking.id } });
     expect(row.status).toBe('booked');
+  });
+
+  it('409 consent_version_mismatch when the client rendered a different consent version', async () => {
+    await signIn('stale-tab');
+    const slot = await makeSlot();
+    const res = await POST(
+      postWith({
+        slotId: slot.id,
+        signedName: 'Jane Doe',
+        consentAccepted: true,
+        consentDocumentVersion: 'blood_draw_v0-stale',
+      }),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { code?: string };
+    expect(body.code).toBe('consent_version_mismatch');
+    expect(await prisma.consentRecord.count({ where: { documentVersion: 'blood_draw_v0-stale' } })).toBe(0);
+  });
+
+  it('429 once the per-user 24h attempt limit is exhausted', async () => {
+    const userId = await signIn('limited');
+    const slot = await makeSlot();
+    const windowMs = 24 * 60 * 60 * 1000;
+    await prisma.magicLinkRateLimit.create({
+      data: {
+        subjectKind: PILOT_BOOKING_RATE_LIMIT_SUBJECT_KIND,
+        subject: userId,
+        window: new Date(Math.floor(Date.now() / windowMs) * windowMs),
+        count: PILOT_BOOKING_RATE_LIMIT.perUserPer24Hour,
+      },
+    });
+    const res = await POST(
+      postWith({ slotId: slot.id, signedName: 'Jane Doe', consentAccepted: true, consentDocumentVersion: PROCEDURE_CONSENT_VERSION }),
+    );
+    expect(res.status).toBe(429);
+    expect(await prisma.pilotSlotBooking.count({ where: { userId } })).toBe(0);
   });
 });

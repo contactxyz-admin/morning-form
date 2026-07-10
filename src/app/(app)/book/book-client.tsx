@@ -9,6 +9,7 @@
 import { useMemo, useState } from 'react';
 import { Chip } from '@/components/ui/chip';
 import { ConsentStep } from '@/components/pilot/consent-step';
+import { PROCEDURE_CONSENT_VERSION } from '@/lib/pilot/consent';
 import { formatSlotDay, formatSlotTimeOfDay } from '@/lib/pilot/format';
 
 export interface BookableSlot {
@@ -84,7 +85,14 @@ export function BookClient({
       const res = await fetch('/api/pilot/bookings', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ slotId: picked.id, signedName: signedName.trim(), consentAccepted }),
+        body: JSON.stringify({
+          slotId: picked.id,
+          signedName: signedName.trim(),
+          consentAccepted,
+          // The version THIS bundle rendered — the server 409s on mismatch so
+          // a stale tab can't sign an outdated consent text.
+          consentDocumentVersion: PROCEDURE_CONSENT_VERSION,
+        }),
       });
       const data = (await res.json()) as { booking?: { id: string }; error?: string; code?: string };
       if (!res.ok || !data.booking) {

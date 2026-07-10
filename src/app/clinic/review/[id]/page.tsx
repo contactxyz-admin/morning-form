@@ -59,6 +59,24 @@ export default async function ClinicReviewPage({ params }: { params: { id: strin
             timeZone: 'UTC',
           })}
         </p>
+        {review.sourceDocument?.storagePath ? (
+          <p className="mt-2">
+            <a
+              href={`/api/clinic/reviews/${review.id}/source`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-caption text-text-primary underline underline-offset-2 hover:text-text-secondary"
+            >
+              View the original {review.sourceDocument.kind === 'lab_csv' ? 'CSV' : 'document'} the
+              member uploaded →
+            </a>
+          </p>
+        ) : (
+          <p className="mt-2 text-caption text-amber-800">
+            No stored original for this panel — the table below is the extraction only. If anything
+            looks off, contact ops before deciding.
+          </p>
+        )}
 
         {!summary ? (
           <p className="mt-8 text-body text-text-secondary">
