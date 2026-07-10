@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
 import { makeTestUser, setupTestDb, teardownTestDb } from '@/lib/graph/test-db';
-import { getPilotFunnelSnapshot } from './funnel';
+import { getPilotFunnelSnapshot, PILOT_EVENT_STAGES } from './funnel';
 
 let prisma: PrismaClient;
 
@@ -88,11 +88,17 @@ describe('getPilotFunnelSnapshot', () => {
     expect(snapshot.drawsCompleted).toBeGreaterThanOrEqual(1);
     expect(snapshot.resultsIngested['lab_pdf']).toBeGreaterThanOrEqual(1);
     expect(snapshot.reviews['pending']).toBeGreaterThanOrEqual(1);
-    // 2 events, 1 distinct funnelId.
-    expect(snapshot.eventStages['protocol_delivered']).toBe(1);
-    expect(snapshot.eventStages['slot_booked']).toBe(1);
-    // Stages with no events report 0, not undefined — the tab renders them all.
-    expect(snapshot.eventStages['landing_viewed']).toBe(0);
+    expect(snapshot.eventStages['protocol_delivered']).toBeGreaterThanOrEqual(1);
+    expect(snapshot.eventStages['slot_booked']).toBeGreaterThanOrEqual(1);
+    // Distinct-funnelId collapse: the two duplicate rows above count once, so
+    // the stage count sits strictly below the raw row count. Row count is read
+    // AFTER the snapshot, so concurrent test files writing events (each with
+    // its own distinct funnelId, +1 to both sides) can only widen the gap —
+    // the assertion holds under any interleaving of the shared test DB.
+    const rawRows = await prisma.funnelEvent.count({ where: { event: 'protocol_delivered' } });
+    expect(snapshot.eventStages['protocol_delivered']).toBeLessThanOrEqual(rawRows - 1);
+    // Every declared stage is present (render-stable), even when 0.
+    expect(Object.keys(snapshot.eventStages).sort()).toEqual([...PILOT_EVENT_STAGES].sort());
 
     // No PII contract: emails, names, and cuid-shaped row ids must not appear.
     const raw = JSON.stringify(snapshot);
