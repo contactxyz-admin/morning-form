@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/retest-nudge",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/ops-digest",
+      "schedule": "0 15 * * 5"
     }
   ]
 }

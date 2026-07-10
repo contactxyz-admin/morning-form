@@ -15,6 +15,7 @@ import { env } from '@/lib/env';
 import { sendEmail } from '@/lib/auth/email';
 import { memberByEmail } from '@/lib/ops/config';
 import { writeOpsAudit } from '@/lib/ops/audit';
+import { escapeHtml, escapeSlackText } from '@/lib/ops/html';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -31,7 +32,9 @@ function formatDueDate(dueDate: Date | null): string {
 
 function buildMessage(task: CompanyOpsTask, actorEmail: string): { text: string; html: string } {
   const appUrl = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
-  const opsUrl = `${appUrl}/ops`;
+  // Deep-link the assignee to the tracker itself — bare /ops now lands on
+  // the Briefing, where a fresh (non-overdue) assignment isn't visible.
+  const opsUrl = `${appUrl}/ops?tab=work`;
   const lines = [
     `${actorEmail} assigned you a task on the MorningForm ops board:`,
     '',
@@ -54,22 +57,18 @@ ${task.detail ? `<p>Detail: ${escapeHtml(task.detail)}</p>` : ''}
   return { text, html };
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-async function postToSlack(text: string, slackId: string | undefined): Promise<boolean> {
+/** Also used by the weekly digest cron (no mention when slackId is absent). */
+export async function postToSlack(text: string, slackId?: string): Promise<boolean> {
   if (!env.COMPANY_OPS_SLACK_WEBHOOK) return false;
   try {
+    // The mention is the only intentional control sequence; everything else
+    // is user-entered text (task titles, org names) and must be escaped so
+    // e.g. a title containing "<!channel>" can't page the whole workspace.
     const mention = slackId ? `<@${slackId}> ` : '';
     const res = await fetch(env.COMPANY_OPS_SLACK_WEBHOOK, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: `${mention}${text}` }),
+      body: JSON.stringify({ text: `${mention}${escapeSlackText(text)}` }),
     });
     return res.ok;
   } catch (err) {
