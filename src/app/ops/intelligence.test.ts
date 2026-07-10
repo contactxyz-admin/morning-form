@@ -3,12 +3,14 @@ import type { OpsTaskDto } from './board-client';
 import {
   ATTENTION_CAP,
   buildBriefing,
+  buildWindowState,
   contactBucket,
   filterTasks,
   funnelScenario,
   kpiWeekFlag,
   nextMilestoneFor,
   parseTargetWeek,
+  parseWeekRange,
   rhythmIndexForDate,
   taskDueState,
 } from './intelligence';
@@ -191,6 +193,26 @@ describe('kpiWeekFlag', () => {
   it('treats everything as upcoming before the window and passed after it', () => {
     expect(kpiWeekFlag('By W3', new Date('2026-06-01T00:00:00Z'))).toEqual({ week: 3, state: 'upcoming' });
     expect(kpiWeekFlag('By W3', new Date('2026-10-01T00:00:00Z'))).toEqual({ week: 3, state: 'passed' });
+  });
+});
+
+describe('parseWeekRange / buildWindowState', () => {
+  it('parses single weeks, en-dash ranges, and open-ended windows', () => {
+    expect(parseWeekRange('W1–2 · now')).toEqual({ from: 1, to: 2 });
+    expect(parseWeekRange('W3–4')).toEqual({ from: 3, to: 4 });
+    expect(parseWeekRange('W7')).toEqual({ from: 7, to: 7 });
+    expect(parseWeekRange('W8 · ~10 Aug')).toEqual({ from: 8, to: 8 });
+    expect(parseWeekRange('W10+')).toEqual({ from: 10, to: 12 });
+    expect(parseWeekRange('no weeks here')).toBeNull();
+  });
+
+  it('classifies windows against the active pilot week', () => {
+    expect(buildWindowState('W1–2 · now', NOW)).toBe('passed');
+    expect(buildWindowState('W3–4', NOW)).toBe('now');
+    expect(buildWindowState('W8 · ~10 Aug', NOW)).toBe('upcoming');
+    expect(buildWindowState('W10+', NOW)).toBe('upcoming');
+    expect(buildWindowState('W3–4', new Date('2026-06-01T00:00:00Z'))).toBe('upcoming');
+    expect(buildWindowState('W3–4', new Date('2026-10-01T00:00:00Z'))).toBe('passed');
   });
 });
 

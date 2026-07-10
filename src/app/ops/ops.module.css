@@ -900,6 +900,9 @@ ol.list {
   color: var(--sage);
   font-weight: 700;
 }
+.buildNowCell {
+  font-weight: 600;
+}
 .sandboxNote {
   color: var(--grey);
   font-size: 11.5px;

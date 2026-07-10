@@ -258,6 +258,37 @@ export function kpiWeekFlag(target: string, now: Date): KpiWeekFlag | null {
 }
 
 /* ------------------------------------------------------------------ */
+/* Build-plan windows (Product & Tech tab)                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parses the build plan's "when" labels — "W1–2 · now", "W7", "W8 · ~10 Aug",
+ * "W10+" — into a week range. "+" means open-ended through the last week.
+ */
+export function parseWeekRange(text: string): { from: number; to: number } | null {
+  const match = text.match(/\bW(\d{1,2})(?:\s*[–—-]\s*(?:W)?(\d{1,2})|(\+))?/i);
+  if (!match) return null;
+  const from = Number(match[1]);
+  const lastWeek = PILOT_PLAN.weeks.length;
+  if (from < 1 || from > lastWeek) return null;
+  const to = match[3] ? lastWeek : match[2] ? Math.min(Number(match[2]), lastWeek) : from;
+  return { from, to: Math.max(from, to) };
+}
+
+export type BuildWindowState = 'passed' | 'now' | 'upcoming';
+
+export function buildWindowState(when: string, now: Date): BuildWindowState | null {
+  const range = parseWeekRange(when);
+  if (!range) return null;
+  const status = getPilotWeekStatus(now);
+  if (status.state === 'before') return 'upcoming';
+  if (status.state === 'after') return 'passed';
+  if (range.to < status.week) return 'passed';
+  if (range.from > status.week) return 'upcoming';
+  return 'now';
+}
+
+/* ------------------------------------------------------------------ */
 /* Funnel reverse math                                                 */
 /* ------------------------------------------------------------------ */
 

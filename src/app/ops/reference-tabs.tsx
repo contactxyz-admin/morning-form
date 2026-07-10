@@ -17,7 +17,7 @@ import {
   timelineWindowCopy,
   type TimelineColorKey,
 } from './timeline-helpers';
-import { kpiWeekFlag, rhythmIndexForDate, type KpiWeekFlag } from './intelligence';
+import { buildWindowState, kpiWeekFlag, rhythmIndexForDate, type KpiWeekFlag } from './intelligence';
 import { ScorecardClient } from './scorecard-client';
 import { FunnelClient } from './funnel-client';
 import { ContactsClient } from './contacts-client';
@@ -236,12 +236,13 @@ export function TimelineTab() {
 }
 
 export function ProductTechTab() {
+  const now = new Date();
   return (
     <>
       <h2 className={styles.h2}>Product &amp; Tech</h2>
       <p className={styles.sub}>
-        What the MVP is, the stack, and when build/design must start. Built ON the live MorningForm product — extend,
-        don&rsquo;t rebuild.
+        What the MVP is, the stack, and when build/design must start — the current build window is flagged against
+        today&rsquo;s pilot week. Built ON the live MorningForm product — extend, don&rsquo;t rebuild.
       </p>
       <div className={styles.card}>
         <p className={styles.kick}>Pilot MVP — in scope</p>
@@ -272,14 +273,19 @@ export function ProductTechTab() {
         <p className={styles.kick}>Build &amp; design timeline</p>
         <table>
           <tbody>
-            {PILOT_PLAN.buildplan.map(([when, what]) => (
-              <tr key={when}>
-                <td style={{ fontWeight: 700, whiteSpace: 'nowrap', verticalAlign: 'top', paddingRight: 10 }}>
-                  {when}
-                </td>
-                <td>{what}</td>
-              </tr>
-            ))}
+            {PILOT_PLAN.buildplan.map(([when, what]) => {
+              const state = buildWindowState(when, now);
+              return (
+                <tr key={when} className={state === 'passed' ? styles.dim : undefined}>
+                  <td style={{ fontWeight: 700, whiteSpace: 'nowrap', verticalAlign: 'top', paddingRight: 10 }}>
+                    {state === 'passed' && <span className={styles.mileTick}>✓ </span>}
+                    {when}
+                    {state === 'now' && <span className={styles.todayPill}>Now</span>}
+                  </td>
+                  <td className={state === 'now' ? styles.buildNowCell : undefined}>{what}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
