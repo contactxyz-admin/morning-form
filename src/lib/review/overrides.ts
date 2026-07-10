@@ -17,7 +17,10 @@ type Db = PrismaClient | Prisma.TransactionClient;
 export async function loadEscalatedMarkerKeys(db: Db, userId: string): Promise<Set<string>> {
   const decided = await db.resultReview.findMany({
     where: { userId, status: { in: ['approved', 'escalated'] } },
-    orderBy: { documentCapturedAt: 'asc' },
+    // createdAt tiebreak: two panels captured at the same instant would
+    // otherwise fold in nondeterministic order, letting a marker's safety
+    // flag flicker between requests when their decisions disagree.
+    orderBy: [{ documentCapturedAt: 'asc' }, { createdAt: 'asc' }],
     select: { panelSummary: true, escalatedMarkerKeys: true, status: true, id: true },
   });
 

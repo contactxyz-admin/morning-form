@@ -416,7 +416,10 @@ async function fetchDocumentFiles(
         throw new Error(`export: blob fetch returned no body for document ${sourceDocumentId} (${storagePath})`);
       }
       const bytes = await streamToBuffer(result.stream);
-      return { pathname: `files/${sourceDocumentId}.pdf`, sourceDocumentId, bytes };
+      // Extension follows the stored artifact (CSV intake fallback stores
+      // `.csv` originals) — a CSV labeled `.pdf` won't open for the member.
+      const extension = /\.csv(\?|$)/.test(storagePath) ? 'csv' : 'pdf';
+      return { pathname: `files/${sourceDocumentId}.${extension}`, sourceDocumentId, bytes };
     }),
   );
   files.sort((a, b) => a.sourceDocumentId.localeCompare(b.sourceDocumentId));

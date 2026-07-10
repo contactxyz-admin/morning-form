@@ -13,7 +13,7 @@
  * as DRAW_COMPLETED vs the Draw table). Event counts are reported alongside
  * as distinct-funnelId counts for the stages whose only record is the stream.
  */
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 
 export interface PilotFunnelSnapshot {
@@ -79,17 +79,22 @@ export async function getPilotFunnelSnapshot(db: PrismaClient): Promise<PilotFun
     db.draw.count({ where: { status: 'completed' } }),
     db.sourceDocument.groupBy({ by: ['kind'], _count: true }),
     db.resultReview.groupBy({ by: ['status'], _count: true }),
-    // Distinct funnelId per event: groupBy on the pair collapses re-fires of
-    // the same entity; the pair count per event is the stage count.
-    db.funnelEvent.groupBy({
-      by: ['event', 'funnelId'],
-      where: { event: { in: [...PILOT_EVENT_STAGES] } },
-    }),
+    // Distinct funnelId per event, aggregated IN Postgres. A Prisma groupBy
+    // on the (event, funnelId) pair would stream one row per distinct pair
+    // into Node — and landing/result-viewed funnelIds are client-minted, so
+    // that set grows with raw traffic (or deliberate spam). COUNT(DISTINCT)
+    // keeps this one row per stage no matter the volume.
+    db.$queryRaw<{ event: string; count: number }[]>`
+      SELECT "event", COUNT(DISTINCT "funnelId")::int AS count
+      FROM "FunnelEvent"
+      WHERE "event" IN (${Prisma.join([...PILOT_EVENT_STAGES])})
+      GROUP BY "event"
+    `,
   ]);
 
   const eventStages: Record<string, number> = {};
   for (const stage of PILOT_EVENT_STAGES) eventStages[stage] = 0;
-  for (const g of stageGroups) eventStages[g.event] = (eventStages[g.event] ?? 0) + 1;
+  for (const g of stageGroups) eventStages[g.event] = g.count;
 
   const resultsIngested: Record<string, number> = {};
   for (const g of docGroups) resultsIngested[g.kind] = g._count;
