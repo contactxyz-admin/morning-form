@@ -38,29 +38,54 @@ export async function checkAndConsumeBookingRateLimit(
   prisma: PrismaClient,
   userId: string,
 ): Promise<boolean> {
-  const now = Date.now();
-  const window = bucketStart(now, WINDOW_24H_MS);
-  const key = {
-    subjectKind_subject_window: {
-      subjectKind: BOOKING_RATE_LIMIT_SUBJECT_KIND,
-      subject: userId,
-      window,
-    },
-  };
+  return checkAndConsumeFixedWindow(
+    prisma,
+    BOOKING_RATE_LIMIT_SUBJECT_KIND,
+    userId,
+    BOOKING_RATE_LIMIT.perUserPer24Hour,
+  );
+}
+
+export const PILOT_BOOKING_RATE_LIMIT = {
+  /**
+   * Max slot book attempts per user per 24h window. Legit use is one book
+   * plus the odd cancel/rebook; each accepted book writes a ConsentRecord +
+   * FunnelEvent and sends a confirmation email, so a scripted
+   * book→cancel→rebook loop is unbounded storage + email spend without this.
+   */
+  perUserPer24Hour: 10,
+} as const;
+export const PILOT_BOOKING_RATE_LIMIT_SUBJECT_KIND = 'pilot-booking-24h';
+
+export async function checkAndConsumePilotBookingRateLimit(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<boolean> {
+  return checkAndConsumeFixedWindow(
+    prisma,
+    PILOT_BOOKING_RATE_LIMIT_SUBJECT_KIND,
+    userId,
+    PILOT_BOOKING_RATE_LIMIT.perUserPer24Hour,
+  );
+}
+
+async function checkAndConsumeFixedWindow(
+  prisma: PrismaClient,
+  subjectKind: string,
+  subject: string,
+  limit: number,
+): Promise<boolean> {
+  const window = bucketStart(Date.now(), WINDOW_24H_MS);
+  const key = { subjectKind_subject_window: { subjectKind, subject, window } };
 
   return prisma.$transaction(async (tx) => {
     const existing = await tx.magicLinkRateLimit.findUnique({ where: key });
-    if (existing && existing.count >= BOOKING_RATE_LIMIT.perUserPer24Hour) {
+    if (existing && existing.count >= limit) {
       return false;
     }
     await tx.magicLinkRateLimit.upsert({
       where: key,
-      create: {
-        subjectKind: BOOKING_RATE_LIMIT_SUBJECT_KIND,
-        subject: userId,
-        window,
-        count: 1,
-      },
+      create: { subjectKind, subject, window, count: 1 },
       update: { count: { increment: 1 } },
     });
     return true;

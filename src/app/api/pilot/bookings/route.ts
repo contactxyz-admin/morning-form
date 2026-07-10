@@ -14,6 +14,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requirePilotMember } from '@/lib/pilot/guard';
 import { BookingError, bookSlot } from '@/lib/pilot/booking';
+import { PROCEDURE_CONSENT_VERSION } from '@/lib/pilot/consent';
+import { checkAndConsumePilotBookingRateLimit } from '@/lib/booking/rate-limit';
 import { sendSlotBookingConfirmationEmail } from '@/lib/pilot/booking-email';
 import { writeFunnelEvent, FUNNEL_EVENTS } from '@/lib/funnel/event';
 
@@ -23,6 +25,11 @@ const BodySchema = z.object({
   slotId: z.string().min(1),
   signedName: z.string().trim().min(2).max(200),
   consentAccepted: z.literal(true),
+  // The consent version the CLIENT actually rendered. The server stores its
+  // own PROCEDURE_CONSENT_VERSION on the ConsentRecord, so a stale tab across
+  // a version-bump deploy must be refused — otherwise vN gets recorded
+  // against vN-1 text and the signature is no longer tied to what was seen.
+  consentDocumentVersion: z.string().min(1).max(100),
 });
 
 export async function POST(req: NextRequest): Promise<Response> {
@@ -34,6 +41,23 @@ export async function POST(req: NextRequest): Promise<Response> {
     body = BodySchema.parse(await req.json());
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+  }
+
+  if (body.consentDocumentVersion !== PROCEDURE_CONSENT_VERSION) {
+    return NextResponse.json(
+      {
+        error: 'The consent text has been updated since this page loaded — reload and re-read it.',
+        code: 'consent_version_mismatch',
+      },
+      { status: 409 },
+    );
+  }
+
+  if (!(await checkAndConsumePilotBookingRateLimit(prisma, guard.user.id))) {
+    return NextResponse.json(
+      { error: 'Too many booking attempts today — try again tomorrow or contact us.' },
+      { status: 429 },
+    );
   }
 
   let result;

@@ -33,6 +33,21 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const now = new Date();
+
+  // Double-send guard: Vercel cron is not exactly-once, and a manual replay
+  // with the secret shouldn't re-email every founder. The digest.sent audit
+  // row IS the send receipt — 20h covers any same-Friday duplicate while
+  // never suppressing next week's run.
+  const recentSend = await prisma.companyOpsAudit.findFirst({
+    where: {
+      action: 'digest.sent',
+      createdAt: { gte: new Date(now.getTime() - 20 * 60 * 60 * 1000) },
+    },
+    select: { createdAt: true },
+  });
+  if (recentSend) {
+    return NextResponse.json({ ok: true, skipped: 'already_sent', at: recentSend.createdAt });
+  }
   const [tasks, contacts, focusRow] = await Promise.all([
     listOpsTasks(prisma, { board: 'pilot' }),
     listOpsContacts(prisma),

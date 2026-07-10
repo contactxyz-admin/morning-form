@@ -158,6 +158,25 @@ describe('bookSlot', () => {
     expect(consents).toBe(2);
   });
 
+  it('cancelling stamps withdrawnAt on the consent; the rebook consent starts unstamped', async () => {
+    const userId = await makeTestUser(prisma, 'bk-withdraw');
+    const slot = await makeSlot({ capacity: 3 });
+
+    const first = await bookSlot(prisma, { userId, slotId: slot.id, signedName: 'Jane Doe' });
+    await cancelBooking(prisma, { userId, bookingId: first.booking.id });
+
+    const withdrawn = await prisma.consentRecord.findUniqueOrThrow({
+      where: { id: first.booking.consentRecordId },
+    });
+    expect(withdrawn.withdrawnAt).toBeInstanceOf(Date);
+
+    const second = await bookSlot(prisma, { userId, slotId: slot.id, signedName: 'Jane Doe' });
+    const fresh = await prisma.consentRecord.findUniqueOrThrow({
+      where: { id: second.booking.consentRecordId },
+    });
+    expect(fresh.withdrawnAt).toBeNull();
+  });
+
   it('rejects a past slot (slot_past) and an unknown slot (slot_not_found)', async () => {
     const userId = await makeTestUser(prisma, 'bk-errs');
     const past = await makeSlot({ startsAt: PAST() });
