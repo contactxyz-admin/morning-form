@@ -77,7 +77,13 @@ export async function getPilotFunnelSnapshot(db: PrismaClient): Promise<PilotFun
     db.bookingRequest.count({ where: { drawId: { not: null } } }),
     db.pilotSlotBooking.groupBy({ by: ['status'], _count: true }),
     db.draw.count({ where: { status: 'completed' } }),
-    db.sourceDocument.groupBy({ by: ['kind'], _count: true }),
+    // Lab containers only — intake notes, wearable windows, and future GP
+    // records are documents too, but they aren't "results returned".
+    db.sourceDocument.groupBy({
+      by: ['kind'],
+      where: { kind: { in: ['lab_pdf', 'lab_csv'] } },
+      _count: true,
+    }),
     db.resultReview.groupBy({ by: ['status'], _count: true }),
     // Distinct funnelId per event, aggregated IN Postgres. A Prisma groupBy
     // on the (event, funnelId) pair would stream one row per distinct pair

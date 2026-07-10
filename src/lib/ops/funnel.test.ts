@@ -38,6 +38,16 @@ describe('getPilotFunnelSnapshot', () => {
         capturedAt: new Date(),
       },
     });
+    // Non-lab document: must NOT count as a "result returned".
+    await prisma.sourceDocument.create({
+      data: {
+        userId,
+        kind: 'intake_text',
+        sourceRef: 'intake',
+        contentHash: 'hash-funnel-intake',
+        capturedAt: new Date(),
+      },
+    });
     await prisma.resultReview.create({
       data: {
         userId,
@@ -87,6 +97,7 @@ describe('getPilotFunnelSnapshot', () => {
     expect(snapshot.slotBookings['booked']).toBeGreaterThanOrEqual(1);
     expect(snapshot.drawsCompleted).toBeGreaterThanOrEqual(1);
     expect(snapshot.resultsIngested['lab_pdf']).toBeGreaterThanOrEqual(1);
+    expect(snapshot.resultsIngested['intake_text']).toBeUndefined();
     expect(snapshot.reviews['pending']).toBeGreaterThanOrEqual(1);
     expect(snapshot.eventStages['protocol_delivered']).toBeGreaterThanOrEqual(1);
     expect(snapshot.eventStages['slot_booked']).toBeGreaterThanOrEqual(1);

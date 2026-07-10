@@ -78,6 +78,12 @@ export function BookClient({
       if (!res.ok) return;
       const data = (await res.json()) as { slots: BookableSlot[]; ownBooking: { id: string; slot: OwnBookingView } | null };
       setSlots(data.slots);
+      // Adopt a booking made elsewhere (second tab/device) so this view can
+      // never dead-end on "you already have an active booking".
+      if (data.ownBooking) {
+        setOwnBooking({ ...data.ownBooking.slot, id: data.ownBooking.id });
+        setPicked(null);
+      }
     } catch {
       // Non-fatal — the user can reload.
     }
@@ -98,6 +104,11 @@ export function BookClient({
         setError(data.error ?? 'Something went wrong — refresh and try again.');
         if (data.code === 'slot_full') {
           setPicked(null);
+          void refreshSlots();
+        }
+        // Booked in another tab/device: refetch adopts the existing booking
+        // and flips this view to the booked card instead of dead-ending.
+        if (data.code === 'active_booking_exists') {
           void refreshSlots();
         }
         return;

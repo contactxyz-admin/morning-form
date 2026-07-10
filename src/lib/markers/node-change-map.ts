@@ -81,6 +81,29 @@ export function changedNodeIds(
 }
 
 /**
+ * Ids of biomarker nodes under a clinician escalation — the escalation twin
+ * of `changedNodeIds`, and used the same way: fed into the importance lift
+ * BEFORE the node cap. Without it, a member with more nodes than the cap
+ * could have the escalated marker itself dropped from the rendered set —
+ * silently hiding the clinician's safety flag on the exact surface the
+ * escalation email points to.
+ */
+export function escalatedNodeIds(
+  nodes: ReadonlyArray<ChangeMatchableNode>,
+  escalatedKeys: ReadonlySet<string>,
+): Set<string> {
+  const ids = new Set<string>();
+  if (escalatedKeys.size === 0) return ids;
+  for (const node of nodes) {
+    if (node.type !== 'biomarker') continue;
+    if (escalatedKeys.has(markerJoinKey(node.canonicalKey, node.attributes?.registryKey))) {
+      ids.add(node.id);
+    }
+  }
+  return ids;
+}
+
+/**
  * Attach `change` to each biomarker wire node whose join key matches a change.
  * Mutates and returns the same array (cheap; the route owns these objects).
  * Non-biomarker nodes are never decorated.

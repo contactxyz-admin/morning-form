@@ -223,6 +223,8 @@ describe('queue reads', () => {
     const before = await countRecentDocsWithoutReview(prisma, new Date(Date.now() - 86400000));
     await makeDoc(userId, 'recon-orphan'); // doc with NO review
     const after = await countRecentDocsWithoutReview(prisma, new Date(Date.now() - 86400000));
-    expect(after).toBe(before + 1);
+    // >= not ===: the count is global over the shared test DB, and parallel
+    // test files also create review-less lab docs.
+    expect(after).toBeGreaterThanOrEqual(before + 1);
   });
 });

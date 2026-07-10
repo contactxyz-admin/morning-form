@@ -845,4 +845,20 @@ describe('POST /api/intake/documents — CSV fallback (pilot MVP plan 2026-07-04
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/CSV exceeds 1MB/);
   });
+
+  it("accepts Excel's application/vnd.ms-excel alias for .csv, rejects it for .xls", async () => {
+    const userId = await makeTestUser(prisma, 'docs-csv-excel');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeCsvExtraction();
+
+    const aliased = new File([CSV_TEXT], 'panel.csv', { type: 'application/vnd.ms-excel' });
+    const ok = await POST(makeRequest({ file: aliased, fileName: 'panel.csv' }));
+    expect(ok.status).toBe(200);
+    const body = await ok.json();
+    const doc = await prisma.sourceDocument.findUniqueOrThrow({ where: { id: body.documentId } });
+    expect(doc.kind).toBe('lab_csv');
+
+    const realXls = new File(['binary'], 'panel.xls', { type: 'application/vnd.ms-excel' });
+    expect((await POST(makeRequest({ file: realXls, fileName: 'panel.xls' }))).status).toBe(400);
+  });
 });

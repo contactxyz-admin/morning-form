@@ -118,7 +118,7 @@ export default async function ClinicReviewPage({ params }: { params: { id: strin
             <p className="text-body text-text-primary">
               {review.status === 'approved' ? 'Approved' : 'Escalated'} by {review.clinicianEmail}
               {review.decidedAt
-                ? ` on ${review.decidedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                ? ` on ${review.decidedAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London' })}`
                 : ''}
               .
             </p>

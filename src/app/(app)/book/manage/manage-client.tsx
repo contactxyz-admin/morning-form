@@ -48,10 +48,12 @@ export function ManageClient({ initialSlots }: { initialSlots: ManagedSlot[] }) 
         body: JSON.stringify({
           venueName: venueName.trim(),
           venueAddress: venueAddress.trim(),
-          // datetime-local gives a zone-less string; the founder enters UK
-          // wall-clock time, so pin the offset server-side is wrong — instead
-          // treat the entered time as the browser's local time (founders are
-          // UK-based; slot render is always Europe/London regardless).
+          // datetime-local is zone-less; new Date() interprets it in the
+          // BROWSER's zone. Accepted v1 tradeoff: founders create slots from
+          // the UK, so browser zone == Europe/London == the wall-clock they
+          // mean. Creating slots from abroad WOULD store a shifted instant —
+          // but the list below re-renders in Europe/London, so the mistake is
+          // visible immediately after creating.
           startsAt: startsAt ? new Date(startsAt).toISOString() : '',
           capacity: Number(capacity),
           ...(notes.trim() ? { notes: notes.trim() } : {}),

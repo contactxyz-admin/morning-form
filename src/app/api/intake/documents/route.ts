@@ -129,13 +129,18 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  if (!ALLOWED_MIME.has(file.type)) {
+  const isCsv =
+    file.type === 'text/csv' ||
+    // Windows/Excel-registered browsers commonly report .csv files as
+    // application/vnd.ms-excel; trust the extension for that one alias
+    // (a real .xls under the same mime still 400s below).
+    (file.type === 'application/vnd.ms-excel' && file.name.toLowerCase().endsWith('.csv'));
+  if (!ALLOWED_MIME.has(file.type) && !isCsv) {
     return NextResponse.json(
       { error: `Unsupported content-type "${file.type}"; PDF or CSV only` },
       { status: 400 },
     );
   }
-  const isCsv = file.type === 'text/csv';
   if (isCsv && file.size > MAX_CSV_BYTES) {
     return NextResponse.json(
       { error: `CSV exceeds ${MAX_CSV_BYTES / (1024 * 1024)}MB limit` },

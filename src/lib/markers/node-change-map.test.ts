@@ -5,6 +5,7 @@ import {
   applyChangesToWireNodes,
   buildChangeByJoinKey,
   changedNodeIds,
+  escalatedNodeIds,
   meaningfulMoves,
 } from './node-change-map';
 
@@ -116,6 +117,19 @@ describe('changedNodeIds', () => {
     const nodes = [wireNode({ id: 's', type: 'symptom', canonicalKey: 'ferritin' })];
     expect(changedNodeIds(nodes, [change()])).toEqual(new Set());
     expect(changedNodeIds([wireNode()], [])).toEqual(new Set());
+  });
+});
+
+describe('escalatedNodeIds', () => {
+  it('matches biomarker nodes by join key (registryKey wins), for the pre-cap lift', () => {
+    const nodes = [
+      wireNode({ id: 'a', canonicalKey: 'ferritin' }),
+      wireNode({ id: 'b', canonicalKey: 'serum_ferritin', attributes: { registryKey: 'ferritin' } }),
+      wireNode({ id: 'c', canonicalKey: 'hba1c' }),
+      wireNode({ id: 's', type: 'symptom', canonicalKey: 'ferritin' }),
+    ];
+    expect(escalatedNodeIds(nodes, new Set(['ferritin']))).toEqual(new Set(['a', 'b']));
+    expect(escalatedNodeIds(nodes, new Set())).toEqual(new Set());
   });
 });
 

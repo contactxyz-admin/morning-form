@@ -13,6 +13,7 @@ import {
   applyEscalationsToWireNodes,
   applyInterpretationsToWireNodes,
   changedNodeIds,
+  escalatedNodeIds,
   meaningfulMoves,
 } from '@/lib/markers/node-change-map';
 import { isClinicianReviewEnabled } from '@/lib/review/config';
@@ -87,6 +88,17 @@ export async function GET() {
         ? changedNodeIds(nodes, meaningfulMoves(diff.changes))
         : undefined;
 
+    // Escalated markers get the same pre-cap lift: the decoration below runs
+    // over cap-survivors only, so without this a >cap graph could drop the
+    // very node the clinician flagged.
+    const escalated = escalatedNodeIds(nodes, escalatedKeys);
+    let lifted = changed;
+    if (escalated.size > 0) {
+      const merged = new Set<string>(changed ?? []);
+      escalated.forEach((id) => merged.add(id));
+      lifted = merged;
+    }
+
     // Recency map is computed only when there are nodes — otherwise the IN ()
     // would round-trip for nothing. Importance scoring still works without
     // it (recency component contributes 0), but the recency lift is the
@@ -104,7 +116,7 @@ export async function GET() {
     // Keep the vault index importance-first for PR7; a future semantic boost
     // belongs here behind a separate rollout flag after grounding + latency
     // canary gates are met.
-    const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap, changedNodeIds: changed });
+    const index = aggregateRecord({ topics, nodes, sources, edges, recencyMap, changedNodeIds: lifted });
 
     // Decorate the (now cap-surviving) biomarker nodes with their change, plus
     // the consumer-facing clinical interpretation for CMO-authored markers
