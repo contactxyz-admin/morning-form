@@ -53,6 +53,11 @@ export const FUNNEL_EVENTS = {
   // segmented by prior-result engagement so a low number can be attributed to
   // the nudge (Bet A) vs the result not feeling worth it (Bet B).
   RESULT_VIEWED: 'result_viewed',
+  // In-gym pilot booking (pilot MVP plan 2026-07-04). Fired server-side when
+  // a member books a draw slot (new/reactivated bookings only — idempotent
+  // replays never double-count). funnelId = booking id (opaque, per the
+  // DRAW_COMPLETED precedent). Properties: { slotId }.
+  SLOT_BOOKED: 'slot_booked',
 } as const;
 
 /**

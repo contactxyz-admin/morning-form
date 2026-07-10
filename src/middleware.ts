@@ -147,6 +147,9 @@ export const config = {
     // REST routes for the board ARE listed here.
     '/api/ops/board',
     '/api/ops/task/:path*',
+    // In-gym pilot booking (cookie-authed; member/staff split enforced in
+    // the routes' own guards).
+    '/api/pilot/:path*',
     '/api/scribe/:path*',
     '/api/share/:path*',
     '/api/suggestions',
