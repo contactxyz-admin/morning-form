@@ -146,6 +146,7 @@ export const config = {
     // reason as /api/mcp above — it's bearer-auth only. The cookie-authed
     // REST routes for the board ARE listed here.
     '/api/ops/board',
+    '/api/ops/funnel',
     '/api/ops/task/:path*',
     // In-gym pilot booking (cookie-authed; member/staff split enforced in
     // the routes' own guards).

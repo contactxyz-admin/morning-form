@@ -250,6 +250,18 @@ export async function POST(req: Request) {
 
     const persisted = await ingestExtraction(prisma, user.id, input);
 
+    // Pilot funnel (pilot MVP plan 2026-07-04): "result returned" fires on
+    // every fresh ingest, UNCONDITIONALLY (not behind the retest flag — the
+    // stage must be measurable before the loop goes live). The contentHash
+    // dedup returned above for re-uploads, so this never double-counts a
+    // document. writeFunnelEvent swallows its own failures.
+    await writeFunnelEvent(prisma, {
+      funnelId: persisted.documentId,
+      userId: user.id,
+      event: FUNNEL_EVENTS.RESULT_INGESTED,
+      properties: { kind: input.document.kind, biomarkerCount: validBiomarkers.length },
+    });
+
     // PR7 observability for the ingest embedding hook. The hook itself lives
     // in ingestExtraction; this confirms the production rollout path is active.
     if (isHybridRetrievalEnabled()) {

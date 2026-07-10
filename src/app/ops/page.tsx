@@ -16,6 +16,7 @@ import { isCompanyOpsEnabled, isStaff, members } from '@/lib/ops/config';
 import { listOpsTasks } from '@/lib/ops/queries';
 import { OpsBoardClient, type OpsTaskDto } from './board-client';
 import { REFERENCE_TABS, type ReferenceTabKey } from './reference-tabs';
+import { LiveKpisTab } from './live-kpis-tab';
 import styles from './ops.module.css';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +39,12 @@ export default async function OpsPage({ searchParams }: { searchParams: { tab?: 
     );
   }
 
-  const activeTab = REFERENCE_TABS.find((t) => t.key === searchParams.tab)?.key as ReferenceTabKey | undefined;
+  // 'live' is the one non-reference tab key: server-fetched aggregates, not
+  // static plan content. Distinct from the reference 'kpis' tab (targets).
+  const liveKpis = searchParams.tab === 'live';
+  const activeTab = liveKpis
+    ? undefined
+    : (REFERENCE_TABS.find((t) => t.key === searchParams.tab)?.key as ReferenceTabKey | undefined);
 
   return (
     <div className={styles.opsRoot}>
@@ -49,8 +55,11 @@ export default async function OpsPage({ searchParams }: { searchParams: { tab?: 
         <span className={styles.headerSub}>Shared Company Ops Board · signed in as {user.email}</span>
       </header>
       <nav className={styles.nav}>
-        <a href="?" className={`${styles.navLink} ${!activeTab ? styles.navLinkOn : ''}`}>
+        <a href="?" className={`${styles.navLink} ${!activeTab && !liveKpis ? styles.navLinkOn : ''}`}>
           Workstream
+        </a>
+        <a href="?tab=live" className={`${styles.navLink} ${liveKpis ? styles.navLinkOn : ''}`}>
+          Live KPIs
         </a>
         <span className={styles.navDivider} aria-hidden="true" />
         {REFERENCE_TABS.map(({ key, label }) => (
@@ -63,11 +72,15 @@ export default async function OpsPage({ searchParams }: { searchParams: { tab?: 
           </a>
         ))}
       </nav>
-      <main className={styles.main}>{activeTab ? <ReferenceTab tabKey={activeTab} /> : await WorkstreamTab()}</main>
+      <main className={styles.main}>
+        {liveKpis ? await LiveKpisTab() : activeTab ? <ReferenceTab tabKey={activeTab} /> : await WorkstreamTab()}
+      </main>
       <div className={styles.savebar}>
-        {activeTab
-          ? 'Reference material ported from the original pilot-ops plan — read-only. Live edits happen on the Workstream tab.'
-          : 'Shared board — every edit here is saved to Postgres and visible to the other founders on refresh.'}
+        {liveKpis
+          ? 'Live aggregates from the product database — anonymous counts only, never member-level rows.'
+          : activeTab
+            ? 'Reference material ported from the original pilot-ops plan — read-only. Live edits happen on the Workstream tab.'
+            : 'Shared board — every edit here is saved to Postgres and visible to the other founders on refresh.'}
       </div>
     </div>
   );

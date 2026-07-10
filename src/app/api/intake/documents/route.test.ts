@@ -716,4 +716,36 @@ describe('POST /api/intake/documents — clinician review hook (pilot MVP plan 2
     });
     expect(count).toBe(1);
   });
+
+  it('RESULT_INGESTED fires once per fresh ingest — unconditionally, never on dedup', async () => {
+    // No flags set: the event must fire with everything dark.
+    const userId = await makeTestUser(prisma, 'docs-funnel');
+    currentUserMock.mockResolvedValue({ id: userId });
+    primeUpload();
+
+    const bytes = new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x77])], {
+      type: 'application/pdf',
+    });
+    const first = await POST(makeRequest({ file: new File([bytes], 'panel.pdf', { type: 'application/pdf' }) }));
+    expect(first.status).toBe(200);
+    const firstBody = await first.json();
+
+    const events = await prisma.funnelEvent.findMany({
+      where: { funnelId: firstBody.documentId, event: 'result_ingested' },
+    });
+    expect(events).toHaveLength(1);
+    expect(JSON.parse(JSON.stringify(events[0].properties))).toMatchObject({
+      kind: 'lab_pdf',
+      biomarkerCount: 1,
+    });
+
+    primeUpload();
+    const second = await POST(makeRequest({ file: new File([bytes], 'panel.pdf', { type: 'application/pdf' }) }));
+    expect((await second.json()).deduped).toBe(true);
+    expect(
+      await prisma.funnelEvent.count({
+        where: { funnelId: firstBody.documentId, event: 'result_ingested' },
+      }),
+    ).toBe(1);
+  });
 });

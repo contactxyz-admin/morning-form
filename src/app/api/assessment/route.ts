@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/session';
 import { llmConsentGateResponse } from '@/lib/llm/consent';
 import { generateStateProfile, buildPriorities } from '@/lib/priority-marker-engine';
+import { writeFunnelEvent, FUNNEL_EVENTS } from '@/lib/funnel/event';
 import type {
   AssessmentResponses,
   Constraint,
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
     const stateProfile = generateStateProfile(responses);
     const priorities = buildPriorities(responses);
 
+    let prioritiesId: string | null = null;
     await prisma.$transaction(async (tx) => {
       await tx.assessmentResponse.upsert({
         where: { userId: user.id },
@@ -137,7 +139,20 @@ export async function POST(request: Request) {
           sortOrder: item.sortOrder ?? idx,
         })),
       });
+      prioritiesId = persistedPriorities.id;
     });
+
+    // Pilot funnel (pilot MVP plan 2026-07-04): a persisted Priorities row IS
+    // the delivered protocol. Post-commit; funnelId = Priorities id (stable
+    // per user, so re-submissions collapse under distinct-funnelId counting).
+    // writeFunnelEvent swallows its own failures.
+    if (prioritiesId) {
+      await writeFunnelEvent(prisma, {
+        funnelId: prioritiesId,
+        userId: user.id,
+        event: FUNNEL_EVENTS.PROTOCOL_DELIVERED,
+      });
+    }
 
     return NextResponse.json({ stateProfile, priorities });
   } catch (error) {

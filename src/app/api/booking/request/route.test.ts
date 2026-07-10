@@ -180,6 +180,35 @@ describe('POST /api/booking/request', () => {
     expect(await prisma.bookingRequest.count({ where: { userId: user.id } })).toBe(0);
   });
 
+  it('fires BOOKING_REQUESTED once per created row, keyed to the booking id', async () => {
+    const user = await makeUser('req-funnel', 'uk');
+    currentUserMock.mockResolvedValue(user);
+
+    const res = await POST(postWith({ markerNames: [CANONICAL], market: 'uk' }));
+    expect(res.status).toBe(201);
+    const row = await prisma.bookingRequest.findFirstOrThrow({ where: { userId: user.id } });
+
+    const events = await prisma.funnelEvent.findMany({
+      where: { funnelId: row.id, event: 'booking_requested' },
+    });
+    expect(events).toHaveLength(1);
+    expect(JSON.parse(JSON.stringify(events[0].properties))).toMatchObject({
+      market: 'uk',
+      retestLinked: false,
+    });
+  });
+
+  it('no BOOKING_REQUESTED event on the ops-email-failure (deleted row) path', async () => {
+    const user = await makeUser('req-funnelfail', 'uk');
+    currentUserMock.mockResolvedValue(user);
+    sendEmailMock.mockRejectedValueOnce(new Error('resend down'));
+
+    expect((await POST(postWith({ markerNames: [CANONICAL], market: 'uk' }))).status).toBe(502);
+    expect(
+      await prisma.funnelEvent.count({ where: { userId: user.id, event: 'booking_requested' } }),
+    ).toBe(0);
+  });
+
   it('rate-limits after the per-user window is exhausted → 429, no extra row', async () => {
     const user = await makeUser('req-ratelimit', 'uk');
     currentUserMock.mockResolvedValue(user);
