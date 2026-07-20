@@ -2,13 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import { Chip } from '@/components/ui/chip';
+import { MONO_EYEBROW } from './marketing-header';
 import { MARKER_CATEGORIES, type MarkerEntry } from '../../../content/marketing/testing-markers';
 
 interface MarkerIndexProps {
   markers: ReadonlyArray<MarkerEntry>;
 }
-
-const MONO_EYEBROW = 'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary';
 
 /**
  * Searchable, filterable, expandable index of every marker in the

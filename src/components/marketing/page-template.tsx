@@ -1,6 +1,5 @@
-import Link from 'next/link';
-import { LogoLockup } from '@/components/brand/logo-lockup';
-import { MarketingHeader, NAV_LINK_CLASS } from './marketing-header';
+import { MarketingHeader, DASH_BULLET } from './marketing-header';
+import { MarketingFooter } from './marketing-footer';
 import { CtaBlock } from './cta-block';
 import { HeroBlock } from './hero-block';
 import { FaqBlock } from './faq-block';
@@ -57,7 +56,7 @@ export function PageTemplate({ page }: PageTemplateProps) {
               {section.bullets && section.bullets.length > 0 ? (
                 <ul className="mt-5 space-y-2 text-body text-text-secondary">
                   {section.bullets.map((b, k) => (
-                    <li key={k} className="leading-relaxed pl-5 relative before:content-['—'] before:absolute before:left-0 before:text-text-tertiary">
+                    <li key={k} className={DASH_BULLET}>
                       {b}
                     </li>
                   ))}
@@ -88,32 +87,10 @@ export function PageTemplate({ page }: PageTemplateProps) {
       </section>
       </main>
 
-      {/* Footer — brand lockup, mono-uppercase nav. */}
-      <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
-          <Link
-            href={`/${page.market}`}
-            aria-label="Morning Form — home"
-            className="text-text-primary"
-          >
-            <LogoLockup imageClassName="w-[188px]" textClassName="text-heading" />
-          </Link>
-          <div className="flex flex-col gap-3 sm:items-end">
-            <div className="flex flex-wrap gap-7">
-              <Link href={`/${page.market}/partners`} className={NAV_LINK_CLASS}>Partner with us</Link>
-              <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
-              <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
-              <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
-            </div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-              Last reviewed {new Date(page.lastReviewedAt).toLocaleDateString(page.market === 'uk' ? 'en-GB' : 'en-US')}
-            </p>
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-              © 2026 Morning Form
-            </p>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter
+        market={page.market}
+        extraLine={`Last reviewed ${new Date(page.lastReviewedAt).toLocaleDateString(page.market === 'uk' ? 'en-GB' : 'en-US')}`}
+      />
     </div>
   );
 }

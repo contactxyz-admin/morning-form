@@ -2,16 +2,17 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { LogoLockup } from '@/components/brand/logo-lockup';
 import { FaqBlock } from '@/components/marketing/faq-block';
-import { MarketingHeader, NAV_LINK_CLASS } from '@/components/marketing/marketing-header';
+import { MarketingHeader, MONO_EYEBROW } from '@/components/marketing/marketing-header';
+import { MarketingFooter } from '@/components/marketing/marketing-footer';
+import { FinalCtaBand } from '@/components/marketing/final-cta-band';
 import { MarkerOrbit } from '@/components/marketing/marker-orbit';
 import { MarkerIndex } from '@/components/marketing/marker-index';
 import { RecordPreview } from '@/components/marketing/record-preview';
 import { FaqPage } from '@/components/structured-data/faq-page';
 import { MedicalWebPage } from '@/components/structured-data/medical-webpage';
 import { isMarket } from '@/lib/marketing/market';
-import { MARKETS, type Market } from '@/lib/marketing/constants';
+import { MARKET_CLINICIAN, MARKETS, type Market } from '@/lib/marketing/constants';
 import { TrackMount } from '@/lib/funnel/track-mount';
 import { TrackedLink } from '@/lib/funnel/tracked-link';
 import { FUNNEL_EVENTS } from '@/lib/funnel/event';
@@ -25,8 +26,6 @@ export const dynamic = 'force-static';
 interface TestingPageProps {
   params: { market: string };
 }
-
-const MONO_EYEBROW = 'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary';
 
 function CheckIcon() {
   return (
@@ -154,6 +153,7 @@ export function generateMetadata({ params }: TestingPageProps): Metadata {
 export default function TestingPage({ params }: TestingPageProps) {
   if (!isMarket(params.market)) notFound();
   const market: Market = params.market;
+  const clinician = MARKET_CLINICIAN[market];
 
   return (
     <div className="min-h-screen bg-bg">
@@ -391,60 +391,51 @@ export default function TestingPage({ params }: TestingPageProps) {
           </div>
         </section>
 
+        {/* Safety note — the one disclaimer any page making clinical claims
+            needs on the page itself; the fuller regulatory detail lives on
+            /safety and (for the club-liability angle) /partners. */}
+        <section className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
+          <p className="text-body text-text-secondary max-w-2xl leading-relaxed">
+            Morning Form explains and flags; it never diagnoses. If you have symptoms that
+            worry you now, speak to your {clinician.singular} first — a baseline panel is not
+            urgent care.{' '}
+            <Link
+              href="/safety"
+              className="text-text-primary underline underline-offset-2 hover:text-brand-blue-700 transition-colors duration-300"
+            >
+              More on our clinical approach →
+            </Link>
+          </p>
+        </section>
+
         {/* FAQ — the objections a testing product must answer before the ask. */}
         <FaqBlock id="faq" entries={TESTING_FAQ.entries} />
 
         {/* Final CTA — on the hero's gradient wash, matching the homepage. */}
-        <section className="px-6 sm:px-10 lg:px-16 py-24 sm:py-32 max-w-[1400px] mx-auto">
-          <div className="relative overflow-hidden rounded-card bg-[linear-gradient(160deg,#F9E8FB_0%,#E3F3FF_45%,#DFE6C1_100%)] px-6 sm:px-16 py-16 sm:py-24 text-center">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_120%_at_50%_0%,rgba(255,255,255,0.55)_0%,rgba(255,255,255,0)_70%)]" />
-            <div className="relative">
-              <h2 className="mx-auto max-w-xl font-display font-light text-display sm:text-display-xl text-text-primary -tracking-[0.04em] leading-[1.02]">
-                Start with a baseline.
-              </h2>
-              <p className="mt-6 mx-auto max-w-xl text-body-lg text-text-secondary leading-relaxed">
-                Join Morning Form, connect what you already wear, and book your first draw
-                when you&rsquo;re ready — at a partner club or from your kitchen table.
-              </p>
-              <div className="mt-10 flex items-center justify-center gap-6 flex-wrap">
-                <Link href="/sign-in">
-                  <Button size="lg">Get started</Button>
-                </Link>
-                <TrackedLink
-                  href="/demo"
-                  event={FUNNEL_EVENTS.DEMO_CLICKED}
-                  eventProperties={{ placement: 'final_cta' }}
-                  className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
-                >
-                  Explore the live demo →
-                </TrackedLink>
-              </div>
-            </div>
-          </div>
-        </section>
+        <FinalCtaBand
+          heading="Start with a baseline."
+          body={
+            <>
+              Join Morning Form, connect what you already wear, and book your first draw when
+              you&rsquo;re ready — at a partner club or from your kitchen table.
+            </>
+          }
+        >
+          <Link href="/sign-in">
+            <Button size="lg">Get started</Button>
+          </Link>
+          <TrackedLink
+            href="/demo"
+            event={FUNNEL_EVENTS.DEMO_CLICKED}
+            eventProperties={{ placement: 'final_cta' }}
+            className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
+          >
+            Explore the live demo →
+          </TrackedLink>
+        </FinalCtaBand>
       </main>
 
-      {/* Footer — brand lockup, mono-uppercase nav. */}
-      <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
-          <Link
-            href={`/${market}`}
-            aria-label="Morning Form — home"
-            className="text-text-primary"
-          >
-            <LogoLockup imageClassName="w-[188px]" textClassName="text-heading" />
-          </Link>
-          <div className="flex flex-col gap-3 sm:items-end">
-            <div className="flex flex-wrap gap-7">
-              <Link href={`/${market}/partners`} className={NAV_LINK_CLASS}>Partner with us</Link>
-              <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
-              <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
-              <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
-            </div>
-            <p className={MONO_EYEBROW}>© 2026 Morning Form</p>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter market={market} />
     </div>
   );
 }
