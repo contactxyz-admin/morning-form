@@ -28,7 +28,7 @@ export function TrendIllustration({ className }: { className?: string }) {
           y1={y}
           x2="180"
           y2={y}
-          stroke="#E5E5EA"
+          stroke="#E7EAEE"
           strokeWidth="1"
           strokeDasharray="2 4"
         />
@@ -37,13 +37,13 @@ export function TrendIllustration({ className }: { className?: string }) {
       {/* Background trend lines — text-tertiary. */}
       <path
         d="M 20 145 Q 50 142 80 148 T 140 142 T 180 138"
-        stroke="#6E6E73"
+        stroke="#7E7F81"
         strokeWidth="1.25"
         strokeLinecap="round"
       />
       <path
         d="M 20 175 Q 50 178 80 172 T 140 178 T 180 175"
-        stroke="#6E6E73"
+        stroke="#7E7F81"
         strokeWidth="1.25"
         strokeLinecap="round"
       />
@@ -51,14 +51,14 @@ export function TrendIllustration({ className }: { className?: string }) {
       {/* Foreground trend — text-primary, the focal upward line. */}
       <path
         d="M 20 120 Q 50 110 80 100 T 140 75 T 180 60"
-        stroke="#1D1D1F"
+        stroke="#161616"
         strokeWidth="1.75"
         strokeLinecap="round"
       />
 
       {/* "Today" dot at the right edge of the focal trend. */}
-      <circle cx="180" cy="60" r="3.5" fill="#1D1D1F" />
-      <circle cx="180" cy="60" r="6" fill="#1D1D1F" fillOpacity="0.12" />
+      <circle cx="180" cy="60" r="3.5" fill="#161616" />
+      <circle cx="180" cy="60" r="6" fill="#161616" fillOpacity="0.12" />
     </svg>
   );
 }

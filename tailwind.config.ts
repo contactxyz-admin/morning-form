@@ -57,42 +57,44 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Neutral system — Apple-flavoured off-white ground with a near-black ink.
-        // Strips the previous warm cream so the brand reads quieter / more designer.
-        bg: '#FBFBFD',
-        'bg-deep': '#F5F5F7',
+        // Neutral system — MorningForm's soft, pastel health-app palette
+        // (blue/sage/lavender/orange over an off-white ground). Replaces the
+        // previous Apple-flavoured ink/paper system; token *names* are kept
+        // unchanged so every consumer across the app re-skins automatically.
+        bg: '#F7F7F7',
+        'bg-deep': '#E7EAEE',
         surface: '#FFFFFF',
-        'surface-warm': '#F5F5F7',
-        'surface-sunken': '#EEEEF1',
-        // Hairlines pulled to neutral system grey.
-        border: '#E5E5EA',
-        'border-mid': '#D2D2D7',
-        'border-strong': '#BDBDC4',
-        'border-hover': '#86868B',
-        // Ink — Apple's near-black, with system grey ramp under it.
-        'text-primary': '#1D1D1F',
-        'text-secondary': '#424245',
-        'text-tertiary': '#6E6E73',
-        'text-whisper': '#86868B',
-        // Secondary text on inverted (ink) surfaces — Apple's dark-mode
-        // mid grey, ~6.5:1 on text-primary. Headings on ink use `bg`.
-        'text-inverse-muted': '#A1A1A6',
-        // Accent — desaturated graphite for focus rings and active states.
-        // Held back from any warm/colourful read.
+        'surface-warm': '#E3F3FF',
+        'surface-sunken': '#E7EAEE',
+        // Hairlines pulled to the new cool grey ramp.
+        border: '#E7EAEE',
+        'border-mid': '#BFC1C3',
+        'border-strong': '#7E7F81',
+        'border-hover': '#5E6873',
+        // Ink — brand black, with the new cool grey ramp under it.
+        'text-primary': '#161616',
+        'text-secondary': '#3E3E3E',
+        'text-tertiary': '#7E7F81',
+        'text-whisper': '#BFC1C3',
+        // Secondary text on inverted (ink) surfaces.
+        'text-inverse-muted': '#BFC1C3',
+        // Accent — brand blue, for focus rings and active/tonal states.
         accent: {
-          DEFAULT: '#1D1D1F',
-          light: '#F0F0F2',
-          muted: '#6E6E73',
-          deep: '#000000',
+          DEFAULT: '#6890AD',
+          light: '#E3F3FF',
+          muted: '#7E7F81',
+          deep: '#406782',
         },
         button: {
-          // Pure ink primary — high contrast, neutral, designer.
-          DEFAULT: '#1D1D1F',
-          hover: '#2D2D2F',
-          active: '#000000',
-          focus: '#424245',
+          // Brand blue primary — the deeper ramp steps, so resting-state
+          // text stays comfortably accessible (blue-500/700 read too light
+          // for AA body-text contrast against an off-white fill).
+          DEFAULT: '#406782',
+          hover: '#2F4D61',
+          active: '#22384A',
+          focus: '#93BCDB',
         },
-        // Status — desaturated Apple-system hues, tuned for AA contrast on #FBFBFD.
+        // Status — desaturated hues, tuned for AA contrast on the page background.
         // Restraint: these appear only for real status signal (success, warning,
         // error) — never decorative. `.light` tokens back badge fills.
         positive: {
@@ -119,12 +121,26 @@ const config: Config = {
         // opacity on the canvas (fill /15, stroke /70–/80); exact value tuned in
         // the visual audit.
         'self-report': '#5B5EA6',
+        // MorningForm brand ramps — the redesign's full palette, for
+        // marketing-specific gradients, badges, and source-chip dots that
+        // need a step the semantic aliases above don't expose.
+        brand: {
+          blue: { 50: '#E3F3FF', 100: '#D0E5F4', 300: '#B8C9E2', 500: '#93BCDB', 700: '#6890AD', 900: '#406782' },
+          sage: { 50: '#DFE6C1', 100: '#C3CAA8', 300: '#B2BA91', 500: '#9BA478', 700: '#5F6740', 900: '#394121' },
+          bluegrey: '#5E6873',
+          lavender: { 50: '#F9E8FB', 100: '#D8B1DC', 300: '#BB90C1', 500: '#BD68C8', 700: '#91439C', 900: '#663A6D' },
+          orange: { 50: '#FFE8E1', 100: '#F9C3B3', 300: '#FF9E81', 500: '#FF845F', 700: '#DE623D', 900: '#B1492A' },
+          grey: { 100: '#E7EAEE', 200: '#BFC1C3', 300: '#7E7F81', 400: '#3E3E3E' },
+          black: '#161616',
+          offwhite: '#F7F7F7',
+        },
       },
       fontFamily: {
-        // Display — Fraunces serif for editorial headings. Paired with Inter
-        // for body/UI. Mono for data and small caps.
-        display: ['var(--font-display)', 'Georgia', '"Times New Roman"', 'ui-serif', 'serif'],
-        sans: ['var(--font-sans)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // New Edge 666 carries both headline and body/UI voice (the redesign
+        // uses one display-leaning sans everywhere). Diatype Rounded Mono
+        // carries labels, metrics, eyebrows, and data.
+        display: ['var(--font-display)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-display)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', '"SFMono-Regular"', 'ui-monospace', 'monospace'],
       },
       fontSize: {
@@ -155,29 +171,28 @@ const config: Config = {
           "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><path d='M19 19h2v2h-2z' fill='%23D0C8B6' fill-opacity='0.6'/></svg>\")",
       },
       borderRadius: {
-        // Architectural corners — tighter than pillowed, closer to editorial grid.
-        'card': '14px',
-        'card-sm': '10px',
-        'button': '10px',
+        // Soft, consistently rounded — MorningForm's pastel/health-app corners.
+        'card': '20px',
+        'card-sm': '14px',
+        'button': '999px',
         'chip': '999px',
-        'input': '8px',
-        'well': '12px',
+        'input': '10px',
+        'well': '14px',
       },
       boxShadow: {
-        'hairline': '0 0 0 1px rgba(26, 20, 16, 0.04)',
-        'hairline-strong': '0 0 0 1px rgba(26, 20, 16, 0.08)',
+        'hairline': '0 0 0 1px rgba(22, 22, 22, 0.04)',
+        'hairline-strong': '0 0 0 1px rgba(22, 22, 22, 0.08)',
         'card': 'none',
-        // Paper lift — quieter contact + ambient, leaning on border transitions to carry interaction.
-        'card-hover':
-          '0 1px 1px rgba(26, 20, 16, 0.02), 0 6px 18px -12px rgba(26, 20, 16, 0.08)',
-        'card-press': 'inset 0 1px 2px rgba(26, 20, 16, 0.05)',
-        'button-primary': '0 1px 0 rgba(255, 253, 250, 0.12) inset, 0 4px 14px -8px rgba(92, 74, 63, 0.55)',
+        // Soft lift — diffuse, low-opacity, cool-tinted per the redesign's elevation scale.
+        'card-hover': '0 2px 6px rgba(22, 22, 22, 0.06), 0 6px 18px rgba(22, 22, 22, 0.08)',
+        'card-press': 'inset 0 1px 2px rgba(22, 22, 22, 0.05)',
+        'button-primary': '0 1px 0 rgba(247, 247, 247, 0.12) inset, 0 4px 14px -8px rgba(64, 103, 130, 0.45)',
         'button-primary-hover':
-          '0 1px 0 rgba(255, 253, 250, 0.14) inset, 0 10px 26px -12px rgba(92, 74, 63, 0.70)',
-        'modal': '0 16px 48px -12px rgba(34, 25, 19, 0.20), 0 4px 14px -6px rgba(34, 25, 19, 0.09)',
-        'sheet': '0 -32px 80px -24px rgba(34, 25, 19, 0.22), 0 -4px 14px -6px rgba(34, 25, 19, 0.08)',
-        'ring-accent': '0 0 0 1px rgba(29, 29, 31, 0.34)',
-        'ring-focus': '0 0 0 2px rgba(29, 29, 31, 0.42)',
+          '0 1px 0 rgba(247, 247, 247, 0.14) inset, 0 10px 26px -12px rgba(64, 103, 130, 0.60)',
+        'modal': '0 16px 48px -12px rgba(22, 22, 22, 0.14), 0 4px 14px -6px rgba(22, 22, 22, 0.06)',
+        'sheet': '0 -32px 80px -24px rgba(22, 22, 22, 0.14), 0 -4px 14px -6px rgba(22, 22, 22, 0.06)',
+        'ring-accent': '0 0 0 1px rgba(104, 144, 173, 0.4)',
+        'ring-focus': '0 0 0 3px rgba(147, 188, 219, 0.5)',
       },
       transitionDuration: {
         '250': '250ms',
@@ -185,8 +200,10 @@ const config: Config = {
         '600': '600ms',
       },
       transitionTimingFunction: {
-        // Apple-style spring — overshoots softly then settles.
-        'spring': 'cubic-bezier(0.32, 0.72, 0, 1)',
+        // MorningForm standard ease — calm and quick, replaces the previous Apple-style spring.
+        'spring': 'cubic-bezier(0.22, 0.61, 0.36, 1)',
+        // Emphasized ease — reserved for celebratory/emphasis moments.
+        'spring-emphasized': 'cubic-bezier(0.34, 1.3, 0.64, 1)',
       },
       animation: {
         'pulse-subtle': 'pulseSubtle 2.4s ease-in-out infinite',
