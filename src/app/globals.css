@@ -19,7 +19,7 @@
      emphasis without the serif voice (e.g. interactive UI labels nested in
      otherwise serif-heading regions). Falls back to system stack. */
   .font-display-ui {
-    font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-display), -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui, sans-serif;
   }
 
   /* Editorial numerals — tabular + lining for data/mono so columns align cleanly. */
@@ -187,6 +187,25 @@
     animation: riseIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.05s forwards;
   }
 
+  @keyframes mfFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  /* Gentle drift — the hero record card's floating source chips. */
+  .animate-float {
+    animation: mfFloat 6.4s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+  }
+
+  @keyframes mfFlow {
+    to { stroke-dashoffset: -28; }
+  }
+
+  /* Dashed-line current — the hero record card's connector paths. */
+  .animate-flow {
+    animation: mfFlow 1.5s linear infinite;
+  }
+
   @keyframes riseIn {
     0% { opacity: 0; transform: translateY(14px); filter: blur(6px); }
     100% { opacity: 1; transform: translateY(0); filter: blur(0); }
@@ -245,6 +264,11 @@
       opacity: 1;
       transform: none;
       filter: none;
+      animation: none;
+    }
+
+    .animate-float,
+    .animate-flow {
       animation: none;
     }
   }

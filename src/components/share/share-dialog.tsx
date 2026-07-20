@@ -170,7 +170,7 @@ export function ShareDialog({ open, onClose, scope, defaultLabel }: Props) {
                       onChange={(e) => setLabel(e.target.value)}
                       placeholder="e.g. For Dr. Smith"
                       maxLength={120}
-                      className="mt-1.5 w-full rounded-button border border-border bg-surface px-3 py-2 text-body text-text-primary focus:border-accent focus:outline-none focus:shadow-ring-focus"
+                      className="mt-1.5 w-full rounded-input border border-border bg-surface px-3 py-2 text-body text-text-primary focus:border-accent focus:outline-none focus:shadow-ring-focus"
                     />
                   </label>
 
@@ -215,7 +215,7 @@ export function ShareDialog({ open, onClose, scope, defaultLabel }: Props) {
                         value={state.url}
                         readOnly
                         onFocus={(e) => e.currentTarget.select()}
-                        className="flex-1 rounded-button border border-border bg-surface-warm px-3 py-2 font-mono text-caption text-text-primary"
+                        className="flex-1 rounded-input border border-border bg-surface-warm px-3 py-2 font-mono text-caption text-text-primary"
                       />
                       <Button
                         type="button"

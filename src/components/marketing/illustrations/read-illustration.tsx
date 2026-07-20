@@ -18,8 +18,8 @@ export function ReadIllustration({ className }: { className?: string }) {
     >
       {/* Pull-quote marker — vertical hairline + dot, centered on the
           highlighted bar (y=110, height=6 → center y=113). */}
-      <line x1="22" y1="100" x2="22" y2="126" stroke="#1D1D1F" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="22" cy="113" r="2" fill="#1D1D1F" />
+      <line x1="22" y1="100" x2="22" y2="126" stroke="#161616" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="22" cy="113" r="2" fill="#161616" />
 
       {/* Bar widths chosen for ragged-right prose feel. y values give an
           editorial vertical rhythm rather than mechanical equal spacing. */}
@@ -39,13 +39,13 @@ export function ReadIllustration({ className }: { className?: string }) {
           width={bar.w}
           height="6"
           rx="1.5"
-          fill={bar.y === 110 ? '#1D1D1F' : '#6E6E73'}
+          fill={bar.y === 110 ? '#161616' : '#7E7F81'}
           fillOpacity={bar.y === 110 ? 0.85 : 0.32}
         />
       ))}
 
       {/* Final two bars trail off as a soft fade-to-grey. */}
-      <rect x="35" y="190" width="86" height="6" rx="1.5" fill="#6E6E73" fillOpacity="0.18" />
+      <rect x="35" y="190" width="86" height="6" rx="1.5" fill="#7E7F81" fillOpacity="0.18" />
     </svg>
   );
 }

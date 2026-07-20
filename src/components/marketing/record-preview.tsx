@@ -3,9 +3,9 @@ import { TrackedLink } from '@/lib/funnel/tracked-link';
 import { FUNNEL_EVENTS } from '@/lib/funnel/event';
 import {
   arrowFor,
-  downsample,
   formatValue,
   getMetricSummary,
+  thinSeries,
   type PersonaMetricSummary,
 } from '@/lib/demo/persona-summary';
 import { PREVIEW_METRICS } from './record-preview-metrics';
@@ -35,15 +35,7 @@ function thinForPreview(summary: PersonaMetricSummary): {
   values: readonly number[];
   inflectionIndex: number;
 } {
-  const { values, inflectionIndex } = summary;
-  const thinned = downsample(values, PREVIEW_POINTS);
-  if (thinned.length === values.length) return { values, inflectionIndex };
-  return {
-    values: thinned,
-    inflectionIndex: Math.round(
-      (inflectionIndex / (values.length - 1)) * (thinned.length - 1),
-    ),
-  };
+  return thinSeries(summary.values, summary.inflectionIndex, PREVIEW_POINTS);
 }
 
 export function RecordPreview({ className }: { className?: string }) {

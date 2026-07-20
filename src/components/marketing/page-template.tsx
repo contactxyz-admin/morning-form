@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { LogoLockup } from '@/components/brand/logo-lockup';
+import { MarketingHeader, NAV_LINK_CLASS } from './marketing-header';
 import { CtaBlock } from './cta-block';
 import { HeroBlock } from './hero-block';
 import { FaqBlock } from './faq-block';
@@ -10,9 +11,6 @@ import type { MarketingPage } from '@/lib/marketing/page-schema';
 interface PageTemplateProps {
   page: MarketingPage;
 }
-
-const NAV_LINK_CLASS =
-  'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring';
 
 /**
  * The single TSX template that renders every marketing page from data.
@@ -28,28 +26,15 @@ export function PageTemplate({ page }: PageTemplateProps) {
 
   return (
     <div className="min-h-screen bg-bg">
-      <header className="px-6 sm:px-10 lg:px-16 pt-7 pb-4 flex items-center justify-between max-w-[1400px] mx-auto">
-        <Link
-          href={`/${page.market}`}
-          aria-label="Morning Form — home"
-          className="text-text-primary"
-        >
-          <LogoLockup />
-        </Link>
-        <nav className="hidden sm:flex items-center gap-6">
-          <Link href={`/${page.market}`} className={NAV_LINK_CLASS}>Home</Link>
-          <Link href={`/${page.market}/testing`} className={NAV_LINK_CLASS}>Testing</Link>
-          <Link href="/demo" className={NAV_LINK_CLASS}>Live demo</Link>
-          <Link href="/sign-in" className={NAV_LINK_CLASS}>Sign in</Link>
-        </nav>
-        <Link
-          href="/sign-in"
-          aria-label="Sign in"
-          className={`${NAV_LINK_CLASS} sm:hidden`}
-        >
-          Sign in
-        </Link>
-      </header>
+      <MarketingHeader
+        homeHref={`/${page.market}`}
+        navLinks={[
+          { label: 'Home', href: `/${page.market}` },
+          { label: 'Testing', href: `/${page.market}/testing` },
+          { label: 'Live demo', href: '/demo' },
+          { label: 'Sign in', href: '/sign-in' },
+        ]}
+      />
 
       <main>
         <HeroBlock page={page} eyebrow={eyebrow} />
