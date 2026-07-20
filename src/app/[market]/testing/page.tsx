@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { LogoLockup } from '@/components/brand/logo-lockup';
 import { FaqBlock } from '@/components/marketing/faq-block';
+import { MarketingHeader, NAV_LINK_CLASS } from '@/components/marketing/marketing-header';
 import { RecordPreview } from '@/components/marketing/record-preview';
 import { TestingVisual } from '@/components/marketing/testing-visual';
 import { FaqPage } from '@/components/structured-data/faq-page';
@@ -22,9 +23,6 @@ export const dynamic = 'force-static';
 interface TestingPageProps {
   params: { market: string };
 }
-
-const NAV_LINK_CLASS =
-  'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring';
 
 const MONO_EYEBROW = 'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary';
 
@@ -145,25 +143,16 @@ export default function TestingPage({ params }: TestingPageProps) {
 
       {/* Header — brand lockup + mono-uppercase tabs, matching the
           market homepage. */}
-      <header className="px-6 sm:px-10 lg:px-16 pt-7 pb-4 flex items-center justify-between max-w-[1400px] mx-auto">
-        <Link
-          href={`/${market}`}
-          aria-label="Morning Form — home"
-          className="text-text-primary"
-        >
-          <LogoLockup />
-        </Link>
-        <nav className="hidden sm:flex items-center gap-6">
-          <Link href="#ways" className={NAV_LINK_CLASS}>Two ways to test</Link>
-          <Link href="#panel" className={NAV_LINK_CLASS}>What&rsquo;s measured</Link>
-          <Link href="#how" className={NAV_LINK_CLASS}>How it works</Link>
-          <Link href="/demo" className={NAV_LINK_CLASS}>Live demo</Link>
-          <Link href="/sign-in" className={NAV_LINK_CLASS}>Sign in</Link>
-        </nav>
-        <Link href="/sign-in" aria-label="Sign in" className={`${NAV_LINK_CLASS} sm:hidden`}>
-          Sign in
-        </Link>
-      </header>
+      <MarketingHeader
+        homeHref={`/${market}`}
+        navLinks={[
+          { label: 'Two ways to test', href: '#ways' },
+          { label: "What's measured", href: '#panel' },
+          { label: 'How it works', href: '#how' },
+          { label: 'Live demo', href: '/demo' },
+          { label: 'Sign in', href: '/sign-in' },
+        ]}
+      />
 
       <main>
         {/* Hero — copy left, the two testing routes as a product shot right. */}
@@ -206,7 +195,7 @@ export default function TestingPage({ params }: TestingPageProps) {
 
         {/* Two ways to test — the core of the offer: in person where you
             train, or at home. */}
-        <section id="ways" className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
+        <section id="ways" className="scroll-mt-24 px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
           <p className={`${MONO_EYEBROW} mb-5`}>Two ways to test</p>
           <h2 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-3xl -tracking-[0.04em] leading-[1.02]">
             At your club, or at your door.
@@ -278,7 +267,7 @@ export default function TestingPage({ params }: TestingPageProps) {
 
         {/* The panel — what one draw measures. Marker lists mirror the
             baseline panel proposed with our medical director. */}
-        <section id="panel" className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
+        <section id="panel" className="scroll-mt-24 px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
           <p className={`${MONO_EYEBROW} mb-5`}>What&rsquo;s measured</p>
           <h2 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-3xl -tracking-[0.04em] leading-[1.02]">
             Sixty-plus markers, one baseline.
@@ -307,7 +296,7 @@ export default function TestingPage({ params }: TestingPageProps) {
         </section>
 
         {/* How it works — book, draw, understand, track. */}
-        <section id="how" className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
+        <section id="how" className="scroll-mt-24 px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
           <p className={`${MONO_EYEBROW} mb-12`}>How it works</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-14 sm:gap-12">
             {HOW_IT_WORKS.map((step) => (

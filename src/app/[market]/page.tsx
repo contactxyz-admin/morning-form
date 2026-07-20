@@ -9,6 +9,7 @@ import { ReadIllustration } from '@/components/marketing/illustrations/read-illu
 import { TrendIllustration } from '@/components/marketing/illustrations/trend-illustration';
 import { HeroRecordCard } from '@/components/marketing/hero-record-card';
 import { FaqBlock } from '@/components/marketing/faq-block';
+import { MarketingHeader, NAV_LINK_CLASS } from '@/components/marketing/marketing-header';
 import { isMarket } from '@/lib/marketing/market';
 import { HOME_FAQ } from '../../../content/marketing/home-faq';
 import { MARKET_CLINICIAN, SOURCE_NAMES, type Market } from '@/lib/marketing/constants';
@@ -49,9 +50,6 @@ const NAV_LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: 'Live demo', href: '/demo' },
   { label: 'Sign in', href: '/sign-in' },
 ];
-
-const NAV_LINK_CLASS =
-  'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring';
 
 const MARKET_LABEL: Record<Market, string> = {
   uk: 'UK',
@@ -101,34 +99,10 @@ export default function LandingPage({ params }: MarketHomeProps) {
       <TrackMount event={FUNNEL_EVENTS.LANDING_VIEWED} properties={{ market }} />
 
       {/* Header — sticky, translucent-blurred, real brand lockup + mono-uppercase tabs. */}
-      <header className="sticky top-0 z-40 border-b border-border bg-bg/80 backdrop-blur-md">
-        <div className="px-6 sm:px-10 lg:px-16 py-3.5 flex items-center justify-between gap-4 max-w-[1400px] mx-auto">
-          <Link
-            href={`/${market}`}
-            aria-label="Morning Form — home"
-            className="text-text-primary"
-          >
-            <LogoLockup />
-          </Link>
-          <nav className="hidden sm:flex items-center gap-6">
-            {[{ label: 'Testing', href: `/${market}/testing` }, ...NAV_LINKS].map((t) => (
-              <Link key={t.href} href={t.href} className={NAV_LINK_CLASS}>
-                {t.label}
-              </Link>
-            ))}
-            <Link href="/sign-in">
-              <Button size="sm">Get started</Button>
-            </Link>
-          </nav>
-          <Link
-            href="/sign-in"
-            aria-label="Sign in"
-            className={`${NAV_LINK_CLASS} sm:hidden`}
-          >
-            Sign in
-          </Link>
-        </div>
-      </header>
+      <MarketingHeader
+        homeHref={`/${market}`}
+        navLinks={[{ label: 'Testing', href: `/${market}/testing` }, ...NAV_LINKS]}
+      />
 
       {/* Hero — soft gradient wash fading to the page ground, copy on the
           left, the product itself on the right via HeroRecordCard. */}
