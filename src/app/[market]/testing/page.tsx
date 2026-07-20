@@ -491,7 +491,7 @@ export default function TestingPage({ params }: TestingPageProps) {
                 <TrackedLink
                   href="/demo"
                   event={FUNNEL_EVENTS.DEMO_CLICKED}
-                  eventProperties={{ placement: 'testing_final_cta' }}
+                  eventProperties={{ placement: 'final_cta' }}
                   className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
                 >
                   Explore the live demo →

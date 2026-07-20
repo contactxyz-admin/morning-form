@@ -53,7 +53,7 @@ export function MarkerIndex({ markers }: MarkerIndexProps) {
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-grey-300"
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-brand-grey-300"
           >
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" />
