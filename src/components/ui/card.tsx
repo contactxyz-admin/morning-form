@@ -37,7 +37,10 @@ function Card({
           'bg-surface border border-border overflow-hidden': variant === 'action',
           'bg-accent-light border border-accent/10': variant === 'contextual',
           'bg-surface-warm border border-border': variant === 'paper',
-          'bg-surface-sunken border border-border/60': variant === 'sunken',
+          // border-mid (not border): after the redesign `border` and
+          // `surface-sunken` are the same hex, so a `border-border` hairline
+          // would be invisible against the sunken fill.
+          'bg-surface-sunken border border-border-mid/50': variant === 'sunken',
         },
         // Action variant: tapered accent ribbon, slightly inset so it feels etched rather than applied.
         variant === 'action' && accentColor && [

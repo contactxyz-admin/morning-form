@@ -35,7 +35,7 @@ function SourceCard({ source, hidden = false }: SourceCardProps) {
       <Card variant="sunken" className="flex items-center gap-4 opacity-70">
         <div
           aria-hidden
-          className="h-12 w-12 shrink-0 rounded-card-sm border border-border/60 bg-surface-sunken"
+          className="h-12 w-12 shrink-0 rounded-card-sm border border-border-mid/50 bg-surface-sunken"
         />
         <div className="flex-1 min-w-0">
           <p className="text-body text-text-tertiary italic">Hidden by sharer</p>

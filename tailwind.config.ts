@@ -74,16 +74,26 @@ const config: Config = {
         // Ink — brand black, with the new cool grey ramp under it.
         'text-primary': '#161616',
         'text-secondary': '#3E3E3E',
-        'text-tertiary': '#7E7F81',
-        'text-whisper': '#BFC1C3',
+        // text-tertiary / text-whisper are kept at their pre-redesign values:
+        // they back captions/eyebrows in 100+ files across the whole app, and
+        // the brand grey ramp (grey-300 #7E7F81 / grey-200 #BFC1C3) drops them
+        // below WCAG AA contrast on white and on the #F7F7F7 page ground.
+        'text-tertiary': '#6E6E73',
+        'text-whisper': '#86868B',
         // Secondary text on inverted (ink) surfaces.
         'text-inverse-muted': '#BFC1C3',
-        // Accent — brand blue, for focus rings and active/tonal states.
+        // Accent — kept NEUTRAL INK on purpose. `accent`/`fill-accent`/
+        // `bg-accent` are consumed by ~50 files this redesign never touched
+        // (graph node encoding, toggles, sliders, selected chips, check-in),
+        // several of which pair `bg-accent` with white text or rely on the
+        // near-black ink meaning. The marketing brand blue is applied via the
+        // explicit `brand.blue.*` classes instead, not by overloading this
+        // shared semantic token.
         accent: {
-          DEFAULT: '#6890AD',
-          light: '#E3F3FF',
-          muted: '#7E7F81',
-          deep: '#406782',
+          DEFAULT: '#1D1D1F',
+          light: '#F0F0F2',
+          muted: '#6E6E73',
+          deep: '#000000',
         },
         button: {
           // Brand blue primary — the deeper ramp steps, so resting-state
@@ -92,7 +102,10 @@ const config: Config = {
           DEFAULT: '#406782',
           hover: '#2F4D61',
           active: '#22384A',
-          focus: '#93BCDB',
+          // Focus outline must clear the 3:1 non-text contrast floor that
+          // graph-filter-legend.tsx (and other outline-button-focus consumers)
+          // depend on. blue-500 #93BCDB is only ~2:1 on white; blue-900 is ~5.6:1.
+          focus: '#406782',
         },
         // Status — desaturated hues, tuned for AA contrast on the page background.
         // Restraint: these appear only for real status signal (success, warning,

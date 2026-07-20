@@ -140,7 +140,7 @@ export default function LandingPage({ params }: MarketHomeProps) {
               <Badge dot>Private beta · {MARKET_LABEL[market]}</Badge>
 
               <h1 className="mt-8 font-display font-light text-display sm:text-display-xl lg:text-display-2xl text-text-primary -tracking-[0.04em] leading-[0.98]">
-                <span className="text-accent">One</span> health record from every wearable, app, and blood test.
+                <span className="text-brand-blue-700">One</span> health record from every wearable, app, and blood test.
               </h1>
 
               <p className="mt-8 text-body-lg text-text-secondary max-w-xl leading-relaxed">
@@ -261,7 +261,7 @@ export default function LandingPage({ params }: MarketHomeProps) {
 
       {/* How it works — three steps, icon + monospaced numerals for rhythm,
           on a soft brand-gradient band. */}
-      <section id="how" className="bg-[linear-gradient(135deg,#E3F3FF_0%,#F9E8FB_100%)]">
+      <section id="how" className="scroll-mt-24 bg-[linear-gradient(135deg,#E3F3FF_0%,#F9E8FB_100%)]">
         <div className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 max-w-[1400px] mx-auto">
           <RevealOnScroll>
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-brand-bluegrey mb-12">How it works</p>
@@ -274,7 +274,7 @@ export default function LandingPage({ params }: MarketHomeProps) {
             ].map((step, i) => (
               <RevealOnScroll key={step.n} delayMs={i * 100}>
                 <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-full bg-surface text-accent-deep shadow-hairline">
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-surface text-brand-blue-900 shadow-hairline">
                     {step.icon}
                   </span>
                   <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-brand-bluegrey">
@@ -294,7 +294,7 @@ export default function LandingPage({ params }: MarketHomeProps) {
       {/* What's inside — the full surface of the product, indexed. This is
           the "everything we have built" section: each entry maps to a real,
           shipped surface of the app. */}
-      <section id="inside" className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 max-w-[1400px] mx-auto">
+      <section id="inside" className="scroll-mt-24 px-6 sm:px-10 lg:px-16 py-28 sm:py-40 max-w-[1400px] mx-auto">
         <RevealOnScroll>
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary mb-5">What&rsquo;s inside</p>
           <h2 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-3xl -tracking-[0.04em] leading-[1.02]">

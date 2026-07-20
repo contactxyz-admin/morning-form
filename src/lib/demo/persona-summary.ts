@@ -123,6 +123,31 @@ export function downsample(values: readonly number[], maxPoints: number): number
   return out;
 }
 
+/**
+ * Thin a series to at most `maxPoints` samples and remap the inflection index
+ * proportionally onto the thinned series. Shared by the landing RecordPreview
+ * and the hero record card so the "before/after" inflection marker is placed
+ * by one implementation, not two hand-copied ones.
+ */
+export function thinSeries(
+  values: readonly number[],
+  inflectionIndex: number,
+  maxPoints: number,
+): { values: readonly number[]; inflectionIndex: number } {
+  const thinned = downsample(values, maxPoints);
+  // No thinning happened, or too few points to remap (guards the
+  // divide-by-(values.length - 1) below) → pass through unchanged.
+  if (thinned.length === values.length || values.length < 2) {
+    return { values, inflectionIndex };
+  }
+  return {
+    values: thinned,
+    inflectionIndex: Math.round(
+      (inflectionIndex / (values.length - 1)) * (thinned.length - 1),
+    ),
+  };
+}
+
 export function formatValue(value: number, decimals: number): string {
   return value.toFixed(decimals);
 }

@@ -8,8 +8,9 @@ import './globals.css';
 // build (see src/fonts/README.md) — swap for a licensed webfont build
 // before this ships to real users.
 const newEdge = localFont({
+  // Only the weights actually referenced by className are loaded. UltraLight
+  // (200) is unused; UltraBold (800) is kept for the Wordmark component.
   src: [
-    { path: '../fonts/NewEdge666-UltraLight.otf', weight: '200', style: 'normal' },
     { path: '../fonts/NewEdge666-Light.otf', weight: '300', style: 'normal' },
     { path: '../fonts/NewEdge666-Regular.otf', weight: '400', style: 'normal' },
     { path: '../fonts/NewEdge666-SemiBold.otf', weight: '600', style: 'normal' },
@@ -22,11 +23,11 @@ const newEdge = localFont({
 // Diatype Rounded Mono — labels, metrics, eyebrows, data. Same trial-license
 // caveat as New Edge 666 above.
 const diatypeMono = localFont({
+  // Light (300) and Bold (700) are unused by any font-mono className; only
+  // Regular and Medium are loaded.
   src: [
-    { path: '../fonts/DiatypeRoundedSemiMono-Light.otf', weight: '300', style: 'normal' },
     { path: '../fonts/DiatypeRoundedSemiMono-Regular.otf', weight: '400', style: 'normal' },
     { path: '../fonts/DiatypeRoundedSemiMono-Medium.otf', weight: '500', style: 'normal' },
-    { path: '../fonts/DiatypeRoundedSemiMono-Bold.otf', weight: '700', style: 'normal' },
   ],
   variable: '--font-mono',
   display: 'swap',

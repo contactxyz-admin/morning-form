@@ -1,7 +1,8 @@
 import { Sparkline } from '@/components/demo/sparkline';
 import { TrackedLink } from '@/lib/funnel/tracked-link';
 import { FUNNEL_EVENTS } from '@/lib/funnel/event';
-import { downsample, formatValue, getMetricSummary } from '@/lib/demo/persona-summary';
+import { formatValue, getMetricSummary, thinSeries } from '@/lib/demo/persona-summary';
+import { SOURCE_NAMES } from '@/lib/marketing/constants';
 
 /**
  * Hero record card — the landing hero's "living record" visual. Floating
@@ -19,8 +20,12 @@ const HERO_ROWS: ReadonlyArray<{ metric: string; source: string }> = [
   { metric: 'hscrp_mg_l', source: 'Blood panel' },
 ];
 
+// Labels are typed against the canonical SOURCE_NAMES so a provider rename or
+// removal there (already guarded against the live registry by
+// record-preview.test.ts) fails this file at typecheck instead of silently
+// leaving the hero advertising a stale connector.
 const FLOATING_SOURCES: ReadonlyArray<{
-  label: string;
+  label: (typeof SOURCE_NAMES)[number];
   dot: string;
   style: React.CSSProperties;
   animationDelay: string;
@@ -29,19 +34,15 @@ const FLOATING_SOURCES: ReadonlyArray<{
   { label: 'Oura', dot: 'bg-brand-lavender-500', style: { top: '6%', right: '0%' }, animationDelay: '0.4s' },
   { label: 'Apple Health', dot: 'bg-brand-black', style: { top: '44%', left: '-3%' }, animationDelay: '0.9s' },
   { label: 'Dexcom', dot: 'bg-brand-sage-500', style: { bottom: '6%', left: '1%' }, animationDelay: '0.2s' },
-  { label: 'Blood panel', dot: 'bg-brand-orange-500', style: { bottom: '6%', right: '0%' }, animationDelay: '0.6s' },
+  { label: 'Blood panels (PDF)', dot: 'bg-brand-orange-500', style: { bottom: '6%', right: '0%' }, animationDelay: '0.6s' },
 ];
 
 export function HeroRecordCard({ className }: { className?: string }) {
   const rows = HERO_ROWS.map(({ metric, source }) => {
     const summary = getMetricSummary(metric);
     if (!summary) return null;
-    const thinned = downsample(summary.values, ROW_POINTS);
-    const inflectionIndex =
-      thinned.length === summary.values.length
-        ? summary.inflectionIndex
-        : Math.round((summary.inflectionIndex / (summary.values.length - 1)) * (thinned.length - 1));
-    return { summary, source, values: thinned, inflectionIndex };
+    const { values, inflectionIndex } = thinSeries(summary.values, summary.inflectionIndex, ROW_POINTS);
+    return { summary, source, values, inflectionIndex };
   }).filter((r): r is NonNullable<typeof r> => r !== null);
 
   if (rows.length === 0) return null;
@@ -78,7 +79,7 @@ export function HeroRecordCard({ className }: { className?: string }) {
       <TrackedLink
         href="/demo"
         event={FUNNEL_EVENTS.DEMO_CLICKED}
-        eventProperties={{ placement: 'hero' }}
+        eventProperties={{ placement: 'hero_record' }}
         aria-label="Open the live demo record"
         className="group absolute left-1/2 top-1/2 block w-[min(86%,340px)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-card bg-surface shadow-modal"
       >

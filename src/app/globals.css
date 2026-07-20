@@ -19,7 +19,7 @@
      emphasis without the serif voice (e.g. interactive UI labels nested in
      otherwise serif-heading regions). Falls back to system stack. */
   .font-display-ui {
-    font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-display), -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui, sans-serif;
   }
 
   /* Editorial numerals — tabular + lining for data/mono so columns align cleanly. */
