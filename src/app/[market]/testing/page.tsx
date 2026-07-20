@@ -11,7 +11,7 @@ import { RecordPreview } from '@/components/marketing/record-preview';
 import { FaqPage } from '@/components/structured-data/faq-page';
 import { MedicalWebPage } from '@/components/structured-data/medical-webpage';
 import { isMarket } from '@/lib/marketing/market';
-import { MARKET_CLINICIAN, MARKETS, type Market } from '@/lib/marketing/constants';
+import { MARKETS, type Market } from '@/lib/marketing/constants';
 import { TrackMount } from '@/lib/funnel/track-mount';
 import { TrackedLink } from '@/lib/funnel/tracked-link';
 import { FUNNEL_EVENTS } from '@/lib/funnel/event';
@@ -154,7 +154,6 @@ export function generateMetadata({ params }: TestingPageProps): Metadata {
 export default function TestingPage({ params }: TestingPageProps) {
   if (!isMarket(params.market)) notFound();
   const market: Market = params.market;
-  const clinician = MARKET_CLINICIAN[market];
 
   return (
     <div className="min-h-screen bg-bg">
@@ -392,83 +391,6 @@ export default function TestingPage({ params }: TestingPageProps) {
           </div>
         </section>
 
-        {/* The clinical layer — inverted band, the trust section. */}
-        <section className="bg-text-primary">
-          <div className="px-6 sm:px-10 lg:px-16 py-28 sm:py-40 max-w-[1400px] mx-auto">
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-whisper mb-5">
-              The clinical layer
-            </p>
-            <h2 className="font-display font-light text-display sm:text-display-xl text-bg max-w-3xl -tracking-[0.04em] leading-[1.02]">
-              We carry the clinical load.
-            </h2>
-
-            <div className="mt-20 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-14 max-w-5xl">
-              {[
-                {
-                  n: '01',
-                  title: 'Regulated collection',
-                  body: 'Draws run under a registered clinical partner — trained phlebotomists, proper kit, clinical-waste handling, indemnity in place.',
-                },
-                {
-                  n: '02',
-                  title: 'Reviewed results',
-                  body: 'Every panel is reviewed before it reaches your record. Findings that need attention are flagged clearly, with a referral.',
-                },
-                {
-                  n: '03',
-                  title: 'Consent & identity',
-                  body: 'E-consent and ID checks before any draw. Your results stay yours — shared only if you choose to share them.',
-                },
-                {
-                  n: '04',
-                  title: 'Descriptive, not diagnostic',
-                  body: 'Morning Form explains and flags; it never diagnoses. When a marker needs a clinician, you get a clear referral — not an upsell.',
-                },
-              ].map((r) => (
-                <div key={r.n}>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-whisper">
-                    {r.n}
-                  </span>
-                  <h3 className="mt-4 font-display font-normal text-heading text-bg -tracking-[0.02em]">
-                    {r.title}
-                  </h3>
-                  <p className="mt-3 text-body text-text-inverse-muted leading-relaxed">{r.body}</p>
-                </div>
-              ))}
-            </div>
-
-            <p className="mt-16 text-body text-text-inverse-muted max-w-2xl leading-relaxed">
-              If you have symptoms that worry you now, speak to your {clinician.singular}{' '}
-              first — a baseline panel is not urgent care.
-            </p>
-          </div>
-        </section>
-
-        {/* For clubs — the partnership funnel, one quiet row. */}
-        <section className="px-6 sm:px-10 lg:px-16 py-24 sm:py-32 border-t border-border max-w-[1400px] mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-10 lg:gap-20 items-center">
-            <div>
-              <p className={`${MONO_EYEBROW} mb-5`}>For clubs &amp; studios</p>
-              <h2 className="font-display font-light text-display text-text-primary -tracking-[0.035em] leading-[1.06]">
-                Run draw days in your club.
-              </h2>
-              <p className="mt-6 text-body-lg text-text-secondary max-w-xl leading-relaxed">
-                We bring the phlebotomist, the kit, the logistics and the lab; you provide
-                a private room and a nudge to your members. A member benefit no other club
-                offers — with zero operational lift.
-              </p>
-            </div>
-            <div className="lg:justify-self-end">
-              <Link
-                href="/contact"
-                className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
-              >
-                Partner with us →
-              </Link>
-            </div>
-          </div>
-        </section>
-
         {/* FAQ — the objections a testing product must answer before the ask. */}
         <FaqBlock id="faq" entries={TESTING_FAQ.entries} />
 
@@ -514,6 +436,7 @@ export default function TestingPage({ params }: TestingPageProps) {
           </Link>
           <div className="flex flex-col gap-3 sm:items-end">
             <div className="flex flex-wrap gap-7">
+              <Link href={`/${market}/partners`} className={NAV_LINK_CLASS}>Partner with us</Link>
               <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
               <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
               <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>

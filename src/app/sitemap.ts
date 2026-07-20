@@ -39,6 +39,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.9,
   }));
 
+  // Partners (clubs & studios) page — another bespoke route
+  // (src/app/[market]/partners), linked from every marketing footer.
+  const partnerPages: MetadataRoute.Sitemap = MARKETS.map((market) => ({
+    url: buildCanonicalUrl(market, 'partners'),
+    lastModified: new Date(),
+    changeFrequency: 'monthly',
+    priority: 0.5,
+  }));
+
   // Market-neutral trust pages (src/app/(info)/*) — linked from every
   // marketing footer; indexed deliberately, unlike the noindex /demo.
   const infoPages: MetadataRoute.Sitemap = ['/privacy', '/safety', '/contact'].map((path) => ({
@@ -48,5 +57,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.3,
   }));
 
-  return [...homepages, ...testingPages, ...anchorPages, ...infoPages];
+  return [...homepages, ...testingPages, ...partnerPages, ...anchorPages, ...infoPages];
 }

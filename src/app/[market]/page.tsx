@@ -423,6 +423,7 @@ export default function LandingPage({ params }: MarketHomeProps) {
           </Link>
           <div className="flex flex-col gap-3 sm:items-end">
             <div className="flex flex-wrap gap-7">
+              <Link href={`/${market}/partners`} className={NAV_LINK_CLASS}>Partner with us</Link>
               <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
               <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
               <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
