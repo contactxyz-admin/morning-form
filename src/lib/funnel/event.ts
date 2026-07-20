@@ -41,6 +41,10 @@ export const FUNNEL_EVENTS = {
   // from LANDING_VIEWED so market-homepage counts stay clean. Market is
   // derivable from the event `path`.
   TESTING_VIEWED: 'testing_viewed',
+  // Partners page (/[market]/partners) — the club/studio recruitment pitch
+  // split out of the testing page (2026-07-20). Fired once per page mount,
+  // same rationale as TESTING_VIEWED.
+  PARTNERS_VIEWED: 'partners_viewed',
   SIGN_IN_COMPLETED: 'sign_in_completed',
   FIRST_ASK_SENT: 'first_ask_sent',
   // Retest loop (Plan 2026-06-17-001). Fired server-side when a Draw completes

@@ -5,6 +5,14 @@ import { LogoLockup } from '@/components/brand/logo-lockup';
 export const NAV_LINK_CLASS =
   'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary hover:text-text-primary transition-colors duration-300 ease-spring';
 
+// Shared marketing-page style tokens — not header-specific, but this file
+// is already the one place NAV_LINK_CLASS lives, so it's the natural home
+// for the other small, repeated marketing-copy classNames too, rather than
+// each bespoke page re-declaring its own copy.
+export const MONO_EYEBROW = 'font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary';
+export const DASH_BULLET =
+  "leading-relaxed pl-5 relative before:content-['—'] before:absolute before:left-0 before:text-text-tertiary";
+
 interface MarketingHeaderProps {
   homeHref: string;
   navLinks: ReadonlyArray<{ label: string; href: string }>;

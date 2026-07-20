@@ -1,4 +1,5 @@
 import type { MarketingEscalation } from '@/lib/marketing/page-schema';
+import { DASH_BULLET } from './marketing-header';
 
 interface EscalationModuleProps {
   escalation: MarketingEscalation;
@@ -29,7 +30,7 @@ export function EscalationModule({ escalation }: EscalationModuleProps) {
         {escalation.bullets && escalation.bullets.length > 0 ? (
           <ul className="mt-5 space-y-2 text-body text-text-secondary">
             {escalation.bullets.map((b, i) => (
-              <li key={i} className="leading-relaxed pl-5 relative before:content-['—'] before:absolute before:left-0 before:text-text-tertiary">
+              <li key={i} className={DASH_BULLET}>
                 {b}
               </li>
             ))}

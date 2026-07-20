@@ -1,4 +1,5 @@
 import type { MarketingFaqEntry } from '@/lib/marketing/page-schema';
+import { MONO_EYEBROW } from './marketing-header';
 
 interface FaqBlockProps {
   entries: ReadonlyArray<MarketingFaqEntry>;
@@ -10,7 +11,7 @@ export function FaqBlock({ entries, id }: FaqBlockProps) {
   if (entries.length === 0) return null;
   return (
     <section id={id} className="scroll-mt-24 px-6 sm:px-10 lg:px-16 py-24 sm:py-32 border-t border-border max-w-[1400px] mx-auto">
-      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary mb-10">
+      <p className={`${MONO_EYEBROW} mb-10`}>
         Frequently asked
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10 max-w-5xl">

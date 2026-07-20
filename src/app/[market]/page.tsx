@@ -3,13 +3,14 @@ import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RevealOnScroll } from '@/components/ui/reveal-on-scroll';
-import { LogoLockup } from '@/components/brand/logo-lockup';
 import { ActionIllustration } from '@/components/marketing/illustrations/action-illustration';
 import { ReadIllustration } from '@/components/marketing/illustrations/read-illustration';
 import { TrendIllustration } from '@/components/marketing/illustrations/trend-illustration';
 import { HeroRecordCard } from '@/components/marketing/hero-record-card';
 import { FaqBlock } from '@/components/marketing/faq-block';
-import { MarketingHeader, NAV_LINK_CLASS } from '@/components/marketing/marketing-header';
+import { MarketingHeader } from '@/components/marketing/marketing-header';
+import { MarketingFooter } from '@/components/marketing/marketing-footer';
+import { FinalCtaBand } from '@/components/marketing/final-cta-band';
 import { isMarket } from '@/lib/marketing/market';
 import { HOME_FAQ } from '../../../content/marketing/home-faq';
 import { MARKET_CLINICIAN, SOURCE_NAMES, type Market } from '@/lib/marketing/constants';
@@ -375,64 +376,37 @@ export default function LandingPage({ params }: MarketHomeProps) {
       <FaqBlock entries={HOME_FAQ.entries} />
 
       {/* Final CTA — restate the value, on the hero's gradient wash. */}
-      <section className="px-6 sm:px-10 lg:px-16 py-24 sm:py-32 max-w-[1400px] mx-auto">
-        <RevealOnScroll>
-          <div className="relative overflow-hidden rounded-card bg-[linear-gradient(160deg,#F9E8FB_0%,#E3F3FF_45%,#DFE6C1_100%)] px-6 sm:px-16 py-16 sm:py-24 text-center">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_120%_at_50%_0%,rgba(255,255,255,0.55)_0%,rgba(255,255,255,0)_70%)]" />
-            <div className="relative">
-              <h2 className="mx-auto max-w-2xl font-display font-light text-display sm:text-display-xl text-text-primary -tracking-[0.04em] leading-[1.02]">
-                See what your numbers have been trying to tell you. Free.
-              </h2>
-              <p className="mt-6 mx-auto max-w-xl text-body-lg text-text-secondary leading-relaxed">
-                Link a wearable, upload a panel, take the assessment when
-                you&rsquo;re ready — all optional. No card required.
-              </p>
-              <div className="mt-10 flex items-center justify-center gap-6 flex-wrap">
-                <Link href="/sign-in">
-                  <Button size="lg">Get started</Button>
-                </Link>
-                <TrackedLink
-                  href="/demo"
-                  event={FUNNEL_EVENTS.DEMO_CLICKED}
-                  eventProperties={{ placement: 'final_cta' }}
-                  className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
-                >
-                  See a sample record →
-                </TrackedLink>
-                <Link
-                  href="/sign-in"
-                  className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
-                >
-                  Already a member? Sign in →
-                </Link>
-              </div>
-            </div>
-          </div>
-        </RevealOnScroll>
-      </section>
+      <FinalCtaBand
+        reveal
+        headingClassName="max-w-2xl"
+        heading="See what your numbers have been trying to tell you. Free."
+        body={
+          <>
+            Link a wearable, upload a panel, take the assessment when you&rsquo;re ready — all
+            optional. No card required.
+          </>
+        }
+      >
+        <Link href="/sign-in">
+          <Button size="lg">Get started</Button>
+        </Link>
+        <TrackedLink
+          href="/demo"
+          event={FUNNEL_EVENTS.DEMO_CLICKED}
+          eventProperties={{ placement: 'final_cta' }}
+          className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
+        >
+          See a sample record →
+        </TrackedLink>
+        <Link
+          href="/sign-in"
+          className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
+        >
+          Already a member? Sign in →
+        </Link>
+      </FinalCtaBand>
 
-      {/* Footer — brand lockup, mono-uppercase nav. */}
-      <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
-          <Link
-            href={`/${market}`}
-            aria-label="Morning Form — home"
-            className="text-text-primary"
-          >
-            <LogoLockup imageClassName="w-[188px]" textClassName="text-heading" />
-          </Link>
-          <div className="flex flex-col gap-3 sm:items-end">
-            <div className="flex flex-wrap gap-7">
-              <Link href="/privacy" className={NAV_LINK_CLASS}>Privacy</Link>
-              <Link href="/safety" className={NAV_LINK_CLASS}>Safety &amp; clinical</Link>
-              <Link href="/contact" className={NAV_LINK_CLASS}>Contact</Link>
-            </div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">
-              © 2026 Morning Form
-            </p>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter market={market} />
     </div>
   );
 }
