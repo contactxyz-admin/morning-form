@@ -2,12 +2,14 @@ import type { MarketingFaqEntry } from '@/lib/marketing/page-schema';
 
 interface FaqBlockProps {
   entries: ReadonlyArray<MarketingFaqEntry>;
+  /** Anchor id for a page nav link (e.g. "faq"). Omit when unlinked. */
+  id?: string;
 }
 
-export function FaqBlock({ entries }: FaqBlockProps) {
+export function FaqBlock({ entries, id }: FaqBlockProps) {
   if (entries.length === 0) return null;
   return (
-    <section className="px-6 sm:px-10 lg:px-16 py-24 sm:py-32 border-t border-border max-w-[1400px] mx-auto">
+    <section id={id} className="scroll-mt-24 px-6 sm:px-10 lg:px-16 py-24 sm:py-32 border-t border-border max-w-[1400px] mx-auto">
       <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary mb-10">
         Frequently asked
       </p>
