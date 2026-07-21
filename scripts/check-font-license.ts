@@ -1,62 +1,133 @@
 /**
- * Deploy gate for the trial-license web fonts under src/fonts/.
+ * Fail-closed deploy gate for known trial-license webfont builds.
  *
- * The New Edge 666 and ABC Diatype Rounded Semi Mono files committed there are
- * the foundry's trial/evaluation builds; their embedded license text forbids
- * redistribution and "storing on publicly available servers" — exactly what
- * serving them from this app to visitors does. A README TODO is not enforced
- * by any tooling, so this gate runs at the front of `vercel-build` to stop a
- * deploy from silently shipping unlicensed fonts.
+ * The New Edge 666 and ABC Diatype Rounded Semi Mono evaluation files once
+ * committed to this repository prohibit redistribution and public hosting.
+ * This gate scans every font asset under src/ and public/ by both historical
+ * filename and SHA-256 fingerprint, so renaming or moving the same bytes does
+ * not bypass the production safeguard.
  *
- * Behavior:
- *   - No known trial fonts present            → notice, exit 0.
- *   - Trial fonts present, ALLOW_TRIAL_FONTS=true → warning, exit 0 (conscious override).
- *   - Trial fonts present, override unset     → error, exit 1 → the deploy fails.
- *
- * When a commercial webfont license is obtained (or the fonts are swapped for
- * licensed equivalents), update TRIAL_FONT_FILES to drop the now-licensed
- * filenames so the gate stops flagging them.
- *
- * Usage: tsx scripts/check-font-license.ts
+ * Commercially licensed replacements must use separately verified build files.
+ * There is intentionally no environment-variable override.
  */
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { basename, extname, join, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
-const FONTS_DIR = join(process.cwd(), 'src', 'fonts');
+const FONT_EXTENSIONS = new Set([".eot", ".otf", ".ttf", ".woff", ".woff2"]);
 
-// The exact trial-build filenames committed to the repo.
-const TRIAL_FONT_FILES = [
-  'NewEdge666-Light.otf',
-  'NewEdge666-Regular.otf',
-  'NewEdge666-SemiBold.otf',
-  'NewEdge666-UltraBold.otf',
-  'DiatypeRoundedSemiMono-Regular.otf',
-  'DiatypeRoundedSemiMono-Medium.otf',
-];
+const TRIAL_FONT_FILES = new Set([
+  "NewEdge666-Light.otf",
+  "NewEdge666-Regular.otf",
+  "NewEdge666-SemiBold.otf",
+  "NewEdge666-UltraBold.otf",
+  "DiatypeRoundedSemiMono-Regular.otf",
+  "DiatypeRoundedSemiMono-Medium.otf",
+]);
 
-const present = TRIAL_FONT_FILES.filter((f) => existsSync(join(FONTS_DIR, f)));
+export const TRIAL_FONT_HASHES = new Map<string, string>([
+  [
+    "17876087ec29269c5139996ba0b8cf031c1c06ce2ea38f96cd1d5a2394f19a8c",
+    "New Edge 666 Light trial build",
+  ],
+  [
+    "80e0f1f02a29ec2b0f9e05bef2583961e921c8a44785e40168ae053480b0acd6",
+    "New Edge 666 Regular trial build",
+  ],
+  [
+    "fb6b91de2758b35b7fe4ca081d586ae73bea5eadcb511a6d20ed4efc3531bf9b",
+    "New Edge 666 SemiBold trial build",
+  ],
+  [
+    "7378166d749171ea2bdfb4205cef1ee4c326378728bc9ba4a1965dbc6569483c",
+    "New Edge 666 UltraBold trial build",
+  ],
+  [
+    "0fcbecb76bdf225406b0dcabe288423cff1b358abd822e742292062abbc5e1b3",
+    "Diatype Rounded Semi Mono Regular trial build",
+  ],
+  [
+    "ccdcdd9800937b7ee003d6bee478ca2c08d420aca36a926dfa940c3f278df53c",
+    "Diatype Rounded Semi Mono Medium trial build",
+  ],
+]);
 
-if (present.length === 0) {
-  console.log('[font-license] No known trial fonts present — OK.');
-  process.exit(0);
+export interface TrialFontViolation {
+  path: string;
+  matchedFilename: boolean;
+  matchedBuild?: string;
 }
 
-if (process.env.ALLOW_TRIAL_FONTS === 'true') {
-  console.warn(
-    `[font-license] WARNING: shipping ${present.length} trial-license font file(s) ` +
-      'because ALLOW_TRIAL_FONTS=true. Obtain a commercial license before this is public.',
+function fontFilesUnder(directory: string): string[] {
+  if (!existsSync(directory)) return [];
+
+  const files: string[] = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...fontFilesUnder(path));
+    } else if (
+      (entry.isFile() || entry.isSymbolicLink()) &&
+      FONT_EXTENSIONS.has(extname(entry.name).toLowerCase())
+    ) {
+      files.push(path);
+    }
+  }
+  return files;
+}
+
+export function findTrialFontViolations(
+  root = process.cwd(),
+  trialHashes: ReadonlyMap<string, string> = TRIAL_FONT_HASHES,
+): TrialFontViolation[] {
+  const absoluteRoot = resolve(root);
+  const fontFiles = [
+    join(absoluteRoot, "src"),
+    join(absoluteRoot, "public"),
+  ].flatMap(fontFilesUnder);
+
+  return fontFiles.flatMap((path) => {
+    const matchedFilename = TRIAL_FONT_FILES.has(basename(path));
+    const hash = createHash("sha256").update(readFileSync(path)).digest("hex");
+    const matchedBuild = trialHashes.get(hash);
+    if (!matchedFilename && !matchedBuild) return [];
+
+    return [
+      {
+        path: relative(absoluteRoot, path),
+        matchedFilename,
+        ...(matchedBuild ? { matchedBuild } : {}),
+      },
+    ];
+  });
+}
+
+export function runFontLicenseCheck(root = process.cwd()): number {
+  const violations = findTrialFontViolations(root);
+  if (violations.length === 0) {
+    console.log("[font-license] No known trial fonts present — OK.");
+    return 0;
+  }
+
+  console.error(
+    "[font-license] FAIL: trial-license font files are present and would be bundled into the production build:",
   );
-  process.exit(0);
+  for (const violation of violations) {
+    const reason = violation.matchedBuild
+      ? `matches ${violation.matchedBuild}`
+      : "uses a denied trial-build filename";
+    console.error(`  - ${violation.path} (${reason})`);
+  }
+  console.error(
+    "[font-license] These assets must not be served publicly. Replace them with verified production-licensed builds or licensed alternatives.",
+  );
+  return 1;
 }
 
-console.error(
-  '[font-license] FAIL: trial-license font files are present and would be bundled ' +
-    'into the production build:',
-);
-for (const f of present) console.error(`  - src/fonts/${f}`);
-console.error(
-  '[font-license] These foundry trial fonts must not ship to production (their license ' +
-    'forbids serving them from public servers). Obtain a commercial license and replace ' +
-    'them, or set ALLOW_TRIAL_FONTS=true to override this gate consciously.',
-);
-process.exit(1);
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  process.exitCode = runFontLicenseCheck();
+}

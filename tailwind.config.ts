@@ -149,12 +149,12 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // New Edge 666 carries both headline and body/UI voice (the redesign
-        // uses one display-leaning sans everywhere). Diatype Rounded Mono
-        // carries labels, metrics, eyebrows, and data.
-        display: ['var(--font-display)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        sans: ['var(--font-display)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', '"SFMono-Regular"', 'ui-monospace', 'monospace'],
+        // Native stacks keep the application deployable without redistributing
+        // trial foundry assets. Replace only with verified production-licensed
+        // webfont files.
+        display: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['"SFMono-Regular"', 'Menlo', 'Monaco', 'Consolas', '"Liberation Mono"', '"Courier New"', 'ui-monospace', 'monospace'],
       },
       fontSize: {
         // Display — generous hero gravity. 2xl is reserved for the one headline per page.

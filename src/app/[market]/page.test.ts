@@ -28,13 +28,14 @@ function partnersMarkup(market: Market): string {
 }
 
 function medicalDescription(markup: string): string {
-  for (const match of markup.matchAll(
-    /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
-  )) {
+  const scripts = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g;
+  let match = scripts.exec(markup);
+  while (match) {
     const payload = JSON.parse(match[1]) as { '@type'?: string; description?: string };
     if (payload['@type'] === 'MedicalWebPage' && payload.description) {
       return payload.description;
     }
+    match = scripts.exec(markup);
   }
   throw new Error('MedicalWebPage JSON-LD not found');
 }

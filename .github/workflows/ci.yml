@@ -54,4 +54,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm run build
+      # Match Vercel's production command so deploy gates (font licensing,
+      # DPA artifact verification, Prisma generation) cannot diverge from CI.
+      - run: npm run vercel-build
