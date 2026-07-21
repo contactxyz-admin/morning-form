@@ -1,8 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { MarketingHeader, MONO_EYEBROW, DASH_BULLET } from '@/components/marketing/marketing-header';
+import {
+  MarketingHeader,
+  MONO_EYEBROW,
+  DASH_BULLET,
+  PRIMARY_MARKETING_CTA_CLASS,
+} from '@/components/marketing/marketing-header';
 import { MarketingFooter } from '@/components/marketing/marketing-footer';
 import { FinalCtaBand } from '@/components/marketing/final-cta-band';
 import { isMarket } from '@/lib/marketing/market';
@@ -21,7 +25,7 @@ interface PartnersPageProps {
 
 const PAGE_TITLE = 'Run draw days in your club — Partner with Morning Form';
 const PAGE_DESCRIPTION =
-  'Bring blood testing to your members with zero operational lift. We bring the phlebotomist, the kit, the logistics and the lab — you provide a private room and a nudge to your members.';
+  'Bring blood testing to your members with minimal operational lift. We bring the phlebotomist, the kit, the logistics and the lab — you provide a private room and a nudge to your members.';
 
 export function generateStaticParams(): Array<{ market: string }> {
   return MARKETS.map((market) => ({ market }));
@@ -87,16 +91,16 @@ export default function PartnersPage({ params }: PartnersPageProps) {
             <p className="mt-8 text-body-lg text-text-secondary max-w-xl leading-relaxed">
               We bring the phlebotomist, the kit, the logistics and the lab; you provide
               a private room and a nudge to your members. A member benefit no other club
-              offers — with zero operational lift.
+              offers — with minimal operational lift.
             </p>
 
             <div className="mt-10 flex items-center gap-6 flex-wrap">
-              <Link href="/contact">
-                <Button size="lg">Partner with us</Button>
+              <Link href="/contact" className={PRIMARY_MARKETING_CTA_CLASS}>
+                Partner with us
               </Link>
               <Link
                 href={`/${market}/testing`}
-                className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
+                className="rounded-sm text-body text-text-secondary hover:text-text-primary transition-colors duration-300 focus-visible:outline-none focus-visible:shadow-ring-focus"
               >
                 See the member experience →
               </Link>
@@ -144,7 +148,7 @@ export default function PartnersPage({ params }: PartnersPageProps) {
               The clinical layer
             </p>
             <h2 className="font-display font-light text-display sm:text-display-xl text-bg max-w-3xl -tracking-[0.04em] leading-[1.02]">
-              We carry the clinical load.
+              A clear clinical pathway.
             </h2>
 
             <div className="mt-20 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-14 max-w-5xl">
@@ -156,8 +160,8 @@ export default function PartnersPage({ params }: PartnersPageProps) {
                 },
                 {
                   n: '02',
-                  title: 'Reviewed results',
-                  body: 'Every panel is reviewed before it reaches a member’s record. Findings that need attention are flagged clearly, with a referral.',
+                  title: 'Review where offered',
+                  body: 'Clinician review is not automatic. Where it is offered, the booking flow shows who reviews the panel and when results are released.',
                 },
                 {
                   n: '03',
@@ -167,7 +171,7 @@ export default function PartnersPage({ params }: PartnersPageProps) {
                 {
                   n: '04',
                   title: 'Descriptive, not diagnostic',
-                  body: 'Morning Form explains and flags; it never diagnoses. When a marker needs a clinician, the member gets a clear referral — not an upsell.',
+                  body: 'Morning Form explains and flags; it never diagnoses. When a marker needs a clinician, the member gets a clear next step — not an upsell.',
                 },
               ].map((r) => (
                 <div key={r.n}>
@@ -200,14 +204,14 @@ export default function PartnersPage({ params }: PartnersPageProps) {
             </>
           }
         >
-          <Link href="/contact">
-            <Button size="lg">Partner with us</Button>
+          <Link href="/contact" className={PRIMARY_MARKETING_CTA_CLASS}>
+            Partner with us
           </Link>
           <TrackedLink
             href="/demo"
             event={FUNNEL_EVENTS.DEMO_CLICKED}
             eventProperties={{ placement: 'partners_final_cta' }}
-            className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
+            className="rounded-sm text-body text-text-secondary hover:text-text-primary transition-colors duration-300 focus-visible:outline-none focus-visible:shadow-ring-focus"
           >
             Explore the live demo →
           </TrackedLink>

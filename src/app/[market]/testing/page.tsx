@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Button } from '@/components/ui/button';
 import { FaqBlock } from '@/components/marketing/faq-block';
-import { MarketingHeader, MONO_EYEBROW } from '@/components/marketing/marketing-header';
+import {
+  MarketingHeader,
+  MONO_EYEBROW,
+  PRIMARY_MARKETING_CTA_CLASS,
+} from '@/components/marketing/marketing-header';
 import { MarketingFooter } from '@/components/marketing/marketing-footer';
 import { FinalCtaBand } from '@/components/marketing/final-cta-band';
 import { MarkerOrbit } from '@/components/marketing/marker-orbit';
@@ -61,6 +64,17 @@ function HomePinIcon() {
   );
 }
 
+function StudioIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 21h18" />
+      <path d="M5 21V7l7-4 7 4v14" />
+      <path d="M9 10h1" /><path d="M14 10h1" />
+      <path d="M9 14h1" /><path d="M14 14h1" />
+    </svg>
+  );
+}
+
 function DropletIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -89,13 +103,13 @@ const HOW_IT_WORKS: ReadonlyArray<{ n: string; title: string; body: string; icon
   {
     n: 'Step 01',
     title: 'Book',
-    body: 'Pick a slot at a partner club, or order a kit to your door. A few taps, in the app.',
+    body: 'As bookings open, choose a partner-club slot. Where available, you can instead order a core-panel kit to your door. A few taps, in the app.',
     icon: <CalendarIcon />,
   },
   {
     n: 'Step 02',
     title: 'Draw',
-    body: 'A few minutes with the phlebotomist — or the kit and the post box. Your sample goes to an accredited reference lab.',
+    body: 'A few minutes with the phlebotomist — or a home kit and prepaid return. Kits cover a core panel; some markers still require a venous draw.',
     icon: <DropletIcon />,
   },
   {
@@ -112,12 +126,25 @@ const HOW_IT_WORKS: ReadonlyArray<{ n: string; title: string; body: string; icon
   },
 ];
 
-// Page identity — shared by generateMetadata (the <title>/OG tags) and the
-// MedicalWebPage JSON-LD so the SEO name/description have a single source.
-const PAGE_TITLE = 'Blood testing at your club or at home — Morning Form';
-const PAGE_NAME = 'Blood testing at your club or at home';
-const PAGE_DESCRIPTION =
-  'Sixty-plus markers from one venous draw — booked in seconds at a partner club, or collected at home. Read in plain English inside your Morning Form record.';
+// Page identity is market-specific so indexed and structured copy never
+// advertises the London studio in the US or equates a home kit with the full panel.
+function pageIdentity(market: Market): { title: string; name: string; description: string } {
+  if (market === 'uk') {
+    return {
+      title: 'Blood testing at your club, our London studio or at home — Morning Form',
+      name: 'Blood testing at your club, our London studio or at home',
+      description:
+        'Sixty-plus markers from one venous draw, available through partner clubs and our London studio as bookings open. A core-panel home kit is available in eligible locations. Results are read in plain English inside your Morning Form record.',
+    };
+  }
+
+  return {
+    title: 'Blood testing at your club or at home — Morning Form',
+    name: 'Blood testing at your club or at home',
+    description:
+      'Sixty-plus markers from one venous draw, available through partner clubs as bookings open. A core-panel home kit is available in eligible states. Results are read in plain English inside your Morning Form record.',
+  };
+}
 
 export function generateStaticParams(): Array<{ market: string }> {
   return MARKETS.map((market) => ({ market }));
@@ -126,9 +153,7 @@ export function generateStaticParams(): Array<{ market: string }> {
 export function generateMetadata({ params }: TestingPageProps): Metadata {
   if (!isMarket(params.market)) return {};
   const market = params.market;
-
-  const title = PAGE_TITLE;
-  const description = PAGE_DESCRIPTION;
+  const { title, description } = pageIdentity(market);
 
   return {
     title,
@@ -154,14 +179,15 @@ export default function TestingPage({ params }: TestingPageProps) {
   if (!isMarket(params.market)) notFound();
   const market: Market = params.market;
   const clinician = MARKET_CLINICIAN[market];
+  const identity = pageIdentity(market);
 
   return (
     <div className="min-h-screen bg-bg">
       <TrackMount event={FUNNEL_EVENTS.TESTING_VIEWED} properties={{ market }} />
       <MedicalWebPage
         url={`/${market}/testing`}
-        name={PAGE_NAME}
-        description={PAGE_DESCRIPTION}
+        name={identity.name}
+        description={identity.description}
         market={market}
         lastReviewed={TESTING_FAQ.lastReviewedAt}
         reviewerOrgName="Morning Form"
@@ -174,7 +200,7 @@ export default function TestingPage({ params }: TestingPageProps) {
         homeHref={`/${market}`}
         navLinks={[
           { label: "What's measured", href: '#index' },
-          { label: 'Two ways', href: '#ways' },
+          { label: market === 'uk' ? 'Three ways' : 'Two ways', href: '#ways' },
           { label: 'How it works', href: '#how' },
           { label: 'The record', href: '#record' },
           { label: 'FAQ', href: '#faq' },
@@ -197,23 +223,30 @@ export default function TestingPage({ params }: TestingPageProps) {
               <p className="mt-8 text-body-lg text-text-secondary max-w-xl leading-relaxed">
                 A single venous panel across eight body systems — from metabolic and
                 hormonal to recovery, inflammation and organ health — read in plain English
-                against the wearable data you already track. Book a draw at a partner club
-                in seconds, or test from home with a posted kit.
+                against the wearable data you already track. The full venous baseline will
+                be available{' '}
+                {market === 'uk'
+                  ? 'through partner clubs and our London studio as bookings open'
+                  : 'through partner clubs as bookings open'}
+                . Where available, a posted kit covers a core panel.
               </p>
 
               <div className="mt-10 flex items-center gap-6 flex-wrap">
-                <Link href="/sign-in">
-                  <Button size="lg">Get started</Button>
+                <Link href="/sign-in" className={PRIMARY_MARKETING_CTA_CLASS}>
+                  Get started
                 </Link>
                 <Link
                   href="#index"
-                  className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
+                  className="rounded-sm text-body text-text-secondary hover:text-text-primary transition-colors duration-300 focus-visible:outline-none focus-visible:shadow-ring-focus"
                 >
                   See what&rsquo;s measured ↓
                 </Link>
               </div>
               <p className="mt-5 text-caption text-text-tertiary">
-                Draws at partner clubs · at-home kits · every result lands in your record
+                {market === 'uk'
+                  ? 'Partner-club and London-studio draws opening soon'
+                  : 'Partner-club draws opening soon'}{' '}
+                · core-panel home kits where available · every result lands in your record
               </p>
             </div>
 
@@ -221,17 +254,17 @@ export default function TestingPage({ params }: TestingPageProps) {
           </div>
         </section>
 
-        {/* What's measured — a searchable, filterable index of every
-            marker in the panel, not just a flat list of names. */}
+        {/* What's measured — a searchable, filterable index of the marker
+            groups in the panel, not just a flat list of names. */}
         <section id="index" className="scroll-mt-24 px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
           <p className={`${MONO_EYEBROW} mb-5`}>What&rsquo;s measured</p>
           <h2 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-3xl -tracking-[0.04em] leading-[1.02]">
             Sixty-plus markers, one baseline.
           </h2>
           <p className="mt-8 text-body-lg text-text-secondary max-w-2xl leading-relaxed">
-            One venous draw across eight body systems, grouped into the six panels below —
-            comprehensive by design, read through an energy and recovery lens. Search a
-            marker, or open one to see what it tells you.
+            One venous draw across eight body systems, organised into 33 marker groups
+            across the six panels below — comprehensive by design, read through an energy
+            and recovery lens. Search a group, or open it to see what it tells you.
           </p>
 
           <div className="mt-12">
@@ -244,15 +277,23 @@ export default function TestingPage({ params }: TestingPageProps) {
           </p>
         </section>
 
-        {/* Two ways to test — the core of the offer: in person where you
-            train, or at home. */}
+        {/* Market-specific testing routes: club and home in both markets,
+            plus the Morning Form London studio in the UK. */}
         <section id="ways" className="scroll-mt-24 px-6 sm:px-10 lg:px-16 py-28 sm:py-40 border-t border-border max-w-[1400px] mx-auto">
-          <p className={`${MONO_EYEBROW} mb-5`}>Two ways to test</p>
+          <p className={`${MONO_EYEBROW} mb-5`}>
+            {market === 'uk' ? 'Three ways to test' : 'Two ways to test'}
+          </p>
           <h2 className="font-display font-light text-display sm:text-display-xl text-text-primary max-w-3xl -tracking-[0.04em] leading-[1.02]">
-            At your club, or at your door.
+            {market === 'uk'
+              ? 'At your club, at our London studio, or at your door.'
+              : 'At your club, or at your door where available.'}
           </h2>
 
-          <div className="mt-20 grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 max-w-6xl">
+          <div
+            className={`mt-20 grid grid-cols-1 gap-6 sm:gap-8 max-w-6xl ${
+              market === 'uk' ? 'lg:grid-cols-3' : 'lg:grid-cols-2'
+            }`}
+          >
             <div className="rounded-card bg-surface shadow-hairline p-8 sm:p-10 transition-shadow duration-300 ease-spring hover:shadow-card-hover">
               <div className="flex items-center justify-between">
                 <p className={MONO_EYEBROW}>01 · Partner clubs</p>
@@ -264,12 +305,12 @@ export default function TestingPage({ params }: TestingPageProps) {
                 A draw day where you already train.
               </h3>
               <p className="mt-4 text-body text-text-secondary leading-relaxed">
-                On set days, a registered phlebotomist runs a private room at a partner
-                club. You book a slot in the app, the draw takes a few minutes, and
-                you&rsquo;re back on the floor before your session starts.
+                On set days, a registered phlebotomist will run a private room at a partner
+                club. You&rsquo;ll book a slot in the app, the draw will take a few minutes,
+                and you&rsquo;ll be back on the floor before your session starts.
               </p>
 
-              <p className={`mt-6 mb-2.5 ${MONO_EYEBROW}`}>Morning slots</p>
+              <p className={`mt-6 mb-2.5 ${MONO_EYEBROW}`}>Example morning slots</p>
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-chip border border-border bg-surface px-3.5 py-1.5 text-caption font-mono text-text-secondary">07:20</span>
                 <span className="rounded-chip border border-border bg-surface px-3.5 py-1.5 text-caption font-mono text-text-secondary">07:40</span>
@@ -305,8 +346,9 @@ export default function TestingPage({ params }: TestingPageProps) {
               <p className="mt-4 text-body text-text-secondary leading-relaxed">
                 No partner club nearby, or prefer to test privately? A collection kit
                 comes to your door with clear instructions and a prepaid return to the
-                same accredited lab. Some markers need a venous draw — the app is clear
-                about which the kit covers and which are worth a visit.
+                same accredited lab. It covers a core panel rather than every marker in the
+                full venous baseline — the app is clear about which markers the kit covers
+                and which still need a visit.
               </p>
 
               <p className={`mt-6 mb-2.5 ${MONO_EYEBROW}`}>Kit journey</p>
@@ -333,11 +375,42 @@ export default function TestingPage({ params }: TestingPageProps) {
                 ))}
               </ul>
             </div>
+
+            {market === 'uk' && (
+              <div className="rounded-card bg-surface shadow-hairline p-8 sm:p-10 transition-shadow duration-300 ease-spring hover:shadow-card-hover">
+                <div className="flex items-center justify-between">
+                  <p className={MONO_EYEBROW}>03 · Morning Form Studios · London</p>
+                  <span className="grid h-[38px] w-[38px] place-items-center rounded-full bg-brand-blue-100 text-brand-blue-900">
+                    <StudioIcon />
+                  </span>
+                </div>
+                <h3 className="mt-5 font-display font-normal text-display-sm text-text-primary -tracking-[0.03em]">
+                  A space of our own.
+                </h3>
+                <p className="mt-4 text-body text-text-secondary leading-relaxed">
+                  The studio will offer a calm, design-led setting for your venous draw,
+                  with the same accredited-lab pathway into your Morning Form record.
+                </p>
+
+                <ul className="mt-6 space-y-2.5">
+                  {[
+                    'An unhurried, private appointment',
+                    'Run with a registered clinical partner',
+                    'Studio bookings opening soon',
+                  ].map((benefit) => (
+                    <li key={benefit} className="flex items-baseline gap-2.5 text-body text-text-secondary leading-relaxed">
+                      <CheckIcon />
+                      {benefit}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <p className="mt-10 text-caption text-text-tertiary max-w-2xl">
-            Either way — the same panel standards, the same accredited lab, the same
-            record.
+            Across every route: accredited lab standards, plain-English results, the same
+            record. The app shows the exact panel before you book.
           </p>
         </section>
 
@@ -356,7 +429,11 @@ export default function TestingPage({ params }: TestingPageProps) {
                 <h3 className="mt-4 font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
                   {step.title}
                 </h3>
-                <p className="mt-3 text-body text-text-secondary leading-relaxed">{step.body}</p>
+                <p className="mt-3 text-body text-text-secondary leading-relaxed">
+                  {market === 'uk' && step.n === 'Step 01'
+                    ? 'As bookings open, choose a partner-club slot or our London studio. Where available, you can instead order a core-panel kit to your door. A few taps, in the app.'
+                    : step.body}
+                </p>
               </div>
             ))}
           </div>
@@ -401,7 +478,7 @@ export default function TestingPage({ params }: TestingPageProps) {
             urgent care.{' '}
             <Link
               href="/safety"
-              className="text-text-primary underline underline-offset-2 hover:text-brand-blue-700 transition-colors duration-300"
+              className="rounded-sm text-text-primary underline underline-offset-2 hover:text-brand-blue-700 transition-colors duration-300 focus-visible:outline-none focus-visible:shadow-ring-focus"
             >
               More on our clinical approach →
             </Link>
@@ -416,19 +493,22 @@ export default function TestingPage({ params }: TestingPageProps) {
           heading="Start with a baseline."
           body={
             <>
-              Join Morning Form, connect what you already wear, and book your first draw when
-              you&rsquo;re ready — at a partner club or from your kitchen table.
+              Join Morning Form, connect what you already wear, and choose your testing route
+              as bookings open —{' '}
+              {market === 'uk'
+                ? 'at a partner club, our London studio, or from your kitchen table.'
+                : 'at a partner club or, where available, from your kitchen table.'}
             </>
           }
         >
-          <Link href="/sign-in">
-            <Button size="lg">Get started</Button>
+          <Link href="/sign-in" className={PRIMARY_MARKETING_CTA_CLASS}>
+            Get started
           </Link>
           <TrackedLink
             href="/demo"
             event={FUNNEL_EVENTS.DEMO_CLICKED}
             eventProperties={{ placement: 'final_cta' }}
-            className="text-body text-text-secondary hover:text-text-primary transition-colors duration-300"
+            className="rounded-sm text-body text-text-secondary hover:text-text-primary transition-colors duration-300 focus-visible:outline-none focus-visible:shadow-ring-focus"
           >
             Explore the live demo →
           </TrackedLink>

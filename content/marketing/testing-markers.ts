@@ -1,8 +1,8 @@
 import type { Market } from '@/lib/marketing/constants';
 
 /**
- * The baseline panel's full marker index — one entry per measurement,
- * grouped into the same six panels as `panelGroups()` on the testing
+ * The baseline panel's full marker index — one entry per marker group,
+ * organised into the same six panels as `panelGroups()` on the testing
  * page. Lives in content/ alongside testing-faq.ts so the static-copy
  * compliance gate scans this editorial copy too.
  *

@@ -1,73 +1,74 @@
-import type { Metadata } from 'next';
-import Image from 'next/image';
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { LogoLockup } from '@/components/brand/logo-lockup';
-import { MarkerIndex } from '@/components/marketing/marker-index';
-import { MarkerOrbit } from '@/components/marketing/marker-orbit';
-import { MarketingFooter } from '@/components/marketing/marketing-footer';
-import { RecordPreview } from '@/components/marketing/record-preview';
-import { FaqPage } from '@/components/structured-data/faq-page';
-import { MedicalWebPage } from '@/components/structured-data/medical-webpage';
-import { FUNNEL_EVENTS } from '@/lib/funnel/event';
-import { TrackMount } from '@/lib/funnel/track-mount';
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { LogoLockup } from "@/components/brand/logo-lockup";
+import { MarkerIndex } from "@/components/marketing/marker-index";
+import { MarkerOrbit } from "@/components/marketing/marker-orbit";
+import { MarketingFooter } from "@/components/marketing/marketing-footer";
+import { RecordPreview } from "@/components/marketing/record-preview";
+import { FaqPage } from "@/components/structured-data/faq-page";
+import { MedicalWebPage } from "@/components/structured-data/medical-webpage";
+import { FUNNEL_EVENTS } from "@/lib/funnel/event";
+import { TrackMount } from "@/lib/funnel/track-mount";
+import { TrackedLink } from "@/lib/funnel/tracked-link";
 import {
   BASELINE_TEST_PRICE,
   MARKET_CLINICIAN,
   MARKETS,
   type Market,
-} from '@/lib/marketing/constants';
-import { isMarket } from '@/lib/marketing/market';
-import { TESTING_FAQ } from '../../../content/marketing/testing-faq';
-import { testingMarkers } from '../../../content/marketing/testing-markers';
+} from "@/lib/marketing/constants";
+import { isMarket } from "@/lib/marketing/market";
+import { TESTING_FAQ } from "../../../content/marketing/testing-faq";
+import { testingMarkers } from "../../../content/marketing/testing-markers";
 
-export const dynamic = 'force-static';
+export const dynamic = "force-static";
 
 interface LandingPageProps {
   params: { market: string };
 }
 
-const PAGE_TITLE = 'Morning Form — Your health baseline';
-const PAGE_NAME = 'Your health baseline';
+const PAGE_TITLE = "Morning Form — Your health baseline";
+const PAGE_NAME = "Your health baseline";
 const PAGE_DESCRIPTION =
-  'One venous panel across eight body systems, explained in plain English alongside the wearable data you already track.';
+  "One venous panel across eight body systems, explained in plain English alongside the wearable data you already track.";
 
 const NAV_LINK_CLASS =
-  'font-mono text-[10px] uppercase tracking-[0.14em] text-text-secondary transition-colors duration-300 hover:text-text-primary focus-visible:rounded-sm focus-visible:shadow-ring-focus';
+  "font-mono text-[10px] uppercase tracking-[0.14em] text-text-secondary transition-colors duration-300 hover:text-text-primary focus-visible:rounded-sm focus-visible:shadow-ring-focus";
 
 const PRIMARY_CTA_CLASS =
-  'inline-flex min-h-12 items-center justify-center rounded-button bg-brand-blue-500 px-7 py-3.5 text-body font-semibold text-text-primary transition-[background-color,color,transform,box-shadow] duration-300 ease-spring hover:-translate-y-0.5 hover:bg-brand-blue-700 hover:text-bg hover:shadow-button-primary-hover focus-visible:shadow-ring-focus';
+  "inline-flex min-h-12 items-center justify-center rounded-button bg-brand-blue-500 px-7 py-3.5 text-body font-semibold text-text-primary transition-[background-color,color,transform,box-shadow] duration-300 ease-spring hover:-translate-y-0.5 hover:bg-brand-blue-700 hover:text-bg hover:shadow-button-primary-hover focus-visible:shadow-ring-focus";
 
 const EYEBROW_CLASS =
-  'font-mono text-[11px] uppercase tracking-[0.14em] text-text-tertiary';
+  "font-mono text-[11px] uppercase tracking-[0.14em] text-text-tertiary";
 
 const SECTION_CLASS =
-  'mx-auto max-w-[1320px] px-5 py-20 sm:px-10 sm:py-28 lg:px-12';
+  "mx-auto max-w-[1320px] px-5 py-20 sm:px-10 sm:py-28 lg:px-12";
 
 const HOW_IT_WORKS = [
   {
-    step: 'Step 01',
-    title: 'Book',
-    body: 'Pick a slot at a partner club, a Morning Form studio, or order a kit to your door. A few taps, in the app.',
-    icon: 'calendar',
+    step: "Step 01",
+    title: "Book",
+    body: "As bookings open, choose a partner-club slot. Where available, you can instead order a core-panel kit to your door. A few taps, in the app.",
+    icon: "calendar",
   },
   {
-    step: 'Step 02',
-    title: 'Draw',
-    body: 'A few minutes with the phlebotomist — or the kit and the post box. Your sample goes to an accredited reference lab.',
-    icon: 'drop',
+    step: "Step 02",
+    title: "Draw",
+    body: "A few minutes with the phlebotomist — or a home kit and prepaid return, where available. Kits cover a core panel; some markers still require a venous draw.",
+    icon: "drop",
   },
   {
-    step: 'Step 03',
-    title: 'Understand',
-    body: 'Every marker arrives in plain English: what it is, where it sits, and what is worth watching. No jargon, no panic.',
-    icon: 'book',
+    step: "Step 03",
+    title: "Understand",
+    body: "Every marker arrives in plain English: what it is, where it sits, and what is worth watching. No jargon, no panic.",
+    icon: "book",
   },
   {
-    step: 'Step 04',
-    title: 'Track',
-    body: 'Retest on a cadence that fits, and watch each marker move against your training, sleep and recovery data.',
-    icon: 'trend',
+    step: "Step 04",
+    title: "Track",
+    body: "Retest on a cadence that fits, and watch each marker move against your training, sleep and recovery data.",
+    icon: "trend",
   },
 ] as const;
 
@@ -85,22 +86,22 @@ export function generateMetadata({ params }: LandingPageProps): Metadata {
     alternates: {
       canonical: `/${market}`,
       languages: {
-        'en-GB': '/uk',
-        'en-US': '/us',
-        'x-default': `/${market}`,
+        "en-GB": "/uk",
+        "en-US": "/us",
+        "x-default": `/${market}`,
       },
     },
     openGraph: {
       title: PAGE_TITLE,
       description: PAGE_DESCRIPTION,
-      locale: market === 'uk' ? 'en_GB' : 'en_US',
-      type: 'website',
+      locale: market === "uk" ? "en_GB" : "en_US",
+      type: "website",
     },
   };
 }
 
-function StepIcon({ name }: { name: (typeof HOW_IT_WORKS)[number]['icon'] }) {
-  if (name === 'calendar') {
+function StepIcon({ name }: { name: (typeof HOW_IT_WORKS)[number]["icon"] }) {
+  if (name === "calendar") {
     return (
       <svg
         viewBox="0 0 24 24"
@@ -120,7 +121,7 @@ function StepIcon({ name }: { name: (typeof HOW_IT_WORKS)[number]['icon'] }) {
     );
   }
 
-  if (name === 'drop') {
+  if (name === "drop") {
     return (
       <svg
         viewBox="0 0 24 24"
@@ -138,7 +139,7 @@ function StepIcon({ name }: { name: (typeof HOW_IT_WORKS)[number]['icon'] }) {
     );
   }
 
-  if (name === 'book') {
+  if (name === "book") {
     return (
       <svg
         viewBox="0 0 24 24"
@@ -244,7 +245,7 @@ export default function LandingPage({ params }: LandingPageProps) {
               What&rsquo;s measured
             </a>
             <a href="#ways" className={NAV_LINK_CLASS}>
-              Book
+              Testing
             </a>
             <a href="#how" className={NAV_LINK_CLASS}>
               How it works
@@ -277,7 +278,7 @@ export default function LandingPage({ params }: LandingPageProps) {
             priority
             quality={90}
             sizes="100vw"
-            className="object-cover object-[58%_center]"
+            className="object-cover object-[62%_center] sm:object-[58%_center]"
           />
           <div className="absolute inset-0 bg-[linear-gradient(0deg,#F7F7F7_0%,#F7F7F7_9%,rgba(247,247,247,0.94)_27%,rgba(247,247,247,0.52)_47%,rgba(247,247,247,0.10)_66%,rgba(247,247,247,0.30)_100%)]" />
           <div className="relative z-10 mx-auto flex min-h-[min(96vh,1040px)] max-w-[1320px] flex-col justify-end px-5 pb-10 pt-[clamp(7.5rem,18vh,13.75rem)] sm:px-10 lg:px-12">
@@ -301,8 +302,8 @@ export default function LandingPage({ params }: LandingPageProps) {
               </a>
             </div>
             <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.12em] text-text-tertiary sm:text-[11px]">
-              Venous blood draw · foundational genomics · clinical review
-              pathway
+              Venous blood draw · eight body systems · clear escalation
+              guidance
             </p>
           </div>
         </section>
@@ -317,9 +318,9 @@ export default function LandingPage({ params }: LandingPageProps) {
                 60+ markers, one baseline.
               </h2>
               <p className="mt-6 max-w-[38em] text-pretty text-body-lg leading-relaxed text-text-secondary">
-                One venous draw across eight body systems, grouped into the
-                panels below. Search a marker, or open one to see what it tells
-                you.
+                One venous draw across eight body systems, organised into the
+                marker groups below. Some groups contain several measurements;
+                search a group, or open it to see what it tells you.
               </p>
             </div>
             <MarkerOrbit className="mx-auto w-full max-w-[620px]" />
@@ -330,8 +331,7 @@ export default function LandingPage({ params }: LandingPageProps) {
           </div>
           <p className="mt-5 max-w-[48em] text-caption leading-relaxed text-text-tertiary">
             Illustrative baseline — finalised with our medical director and
-            processed by accredited reference labs. Descriptive, not diagnostic;
-            genomics is not a clinical genetic test.
+            processed by accredited reference labs. Descriptive, not diagnostic.
           </p>
         </section>
 
@@ -339,9 +339,11 @@ export default function LandingPage({ params }: LandingPageProps) {
           id="ways"
           className={`${SECTION_CLASS} scroll-mt-24 border-t border-border`}
         >
-          <p className={EYEBROW_CLASS}>Book your test</p>
+          <p className={EYEBROW_CLASS}>Testing options</p>
           <h2 className="mt-5 text-balance font-display text-[clamp(2rem,4vw,3.25rem)] font-light leading-[1.05] tracking-[-0.03em]">
-            At your club, at a studio, or at your door.
+            {market === "uk"
+              ? "At your club, at a studio, or at your door."
+              : "At your club, or at your door where available."}
           </h2>
 
           <div className="mt-12 grid gap-5 lg:grid-cols-2 lg:gap-7">
@@ -362,7 +364,7 @@ export default function LandingPage({ params }: LandingPageProps) {
                 </h3>
                 <p className="mt-4 max-w-[32em] text-body leading-relaxed text-text-secondary">
                   A registered phlebotomist, a private room, a few unhurried
-                  minutes — booked in the app before your session.
+                  minutes — with slots shown in the app as bookings open.
                 </p>
                 <p className="mt-6 inline-flex rounded-button bg-surface-sunken px-4 py-2 text-caption font-semibold text-text-secondary">
                   Club bookings opening soon
@@ -389,9 +391,16 @@ export default function LandingPage({ params }: LandingPageProps) {
                   A kit on your kitchen table.
                 </h3>
                 <p className="mt-4 max-w-[32em] text-body leading-relaxed text-text-secondary">
-                  A considered collection kit, with a prepaid return to the same
-                  accredited lab. Test privately, on your own morning.
+                  A considered collection kit, with a prepaid return to an
+                  accredited lab. It covers a core panel rather than every
+                  marker in the full venous baseline; we show what&rsquo;s
+                  included before you order.
                 </p>
+                {market === "us" && (
+                  <p className="mt-3 max-w-[32em] text-caption leading-relaxed text-text-tertiary">
+                    Availability varies by state — shown before you order.
+                  </p>
+                )}
                 <p className="mt-6 inline-flex rounded-button bg-surface-sunken px-4 py-2 text-caption font-semibold text-text-secondary">
                   Home-kit bookings opening soon
                 </p>
@@ -402,35 +411,38 @@ export default function LandingPage({ params }: LandingPageProps) {
             </article>
           </div>
 
-          <figure className="relative mt-5 min-h-[510px] overflow-hidden rounded-[28px] sm:min-h-0 sm:aspect-[21/9] lg:mt-7">
-            <Image
-              src="/landing/booking-studio.webp"
-              alt="A warm, design-led Morning Form studio"
-              fill
-              sizes="100vw"
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(22,22,22,0.72)_0%,rgba(22,22,22,0.10)_58%)]" />
-            <figcaption className="absolute inset-x-0 bottom-0 p-6 text-bg sm:p-10">
-              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-bg/80 sm:text-[11px]">
-                03 · Morning Form Studios · London
-              </p>
-              <h3 className="mt-3 max-w-[20em] text-balance font-display text-[clamp(1.4rem,2.4vw,1.8rem)] font-normal leading-tight tracking-[-0.02em]">
-                Or book a session at a studio of our own.
-              </h3>
-              <p className="mt-3 max-w-[34em] text-body leading-relaxed text-bg/90">
-                Our own design-led space — an unhurried draw, results guidance
-                on-site, and somewhere that feels nothing like a clinic.
-              </p>
-              <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.12em] text-bg/70">
-                Whichever you choose — the same standards, the same lab, the
-                same record.
-              </p>
-              <p className="mt-5 inline-flex rounded-button bg-bg/90 px-4 py-2 text-caption font-semibold text-text-secondary backdrop-blur-sm">
-                Studio bookings opening soon
-              </p>
-            </figcaption>
-          </figure>
+          {market === "uk" && (
+            <figure className="relative mt-5 min-h-[510px] overflow-hidden rounded-[28px] sm:min-h-0 sm:aspect-[21/9] lg:mt-7">
+              <Image
+                src="/landing/booking-studio.webp"
+                alt="A warm, design-led Morning Form studio"
+                fill
+                sizes="100vw"
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(22,22,22,0.72)_0%,rgba(22,22,22,0.10)_58%)]" />
+              <figcaption className="absolute inset-x-0 bottom-0 p-6 text-bg sm:p-10">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-bg/80 sm:text-[11px]">
+                  03 · Morning Form Studios · London
+                </p>
+                <h3 className="mt-3 max-w-[20em] text-balance font-display text-[clamp(1.4rem,2.4vw,1.8rem)] font-normal leading-tight tracking-[-0.02em]">
+                  A session at a studio of our own.
+                </h3>
+                <p className="mt-3 max-w-[34em] text-body leading-relaxed text-bg/90">
+                  Our own design-led space — an unhurried draw, the same
+                  accredited-lab pathway into your record, and somewhere that
+                  feels nothing like a clinic.
+                </p>
+                <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.12em] text-bg/70">
+                  Whichever you choose — the same standards, the same lab, the
+                  same record.
+                </p>
+                <p className="mt-5 inline-flex rounded-button bg-bg/90 px-4 py-2 text-caption font-semibold text-text-secondary backdrop-blur-sm">
+                  Studio bookings opening soon
+                </p>
+              </figcaption>
+            </figure>
+          )}
         </section>
 
         <section
@@ -451,7 +463,9 @@ export default function LandingPage({ params }: LandingPageProps) {
                   {step.title}
                 </h3>
                 <p className="mt-3 text-body leading-relaxed text-text-secondary">
-                  {step.body}
+                  {market === "uk" && step.step === "Step 01"
+                    ? "As bookings open, choose a partner-club slot or a Morning Form studio. Where available, you can instead order a core-panel kit to your door. A few taps, in the app."
+                    : step.body}
                 </p>
               </article>
             ))}
@@ -533,24 +547,24 @@ export default function LandingPage({ params }: LandingPageProps) {
           <div className={SECTION_CLASS}>
             <p className={EYEBROW_CLASS}>The clinical layer</p>
             <h2 className="mt-5 max-w-[15em] text-balance font-display text-[clamp(2rem,4vw,3.25rem)] font-light leading-[1.05] tracking-[-0.03em]">
-              Checked by clinicians, before you see it.
+              Clear flags, with clinical review where offered.
             </h2>
             <div className="mt-14 grid max-w-5xl gap-12 md:grid-cols-3">
               {[
                 {
-                  number: '01',
-                  title: 'Reviewed by clinicians',
-                  body: 'A registered clinician reviews every panel before it reaches your record — a person, not just an algorithm.',
+                  number: "01",
+                  title: "Review where offered",
+                  body: "Clinician review is not automatic. Where it is offered, the booking flow shows who reviews the panel and when results are released.",
                 },
                 {
-                  number: '02',
-                  title: 'We flag what needs attention',
+                  number: "02",
+                  title: "We flag what needs attention",
                   body: `Anything outside range is flagged clearly, with a referral to your ${clinician.singular} or another clinician — never an upsell.`,
                 },
                 {
-                  number: '03',
-                  title: 'Your results stay yours',
-                  body: 'Private to your record by default. Share a read-only link if you want to, and revoke it whenever.',
+                  number: "03",
+                  title: "Your results stay yours",
+                  body: "Private to your record by default. Share a read-only link if you want to, and revoke it whenever.",
                 },
               ].map((item) => (
                 <article key={item.number}>
@@ -567,8 +581,8 @@ export default function LandingPage({ params }: LandingPageProps) {
               ))}
             </div>
             <p className="mt-12 max-w-[42em] text-body leading-relaxed text-text-secondary">
-              If you have symptoms that worry you now, speak to your{' '}
-              {clinician.singular} first — a baseline panel is not urgent care.{' '}
+              If you have symptoms that worry you now, speak to your{" "}
+              {clinician.singular} first — a baseline panel is not urgent care.{" "}
               <Link
                 href="/safety"
                 className="font-medium text-text-primary underline decoration-border-strong underline-offset-4 transition-colors hover:text-brand-blue-700 focus-visible:rounded-sm focus-visible:shadow-ring-focus"
@@ -588,7 +602,7 @@ export default function LandingPage({ params }: LandingPageProps) {
               </h2>
               <p className="mt-5 max-w-[28em] text-body leading-relaxed text-text-secondary">
                 Run draw days in your club? We bring the phlebotomist, the kit
-                and the lab — you provide a private room.{' '}
+                and the lab — you provide a private room.{" "}
                 <Link
                   href={`/${market}/partners`}
                   className="font-medium text-text-primary underline decoration-border-strong underline-offset-4 transition-colors hover:text-brand-blue-700 focus-visible:rounded-sm focus-visible:shadow-ring-focus"
@@ -630,20 +644,24 @@ export default function LandingPage({ params }: LandingPageProps) {
                 Start with a baseline.
               </h2>
               <p className="mx-auto mt-6 max-w-[34em] text-pretty text-body-lg leading-relaxed text-text-secondary">
-                Join Morning Form, connect what you already wear, and book your
-                first draw when you are ready — at a partner club, a studio, or
-                from your kitchen table.
+                Join Morning Form, connect what you already wear, and choose your
+                testing route as bookings open —{" "}
+                {market === "uk"
+                  ? "at a partner club, a studio, or from your kitchen table."
+                  : "at a partner club or, where available, from your kitchen table."}
               </p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-5">
                 <Link href="/sign-in" className={PRIMARY_CTA_CLASS}>
                   Join the private beta
                 </Link>
-                <Link
+                <TrackedLink
                   href="/demo"
+                  event={FUNNEL_EVENTS.DEMO_CLICKED}
+                  eventProperties={{ placement: "final_cta" }}
                   className="text-body text-text-secondary transition-colors hover:text-text-primary focus-visible:rounded-sm focus-visible:shadow-ring-focus"
                 >
                   Explore the live demo →
-                </Link>
+                </TrackedLink>
               </div>
             </div>
           </div>
