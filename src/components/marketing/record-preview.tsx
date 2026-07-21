@@ -52,7 +52,7 @@ export function RecordPreview({ className }: { className?: string }) {
       event={FUNNEL_EVENTS.DEMO_CLICKED}
       eventProperties={{ placement: 'record_preview' }}
       aria-label="Open the live demo record"
-      className={`group block rounded-card border border-border bg-surface shadow-hairline transition-[border-color,box-shadow] duration-450 ease-spring hover:border-border-strong hover:shadow-card-hover ${className ?? ''}`}
+      className={`group block rounded-card border border-border bg-surface shadow-hairline transition-[border-color,box-shadow] duration-450 ease-spring hover:border-border-strong hover:shadow-card-hover focus-visible:outline-none focus-visible:shadow-ring-focus ${className ?? ''}`}
     >
       <div className="flex items-baseline justify-between gap-4 px-6 pt-5 pb-4 border-b border-border">
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-tertiary">

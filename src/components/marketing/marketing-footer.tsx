@@ -23,7 +23,11 @@ export function MarketingFooter({ market, extraLine, currentPage }: MarketingFoo
   return (
     <footer className="px-6 sm:px-10 lg:px-16 py-16 border-t border-border max-w-[1400px] mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-10">
-        <Link href={`/${market}`} aria-label="Morning Form — home" className="text-text-primary">
+        <Link
+          href={`/${market}`}
+          aria-label="Morning Form — home"
+          className="rounded-sm text-text-primary focus-visible:outline-none focus-visible:shadow-ring-focus"
+        >
           <LogoLockup imageClassName="w-[188px]" textClassName="text-heading" />
         </Link>
         <div className="flex flex-col gap-3 sm:items-end">

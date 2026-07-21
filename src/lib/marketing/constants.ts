@@ -28,6 +28,15 @@ export const MEMBERSHIP_PRICE: Record<
   us: { amount: 2900, currency: 'USD', display: '$29', period: 'month' },
 };
 
+/** One-off price for the baseline testing offer on the public landing page. */
+export const BASELINE_TEST_PRICE: Record<
+  Market,
+  { amount: number; currency: 'GBP' | 'USD'; display: string }
+> = {
+  uk: { amount: 29900, currency: 'GBP', display: '£299' },
+  us: { amount: 29900, currency: 'USD', display: '$299' },
+};
+
 /**
  * Deck-aligned pricing for the not-yet-launched layers (Studios, Supply).
  * Surfaced today only on the public demo's preview cards (plan

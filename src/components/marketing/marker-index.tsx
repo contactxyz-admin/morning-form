@@ -1,39 +1,48 @@
-'use client';
+"use client";
 
-import { useMemo, useState } from 'react';
-import { Chip } from '@/components/ui/chip';
-import { MONO_EYEBROW } from './marketing-header';
-import { MARKER_CATEGORIES, type MarkerEntry } from '../../../content/marketing/testing-markers';
+import { useMemo, useState } from "react";
+import { Chip } from "@/components/ui/chip";
+import { MONO_EYEBROW } from "./marketing-header";
+import {
+  MARKER_CATEGORIES,
+  type MarkerEntry,
+} from "../../../content/marketing/testing-markers";
 
 interface MarkerIndexProps {
   markers: ReadonlyArray<MarkerEntry>;
 }
 
 /**
- * Searchable, filterable, expandable index of every marker in the
+ * Searchable, filterable, expandable index of marker groups in the
  * baseline panel — the interactive replacement for a flat list of
  * marker names. Client-only (search/filter/expand state); the ~32-item
  * dataset is small enough that every keystroke just re-filters in place.
  */
 export function MarkerIndex({ markers }: MarkerIndexProps) {
-  const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [expandedId, setExpandedId] = useState<string | null>(markers[0]?.id ?? null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [expandedId, setExpandedId] = useState<string | null>(
+    markers[0]?.id ?? null,
+  );
 
-  const categoryById = useMemo(() => new Map(MARKER_CATEGORIES.map((c) => [c.id, c])), []);
+  const categoryById = useMemo(
+    () => new Map(MARKER_CATEGORIES.map((c) => [c.id, c])),
+    [],
+  );
 
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const m of markers) counts.set(m.categoryId, (counts.get(m.categoryId) ?? 0) + 1);
+    for (const m of markers)
+      counts.set(m.categoryId, (counts.get(m.categoryId) ?? 0) + 1);
     return counts;
   }, [markers]);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return markers.filter((m) => {
-      if (filter !== 'all' && m.categoryId !== filter) return false;
+      if (filter !== "all" && m.categoryId !== filter) return false;
       if (!q) return true;
-      const label = categoryById.get(m.categoryId)?.label ?? '';
+      const label = categoryById.get(m.categoryId)?.label ?? "";
       return `${m.name} ${m.description} ${label}`.toLowerCase().includes(q);
     });
   }, [markers, query, filter, categoryById]);
@@ -58,42 +67,64 @@ export function MarkerIndex({ markers }: MarkerIndexProps) {
             <path d="m21 21-4.3-4.3" />
           </svg>
           <input
+            type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search markers — glucose, iron, thyroid…"
-            aria-label="Search markers"
+            placeholder="Search marker groups — glucose, iron, thyroid…"
+            aria-label="Search marker groups"
+            aria-controls="marker-group-results"
             className="w-full box-border py-3 pl-11 pr-4 rounded-chip border border-border bg-surface font-sans text-body text-text-primary placeholder:text-brand-grey-200 transition-[border-color,box-shadow] duration-300 ease-spring focus:outline-none focus:border-brand-blue-500 focus:shadow-ring-focus"
           />
         </div>
-        <span className={`${MONO_EYEBROW} whitespace-nowrap`}>
-          {rows.length} of {markers.length} markers
+        <span
+          className={`${MONO_EYEBROW} whitespace-nowrap`}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {rows.length} of {markers.length} marker groups
         </span>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Chip selected={filter === 'all'} onClick={() => setFilter('all')}>
-          All markers <span className="ml-1 opacity-55">{markers.length}</span>
+        <Chip selected={filter === "all"} onClick={() => setFilter("all")}>
+          All marker groups{" "}
+          <span className="ml-1 opacity-55">{markers.length}</span>
         </Chip>
         {MARKER_CATEGORIES.map((c) => (
-          <Chip key={c.id} selected={filter === c.id} onClick={() => setFilter(c.id)}>
-            {c.label} <span className="ml-1 opacity-55">{categoryCounts.get(c.id) ?? 0}</span>
+          <Chip
+            key={c.id}
+            selected={filter === c.id}
+            onClick={() => setFilter(c.id)}
+          >
+            {c.label}{" "}
+            <span className="ml-1 opacity-55">
+              {categoryCounts.get(c.id) ?? 0} groups
+            </span>
           </Chip>
         ))}
       </div>
 
-      <div className="mt-7 overflow-hidden rounded-card bg-surface shadow-hairline">
+      <div
+        id="marker-group-results"
+        className="mt-7 overflow-hidden rounded-card bg-surface shadow-hairline"
+      >
         {rows.map((m, i) => {
           const cat = categoryById.get(m.categoryId);
           const isOpen = expandedId === m.id;
           return (
-            <div key={m.id} className={i > 0 ? 'border-t border-border' : ''}>
+            <div key={m.id} className={i > 0 ? "border-t border-border" : ""}>
               <button
                 onClick={() => setExpandedId(isOpen ? null : m.id)}
                 aria-expanded={isOpen}
-                className="flex w-full box-border items-center gap-3.5 px-4 sm:px-6 py-4 bg-transparent border-none cursor-pointer text-left font-sans transition-colors duration-200 ease-standard hover:bg-bg-deep"
+                className="flex w-full box-border items-center gap-3.5 px-4 sm:px-6 py-4 bg-transparent border-none cursor-pointer text-left font-sans transition-colors duration-200 ease-standard hover:bg-bg-deep focus:outline-none focus:ring-2 focus:ring-inset focus:ring-button-focus"
               >
-                <span className={`h-2 w-2 flex-none rounded-full ${cat?.dotClass ?? ''}`} aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate text-body text-text-primary">{m.name}</span>
+                <span
+                  className={`h-2 w-2 flex-none rounded-full ${cat?.dotClass ?? ""}`}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate text-body text-text-primary">
+                  {m.name}
+                </span>
                 {m.sub && (
                   <span className="hidden flex-none font-mono text-[10.5px] uppercase tracking-[0.1em] text-brand-grey-300 sm:inline">
                     {m.sub}
@@ -106,7 +137,7 @@ export function MarkerIndex({ markers }: MarkerIndexProps) {
                   className="grid h-[26px] w-[26px] flex-none place-items-center rounded-full border border-border font-mono text-sm leading-none text-brand-grey-300"
                   aria-hidden="true"
                 >
-                  {isOpen ? '−' : '+'}
+                  {isOpen ? "−" : "+"}
                 </span>
               </button>
               {isOpen && (
@@ -121,13 +152,15 @@ export function MarkerIndex({ markers }: MarkerIndexProps) {
         })}
         {rows.length === 0 && (
           <div className="px-7 py-11 text-center">
-            <p className="text-body text-text-secondary">No markers match that search.</p>
+            <p className="text-body text-text-secondary">
+              No marker groups match that search.
+            </p>
             <button
               onClick={() => {
-                setQuery('');
-                setFilter('all');
+                setQuery("");
+                setFilter("all");
               }}
-              className="mt-3 font-mono text-[11px] uppercase tracking-[0.12em] text-brand-blue-700"
+              className="mt-3 rounded-sm font-mono text-[11px] uppercase tracking-[0.12em] text-brand-blue-700 focus:outline-none focus:shadow-ring-focus"
             >
               Clear search
             </button>
