@@ -149,8 +149,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // New Edge 666 carries both headline and body/UI voice (the redesign
-        // uses one display-leaning sans everywhere). Diatype Rounded Mono
+        // Plus Jakarta Sans carries both headline and body/UI voice (the
+        // redesign uses one display-leaning sans everywhere). Reddit Mono
         // carries labels, metrics, eyebrows, and data.
         display: ['var(--font-display)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         sans: ['var(--font-display)', '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif', 'system-ui', 'sans-serif'],

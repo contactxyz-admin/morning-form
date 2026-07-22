@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "tsx scripts/check-font-license.ts && tsx scripts/verify-dpa-artifact.ts && prisma generate && next build",
+    "vercel-build": "tsx scripts/verify-dpa-artifact.ts && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",

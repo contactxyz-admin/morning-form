@@ -1,36 +1,27 @@
 import type { Metadata, Viewport } from 'next';
-import localFont from 'next/font/local';
+import { Plus_Jakarta_Sans, Reddit_Mono } from 'next/font/google';
 import './globals.css';
 
-// New Edge 666 — the redesign's display/interface sans, carries both
-// headlines (font-display) and body/UI (font-sans, aliased to the same
-// variable in tailwind.config.ts). NOTE: these are the foundry's trial
-// build (see src/fonts/README.md) — swap for a licensed webfont build
-// before this ships to real users.
-const newEdge = localFont({
-  // Only the weights actually referenced by className are loaded. UltraLight
-  // (200) is unused; UltraBold (800) is kept for the Wordmark component.
-  src: [
-    { path: '../fonts/NewEdge666-Light.otf', weight: '300', style: 'normal' },
-    { path: '../fonts/NewEdge666-Regular.otf', weight: '400', style: 'normal' },
-    { path: '../fonts/NewEdge666-SemiBold.otf', weight: '600', style: 'normal' },
-    { path: '../fonts/NewEdge666-UltraBold.otf', weight: '800', style: 'normal' },
-  ],
+// Plus Jakarta Sans — free (SIL OFL) replacement for the design's original
+// New Edge 666 reference: closest free match found — same open apertures,
+// single-story g, double-story a, and a matching Light/Regular/SemiBold/
+// ExtraBold weight range. Carries both headlines (font-display) and body/UI
+// (font-sans, aliased to the same variable in tailwind.config.ts).
+const plusJakartaSans = Plus_Jakarta_Sans({
+  weight: ['300', '400', '600', '800'],
   variable: '--font-display',
   display: 'swap',
+  subsets: ['latin'],
 });
 
-// Diatype Rounded Mono — labels, metrics, eyebrows, data. Same trial-license
-// caveat as New Edge 666 above.
-const diatypeMono = localFont({
-  // Light (300) and Bold (700) are unused by any font-mono className; only
-  // Regular and Medium are loaded.
-  src: [
-    { path: '../fonts/DiatypeRoundedSemiMono-Regular.otf', weight: '400', style: 'normal' },
-    { path: '../fonts/DiatypeRoundedSemiMono-Medium.otf', weight: '500', style: 'normal' },
-  ],
+// Reddit Mono — free (SIL OFL) replacement for the design's original ABC
+// Diatype Rounded Semi Mono reference: closest free monospace match found,
+// with the same soft rounded terminals. Labels, metrics, eyebrows, data.
+const redditMono = Reddit_Mono({
+  weight: ['400', '500'],
   variable: '--font-mono',
   display: 'swap',
+  subsets: ['latin'],
 });
 
 export const viewport: Viewport = {
@@ -50,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${newEdge.variable} ${diatypeMono.variable}`}>
+    <html lang="en" className={`${plusJakartaSans.variable} ${redditMono.variable}`}>
       <body className="font-sans antialiased min-h-screen">{children}</body>
     </html>
   );
