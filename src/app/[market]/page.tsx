@@ -273,7 +273,7 @@ export default function LandingPage({ params }: LandingPageProps) {
         <section className="relative min-h-[min(96vh,1040px)] overflow-hidden">
           <Image
             src="/landing/hero.jpg"
-            alt="Practitioners preparing for a morning training session"
+            alt="Three athletes in dark training kit standing together, moodily lit in blue"
             fill
             priority
             quality={90}
