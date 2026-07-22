@@ -318,16 +318,17 @@ export default function LandingPage({ params }: LandingPageProps) {
                 60+ markers, one baseline.
               </h2>
               <p className="mt-6 max-w-[38em] text-pretty text-body-lg leading-relaxed text-text-secondary">
-                One venous draw across eight body systems, organised into the
-                marker groups below. Some groups contain several measurements;
-                search a group, or open it to see what it tells you.
+                One venous draw across eight body systems
+                {market === 'us' && ', plus a one-time foundational genomics baseline'}
+                {' '}— grouped into the panels below. Search a marker, or open
+                a panel to see what it tells you.
               </p>
             </div>
             <MarkerOrbit className="mx-auto w-full max-w-[620px]" />
           </div>
 
           <div className="mt-12">
-            <MarkerIndex markers={testingMarkers(market)} />
+            <MarkerIndex market={market} markers={testingMarkers(market)} />
           </div>
           <p className="mt-5 max-w-[48em] text-caption leading-relaxed text-text-tertiary">
             Illustrative baseline — finalised with our medical director and

@@ -14,6 +14,11 @@ const config: Config = {
     // /record?mode=map go invisible. Same applies to any future class
     // strings that live in src/lib/.
     './src/lib/**/*.{js,ts,jsx,tsx,mdx}',
+    // Editorial data files under content/ (e.g. testing-markers.ts) store
+    // Tailwind class strings too — dotClass on MarkerCategory being the
+    // case that surfaced this. Same JIT-purge risk as src/lib/ above if
+    // this directory isn't scanned.
+    './content/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   // Belt-and-braces: even if the content scan misses a class string,
   // the graph encoding ships. These mirror src/lib/graph/visual-encoding.ts.
