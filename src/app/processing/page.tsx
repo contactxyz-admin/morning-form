@@ -120,7 +120,9 @@ export default function ProcessingPage() {
       />
 
       <div className="relative space-y-6 max-w-md">
-        <SectionLabel className="mb-8">Processing</SectionLabel>
+        <div className="mb-8">
+          <SectionLabel>Processing</SectionLabel>
+        </div>
         {steps.map((step, i) => (
           <motion.p
             key={step}

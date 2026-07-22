@@ -123,7 +123,7 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
         {showConcierge && (
           <div className="mt-8 pt-6 border-t border-border">
             <div className="flex items-start gap-3">
-              <span className="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+              <span className="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-brand-blue-100 text-brand-blue-900">
                 Recommended
               </span>
             </div>

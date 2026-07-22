@@ -204,7 +204,7 @@ export default function CheckInPage() {
     <div className="px-5 pt-6 pb-32 grain-page">
       <Link
         href="/record"
-        className="group mb-5 flex items-center justify-between rounded-card border border-border/60 bg-surface-warm/60 px-4 py-3 text-caption text-text-secondary transition-colors duration-300 ease-spring hover:border-border hover:text-text-primary"
+        className="group mb-5 flex items-center justify-between rounded-card border border-border bg-surface-warm/60 px-4 py-3 text-caption text-text-secondary transition-colors duration-300 ease-spring hover:border-border-mid hover:text-text-primary"
       >
         <span>
           Now part of your{' '}

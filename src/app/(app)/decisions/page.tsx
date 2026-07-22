@@ -313,16 +313,19 @@ function fmtDate(d: Date | string): string {
 
 // Chip colours per classification — descriptive, range-relative (never
 // "good/bad"). Labels + arrow glyphs come from the shared change-presentation
-// vocabulary so they can't drift from the canvas/list surfaces. improved/
-// worsened are genuine status signal, so they draw from the app-wide
-// positive/caution tokens; stable/unclassified/new are non-evaluative and
-// stay neutral or brand-taxonomy coloured (matching the state chips above).
+// vocabulary so they can't drift from the canvas/list surfaces — colour now
+// matches too: improved/worsened mirror the positive/alert tokens the graph
+// canvas (visual-encoding.ts) and mobile graph list already use for the same
+// classification, rather than introducing a third, inconsistent treatment.
+// stable/unclassified/new are non-evaluative and stay neutral; `new` uses a
+// distinct blue-grey rather than brand-blue so it can't be mistaken at a
+// glance for the "accepted" state chip below, which appears on this same page.
 const CHANGE_CHIP_STYLE: Record<MarkerChange['classification'], string> = {
   improved: 'bg-positive-light text-positive-deep',
-  worsened: 'bg-caution-light text-caution',
+  worsened: 'bg-alert-light text-alert',
   stable: 'bg-bg-deep text-text-secondary',
   unclassified: 'bg-bg-deep text-text-tertiary',
-  new: 'bg-brand-blue-100 text-brand-blue-900',
+  new: 'bg-brand-bluegrey/10 text-brand-bluegrey',
 };
 
 function PanelDiffCard({ diff }: { diff: PanelDiff }) {

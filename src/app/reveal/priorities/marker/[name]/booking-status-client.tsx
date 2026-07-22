@@ -110,10 +110,10 @@ function BookingItem({ booking }: { booking: BookingRow }) {
         <span
           className={`font-mono text-[10px] uppercase tracking-[0.08em] ${
             status === 'delivered'
-              ? 'text-emerald-600'
+              ? 'text-positive'
               : status === 'arranged'
-                ? 'text-blue-600'
-                : 'text-amber-600'
+                ? 'text-brand-blue-900'
+                : 'text-caution'
           }`}
         >
           {STATUS_LABELS[status] ?? status}
@@ -129,7 +129,7 @@ function BookingItem({ booking }: { booking: BookingRow }) {
       </p>
 
       {revealedCode && (
-        <div className="mt-3 rounded-card border border-emerald-500/40 bg-emerald-50 dark:bg-emerald-900/20 p-3">
+        <div className="mt-3 rounded-card border border-positive/40 bg-positive-light p-3">
           <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
             Your redemption code
           </p>
