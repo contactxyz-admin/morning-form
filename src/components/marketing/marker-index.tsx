@@ -13,6 +13,8 @@ import {
 interface MarkerIndexProps {
   market: Market;
   markers: ReadonlyArray<MarkerEntry>;
+  /** Seeds the search box — exists so tests can render straight into the no-results state without simulating typing. */
+  initialQuery?: string;
 }
 
 const PREVIEW_MIN_TOP = 6;
@@ -30,8 +32,8 @@ const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffec
  * their own marker groups. Hovering a category row (desktop only) shows a
  * floating hand-drawn molecule illustration tied to that panel.
  */
-export function MarkerIndex({ market, markers }: MarkerIndexProps) {
-  const [query, setQuery] = useState("");
+export function MarkerIndex({ market, markers, initialQuery = "" }: MarkerIndexProps) {
+  const [query, setQuery] = useState(initialQuery);
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const [hoverCategoryId, setHoverCategoryId] = useState<string | null>(null);
   const [previewTop, setPreviewTop] = useState(PREVIEW_MIN_TOP);
@@ -90,6 +92,16 @@ export function MarkerIndex({ market, markers }: MarkerIndexProps) {
     const top = Math.max(PREVIEW_MIN_TOP, anchorTop + anchorHeight / 2 - height / 2);
     setPreviewTop(top);
   }, [hoveredMolecule]);
+
+  // A row can disappear out from under the pointer — typing a search query
+  // that filters out the category currently being hovered — without ever
+  // firing mouseleave. Drop a hover that's no longer backed by a rendered row.
+  useEffect(() => {
+    if (hoverCategoryId && !groups.some((g) => g.category.id === hoverCategoryId)) {
+      setHoverCategoryId(null);
+      hoverAnchorRef.current = null;
+    }
+  }, [groups, hoverCategoryId]);
 
   function handleCategoryEnter(categoryId: string, target: HTMLElement) {
     if (typeof window === "undefined" || window.innerWidth < PREVIEW_MIN_VIEWPORT_WIDTH) return;

@@ -104,6 +104,18 @@ describe('market landing page', () => {
       React.createElement(MarkerIndex, { market: 'us', markers: [] }),
     );
     expect(emptyIndexMarkup).toContain('0 · once');
+
+    const noResultsMarkup = renderToStaticMarkup(
+      React.createElement(MarkerIndex, {
+        market: 'us',
+        markers: testingMarkers('us'),
+        initialQuery: 'zzz-no-such-marker',
+      }),
+    );
+    expect(noResultsMarkup).toContain('No markers match that search.');
+    expect(noResultsMarkup).toMatch(
+      /<button[^>]*class="[^"]*focus:shadow-ring-focus[^"]*"[^>]*>\s*Clear search/,
+    );
   });
 
   it('keeps testing and partner metadata aligned with the public offer', () => {
