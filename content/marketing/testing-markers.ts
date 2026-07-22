@@ -2,9 +2,14 @@ import type { Market } from '@/lib/marketing/constants';
 
 /**
  * The baseline panel's full marker index — one entry per marker group,
- * organised into the same six panels as `panelGroups()` on the testing
- * page. Lives in content/ alongside testing-faq.ts so the static-copy
- * compliance gate scans this editorial copy too.
+ * organised into the panels from `markerCategories()` below. Lives in
+ * content/ alongside testing-faq.ts so the static-copy compliance gate
+ * scans this editorial copy too.
+ *
+ * The foundational-genomics panel is US-only: direct-to-consumer genetic
+ * testing sits under different, tighter regulatory footing in the UK, so
+ * `markerCategories('uk')` and `testingMarkers('uk')` omit it entirely
+ * (see the "not.toMatch(/genom|genetic/i)" guard in page.test.ts).
  *
  * Two entries carry market-conditional naming (the UK/US spelling and
  * lab-naming differences already handled elsewhere on this page):
@@ -16,6 +21,8 @@ export interface MarkerCategory {
   readonly label: string;
   /** Tailwind background-color class for the row dot and category accent. */
   readonly dotClass: string;
+  /** Raw hex of the same accent — needed where a CSS value is required (the molecule preview's gradient), not just a Tailwind class. */
+  readonly dotHex: string;
 }
 
 export interface MarkerEntry {
@@ -27,14 +34,25 @@ export interface MarkerEntry {
   readonly description: string;
 }
 
-export const MARKER_CATEGORIES: ReadonlyArray<MarkerCategory> = [
-  { id: 'metabolic', label: 'Metabolic & heart', dotClass: 'bg-brand-blue-500' },
-  { id: 'hormones', label: 'Hormones & thyroid', dotClass: 'bg-brand-bluegrey' },
-  { id: 'recovery', label: 'Recovery, blood & iron', dotClass: 'bg-brand-sage-500' },
-  { id: 'inflammation', label: 'Inflammation & immune', dotClass: 'bg-brand-orange-500' },
-  { id: 'nutrients', label: 'Nutrients & vitamins', dotClass: 'bg-brand-sage-700' },
-  { id: 'organ', label: 'Liver, kidney & organ', dotClass: 'bg-brand-blue-700' },
+const BLOOD_CATEGORIES: ReadonlyArray<MarkerCategory> = [
+  { id: 'metabolic', label: 'Metabolic & heart', dotClass: 'bg-brand-blue-500', dotHex: '#93BCDB' },
+  { id: 'hormones', label: 'Hormones & thyroid', dotClass: 'bg-brand-bluegrey', dotHex: '#5E6873' },
+  { id: 'recovery', label: 'Recovery, blood & iron', dotClass: 'bg-brand-sage-500', dotHex: '#9BA478' },
+  { id: 'inflammation', label: 'Inflammation & immune', dotClass: 'bg-brand-orange-500', dotHex: '#FF845F' },
+  { id: 'nutrients', label: 'Nutrients & vitamins', dotClass: 'bg-brand-sage-700', dotHex: '#5F6740' },
+  { id: 'organ', label: 'Liver, kidney & organ', dotClass: 'bg-brand-blue-700', dotHex: '#6890AD' },
 ];
+
+const GENOMICS_CATEGORY: MarkerCategory = {
+  id: 'genomics',
+  label: 'Foundational genomics',
+  dotClass: 'bg-brand-lavender-500',
+  dotHex: '#BD68C8',
+};
+
+export function markerCategories(market: Market): ReadonlyArray<MarkerCategory> {
+  return market === 'us' ? [...BLOOD_CATEGORIES, GENOMICS_CATEGORY] : BLOOD_CATEGORIES;
+}
 
 export function testingMarkers(market: Market): ReadonlyArray<MarkerEntry> {
   const uk = market === 'uk';
@@ -303,5 +321,41 @@ export function testingMarkers(market: Market): ReadonlyArray<MarkerEntry> {
       description:
         'Sodium, potassium and the balance that keeps nerves, muscles and hydration in tune. The quiet chemistry behind feeling steady.',
     },
+    ...(uk
+      ? []
+      : [
+          {
+            id: 'pgx',
+            categoryId: 'genomics',
+            name: 'Pharmacogenomics',
+            sub: 'once',
+            description:
+              'How your body is likely to process common medications and caffeine — a once-in-a-lifetime read that adds context to everything measured in blood.',
+          },
+          {
+            id: 'nutrigenomics',
+            categoryId: 'genomics',
+            name: 'Nutrient metabolism',
+            sub: 'once',
+            description:
+              'Inherited variants (like MTHFR) in how you handle folate, B12 and other nutrients — part of why two people on the same diet can read very differently.',
+          },
+          {
+            id: 'cardiogenetics',
+            categoryId: 'genomics',
+            name: 'Cardiometabolic risk variants',
+            sub: 'once',
+            description:
+              'Common inherited variants linked to lipids and metabolism, read alongside Lp(a) to frame long-term risk early rather than late.',
+          },
+          {
+            id: 'traits',
+            categoryId: 'genomics',
+            name: 'Sleep & recovery traits',
+            sub: 'once',
+            description:
+              'Genotypes tied to chronotype, caffeine sensitivity and recovery — small, stable context that helps your day-to-day wearable data make sense.',
+          },
+        ]),
   ];
 }

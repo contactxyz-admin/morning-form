@@ -262,13 +262,16 @@ export default function TestingPage({ params }: TestingPageProps) {
             Sixty-plus markers, one baseline.
           </h2>
           <p className="mt-8 text-body-lg text-text-secondary max-w-2xl leading-relaxed">
-            One venous draw across eight body systems, organised into 33 marker groups
-            across the six panels below — comprehensive by design, read through an energy
-            and recovery lens. Search a group, or open it to see what it tells you.
+            One venous draw across eight body systems
+            {market === 'us'
+              ? ', plus a one-time foundational genomics baseline — organised into 37 marker groups across the seven panels below'
+              : ' — organised into 33 marker groups across the six panels below'}
+            , read through an energy and recovery lens. Search a marker, or open a
+            panel to see what it tells you.
           </p>
 
           <div className="mt-12">
-            <MarkerIndex markers={testingMarkers(market)} />
+            <MarkerIndex market={market} markers={testingMarkers(market)} />
           </div>
 
           <p className="mt-8 text-caption text-text-tertiary max-w-2xl">

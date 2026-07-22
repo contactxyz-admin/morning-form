@@ -79,26 +79,31 @@ describe('market landing page', () => {
     });
   });
 
-  it('distinguishes the 60+ marker promise from the 33 searchable marker groups', () => {
-    const markup = landingMarkup('uk');
+  it('distinguishes the 60+ marker promise from the marker groups, gating genomics to the US', () => {
+    const ukMarkup = landingMarkup('uk');
+    const usMarkup = landingMarkup('us');
 
     expect(testingMarkers('uk')).toHaveLength(33);
-    expect(markup).toContain('60+ markers, one baseline.');
-    expect(markup).toContain('33 of 33 marker groups');
-    expect(markup).not.toContain('33 of 33 markers');
-    expect(markup).toContain('All marker groups');
-    expect(markup).not.toContain('All markers');
-    expect(markup).toContain('Search marker groups');
-    expect(markup).toContain('search a group, or open it');
-    expect(markup).toContain('focus:ring-button-focus');
+    expect(testingMarkers('us')).toHaveLength(37);
+
+    for (const markup of [ukMarkup, usMarkup]) {
+      expect(markup).toContain('60+ markers, one baseline.');
+      expect(markup).toContain('Search markers');
+      expect(markup).toContain('open a panel to see what it tells you');
+      expect(markup).toContain('focus:ring-button-focus');
+    }
+
+    expect(ukMarkup).not.toMatch(/genom|genetic/i);
+    expect(ukMarkup).toContain('6 panels · 60+ measurements');
+    expect(ukMarkup).not.toContain('+ genomics');
+
+    expect(usMarkup).toContain('Foundational genomics');
+    expect(usMarkup).toContain('7 panels · 60+ measurements + genomics');
 
     const emptyIndexMarkup = renderToStaticMarkup(
-      React.createElement(MarkerIndex, { markers: [] }),
+      React.createElement(MarkerIndex, { market: 'us', markers: [] }),
     );
-    expect(emptyIndexMarkup).toContain('No marker groups match that search.');
-    expect(emptyIndexMarkup).toMatch(
-      /<button[^>]*class="[^"]*focus:shadow-ring-focus[^"]*"[^>]*>\s*Clear search/,
-    );
+    expect(emptyIndexMarkup).toContain('0 · once');
   });
 
   it('keeps testing and partner metadata aligned with the public offer', () => {
@@ -171,9 +176,7 @@ describe('market landing page', () => {
     const usMarkup = testingMarkup('us');
 
     for (const markup of [ukMarkup, usMarkup]) {
-      expect(markup).toContain('organised into 33 marker groups');
-      expect(markup).toContain('Search a group, or open it');
-      expect(markup).not.toContain('Search a marker');
+      expect(markup).toContain('Search a marker, or open a panel');
       expect(markup).toContain(
         'It covers a core panel rather than every marker in the full venous baseline',
       );
@@ -181,6 +184,12 @@ describe('market landing page', () => {
       expect(markup).not.toMatch(/<a[^>]+href="\/sign-in"[^>]*>\s*<button/);
       expectAllLinksToHaveVisibleFocus(markup);
     }
+
+    expect(ukMarkup).toContain('organised into 33 marker groups across the six panels');
+    expect(ukMarkup).not.toMatch(/genom|genetic/i);
+    expect(usMarkup).toContain(
+      'organised into 37 marker groups across the seven panels',
+    );
 
     expect(ukMarkup).toContain('Three ways to test');
     expect(ukMarkup).toContain('Morning Form Studios · London');
