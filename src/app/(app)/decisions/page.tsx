@@ -42,12 +42,15 @@ const STATE_LABELS: Record<string, string> = {
   dismissed: 'Dismissed',
 };
 
+// One brand hue per lifecycle stage — a progress taxonomy, not a
+// severity signal, so these draw from the same brand ramp used for the
+// /ask next-steps chips rather than the positive/caution/alert tokens.
 const STATE_STYLES: Record<string, string> = {
-  suggested: 'bg-amber-100 text-amber-800',
-  accepted: 'bg-blue-100 text-blue-800',
-  completed: 'bg-emerald-100 text-emerald-800',
-  'outcome-measured': 'bg-violet-100 text-violet-800',
-  dismissed: 'bg-gray-100 text-gray-500',
+  suggested: 'bg-brand-lavender-100 text-brand-lavender-900',
+  accepted: 'bg-brand-blue-100 text-brand-blue-900',
+  completed: 'bg-brand-sage-100 text-brand-sage-900',
+  'outcome-measured': 'bg-brand-orange-100 text-brand-orange-900',
+  dismissed: 'bg-bg-deep text-text-tertiary',
 };
 
 export default async function DecisionsPage() {
@@ -191,7 +194,7 @@ function renderActions(actions: TimelineAction[], trajectoryCounts: Map<string, 
 function renderDismissed(actions: TimelineAction[], trajectoryCounts: Map<string, number>) {
   if (!actions.length) return null;
   return (
-    <div className="pt-6 mt-6 border-t border-border-subtle">
+    <div className="pt-6 mt-6 border-t border-border">
       <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary mb-3">
         Dismissed
       </p>
@@ -218,7 +221,7 @@ function TimelineCard({
 
   return (
     <div
-      className={`border rounded-card p-4 ${isDismissed ? 'border-border-subtle' : 'border-border'}`}
+      className={`border rounded-card p-4 ${isDismissed ? 'border-border' : 'border-border-mid'}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -265,7 +268,7 @@ function TimelineCard({
 
         {/* State chip */}
         <span
-          className={`shrink-0 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${STATE_STYLES[action.state] ?? 'bg-gray-100 text-gray-700'}`}
+          className={`shrink-0 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${STATE_STYLES[action.state] ?? 'bg-bg-deep text-text-secondary'}`}
         >
           {STATE_LABELS[action.state] ?? action.state}
         </span>
@@ -310,13 +313,19 @@ function fmtDate(d: Date | string): string {
 
 // Chip colours per classification — descriptive, range-relative (never
 // "good/bad"). Labels + arrow glyphs come from the shared change-presentation
-// vocabulary so they can't drift from the canvas/list surfaces.
+// vocabulary so they can't drift from the canvas/list surfaces — colour now
+// matches too: improved/worsened mirror the positive/alert tokens the graph
+// canvas (visual-encoding.ts) and mobile graph list already use for the same
+// classification, rather than introducing a third, inconsistent treatment.
+// stable/unclassified/new are non-evaluative and stay neutral; `new` uses a
+// distinct blue-grey rather than brand-blue so it can't be mistaken at a
+// glance for the "accepted" state chip below, which appears on this same page.
 const CHANGE_CHIP_STYLE: Record<MarkerChange['classification'], string> = {
-  improved: 'bg-emerald-100 text-emerald-800',
-  worsened: 'bg-amber-100 text-amber-800',
-  stable: 'bg-gray-100 text-gray-600',
-  unclassified: 'bg-gray-100 text-gray-600',
-  new: 'bg-blue-100 text-blue-800',
+  improved: 'bg-positive-light text-positive-deep',
+  worsened: 'bg-alert-light text-alert',
+  stable: 'bg-bg-deep text-text-secondary',
+  unclassified: 'bg-bg-deep text-text-tertiary',
+  new: 'bg-brand-bluegrey/10 text-brand-bluegrey',
 };
 
 function PanelDiffCard({ diff }: { diff: PanelDiff }) {

@@ -21,7 +21,7 @@ function Chip({ selected, onClick, children, className }: ChipProps) {
         'active:scale-[0.97] active:duration-150',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-button-focus',
         selected
-          ? 'bg-accent text-[#FFFFFF] border-accent'
+          ? 'bg-accent text-bg border-accent'
           : 'bg-surface text-text-secondary border-border hover:text-text-primary hover:border-border-strong',
         className,
       )}

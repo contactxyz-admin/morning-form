@@ -153,7 +153,7 @@ export function BookClient({
   if (ownBooking) {
     return (
       <div className="mt-8 border border-border rounded-card p-5 bg-surface">
-        {error && <p className="mb-3 text-caption text-red-700">{error}</p>}
+        {error && <p className="mb-3 text-caption text-alert">{error}</p>}
         <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
           Booked
         </p>
@@ -181,7 +181,7 @@ export function BookClient({
   if (picked) {
     return (
       <div className="mt-8">
-        {error && <p className="mb-3 text-caption text-red-700">{error}</p>}
+        {error && <p className="mb-3 text-caption text-alert">{error}</p>}
         <p className="text-body text-text-primary">
           {picked.venueName} · {formatDayLabel(picked.startsAt)} · {formatSlotLabel(picked.startsAt)}{' '}
           (UK time)
@@ -226,7 +226,7 @@ export function BookClient({
 
   return (
     <div className="mt-8 space-y-6">
-      {error && <p className="text-caption text-red-700">{error}</p>}
+      {error && <p className="text-caption text-alert">{error}</p>}
       {groups.map((group) => (
         <div key={`${group.venueName}-${group.day}`} className="border border-border rounded-card p-5">
           <p className="text-body text-text-primary">{group.venueName}</p>

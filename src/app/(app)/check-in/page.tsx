@@ -42,7 +42,7 @@ function QuickSelect({ index, label, options, selected, onSelect, disabled }: Qu
               'disabled:cursor-not-allowed disabled:opacity-60',
               'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-button-focus',
               selected === opt.value
-                ? 'bg-accent text-[#FFFFFF] border-accent'
+                ? 'bg-accent text-bg border-accent'
                 : 'bg-surface text-text-secondary border-border hover:text-text-primary hover:border-border-strong',
             )}
           >
@@ -204,7 +204,7 @@ export default function CheckInPage() {
     <div className="px-5 pt-6 pb-32 grain-page">
       <Link
         href="/record"
-        className="group mb-5 flex items-center justify-between rounded-card border border-border-subtle bg-surface-paper/60 px-4 py-3 text-caption text-text-secondary transition-colors duration-300 ease-spring hover:border-border hover:text-text-primary"
+        className="group mb-5 flex items-center justify-between rounded-card border border-border bg-surface-warm/60 px-4 py-3 text-caption text-text-secondary transition-colors duration-300 ease-spring hover:border-border-mid hover:text-text-primary"
       >
         <span>
           Now part of your{' '}
