@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { clearDraft } from '@/lib/assessment-draft';
 import { LlmConsentModal } from '@/components/auth/llm-consent-modal';
 import { useLlmConsentGate } from '@/lib/hooks/use-llm-consent-gate';
+import { SectionLabel } from '@/components/ui/section-label';
 
 const steps = [
   'Analysing your state patterns',
@@ -106,21 +107,20 @@ export default function ProcessingPage() {
   }, [router, retrySeq, checkConsent]);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-8 relative overflow-hidden">
-      {/* subtle radial glow */}
+    <div className="min-h-screen bg-bg flex items-center justify-center px-8 relative overflow-hidden">
+      {/* subtle radial glow — the same soft pastel wash used elsewhere in
+          the redesign, not the pre-redesign dark cinematic treatment. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-40"
+        className="pointer-events-none absolute inset-0 opacity-70"
         style={{
           backgroundImage:
-            'radial-gradient(circle at 50% 45%, rgba(31, 58, 46, 0.35) 0px, transparent 45%)',
+            'radial-gradient(circle at 50% 45%, rgba(227,243,255,0.8) 0px, transparent 45%)',
         }}
       />
 
       <div className="relative space-y-6 max-w-md">
-        <p className="text-label uppercase tracking-[0.14em] text-text-secondary mb-8">
-          Processing
-        </p>
+        <SectionLabel className="mb-8">Processing</SectionLabel>
         {steps.map((step, i) => (
           <motion.p
             key={step}
@@ -131,7 +131,7 @@ export default function ProcessingPage() {
                 : { opacity: 0, filter: 'blur(6px)', y: 6 }
             }
             transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="font-display font-light text-heading sm:text-subheading text-surface-warm -tracking-[0.015em]"
+            className="font-display font-light text-heading sm:text-subheading text-text-primary -tracking-[0.015em]"
           >
             {step}
           </motion.p>
@@ -149,7 +149,7 @@ export default function ProcessingPage() {
                 setVisibleSteps(0);
                 setRetrySeq((n) => n + 1);
               }}
-              className="text-caption text-surface-warm underline underline-offset-4 hover:opacity-80"
+              className="text-caption text-text-secondary underline underline-offset-4 hover:text-text-primary transition-colors duration-300"
             >
               Try again →
             </button>

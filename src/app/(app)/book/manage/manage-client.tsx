@@ -89,7 +89,7 @@ export function ManageClient({ initialSlots }: { initialSlots: ManagedSlot[] }) 
 
   return (
     <div className="mt-8">
-      {error && <p className="mb-3 text-caption text-red-700">{error}</p>}
+      {error && <p className="mb-3 text-caption text-alert">{error}</p>}
 
       <div className="border border-border rounded-card p-4">
         <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary">
@@ -148,7 +148,7 @@ export function ManageClient({ initialSlots }: { initialSlots: ManagedSlot[] }) 
               <button
                 type="button"
                 onClick={() => void deleteSlot(slot.id)}
-                className="shrink-0 text-caption text-text-tertiary hover:text-red-700"
+                className="shrink-0 text-caption text-text-tertiary hover:text-alert"
               >
                 Delete
               </button>

@@ -108,7 +108,7 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
         </p>
 
         {/* What the test involves */}
-        <div className="mt-10 pt-8 border-t border-border-subtle">
+        <div className="mt-10 pt-8 border-t border-border">
           <h2 className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary mb-3">
             What the test involves
           </h2>
@@ -121,7 +121,7 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
 
         {/* Route 1: Concierge */}
         {showConcierge && (
-          <div className="mt-8 pt-6 border-t border-border-subtle">
+          <div className="mt-8 pt-6 border-t border-border">
             <div className="flex items-start gap-3">
               <span className="inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
                 Recommended
@@ -140,7 +140,7 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
         )}
 
         {/* Route 2: GP */}
-        <div className="mt-8 pt-6 border-t border-border-subtle">
+        <div className="mt-8 pt-6 border-t border-border">
           <h3 className="font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
             Through your GP
           </h3>
@@ -151,7 +151,7 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
 
         {/* Route 3: Self-order */}
         {showSelfOrder && (
-          <div className="mt-8 pt-6 border-t border-border-subtle">
+          <div className="mt-8 pt-6 border-t border-border">
             <h3 className="font-display font-normal text-heading text-text-primary -tracking-[0.02em]">
               Order it yourself
             </h3>
@@ -188,7 +188,7 @@ export default async function MarkerDetailPage({ params, searchParams }: Props) 
         )}
 
         {/* Secondary: upload */}
-        <div className="mt-10 pt-6 border-t border-border-subtle">
+        <div className="mt-10 pt-6 border-t border-border">
           <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary mb-3">
             Already have results?
           </p>
@@ -227,7 +227,7 @@ async function UserBookingRequests({ userId }: { userId: string }) {
     });
     if (count === 0) return null;
     return (
-      <div className="mt-10 pt-6 border-t border-border-subtle">
+      <div className="mt-10 pt-6 border-t border-border">
         <a
           href="/decisions"
           className="inline-flex items-center gap-1.5 font-mono text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"

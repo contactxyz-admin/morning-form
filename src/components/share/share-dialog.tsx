@@ -199,7 +199,7 @@ export function ShareDialog({ open, onClose, scope, defaultLabel }: Props) {
                   <MeshGradient
                     seed={meshSeed(scope, state.id)}
                     variant={scope.kind}
-                    className="h-24 w-full rounded-card border border-border-subtle"
+                    className="h-24 w-full rounded-card border border-border"
                   />
                   <p className="mt-2 text-caption text-text-tertiary">
                     {formatExpiry(state.expiresAt)}

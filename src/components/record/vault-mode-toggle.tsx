@@ -51,7 +51,7 @@ export function VaultModeToggle({ active, onChange, disabled }: VaultModeToggleP
               'px-3.5 py-1.5 rounded-full text-caption font-medium uppercase tracking-[0.06em]',
               'transition-colors duration-300 ease-spring',
               isActive
-                ? 'bg-bg text-text-primary shadow-sm'
+                ? 'bg-bg text-text-primary shadow-hairline'
                 : isClickable
                   ? 'text-text-tertiary hover:text-text-secondary'
                   : 'text-text-whisper cursor-not-allowed',

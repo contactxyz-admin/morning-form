@@ -260,7 +260,7 @@ function IssueDialog({
           onChange={(e) => setLabel(e.target.value)}
           placeholder="Claude Desktop on laptop"
           autoFocus
-          className="mt-5 w-full px-3 py-2 bg-surface-warm border border-border rounded-md text-body text-text-primary placeholder:text-text-whisper focus:outline-none focus:ring-2 focus:ring-accent/50"
+          className="mt-5 w-full px-3 py-2 bg-surface-warm border border-border rounded-input text-body text-text-primary placeholder:text-text-whisper focus:outline-none focus:border-text-primary focus:shadow-ring-accent"
           maxLength={120}
         />
         <div className="mt-6 flex gap-3 justify-end">
@@ -339,7 +339,7 @@ function JustIssuedDialog({
             Raw token
           </p>
           <div className="flex items-stretch gap-2">
-            <code className="flex-1 px-3 py-2 bg-surface-warm border border-border rounded-md text-caption font-mono text-text-primary break-all">
+            <code className="flex-1 px-3 py-2 bg-surface-warm border border-border rounded-well text-caption font-mono text-text-primary break-all">
               {issued.rawToken}
             </code>
             <Button
@@ -361,7 +361,7 @@ function JustIssuedDialog({
             Add to <code className="font-mono">claude_desktop_config.json</code> and restart the app.
           </p>
           <div className="flex items-start gap-2">
-            <pre className="flex-1 px-3 py-2 bg-surface-warm border border-border rounded-md text-caption font-mono text-text-primary overflow-auto max-h-48">
+            <pre className="flex-1 px-3 py-2 bg-surface-warm border border-border rounded-well text-caption font-mono text-text-primary overflow-auto max-h-48">
               {desktopConfig}
             </pre>
             <Button
@@ -383,7 +383,7 @@ function JustIssuedDialog({
             Once the <code className="font-mono">@morningform/mcp</code> package publishes, this one-liner registers a stdio bridge.
           </p>
           <div className="flex items-stretch gap-2">
-            <code className="flex-1 px-3 py-2 bg-surface-warm border border-border rounded-md text-caption font-mono text-text-primary break-all">
+            <code className="flex-1 px-3 py-2 bg-surface-warm border border-border rounded-well text-caption font-mono text-text-primary break-all">
               {codeOneLiner}
             </code>
             <Button

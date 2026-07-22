@@ -29,7 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function BookingStatusList({ bookings }: { bookings: BookingRow[] }) {
   return (
-    <div className="mt-10 pt-6 border-t border-border-subtle">
+    <div className="mt-10 pt-6 border-t border-border">
       <h2 className="font-mono text-[10px] uppercase tracking-[0.08em] text-text-tertiary mb-4">
         Your test requests
       </h2>

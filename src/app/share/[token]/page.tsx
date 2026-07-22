@@ -134,7 +134,7 @@ async function SharedTopic({
 
 function ShareBanner({ label, hadRedactions }: { label: string | null; hadRedactions: boolean }) {
   return (
-    <div className="rounded-card border border-border-subtle bg-surface-paper/60 px-4 py-3 text-caption text-text-secondary">
+    <div className="rounded-card border border-border bg-surface-warm/60 px-4 py-3 text-caption text-text-secondary">
       <div className="flex items-center gap-2">
         <span aria-hidden className="inline-block w-1.5 h-1.5 rounded-full bg-accent" />
         <span className="uppercase tracking-wider font-mono text-label">Shared view</span>
